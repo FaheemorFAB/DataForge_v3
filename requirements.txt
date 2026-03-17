@@ -1,0 +1,9 @@
+Flask
+Flask-SocketIO
+Flask-Login
+Flask-SQLAlchemy
+pandas
+numpy
+python-dotenv
+Authlib
+requests
