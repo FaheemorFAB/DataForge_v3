@@ -172,7 +172,8 @@ class SupabaseStorage:
 
     @staticmethod
     def _df_path(user_id: int, upload_id: int, key: str) -> str:
-        return f"users/{user_id}/uploads/{upload_id}/{key}.csv"
+        return f"users/{user_id}/uploads/{upload_id}/{key}.parquet"
+
 
     def upload_dataframe(
         self,
@@ -188,9 +189,11 @@ class SupabaseStorage:
         if not STORAGE_OK:
             return self._save_local_df(user_id, upload_id, df, key)
 
-        path      = self._df_path(user_id, upload_id, key)
-        csv_bytes = df.to_csv(index=False).encode("utf-8")
-        return self.upload_bytes(path, csv_bytes, "text/csv")
+        path   = self._df_path(user_id, upload_id, key)
+        buffer = io.BytesIO()
+        df.to_parquet(buffer, index=False, compression="snappy")
+        return self.upload_bytes(path, buffer.getvalue(), "application/octet-stream")
+
 
     def download_dataframe(self, storage_path: str) -> Optional[pd.DataFrame]:
         """
@@ -201,10 +204,12 @@ class SupabaseStorage:
             return self._load_local_df(storage_path)
         try:
             data = self.download_bytes(storage_path)
-            return pd.read_csv(io.BytesIO(data))
+            return pd.read_parquet(io.BytesIO(data))
+
         except Exception as exc:
             log.warning("SupabaseStorage.download_dataframe failed: %s", exc)
             return None
+
 
     # ── Pickle helpers ────────────────────────────────────────────────────────
 
@@ -242,6 +247,62 @@ class SupabaseStorage:
             return pickle.loads(data)
         except Exception as exc:
             log.warning("SupabaseStorage.download_pickle failed: %s", exc)
+
+    # ── JSON helpers ────────────────────────────────────────────────────────
+    def upload_json(self, user_id: int, upload_id: int, key: str, obj: Any) -> str:
+        if not STORAGE_OK:
+            p = self._local_dir(user_id, upload_id) / f"{key}.json"
+            with open(p, "w", encoding="utf-8") as f:
+                import json
+                json.dump(obj, f, default=str)
+            return str(p)
+
+        path = f"users/{user_id}/uploads/{upload_id}/{key}.json"
+        import json
+        json_bytes = json.dumps(obj, default=str).encode("utf-8")
+        return self.upload_bytes(path, json_bytes, "application/json")
+
+    def download_json(self, storage_path: str) -> Optional[Any]:
+        if not STORAGE_OK:
+            p = Path(storage_path)
+            if not p.exists(): return None
+            try:
+                import json
+                with open(p, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                return None
+        try:
+            data = self.download_bytes(storage_path)
+            import json
+            return json.loads(data.decode("utf-8"))
+        except Exception as exc:
+            log.warning("SupabaseStorage.download_json failed: %s", exc)
+            return None
+
+    # ── Joblib/Model helpers (Bytes wrapper) ──────────────────────────────────
+    def upload_joblib(self, user_id: int, upload_id: int, key: str, obj_bytes: bytes) -> str:
+        if not STORAGE_OK:
+            p = self._local_dir(user_id, upload_id) / f"{key}.joblib"
+            p.write_bytes(obj_bytes)
+            return str(p)
+
+        path = f"users/{user_id}/uploads/{upload_id}/{key}.joblib"
+        return self.upload_bytes(path, obj_bytes, "application/octet-stream")
+
+    def download_joblib(self, storage_path: str) -> Optional[bytes]:
+        if not STORAGE_OK:
+            p = Path(storage_path)
+            if not p.exists(): return None
+            try:
+                return p.read_bytes()
+            except Exception:
+                return None
+        try:
+            return self.download_bytes(storage_path)
+        except Exception as exc:
+            log.warning("SupabaseStorage.download_joblib failed: %s", exc)
+
             return None
 
     # ── HTML helpers (for EDA / reports) ─────────────────────────────────────
@@ -302,8 +363,8 @@ class SupabaseStorage:
     def _save_local_df(
         self, user_id: int, upload_id: int, df: pd.DataFrame, key: str
     ) -> str:
-        p = self._local_dir(user_id, upload_id) / f"{key}.csv"
-        df.to_csv(p, index=False)
+        p = self._local_dir(user_id, upload_id) / f"{key}.parquet"
+        df.to_parquet(p, index=False, compression="snappy")
         log.debug("SupabaseStorage[local]: saved df → %s", p)
         return str(p)
 
@@ -312,7 +373,7 @@ class SupabaseStorage:
         if not p.exists():
             return None
         try:
-            return pd.read_csv(p)
+            return pd.read_parquet(p)
         except Exception:
             return None
 

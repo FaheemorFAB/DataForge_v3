@@ -336,4 +336,48 @@ class MetricDefinition(db.Model):
             "category":    self.category or "general",
             "created_at":  self.created_at.isoformat() if self.created_at else "",
             "updated_at":  self.updated_at.isoformat() if self.updated_at else "",
+
+
+        }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# JOB  (Celery background task tracking)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class Job(db.Model):
+    """
+    Persistent record of every background Celery task.
+
+    Status lifecycle:  queued → started → success | failure
+    The Celery task itself is responsible for transitioning to started/success/failure.
+    Flask routes write the initial 'queued' row and the frontend polls /api/task/<id>.
+    """
+    __tablename__ = "jobs"
+
+    # Primary key == Celery task UUID so we can look it up without a separate field
+    id          = Column(String(64), primary_key=True)
+    user_id     = Column(Integer, ForeignKey("users.id"),    nullable=True, index=True)
+    upload_id   = Column(Integer, ForeignKey("uploads.id"),  nullable=True, index=True)
+    type        = Column(String(32))   # "insights" | "automl" | "eda" | "report" | "alerts"
+    status      = Column(String(16), default="queued")  # queued | started | success | failure
+    result_ref  = Column(Text, nullable=True)   # JSON: {"key": "automl_meta"} — reference only
+    error       = Column(Text, nullable=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+    finished_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_jobs_user_status", "user_id", "status"),
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "id":          self.id,
+            "type":        self.type,
+            "status":      self.status,
+            "result_ref":  self.result_ref,
+            "error":       self.error,
+            "created_at":  self.created_at.isoformat() if self.created_at else "",
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+
         }

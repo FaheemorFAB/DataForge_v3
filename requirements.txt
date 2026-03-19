@@ -7,3 +7,10 @@ numpy
 python-dotenv
 Authlib
 requests
+duckdb
+pyarrow
+filelock
+celery
+redis
+orjson
+flower

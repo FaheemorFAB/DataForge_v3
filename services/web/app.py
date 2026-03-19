@@ -42,10 +42,18 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", uuid.uuid4().hex)
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200 MB
 
-# ── WebSocket via flask-socketio ───────────────────────────────────────────────
+# ── Redis / Celery config ─────────────────────────────────────────────────────
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+app.config["CELERY_BROKER_URL"]     = REDIS_URL
+app.config["CELERY_RESULT_BACKEND"]  = REDIS_URL
+
+# ── WebSocket via flask-socketio ──────────────────────────────────────────────
+# message_queue enables workers to emit events across processes via Redis pub/sub
 from flask_socketio import SocketIO, emit as ws_emit_raw, join_room
+_sio_mq = REDIS_URL if os.getenv("REDIS_URL") else None
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading",
-                    logger=False, engineio_logger=False)
+                    logger=False, engineio_logger=False,
+                    message_queue=_sio_mq)
 
 def _ws_push(event: str, data: dict, user_id: int | None = None):
     """Emit a socketio event to a specific user's room (or broadcast)."""
@@ -79,7 +87,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 from dataforge.models import (db, User, Upload, Analysis,
                              InsightRecord, Report, Alert,
-                             ReportSchedule, DataSource, MetricDefinition)
+                             ReportSchedule, DataSource, MetricDefinition, Job)
 db.init_app(app)
 
 # ── Flask-Login ────────────────────────────────────────────────────────────────
@@ -151,8 +159,15 @@ def _persist(upload_id: int, key: str, obj):
     # ── Local write (original behaviour, always runs) ─────────────────────────
     d = PROJECTS_DIR / str(upload_id)
     d.mkdir(exist_ok=True)
-    with open(d / key, "wb") as f:
-        pickle.dump(obj, f)
+    if isinstance(obj, pd.DataFrame):
+        if len(obj) > 2_000_000:
+            raise ValueError("Dataset too large (exceeds 2M rows limit)")
+        obj.to_parquet(d / f"{key}.parquet", index=False, compression="snappy")
+    elif isinstance(obj, bytes):
+        (d / f"{key}.joblib").write_bytes(obj)
+    else:
+        with open(d / f"{key}.json", "w", encoding="utf-8") as f:
+            json.dump(obj, f, default=str)
 
     # ── Supabase write (new — non-fatal if it fails) ──────────────────────────
     if STORAGE_OK:
@@ -164,8 +179,11 @@ def _persist(upload_id: int, key: str, obj):
             if key in ("df_raw", "df_clean") and isinstance(obj, pd.DataFrame):
                 csv_key = "raw" if key == "df_raw" else "clean"
                 path    = store.upload_dataframe(user_id, upload_id, obj, csv_key)
+            elif isinstance(obj, bytes):
+                path = store.upload_joblib(user_id, upload_id, key, obj)
             else:
-                path = store.upload_pickle(user_id, upload_id, key, obj)
+                path = store.upload_json(user_id, upload_id, key, obj)
+            
             # Persist the storage path into the Upload row for df_raw
             if key == "df_raw":
                 try:
@@ -186,13 +204,31 @@ def _load_persisted(upload_id: int, key: str):
     On Supabase hit, re-caches to local disk for subsequent fast reads.
     """
     # ── Local read ────────────────────────────────────────────────────────────
-    p = PROJECTS_DIR / str(upload_id) / key
-    if p.exists():
+    d = PROJECTS_DIR / str(upload_id)
+    p_pq = d / f"{key}.parquet"
+    if p_pq.exists():
+        try: return pd.read_parquet(p_pq)
+        except Exception: pass
+
+    p_bin = d / f"{key}.joblib"
+    if p_bin.exists():
+        try: return p_bin.read_bytes()
+        except Exception: pass
+
+    p_json = d / f"{key}.json"
+    if p_json.exists():
         try:
-            with open(p, "rb") as f:
+            with open(p_json, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception: pass
+
+    # legacy fallback
+    p_leg = d / key
+    if p_leg.exists():
+        try:
+            with open(p_leg, "rb") as f:
                 return pickle.load(f)
-        except Exception:
-            pass
+        except Exception: pass
 
     # ── Supabase fallback ─────────────────────────────────────────────────────
     if STORAGE_OK:
@@ -203,18 +239,27 @@ def _load_persisted(upload_id: int, key: str):
             store = get_store()
             if key in ("df_raw", "df_clean"):
                 csv_key = "raw" if key == "df_raw" else "clean"
-                spath   = f"users/{user_id}/uploads/{upload_id}/{csv_key}.csv"
+                spath   = f"users/{user_id}/uploads/{upload_id}/{csv_key}.parquet"
                 obj     = store.download_dataframe(spath)
             else:
-                spath = f"users/{user_id}/uploads/{upload_id}/{key}.pkl"
-                obj   = store.download_pickle(spath)
+                # Try JSON first
+                spath_json = f"users/{user_id}/uploads/{upload_id}/{key}.json"
+                obj = store.download_json(spath_json)
+                if obj is None:
+                    spath_joblib = f"users/{user_id}/uploads/{upload_id}/{key}.joblib"
+                    obj = store.download_joblib(spath_joblib)
+                # We dropped the original pickle methods, so we don't fallback to remote .pkl
 
             if obj is not None:
                 # Re-cache locally for next time
-                d = PROJECTS_DIR / str(upload_id)
                 d.mkdir(exist_ok=True)
-                with open(d / key, "wb") as f:
-                    pickle.dump(obj, f)
+                if isinstance(obj, pd.DataFrame):
+                    obj.to_parquet(d / f"{key}.parquet", index=False, compression="snappy")
+                elif isinstance(obj, bytes):
+                    (d / f"{key}.joblib").write_bytes(obj)
+                else:
+                    with open(d / f"{key}.json", "w", encoding="utf-8") as f:
+                        json.dump(obj, f, default=str)
                 app.logger.info("Restored %s/%s from Supabase Storage.", upload_id, key)
             return obj
         except Exception as _exc:
@@ -225,11 +270,11 @@ def _load_persisted(upload_id: int, key: str):
 def _project_meta(upload_id: int) -> dict:
     d = PROJECTS_DIR / str(upload_id)
     return {
-        "has_raw":   (d / "df_raw").exists(),
-        "has_clean": (d / "df_clean").exists(),
+        "has_raw":   (d / "df_raw.parquet").exists() or (d / "df_raw").exists(),
+        "has_clean": (d / "df_clean.parquet").exists() or (d / "df_clean").exists(),
         "has_eda":   (d / "eda_html").exists(),
-        "has_model": (d / "model_pkl").exists(),
-        "has_chat":  (d / "chat_history").exists(),
+        "has_model": (d / "model_pkl.joblib").exists() or (d / "model_pkl").exists(),
+        "has_chat":  (d / "chat_history.json").exists() or (d / "chat_history").exists(),
     }
 
 from flask.json.provider import DefaultJSONProvider
@@ -276,6 +321,41 @@ except ImportError:
     STORAGE_OK = False
     def get_store(): return None
 
+# ── Redis cache helpers ───────────────────────────────────────────────────────
+try:
+    from cache import (
+        get_profile, set_profile,
+        get_schema, set_schema,
+        get_clean_meta, set_clean_meta,
+        get_alert_status, set_alert_status,
+        get_user_metrics, set_user_metrics,
+        invalidate_upload, invalidate_user,
+        rate_limit as _rate_limit,
+    )
+    CACHE_OK = True
+except ImportError:
+    CACHE_OK = False
+    def get_profile(uid): return None
+    def set_profile(uid, p): pass
+    def get_schema(uid): return None
+    def set_schema(uid, s): pass
+    def get_clean_meta(uid): return None
+    def set_clean_meta(uid, m): pass
+    def get_alert_status(uid): return None
+    def set_alert_status(uid, s): pass
+    def get_user_metrics(uid): return None
+    def set_user_metrics(uid, m): pass
+    def invalidate_upload(uid): pass
+    def invalidate_user(uid): pass
+    def _rate_limit(uid, action, limit=3, window_s=60): return True
+
+# ── Celery tasks (lazy import to avoid circular on app boot) ──────────────────
+def _tasks():
+    from tasks import (task_run_insights, task_run_automl,
+                       task_run_eda, task_generate_report, task_check_alerts)
+    return (task_run_insights, task_run_automl,
+            task_run_eda, task_generate_report, task_check_alerts)
+
 with app.app_context():
     db.create_all()
     from sqlalchemy import text
@@ -302,22 +382,25 @@ with app.app_context():
             "ALTER TABLE reports ADD COLUMN filename TEXT",
             "ALTER TABLE reports ADD COLUMN report_json TEXT",
             "ALTER TABLE reports ADD COLUMN storage_path TEXT",
-            # alerts  ← NEW
+            # alerts
             "ALTER TABLE alerts ADD COLUMN filename TEXT",
             "ALTER TABLE alerts ADD COLUMN colour TEXT",
             "ALTER TABLE alerts ADD COLUMN metric TEXT",
             "ALTER TABLE alerts ADD COLUMN pct_change REAL",
             "ALTER TABLE alerts ADD COLUMN resolved_at DATETIME",
-            # metric_definitions (new table — columns added after db.create_all)
+            # metric_definitions
             "ALTER TABLE metric_definitions ADD COLUMN category TEXT DEFAULT 'general'",
             "ALTER TABLE metric_definitions ADD COLUMN description TEXT",
             "ALTER TABLE metric_definitions ADD COLUMN updated_at DATETIME",
-            # report_schedules  ← NEW
+            # report_schedules
             "ALTER TABLE report_schedules ADD COLUMN cron TEXT",
             "ALTER TABLE report_schedules ADD COLUMN cron_human TEXT",
             "ALTER TABLE report_schedules ADD COLUMN email TEXT",
             "ALTER TABLE report_schedules ADD COLUMN last_run DATETIME",
             "ALTER TABLE report_schedules ADD COLUMN created_at DATETIME",
+            # jobs (new table for Celery task tracking)
+            "ALTER TABLE jobs ADD COLUMN result_ref TEXT",
+            "ALTER TABLE jobs ADD COLUMN finished_at DATETIME",
         ]:
             try: _c.execute(text(_s)); _c.commit()
             except Exception: pass
@@ -326,35 +409,97 @@ with app.app_context():
 # ══════════════════════════════════════════════════════════════════════════════
 # SESSION HELPERS  — DataFrames too large for cookie; store on disk
 # ══════════════════════════════════════════════════════════════════════════════
-def _sid() -> str:
-    if "store_id" not in session:
-        session["store_id"] = uuid.uuid4().hex
-    return session["store_id"]
+from filelock import FileLock
+import shutil
 
-def _path(key: str) -> Path:
-    return STORE_DIR / f"{_sid()}_{key}"
+def _upath(upload_id: int, key: str) -> Path:
+    d = STORE_DIR / str(upload_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d / key
 
-def _save(key: str, obj):
-    with open(_path(key), "wb") as f:
-        pickle.dump(obj, f)
+def _lock_path(path: Path) -> Path:
+    return path.with_suffix(path.suffix + ".lock")
 
-def _load(key: str):
-    p = _path(key)
-    if not p.exists():
-        return None
-    with open(p, "rb") as f:
-        return pickle.load(f)
+def _save(upload_id: int, key: str, obj):
+    path = _upath(upload_id, key)
+    lock = FileLock(_lock_path(path))
+    with lock:
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        if isinstance(obj, pd.DataFrame):
+            if len(obj) > 2_000_000:
+                raise ValueError("Dataset too large (exceeds 2M rows limit)")
+            tmp = tmp.with_suffix(".parquet")
+            path = path.with_suffix(".parquet")
+            obj.to_parquet(tmp, index=False, compression="snappy")
+        elif isinstance(obj, bytes):
+            tmp = tmp.with_suffix(".joblib")
+            path = path.with_suffix(".joblib")
+            tmp.write_bytes(obj)
+        else:
+            tmp = tmp.with_suffix(".json")
+            path = path.with_suffix(".json")
+            tmp.write_text(json.dumps(obj, default=str), encoding="utf-8")
+        tmp.replace(path)
 
-def _clear_store():
-    sid = _sid()
-    for p in STORE_DIR.glob(f"{sid}_*"):
-        p.unlink(missing_ok=True)
+def _load(upload_id: int, key: str):
+    path = _upath(upload_id, key)
+    p_pq = path.with_suffix('.parquet')
+    if p_pq.exists():
+        with FileLock(_lock_path(p_pq)):
+            return pd.read_parquet(p_pq)
+    p_bin = path.with_suffix('.joblib')
+    if p_bin.exists():
+        with FileLock(_lock_path(p_bin)):
+            return p_bin.read_bytes()
+    p_json = path.with_suffix('.json')
+    if p_json.exists():
+        with FileLock(_lock_path(p_json)):
+            return json.loads(p_json.read_text(encoding="utf-8"))
+    if path.exists():
+        with FileLock(_lock_path(path)):
+            with open(path, "rb") as f:
+                return pickle.load(f)
+    return None
+
+def _exists(upload_id: int, key: str) -> bool:
+    path = _upath(upload_id, key)
+    return path.with_suffix('.parquet').exists() or path.with_suffix('.json').exists() \
+        or path.with_suffix('.joblib').exists() or path.exists()
+
+def _clear_store(upload_id: int):
+    d = STORE_DIR / str(upload_id)
+    if d.exists():
+        shutil.rmtree(d)
+
+def _get_upload_id() -> int | None:
+    if request.is_json:
+        body = request.get_json(silent=True)
+        if body and "upload_id" in body:
+            return int(body["upload_id"])
+    if "upload_id" in request.form:
+        return int(request.form["upload_id"])
+    if "upload_id" in request.args:
+        return int(request.args["upload_id"])
+    return None
+
+def _get_upload_or_403(upload_id: int):
+    upload = db.session.get(Upload, upload_id)
+    if not upload or upload.user_id != current_user.id:
+        return None, (jsonify({"error": "Unauthorized"}), 403)
+    return upload, None
 
 def _require_df(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        if _load("df_raw") is None:
-            return jsonify({"error": "No dataset uploaded. Please upload a CSV first."}), 400
+        upload_id = _get_upload_id()
+        if upload_id is None:
+            return jsonify({"error": "upload_id required"}), 400
+        upload, err = _get_upload_or_403(upload_id)
+        if err:
+            return err
+        if not _exists(upload_id, "df_raw") and not _exists(upload_id, "df_clean"):
+            return jsonify({"error": "No dataset loaded. Please upload a CSV first."}), 400
+        kwargs["upload_id"] = upload_id
         return fn(*args, **kwargs)
     return wrapper
 
@@ -381,7 +526,6 @@ def _db_log_upload(profile: dict, source_type: str = "csv", source_config: dict 
         )
         db.session.add(up)
         db.session.commit()
-        session["db_upload_id"] = up.id
         return up.id
     except Exception:
         db.session.rollback()
@@ -395,7 +539,7 @@ def _db_log_analysis(type_: str, summary: str = ""):
     try:
         an = Analysis(
             user_id   = current_user.id,
-            upload_id = session.get("db_upload_id"),
+            upload_id = _get_upload_id(),
             type      = type_,
             summary   = summary,
         )
@@ -405,7 +549,7 @@ def _db_log_analysis(type_: str, summary: str = ""):
         _ws_push("activity", {
             "type":     type_,
             "summary":  summary,
-            "filename": session.get("filename", ""),
+            "filename": _get_filename(upload_id),
             "ts":       datetime.utcnow().isoformat(),
             "analysis_id": an.id,
         }, user_id=uid)
@@ -650,56 +794,38 @@ def _persist_insights(upload_id, user_id, insights):
 @app.route("/api/insights/run", methods=["POST"])
 @login_required
 @_require_df
-def api_insights_run():
+def api_insights_run(upload_id):
     if not REPORTING_ENABLED:
         return jsonify({"error": "Reporting engine not installed"}), 503
-    body = request.get_json(force=True) or {}
-    top_n = int(body.get("top_n", 6))
+
+    if not _rate_limit(current_user.id, "insights"):
+        return jsonify({"error": "Rate limit: max 3 insight jobs per minute"}), 429
+
+    # Idempotency: don't queue a second job if one is already running
+    existing = Job.query.filter_by(upload_id=upload_id, type="insights", status="started").first()
+    if existing:
+        return jsonify({"task_id": existing.id, "queued": False}), 200
+
+    body    = request.get_json(force=True) or {}
+    top_n   = int(body.get("top_n", 6))
     use_gem = bool(body.get("use_gemini", True))
 
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
-    automl_meta = _load("automl_meta")
-    fi = {}
-    if automl_meta and isinstance(automl_meta, dict):
-        fi = {r["feature"]: r["importance"] for r in automl_meta.get("feature_importance", []) if isinstance(r, dict)}
-
-    schema = detect_schema(df, feature_importance=fi)
-    insights = run_insights(df, schema, top_n=top_n)
-
-    gemini_fn = None
-    if use_gem and gemini_available():
-        try:
-            from dataforge.gemini_pipeline import _call_gemini
-            gemini_fn = _call_gemini
-        except Exception:
-            pass
-
-    filename = session.get("filename", "Dataset")
-    summary = summarise_with_gemini(insights, dataset_name=filename,
-                                    dataset_type=schema["dataset_type"], gemini_fn=gemini_fn)
-
-    upload_id = session.get("db_upload_id")
-    if upload_id:
-        _persist_insights(upload_id, current_user.id, insights)
-        _save("last_insights", insights)
-        _save("last_schema", schema)
-        _save("last_summary", summary)
-        _ws_push("insight_ready", {
-            "count": len(insights), "dataset_type": schema["dataset_type"],
-            "filename": filename, "ts": datetime.utcnow().isoformat(),
-        }, user_id=current_user.id)
-
-    _db_log_analysis("insights", f"{len(insights)} insights · {schema['dataset_type']}")
-    return jsonify({"ok": True, "insights": list(insights), "summary": summary,
-                    "schema": {"date": schema.get("date"), "metrics": schema.get("metrics", []),
-                               "dimensions": schema.get("dimensions", []),
-                               "dataset_type": schema.get("dataset_type")}})
+    (task_run_insights, *_) = _tasks()
+    job = task_run_insights.apply_async(args=[upload_id, current_user.id, top_n, use_gem])
+    db.session.add(Job(id=job.id, user_id=current_user.id,
+                       upload_id=upload_id, type="insights"))
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    _db_log_analysis("insights", "queued async")
+    return jsonify({"task_id": job.id, "queued": True}), 202
 
 
 @app.route("/api/insights/list")
 @login_required
 def api_insights_list():
-    upload_id = session.get("db_upload_id")
+    upload_id = _get_upload_id()
     if not upload_id:
         return jsonify([])
     recs = InsightRecord.query.filter_by(upload_id=upload_id, user_id=current_user.id)\
@@ -718,53 +844,24 @@ def api_insights_list():
 @app.route("/api/reports/generate", methods=["POST"])
 @login_required
 @_require_df
-def api_report_generate():
+def api_report_generate(upload_id):
     if not REPORTING_ENABLED:
         return jsonify({"error": "Reporting engine not installed"}), 503
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
-    insights = _load("last_insights")
-    schema = _load("last_schema")
-    summary = _load("last_summary")
 
-    if not insights:
-        fi = {}
-        automl_meta = _load("automl_meta")
-        if automl_meta and isinstance(automl_meta, dict):
-            fi = {r["feature"]: r["importance"] for r in automl_meta.get("feature_importance", []) if isinstance(r, dict)}
-        schema = detect_schema(df, feature_importance=fi)
-        insights = run_insights(df, schema, top_n=6)
-        summary = summarise_with_gemini(insights, dataset_name=session.get("filename","Dataset"),
-                                        dataset_type=schema["dataset_type"])
+    existing = Job.query.filter_by(upload_id=upload_id, type="report", status="started").first()
+    if existing:
+        return jsonify({"task_id": existing.id, "queued": False}), 200
 
-    profile = _load("profile") or {}
-    filename = session.get("filename", "Dataset")
-    html = generate_html_report(
-        insights=insights, summary_text=summary or "",
-        dataset_name=filename, dataset_type=(schema or {}).get("dataset_type","general"),
-        profile=profile,
-    )
-    upload_id = session.get("db_upload_id")
-    report_id = None
-    if upload_id:
-        rep = Report(
-            upload_id=upload_id, user_id=current_user.id,
-            report_html=html,
-            report_json=json.dumps({"summary": summary, "insights": [
-                {k:v for k,v in i.items() if k!="chart_data"} for i in insights
-            ]}, default=str),
-            triggered_by="manual",
-        )
-        db.session.add(rep)
-        try:
-            db.session.commit()
-            report_id = rep.id
-            _ws_push("report_ready", {"report_id": report_id, "filename": filename,
-                                       "ts": datetime.utcnow().isoformat()},
-                     user_id=current_user.id)
-        except Exception:
-            db.session.rollback()
-    _save("report_html", html)
-    return jsonify({"ok": True, "report_id": report_id})
+    (_, _, _, task_generate_report, _) = _tasks()
+    job = task_generate_report.apply_async(args=[upload_id, current_user.id])
+    db.session.add(Job(id=job.id, user_id=current_user.id,
+                       upload_id=upload_id, type="report"))
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    _db_log_analysis("report", "queued async")
+    return jsonify({"task_id": job.id, "queued": True}), 202
 
 
 @app.route("/api/reports/<int:report_id>")
@@ -779,7 +876,7 @@ def api_report_view(report_id):
 @app.route("/api/reports/current")
 @login_required
 def api_report_current():
-    html = _load("report_html")
+    html = _load(upload_id, "report_html")
     if not html:
         return Response("No report yet.", status=404)
     return Response(html, mimetype="text/html")
@@ -833,32 +930,28 @@ def api_alerts_list():
 @app.route("/api/alerts/check", methods=["POST"])
 @login_required
 @_require_df
-def api_alerts_check():
+def api_alerts_check(upload_id):
     if not REPORTING_ENABLED:
         return jsonify({"ok": True, "alerts": []})
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
-    upload_id = session.get("db_upload_id")
-    if not upload_id:
-        return jsonify({"ok": True, "alerts": []})
-    schema = _load("last_schema") or detect_schema(df)
-    engine = AlertEngine()
-    fired_raw = engine.check(upload_id, df, schema)
-    fired = []
-    for a in fired_raw:
-        row = Alert(upload_id=upload_id, user_id=current_user.id,
-                    rule=a["rule"], message=a["message"], severity=a["severity"],
-                    metric=a.get("metric",""), pct_change=a.get("pct_change"))
-        db.session.add(row)
-        fired.append(a)
+
+    # Check if a recently cached result is still valid (15-min TTL)
+    cached = get_alert_status(upload_id)
+    if cached:
+        return jsonify({"ok": True, "from_cache": True, **cached})
+
+    existing = Job.query.filter_by(upload_id=upload_id, type="alerts", status="started").first()
+    if existing:
+        return jsonify({"task_id": existing.id, "queued": False}), 200
+
+    (_, _, _, _, task_check_alerts) = _tasks()
+    job = task_check_alerts.apply_async(args=[upload_id, current_user.id])
+    db.session.add(Job(id=job.id, user_id=current_user.id,
+                       upload_id=upload_id, type="alerts"))
     try:
         db.session.commit()
-        for a in fired:
-            _ws_push("alert", {**a, "filename": session.get("filename",""),
-                                "ts": datetime.utcnow().isoformat()},
-                     user_id=current_user.id)
     except Exception:
         db.session.rollback()
-    return jsonify({"ok": True, "alerts": fired, "count": len(fired)})
+    return jsonify({"task_id": job.id, "queued": True}), 202
 
 
 @app.route("/api/alerts/<int:alert_id>/resolve", methods=["POST"])
@@ -898,7 +991,7 @@ def api_schedules_list():
 @login_required
 def api_schedules_create():
     body = request.get_json(force=True) or {}
-    upload_id = body.get("upload_id") or session.get("db_upload_id")
+    upload_id = _get_upload_id()
     cron = body.get("cron", "0 9 * * 1")
     email = (body.get("email") or "").strip()
     if not upload_id:
@@ -952,7 +1045,7 @@ def api_sources_list():
 @app.route("/workspace")
 @login_required
 def workspace():
-    profile = _load("profile") or None
+    profile = _load(upload_id, "profile") or None
     return render_template(
         "workspace.html",
         user      = current_user,
@@ -985,21 +1078,16 @@ def api_upload():
     except Exception as e:
         return jsonify({"error": f"Could not parse CSV: {e}"}), 400
 
-    _clear_store()
-    _save("df_raw", df)
-    session["filename"] = f.filename
-
     profile = _df_profile(df, f.filename)
-    _save("profile", profile)
-    session["profile"] = profile
-
-    # Log to DB first so we have an upload_id for Supabase path storage
     upload_id = _db_log_upload(profile)
-    if upload_id:
-        # _persist handles both local disk and Supabase (write-through)
-        _persist(upload_id, "df_raw", df)
+    if not upload_id:
+        return jsonify({"error": "Failed to create upload record"}), 500
 
-    return jsonify({"ok": True, "profile": profile})
+    _save(upload_id, "df_raw", df)
+    _save(upload_id, "profile", profile)
+    _persist(upload_id, "df_raw", df)
+
+    return jsonify({"ok": True, "profile": profile, "upload_id": upload_id})
 
 
 @app.route("/api/upload/sheets", methods=["POST"])
@@ -1022,23 +1110,18 @@ def api_upload_sheets():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-    _clear_store()
-    _save("df_raw", df)
     fname = f"sheets_{sheet_id[:8]}.csv"
-    session["filename"] = fname
-
     profile = _df_profile(df, fname)
-    _save("profile", profile)
-    session["profile"] = profile
-
-    # BUG FIX: capture upload_id (was discarded) so we can persist the data
-    # and store the Sheets URL for re-fetching on project restore.
     source_config = {"url": url, "sheet_id": sheet_id}
     upload_id = _db_log_upload(profile, source_type="sheets", source_config=source_config)
-    if upload_id:
-        _persist(upload_id, "df_raw", df)   # save to local disk + Supabase
+    if not upload_id:
+        return jsonify({"error": "Failed to create upload record"}), 500
 
-    return jsonify({"ok": True, "profile": profile})
+    _save(upload_id, "df_raw", df)
+    _save(upload_id, "profile", profile)
+    _persist(upload_id, "df_raw", df)
+
+    return jsonify({"ok": True, "profile": profile, "upload_id": upload_id})
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1048,17 +1131,24 @@ def api_upload_sheets():
 @app.route("/api/workspace/state")
 @login_required
 def api_workspace_state():
-    profile     = _load("profile") or {}
-    df_raw      = _load("df_raw")
-    df_clean    = _load("df_clean")
-    clean_meta  = _load("clean_meta")
-    automl_meta = _load("automl_meta")
-    chat_history = _load("chat_history") or []
-    has_eda     = _path("eda_html").exists()
+    upload_id = _get_upload_id()
+    if not upload_id:
+        return jsonify({"error": "upload_id parameter is required"}), 400
+    up, err = _get_upload_or_403(upload_id)
+    if err:
+        return err
+        
+    profile     = _load(upload_id, "profile") or {}
+    df_raw      = _load(upload_id, "df_raw")
+    df_clean    = _load(upload_id, "df_clean")
+    clean_meta  = _load(upload_id, "clean_meta")
+    automl_meta = _load(upload_id, "automl_meta")
+    chat_history = _load(upload_id, "chat_history") or []
+    has_eda     = _upath(upload_id, "eda_html").exists()
 
     clean_profile = None
     if df_clean is not None:
-        clean_profile = _df_profile(df_clean, session.get("filename", ""))
+        clean_profile = _df_profile(df_clean, _get_filename(upload_id))
 
     # ── FIX 4b: detect "restored project with no disk data" ───────────────────
     # When a project was restored from DB but its pickle files don't exist
@@ -1069,7 +1159,7 @@ def api_workspace_state():
     reupload_filename = ""
     reupload_message  = ""
     reupload_source_type = "csv"
-    upload_id = session.get("db_upload_id")
+    upload_id = _get_upload_id()
     if upload_id and df_raw is None:
         try:
             up = db.session.get(Upload, upload_id)
@@ -1085,10 +1175,10 @@ def api_workspace_state():
                         if sheet_id_r:
                             from dataforge.sheets_connector import SheetsConnector
                             df_refetch = SheetsConnector().load_public(sheet_id_r)
-                            _save("df_raw", df_refetch)
+                            _save(upload_id, "df_raw", df_refetch)
                             df_raw = df_refetch                         # used below for state dict
                             profile = _df_profile(df_refetch, up.filename)
-                            _save("profile", profile)
+                            _save(upload_id, "profile", profile)
                             session["profile"] = profile
                             _persist(upload_id, "df_raw", df_refetch)  # cache for next time
                     except Exception:
@@ -1131,7 +1221,7 @@ def api_workspace_state():
         "clean_meta":        clean_meta,
         "automl_meta":       automl_meta,
         "chat_history":      chat_history,
-        "filename":          session.get("filename", ""),
+        "filename":          _get_filename(upload_id),
         "gemini_ok":         gemini_available(),
         # ── new fields ────────────────────────────────────────────────────────
         "needs_reupload":      needs_reupload,
@@ -1149,10 +1239,32 @@ def api_workspace_state():
 @app.route("/api/preview")
 @login_required
 @_require_df
-def api_preview():
+
+def api_preview(upload_id):
     limit = int(request.args.get("limit", 500))
     use_clean = request.args.get("clean") == "true"
-    _dc = _load("df_clean") if use_clean else None; df = _dc if _dc is not None else _load("df_raw")
+    key = "df_clean" if use_clean else "df_raw"
+    
+    p = _path(key).with_suffix('.parquet')
+    if not p.exists():
+        p = _upath(upload_id, "df_raw").with_suffix('.parquet')
+
+    if p.exists():
+        try:
+            import duckdb
+            cols = request.args.get("columns")
+            if cols:
+                cols_list = [f'"{c.strip()}"' for c in cols.split(",")]
+                select_clause = ", ".join(cols_list)
+            else:
+                select_clause = "*"
+            
+            preview_df = duckdb.execute(f"SELECT {select_clause} FROM '{str(p)}' LIMIT {limit}").df()
+            return jsonify(_df_to_json_rows(preview_df, limit))
+        except Exception as e:
+            app.logger.warning("DuckDB preview failed: %s", e)
+
+    _dc = _load(upload_id, "df_clean") if use_clean else None; df = _dc if _dc is not None else _load(upload_id, "df_raw")
     return jsonify(_df_to_json_rows(df, limit))
 
 
@@ -1163,26 +1275,27 @@ def api_preview():
 @app.route("/api/clean", methods=["POST"])
 @login_required
 @_require_df
-def api_clean():
-    df_raw = _load("df_raw")
+
+def api_clean(upload_id):
+    df_raw = _load(upload_id, "df_raw")
     try:
         result = run_cleaning_pipeline(df_raw)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
     df_clean = result["df_clean"]
-    _save("df_clean", df_clean)
+    _save(upload_id, "df_clean", df_clean)
 
-    clean_profile = _df_profile(df_clean, session.get("filename", ""))
+    clean_profile = _df_profile(df_clean, _get_filename(upload_id))
     meta = {
         "stats":          result["stats"],
         "missing_log":    result["missing_log"],
         "struct_actions": result["struct_actions"],
         "clean_profile":  clean_profile,
     }
-    _save("clean_meta", meta)
+    _save(upload_id, "clean_meta", meta)
 
-    upload_id = session.get("db_upload_id")
+    upload_id = _get_upload_id()
     if upload_id:
         _persist(upload_id, "df_clean", df_clean)
         try:
@@ -1211,10 +1324,11 @@ def api_clean():
 @app.route("/api/eda", methods=["POST"])
 @login_required
 @_require_df
-def api_eda():
+
+def api_eda(upload_id):
     """
     FIX 1 — generate_eda_report() now returns a dict, not a raw HTML string.
-    The old route did: html = generate_eda_report(df); _save("eda_html", html)
+    The old route did: html = generate_eda_report(df); _save(upload_id, "eda_html", html)
     which stored the whole dict as the html key, breaking /api/eda/report.
 
     New behaviour:
@@ -1227,7 +1341,7 @@ def api_eda():
     minimal  = bool(body.get("minimal", True))
     sample_n = int(body.get("sample_n", 5000)) or 5000
 
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
+    _dc = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
 
     # generate_eda_report returns {"html": str, "error": str|None, "rows_profiled": int}
     # It never raises — on any failure it falls back to a lightweight pandas report.
@@ -1238,8 +1352,8 @@ def api_eda():
     warning       = result.get("error")   # non-None means fallback was used
 
     if html:
-        _save("eda_html", html)
-        upload_id = session.get("db_upload_id")
+        _save(upload_id, "eda_html", html)
+        upload_id = _get_upload_id()
         if upload_id:
             _persist(upload_id, "eda_html", html)
 
@@ -1257,7 +1371,7 @@ def api_eda():
 @app.route("/api/eda/report")
 @login_required
 def api_eda_report():
-    html = _load("eda_html")
+    html = _load(upload_id, "eda_html")
     if not html:
         return Response("No EDA report generated yet.", status=404)
     theme = request.args.get("theme", "dark")
@@ -1431,10 +1545,11 @@ hr { border-color:#1a1a1c !important; opacity:.5; }
 @app.route("/api/automl/detect-task", methods=["POST"])
 @login_required
 @_require_df
-def api_automl_detect_task():
+
+def api_automl_detect_task(upload_id):
     body = request.get_json(force=True) or {}
     target_col = body.get("target_col", "")
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
+    _dc = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
     if not target_col or target_col not in df.columns:
         numeric_cols = df.select_dtypes(include="number").columns.tolist()
         cat_cols     = df.select_dtypes(include=["object","category"]).columns.tolist()
@@ -1452,53 +1567,44 @@ def api_automl_detect_task():
 @app.route("/api/automl/train", methods=["POST"])
 @login_required
 @_require_df
-def api_automl_train():
+def api_automl_train(upload_id):
     body = request.get_json(force=True) or {}
     target_col  = body.get("target_col", "")
     task_choice = body.get("task_choice", "auto-detect")
     time_budget = int(body.get("time_budget", 60))
     test_size   = float(body.get("test_size", 20)) / 100.0
 
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
+    if not _rate_limit(current_user.id, "automl", limit=2, window_s=120):
+        return jsonify({"error": "Rate limit: max 2 AutoML jobs per 2 minutes"}), 429
+
+    # Validate target column exists before enqueuing
+    _dc = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
     if not target_col or target_col not in df.columns:
         numeric_cols = df.select_dtypes(include="number").columns.tolist()
-        cat_cols     = df.select_dtypes(include=["object","category"]).columns.tolist()
+        cat_cols     = df.select_dtypes(include=["object", "category"]).columns.tolist()
         return jsonify({
             "error":           f"Column '{target_col}' not found" if target_col else "No target column specified",
             "candidates":      numeric_cols + cat_cols,
-            "columns":         df.columns.tolist(),
             "needs_selection": True,
         }), 400
 
-    result = run_automl(df, target_col,
-                        task_choice=task_choice,
-                        time_budget=time_budget,
-                        test_size=test_size)
-    if result.get("error"):
-        return jsonify(result), 500
+    # Idempotency: reuse existing running job
+    existing = Job.query.filter_by(upload_id=upload_id, type="automl", status="started").first()
+    if existing:
+        return jsonify({"task_id": existing.id, "queued": False}), 200
 
-    # Strip bytes before saving to session store / returning as JSON
-    # model_pkl is bytes — jsonify() raises TypeError if it's included
-    model_pkl = result.pop("model_pkl", None)
-    result["target_col"] = target_col
-    _save("automl_meta", result)
-
-    upload_id = session.get("db_upload_id")
-    if upload_id:
-        if model_pkl:
-            _persist(upload_id, "model_pkl", model_pkl)
-        try:
-            up = db.session.get(Upload, upload_id)
-            if up:
-                up.automl_meta_json = json.dumps(result, default=str)
-                db.session.commit()
-        except Exception:
-            db.session.rollback()
-
-    _db_log_analysis("automl",
-        f"{result.get('best_estimator','?')} · {result.get('task','?')} · "
-        f"{result.get('elapsed_s','?')}s")
-    return jsonify(result)
+    (_, task_run_automl, *_) = _tasks()
+    job = task_run_automl.apply_async(
+        args=[upload_id, current_user.id, target_col, task_choice, time_budget, test_size]
+    )
+    db.session.add(Job(id=job.id, user_id=current_user.id,
+                       upload_id=upload_id, type="automl"))
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    _db_log_analysis("automl", f"queued · target={target_col} · budget={time_budget}s")
+    return jsonify({"task_id": job.id, "queued": True}), 202
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1508,13 +1614,14 @@ def api_automl_train():
 @app.route("/api/query", methods=["POST"])
 @login_required
 @_require_df
-def api_query():
+
+def api_query(upload_id):
     body = request.get_json(force=True) or {}
     query = (body.get("query") or "").strip()
     if not query:
         return jsonify({"error": "Empty query"}), 400
 
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
+    _dc = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
 
     # Inject user-defined metric definitions into Gemini context
     metric_context = ""
@@ -1537,7 +1644,7 @@ def api_query():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    history = _load("chat_history") or []
+    history = _load(upload_id, "chat_history") or []
     history.append({"role": "user", "content": query})
     msg = {"role": "assistant", "content": result.get("answer", "")}
     r = result.get("result") or {}
@@ -1548,9 +1655,9 @@ def api_query():
     if result.get("insight"):
         msg["insight"] = result["insight"]
     history.append(msg)
-    _save("chat_history", history)
+    _save(upload_id, "chat_history", history)
 
-    upload_id = session.get("db_upload_id")
+    upload_id = _get_upload_id()
     if upload_id:
         try:
             up = db.session.get(Upload, upload_id)
@@ -1562,6 +1669,60 @@ def api_query():
 
     _db_log_analysis("query", query[:120])
     return jsonify(result)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# API: TASK STATUS  (poll from frontend after async dispatch)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/task/<task_id>")
+@login_required
+def api_task_status(task_id):
+    """
+    Combined status endpoint: merges our Job DB row with Celery's AsyncResult.
+    DB is the source of truth for status; Celery result backend is a fallback.
+    """
+    job = db.session.get(Job, task_id)
+    if not job or job.user_id != current_user.id:
+        return jsonify({"error": "Not found"}), 404
+
+    # Try to enrich with Celery native state (handles edge cases like worker crash)
+    celery_status = job.status
+    try:
+        from celery.result import AsyncResult
+        (task_run_insights, *_) = _tasks()          # any import just to get the celery instance
+        res = AsyncResult(task_id)
+        if res.state == "FAILURE" and job.status not in ("failure", "success"):
+            celery_status = "failure"
+        elif res.state == "SUCCESS" and job.status not in ("failure", "success"):
+            celery_status = "success"
+    except Exception:
+        pass
+
+    result_ref = None
+    try:
+        result_ref = json.loads(job.result_ref) if job.result_ref else None
+    except Exception:
+        pass
+
+    return jsonify({
+        "id":          job.id,
+        "type":        job.type,
+        "status":      celery_status,
+        "result_ref":  result_ref,
+        "error":       job.error,
+        "created_at":  job.created_at.isoformat() if job.created_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+    })
+
+
+@app.route("/api/tasks")
+@login_required
+def api_tasks_list():
+    """List recent jobs for the current user (last 20)."""
+    jobs = Job.query.filter_by(user_id=current_user.id)\
+                    .order_by(Job.created_at.desc()).limit(20).all()
+    return jsonify([j.to_dict() for j in jobs])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1612,16 +1773,14 @@ def api_restore(upload_id):
     if not up or up.user_id != current_user.id:
         return jsonify({"error": "Not found"}), 404
 
-    _clear_store()
-    session["db_upload_id"] = upload_id
-    session["filename"]     = up.filename
+    _clear_store(upload_id)
 
     # ── Try to load persisted data ────────────────────────────────────────────
     loaded_keys = []
     for key in ("df_raw", "df_clean", "eda_html", "model_pkl"):
         obj = _load_persisted(upload_id, key)
         if obj is not None:
-            _save(key, obj)
+            _save(upload_id, key, obj)
             loaded_keys.append(key)
 
     # ── No data on disk → try to auto-re-fetch (Sheets) or ask for re-upload ──
@@ -1637,9 +1796,9 @@ def api_restore(upload_id):
                 if sheet_id_r:
                     from dataforge.sheets_connector import SheetsConnector
                     df_refetch = SheetsConnector().load_public(sheet_id_r)
-                    _save("df_raw", df_refetch)
+                    _save(upload_id, "df_raw", df_refetch)
                     profile = _df_profile(df_refetch, up.filename)
-                    _save("profile", profile)
+                    _save(upload_id, "profile", profile)
                     session["profile"] = profile
                     # Re-persist so subsequent restores are fast
                     _persist(upload_id, "df_raw", df_refetch)
@@ -1657,7 +1816,7 @@ def api_restore(upload_id):
             "numeric":     0,
             "columns":     [],
         }
-        _save("profile", profile)
+        _save(upload_id, "profile", profile)
         session["profile"] = profile
 
         # Tailor the message to the source type
@@ -1680,25 +1839,25 @@ def api_restore(upload_id):
     # ── Normal restore ────────────────────────────────────────────────────────
     if up.clean_meta_json:
         try:
-            _save("clean_meta", json.loads(up.clean_meta_json))
+            _save(upload_id, "clean_meta", json.loads(up.clean_meta_json))
         except Exception:
             pass
 
     if up.automl_meta_json:
         try:
-            _save("automl_meta", json.loads(up.automl_meta_json))
+            _save(upload_id, "automl_meta", json.loads(up.automl_meta_json))
         except Exception:
             pass
 
     if up.chat_history:
         try:
-            _save("chat_history", json.loads(up.chat_history))
+            _save(upload_id, "chat_history", json.loads(up.chat_history))
         except Exception:
             pass
 
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
+    _dc = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
     profile = _df_profile(df, up.filename)
-    _save("profile", profile)
+    _save(upload_id, "profile", profile)
     session["profile"] = profile
 
     return jsonify({"ok": True, "needs_reupload": False, "profile": profile})
@@ -1711,14 +1870,15 @@ def api_restore(upload_id):
 @app.route("/api/clean/download")
 @login_required
 @_require_df
-def api_clean_download():
-    df = _load("df_clean")
+
+def api_clean_download(upload_id):
+    df = _load(upload_id, "df_clean")
     if df is None:
         return jsonify({"error": "No cleaned dataset. Run cleaning first."}), 404
     buf = io.StringIO()
     df.to_csv(buf, index=False)
     buf.seek(0)
-    fname = session.get("filename", "data.csv").replace(".csv", "_cleaned.csv")
+    fname = _get_filename(upload_id).replace(".csv", "_cleaned.csv")
     return send_file(
         io.BytesIO(buf.getvalue().encode()),
         mimetype="text/csv",
@@ -1730,7 +1890,7 @@ def api_clean_download():
 @app.route("/api/automl/download")
 @login_required
 def api_automl_download():
-    upload_id = session.get("db_upload_id")
+    upload_id = _get_upload_id()
     model_pkl = None
     if upload_id:
         model_pkl = _load_persisted(upload_id, "model_pkl")
@@ -1751,9 +1911,10 @@ def api_automl_download():
 @app.route("/api/dashboard/stats")
 @login_required
 @_require_df
-def api_dashboard_stats():
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
-    profile = _load("profile") or {}
+
+def api_dashboard_stats(upload_id):
+    _dc = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
+    profile = _load(upload_id, "profile") or {}
 
     stats = []
     charts = []
@@ -1772,7 +1933,7 @@ def api_dashboard_stats():
             "type":  "sum" if s.sum() > 1000 else "mean",
         })
 
-    schema = _load("last_schema")
+    schema = _load(upload_id, "last_schema")
     if schema and schema.get("date") and numeric_cols:
         try:
             date_col = schema["date"]
@@ -1827,8 +1988,8 @@ def api_dashboard_stats():
         except Exception:
             pass
 
-    insights = _load("last_insights") or []
-    summary  = _load("last_summary") or ""
+    insights = _load(upload_id, "last_insights") or []
+    summary  = _load(upload_id, "last_summary") or ""
     schema_info = {}
     if schema:
         schema_info = {
@@ -1857,7 +2018,8 @@ def api_dashboard_stats():
 @app.route("/api/transform", methods=["POST"])
 @login_required
 @_require_df
-def api_transform():
+
+def api_transform(upload_id):
     """Apply transformation steps to the current dataset."""
     if not TRANSFORM_ENABLED:
         return jsonify({"error": "Transform engine not available"}), 503
@@ -1867,21 +2029,21 @@ def api_transform():
 
     if reset:
         # Remove any saved transform — revert to clean/raw
-        _save("df_transform", None)
-        df = _load("df_clean") or _load("df_raw")
-        profile = _df_profile(df, session.get("filename", ""))
+        _save(upload_id, "df_transform", None)
+        df = _load(upload_id, "df_clean") or _load(upload_id, "df_raw")
+        profile = _df_profile(df, _get_filename(upload_id))
         return jsonify({"ok": True, "reset": True, "profile": profile})
 
     # Base: use clean if available, else raw
-    _dc = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
+    _dc = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
 
     try:
         result = apply_transforms(df, steps)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    _save("df_transform", result.df)
-    profile   = _df_profile(result.df, session.get("filename", ""))
+    _save(upload_id, "df_transform", result.df)
+    profile   = _df_profile(result.df, _get_filename(upload_id))
     # Return first 500 rows for preview
     preview   = _df_to_json_rows(result.df, 500)
 
@@ -1898,10 +2060,39 @@ def api_transform():
 @login_required
 def api_transform_preview():
     """Return the current transformed dataset (or clean/raw if no transform saved)."""
-    df = _load("df_transform") or _load("df_clean") or _load("df_raw")
+    upload_id = _get_upload_id()
+    if not upload_id:
+        return jsonify({"error": "upload_id parameter is required"}), 400
+    p = _upath(upload_id, "df_transform").with_suffix('.parquet')
+    if not p.exists(): p = _upath(upload_id, "df_clean").with_suffix('.parquet')
+    if not p.exists(): p = _upath(upload_id, "df_raw").with_suffix('.parquet')
+    
+    if p.exists():
+        try:
+            import duckdb
+            preview_df = duckdb.execute(f"SELECT * FROM '{str(p)}' LIMIT 500").df()
+            return jsonify(_df_to_json_rows(preview_df, 500))
+        except Exception as e:
+            app.logger.warning("DuckDB transform preview failed: %s", e)
+            
+    df = _load(upload_id, "df_transform") or _load(upload_id, "df_clean") or _load(upload_id, "df_raw")
     if df is None:
         return jsonify({"error": "No dataset loaded"}), 400
     return jsonify(_df_to_json_rows(df, 500))
+
+@app.route("/api/delete/<int:upload_id>", methods=["DELETE"])
+@login_required
+def api_delete_upload(upload_id):
+    upload, err = _get_upload_or_403(upload_id)
+    if err:
+        return err
+    
+    db.session.delete(upload)
+    db.session.commit()
+    
+    _clear_store(upload_id)
+    return jsonify({"ok": True})
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1911,16 +2102,17 @@ def api_transform_preview():
 @app.route("/api/insights/root-cause", methods=["POST"])
 @login_required
 @_require_df
-def api_root_cause():
+
+def api_root_cause(upload_id):
     """Run segment contribution / root cause analysis."""
     if not TRANSFORM_ENABLED:
         return jsonify({"error": "Transform module not available"}), 503
 
     body    = request.get_json(force=True) or {}
-    _dc     = _load("df_clean"); df = _dc if _dc is not None else _load("df_raw")
+    _dc     = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
 
     # Auto-detect metric and dimensions from schema if not supplied
-    schema    = _load("last_schema") or {}
+    schema    = _load(upload_id, "last_schema") or {}
     metric    = body.get("metric") or (schema.get("metrics") or [None])[0]
     dimensions = body.get("dimensions") or schema.get("dimensions") or []
     date_col  = body.get("date_col") or schema.get("date")
