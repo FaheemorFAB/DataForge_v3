@@ -11,9 +11,10 @@ from supabase import create_client, Client
 
 def get_supabase_client() -> Client:
     url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_KEY")
+    # Accept either env var name (older docs used SUPABASE_KEY).
+    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
     if not url or not key:
-        raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env")
+        raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_KEY (or SUPABASE_KEY) must be set in .env")
     return create_client(url, key)
 
 # Cached instance
@@ -87,8 +88,6 @@ class User(BaseModel):
     # For Flask-Login compatibility
     @property
     def is_authenticated(self): return True
-    @property
-    def is_active(self): return self.is_active
     @property
     def is_anonymous(self): return False
     def get_id(self): return str(self.id)

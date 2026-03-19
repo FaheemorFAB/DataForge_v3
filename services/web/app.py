@@ -24,7 +24,7 @@ from functools import wraps
 import pandas as pd
 import numpy as np
 from flask import (Flask, render_template, request, jsonify,
-                   send_file, redirect, url_for, Response)
+                   send_file, redirect, url_for, Response, session)
 from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -108,13 +108,11 @@ if GOOGLE_AUTH_ENABLED:
         name="google",
         client_id=_GOOGLE_CLIENT_ID,
         client_secret=_GOOGLE_CLIENT_SECRET,
-        authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
-        access_token_url="https://oauth2.googleapis.com/token",
-        jwks_uri="https://www.googleapis.com/oauth2/v3/certs",
-        userinfo_endpoint="https://openidconnect.googleapis.com/v1/userinfo",
+        # server_metadata_url enables auto-discovery of JWKS, nonce validation,
+        # and userinfo endpoint — required for Authlib 1.x OIDC id_token parsing.
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
         client_kwargs={
             "scope": "openid email profile",
-            "token_endpoint_auth_method": "client_secret_post",
         },
     )
 
@@ -558,6 +556,12 @@ def login_page():
 def login_google():
     if not GOOGLE_AUTH_ENABLED:
         return redirect(url_for("index") + "?login=1")
+    # Allow the caller (e.g. upload page) to choose where to go after login.
+    # Stored in Flask session to avoid changing the Google redirect URI.
+    next_url = request.args.get("next") or url_for("dashboard")
+    if not isinstance(next_url, str) or not next_url.startswith("/"):
+        next_url = url_for("dashboard")
+    session["next_url"] = next_url
     redirect_uri = url_for("auth_google_callback", _external=True)
     return oauth.google.authorize_redirect(redirect_uri)
 
@@ -567,39 +571,54 @@ def auth_google_callback():
     if not GOOGLE_AUTH_ENABLED:
         return redirect(url_for("index") + "?login=1")
     try:
-        oauth.google.authorize_access_token()  # side-effect: validates + stores token
-        resp     = oauth.google.get("https://openidconnect.googleapis.com/v1/userinfo")
-        userinfo = resp.json()
+        # authorize_access_token() completes the OAuth exchange AND parses the
+        # id_token (using the JWKS fetched via server_metadata_url), returning
+        # a dict that includes a "userinfo" key.  A separate HTTP GET is NOT
+        # needed and will fail because the session token is no longer available.
+        token    = oauth.google.authorize_access_token()
+        userinfo = token.get("userinfo")
+        if not userinfo:
+            # Safety fallback: fetch from userinfo endpoint if id_token was absent
+            userinfo = oauth.google.userinfo(token=token)
     except Exception as e:
         app.logger.error(f"Google OAuth callback error: {e}")
-        return redirect(url_for("index") + "?login=1")
+        return redirect(url_for("index") + "?login=1&error=oauth")
 
     google_id = userinfo.get("sub")
     if not google_id:
         return redirect(url_for("index") + "?login=1")
 
-    user_data = db_first("users", {"google_id": google_id})
-    if user_data is None:
-        new_user = {
-            "google_id": google_id,
-            "email": userinfo.get("email"),
-            "name": userinfo.get("name"),
-            "avatar": userinfo.get("picture"),
-        }
-        res = db_insert("users", new_user)
-        user = User(**res) if res else None
-    else:
-        db_update("users", user_data["id"], {
-            "name": userinfo.get("name", user_data.get("name")),
-            "avatar": userinfo.get("picture", user_data.get("avatar")),
-            "last_login": datetime.utcnow().isoformat()
-        })
-        updated = db_get("users", user_data["id"])
-        user = User(**updated) if updated else User(**user_data)
+    try:
+        user_data = db_first("users", {"google_id": google_id})
+        if user_data is None:
+            new_user = {
+                "google_id": google_id,
+                "email": userinfo.get("email"),
+                "name": userinfo.get("name"),
+                "avatar": userinfo.get("picture"),
+            }
+            res = db_insert("users", new_user)
+            if not res:
+                app.logger.error("Google OAuth: db_insert('users') returned None — check SUPABASE_KEY in .env")
+                return redirect(url_for("index") + "?login=1&error=db")
+            user = User(**res)
+        else:
+            db_update("users", user_data["id"], {
+                "name": userinfo.get("name", user_data.get("name")),
+                "avatar": userinfo.get("picture", user_data.get("avatar")),
+                "last_login": datetime.utcnow().isoformat()
+            })
+            updated = db_get("users", user_data["id"])
+            user = User(**updated) if updated else User(**user_data)
 
-    if user:
         login_user(user, remember=True)
-    return redirect(url_for("dashboard"))
+        next_url = session.pop("next_url", None)
+        if isinstance(next_url, str) and next_url.startswith("/"):
+            return redirect(next_url)
+        return redirect(url_for("dashboard"))
+    except Exception as e:
+        app.logger.error(f"Google OAuth DB error: {e}")
+        return redirect(url_for("index") + "?login=1&error=db")
 
 
 @app.route("/logout")
@@ -701,6 +720,25 @@ def dashboard():
         models   = db_count("analyses", {"user_id": user.id, "type": "automl"})
         queries  = db_count("analyses", {"user_id": user.id, "type": "query"})
 
+    def _format_member_since(val) -> str:
+        """Format created_at for template (Supabase returns ISO strings)."""
+        if not val:
+            return "—"
+        # datetime-like object (just in case)
+        try:
+            if hasattr(val, "strftime"):
+                return val.strftime("%B %Y")
+        except Exception:
+            pass
+        # ISO string fallback
+        try:
+            dt = datetime.fromisoformat(str(val).replace("Z", "+00:00"))
+            return dt.strftime("%B %Y")
+        except Exception:
+            return "—"
+
+    member_since = _format_member_since(getattr(user, "created_at", None))
+
     return render_template(
         "dashboard.html",
         user            = user,
@@ -710,6 +748,7 @@ def dashboard():
         alert_count     = alert_count,
         recent_reports  = reports_data,
         schedule_count  = schedule_count,
+        member_since   = member_since,
     )
 
 
@@ -931,14 +970,14 @@ def api_alert_resolve(alert_id):
 @app.route("/api/schedules", methods=["GET"])
 @login_required
 def api_schedules_list():
-    scheds = ReportSchedule.query.filter_by(user_id=current_user.id, enabled=True)\
-                                  .order_by(ReportSchedule.created_at.desc()).all()
+    scheds = db_all("report_schedules", {"user_id": current_user.id, "enabled": True},
+                    order_by="created_at", limit=50)
     return jsonify([{
-        "id": s.id, "upload_id": s.upload_id,
-        "filename": s.upload.filename if s.upload else "",
-        "cron": s.cron_expression, "cron_human": s.cron_human,
-        "email": s.email, "enabled": s.enabled,
-        "last_run": s.last_run_at.isoformat() if s.last_run_at else None,
+        "id": s.get("id"), "upload_id": s.get("upload_id"),
+        "filename": (db_get("uploads", s["upload_id"]) or {}).get("filename", "") if s.get("upload_id") else "",
+        "cron": s.get("cron_expression"), "cron_human": s.get("cron_human", ""),
+        "email": s.get("email"), "enabled": s.get("enabled"),
+        "last_run": s.get("last_run_at"),
     } for s in scheds])
 
 
@@ -1004,6 +1043,9 @@ def workspace():
         "workspace.html",
         user      = current_user,
         gemini_ok = gemini_available(),
+        # workspace.html renders `profile` via `{{ profile | tojson }}` on page load,
+        # so we must always pass a JSON-serializable initial value.
+        profile   = {},
     )
 
 
