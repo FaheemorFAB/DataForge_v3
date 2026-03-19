@@ -1,66 +1,105 @@
-# DataForge_v3
+# DataForge v3
 
-Microservice-ready layout with a clear separation between services and shared code.
+A modern, stateless data analysis and automated machine learning platform.
 
-**Structure**
-- `services/web`: Flask web app (routes, templates, static assets, instance data, migration script)
-- `shared/dataforge`: Shared domain and analytics code used by services
-- `app.py`: Entry point shim for local development
-- `.env.example`: Template for environment variables
+## Architecture & Tech Stack
 
-**Architecture (Clear Overview)**
-- **Services** live under `services/`. Each service is its own deployable unit with its own entrypoint, templates/static (if web), and runtime data.
-- `services/web` is the Flask UI/API server. It wires routes, auth, uploads, and rendering.
-- **Shared code** lives under `shared/dataforge/`. This is the reusable domain + analytics layer (models, pipelines, connectors, reporting, alerts, ML, etc.) imported by services so logic is not duplicated.
-- **Local entrypoints**: `app.py` and `migrate_db.py` are lightweight shims for local dev so you can still run from the repo root.
+DataForge v3 is built for production, featuring a fully stateless API and a robust background task processing engine.
 
-**Service Map (Today)**
+* **Web Framework:** Flask (stateless, session-free architecture)
+* **Real-time UX:** Flask-SocketIO (Redis message queue)
+* **Background Tasks:** Celery + Redis
+* **Data Storage Engines:**
+  * **Primary Format:** Parquet (Snappy compression)
+  * **Fast Querying (Previews):** DuckDB
+  * **Object Storage:** Supabase Storage (or local disk fallback)
+  * **Relational DB:** PostgreSQL (Supabase) or SQLite (local config)
+* **Metadata/Models:** JSON (`orjson` accelerated) and Joblib
+
+## Core Services
+
+The platform is divided into interacting microservices, managed via Docker Compose:
+
+1. **`web`**: The main Flask API and Frontend serving standard HTTP traffic.
+2. **`worker`**: Celery workers executing heavy tasks (AutoML, EDA profiling, generating PDF/HTML reports).
+3. **`beat`**: Celery Beat scheduler executing CRON jobs (e.g., repeating daily email reports, threshold alerts).
+4. **`redis`**: In-memory data store acting as the Celery broker, SocketIO message queue, and application Read-Through Cache.
+5. **`flower`**: Real-time monitor and web admin for Celery clusters (accessible on port `5555`).
+
+## Repository Layout
+
 ```text
-app.py (local shim)
-  -> services/web/app.py
-       -> shared/dataforge/*  (models, pipelines, connectors, reporting)
-       -> services/web/templates + services/web/static
-       -> services/web/instance (SQLite DB + project files)
+DataForge_v3/
+├── docker-compose.yml       # Primary orchestration
+├── requirements.txt         # Common dependencies
+├── app.py                   # Local dev shim pointing to web service
+├── .env.example             # Template for required environment variables
+├── shared/                  # Domain driven core logic mapping to business entities
+│   └── dataforge/           # Contains models, pipelines, connectors, report parsers
+│       ├── anomaly_insight.py
+│       ├── automl_trainer.py
+│       ├── models.py        # SQLAlchemy schema (User, Job, Alert, Upload, etc.)
+│       └── supabase_storage.py
+└── services/
+    └── web/                 # The actual web microservice implementation
+        ├── app.py           # The Flask application factory & routes
+        ├── celery_app.py    # Celery ContextTask factory
+        ├── tasks.py         # Declarative background Celery tasks
+        ├── cache.py         # Redis caching layer
+        ├── Dockerfile       # Container build instructions
+        ├── templates/       # HTML
+        └── static/          # CSS/JS
 ```
 
-This keeps the service boundary clear now and lets us extract additional services later without moving core logic again.
+## Running the Application
 
-**Future Services (Ideas)**
-- `services/api`: Public REST API for external clients (no UI).
-- `services/worker`: Background jobs (AutoML training, report generation, scheduling).
-- `services/ingest`: Data ingestion from files/APIs/streams with validation.
-- `services/alerts`: Notifications engine (email, Slack, webhooks).
-- `services/analytics`: Heavy analytics pipelines and batch insights.
+### Method 1: Docker (Recommended)
 
-**How To Add A Service (Update README + Compose)**
-1. Create a new folder under `services/<name>` with its own entrypoint and Dockerfile.
-2. Add the service to **Structure** and **Service Map (Today)** sections in this README.
-3. Add a new service block in `docker-compose.yml` that points to `services/<name>/Dockerfile`.
-4. Document any new environment variables in **Environment**.
-5. If the service exposes a port, list it in **How To Run (Docker)**.
+Docker Compose configures the entire stack (Web, Redis, Worker, Beat, Flower) instantly.
 
-**How To Run (Local)**
-1. Ensure Python 3.10+ is installed.
-2. Create a `.env` file in the project root (start from `.env.example`) and set at least `FLASK_SECRET_KEY`.
-3. Install dependencies: `pip install -r requirements.txt`.
-4. Start the app with `python app.py`.
-5. If you are upgrading an existing SQLite database, run `python services/web/migrate_db.py`.
+1. Ensure Docker Desktop is running.
+2. Copy `.env.example` to `.env` and configure keys (at minimum, set `FLASK_SECRET_KEY`).
+3. Build and launch:
+   ```bash
+   docker compose up --build
+   ```
+4. Access the App: http://localhost:5000
+5. Access Celery Flower Admin: http://localhost:5555
 
-**How To Run (Docker)**
-1. Create a `.env` file in the project root (start from `.env.example`).
-2. Build and start: `docker compose up --build`.
-3. Open `http://localhost:5000`.
+### Method 2: Local Python Execution
 
-**Environment**
-- Create a `.env` file in the project root (you can start from `.env.example`).
-- Common variables:
-- `FLASK_SECRET_KEY`
-- `DATABASE_URL` (optional: Postgres/Supabase)
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (optional)
-- `GEMINI_API_KEY` (optional)
-- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_BUCKET` (optional)
-- `DATAFORGE_INSTANCE_DIR`, `DATAFORGE_PROJECTS_DIR` (optional overrides)
+If you prefer to run services natively (mostly for development/debugging):
 
-**Path overrides (optional)**
-- `DATAFORGE_INSTANCE_DIR`: override where SQLite DB and project files are stored
-- `DATAFORGE_PROJECTS_DIR`: override where per-upload project files are stored
+1. **Prerequisites:** Python 3.10+ and a globally running Redis Server (`redis-server`).
+2. **Install deps:** `pip install -r requirements.txt`
+3. **Environment:** Copy `.env.example` to `.env` and set `REDIS_URL=redis://localhost:6379/0`.
+4. **Initialize DB:** `python services/web/migrate_db.py`
+5. **Run Web:** `python app.py` (or `flask --app services/web/app run`)
+6. **Run Worker (in a new terminal):** 
+   ```bash
+   # Linux / macOS
+   celery -A services.web.tasks worker --loglevel=info
+   # Windows
+   celery -A services.web.tasks worker --pool=solo --loglevel=info
+   ```
+
+## Essential Environment Variables
+
+Create a `.env` file in the project root:
+
+| Variable | Description | Requirement |
+|---|---|---|
+| `FLASK_SECRET_KEY` | UUID/Hash used for signing | **Required** |
+| `REDIS_URL` | Redis connection string (e.g. `redis://redis:6379/0`) | **Required** |
+| `DATABASE_URL` | Postgres/Supabase DB connection string | Optional (falls back to local SQLite) |
+| `SUPABASE_URL` | Supabase project URL | Optional (falls back to local filesystem object storage) |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key | Required if `SUPABASE_URL` is set |
+| `SUPABASE_BUCKET` | Supabase bucket name for parquets | Required if `SUPABASE_URL` is set |
+| `GOOGLE_CLIENT_ID` | OAuth2 Client ID for Google Login | Optional |
+| `GEMINI_API_KEY` | Google Gemini key for LLM-assisted data insights | Optional |
+
+## Development Patterns
+
+- **Stateless Requests:** Do not use `flask.session` to store anything mutable (like DataFrames or project state). Routes should ingest an `upload_id` and rely on `_upath(...)` and `_load(...)`.
+- **Backgrounding Heavy Tasks:** Any route that blocks for > 1 second (AutoML, complex insights) must be structured as an asynchronous Celery task in `tasks.py` and returned a `202 Accepted` to the frontend with a `{ "task_id": job.id }` for polling.
+- **SQLAlchemy Jobs:** Background process tracking belongs in the `Job` SQLAlchemy model.
