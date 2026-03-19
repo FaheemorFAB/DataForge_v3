@@ -876,6 +876,9 @@ def api_report_view(report_id):
 @app.route("/api/reports/current")
 @login_required
 def api_report_current():
+    upload_id = _get_upload_id()
+    if not upload_id:
+        return Response("upload_id required", status=400)
     html = _load(upload_id, "report_html")
     if not html:
         return Response("No report yet.", status=404)
@@ -1045,7 +1048,6 @@ def api_sources_list():
 @app.route("/workspace")
 @login_required
 def workspace():
-    profile = _load(upload_id, "profile") or None
     return render_template(
         "workspace.html",
         user      = current_user,
@@ -1179,7 +1181,6 @@ def api_workspace_state():
                             df_raw = df_refetch                         # used below for state dict
                             profile = _df_profile(df_refetch, up.filename)
                             _save(upload_id, "profile", profile)
-                            session["profile"] = profile
                             _persist(upload_id, "df_raw", df_refetch)  # cache for next time
                     except Exception:
                         pass  # fall through to needs_reupload
@@ -1245,7 +1246,7 @@ def api_preview(upload_id):
     use_clean = request.args.get("clean") == "true"
     key = "df_clean" if use_clean else "df_raw"
     
-    p = _path(key).with_suffix('.parquet')
+    p = _upath(upload_id, key).with_suffix('.parquet')
     if not p.exists():
         p = _upath(upload_id, "df_raw").with_suffix('.parquet')
 
@@ -1295,9 +1296,12 @@ def api_clean(upload_id):
     }
     _save(upload_id, "clean_meta", meta)
 
-    upload_id = _get_upload_id()
     if upload_id:
         _persist(upload_id, "df_clean", df_clean)
+        try:
+            invalidate_upload(upload_id) # P2: Invalidate cache after clean
+        except Exception:
+            pass
         try:
             up = db.session.get(Upload, upload_id)
             if up:
@@ -1371,6 +1375,10 @@ def api_eda(upload_id):
 @app.route("/api/eda/report")
 @login_required
 def api_eda_report():
+    upload_id = _get_upload_id()
+    if not upload_id:
+        return Response("upload_id required", status=400)
+        
     html = _load(upload_id, "eda_html")
     if not html:
         return Response("No EDA report generated yet.", status=404)
@@ -1657,7 +1665,6 @@ def api_query(upload_id):
     history.append(msg)
     _save(upload_id, "chat_history", history)
 
-    upload_id = _get_upload_id()
     if upload_id:
         try:
             up = db.session.get(Upload, upload_id)
@@ -1799,7 +1806,6 @@ def api_restore(upload_id):
                     _save(upload_id, "df_raw", df_refetch)
                     profile = _df_profile(df_refetch, up.filename)
                     _save(upload_id, "profile", profile)
-                    session["profile"] = profile
                     # Re-persist so subsequent restores are fast
                     _persist(upload_id, "df_raw", df_refetch)
                     return jsonify({"ok": True, "needs_reupload": False, "profile": profile,
@@ -1817,7 +1823,6 @@ def api_restore(upload_id):
             "columns":     [],
         }
         _save(upload_id, "profile", profile)
-        session["profile"] = profile
 
         # Tailor the message to the source type
         if source_type == "sheets":
@@ -1858,7 +1863,6 @@ def api_restore(upload_id):
     _dc = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
     profile = _df_profile(df, up.filename)
     _save(upload_id, "profile", profile)
-    session["profile"] = profile
 
     return jsonify({"ok": True, "needs_reupload": False, "profile": profile})
 
@@ -1897,7 +1901,7 @@ def api_automl_download():
     if model_pkl is None:
         return jsonify({"error": "No trained model found. Run AutoML first."}), 404
     return send_file(
-        io.BytesIO(pickle.dumps(model_pkl)),
+        io.BytesIO(model_pkl),
         mimetype="application/octet-stream",
         as_attachment=True,
         download_name="dataforge_model.pkl",
@@ -2030,8 +2034,12 @@ def api_transform(upload_id):
     if reset:
         # Remove any saved transform — revert to clean/raw
         _save(upload_id, "df_transform", None)
-        df = _load(upload_id, "df_clean") or _load(upload_id, "df_raw")
-        profile = _df_profile(df, _get_filename(upload_id))
+        df_base = _load(upload_id, "df_clean")
+        if df_base is None:
+            df_base = _load(upload_id, "df_raw")
+        if df_base is None:
+             return jsonify({"error": "No dataset found to reset to"}), 400
+        profile = _df_profile(df_base, _get_filename(upload_id))
         return jsonify({"ok": True, "reset": True, "profile": profile})
 
     # Base: use clean if available, else raw

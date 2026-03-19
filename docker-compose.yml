@@ -21,8 +21,7 @@ services:
 
     environment:
       - REDIS_URL=redis://redis:6379/0
-    volumes:
-      - ./services/web/instance:/app/services/web/instance
+
     depends_on:
       - redis
 
