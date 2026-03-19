@@ -13,7 +13,7 @@ DataForge v3 is built for production, featuring a fully stateless API and a robu
   * **Primary Format:** Parquet (Snappy compression)
   * **Fast Querying (Previews):** DuckDB
   * **Object Storage:** Supabase Storage (or local disk fallback)
-  * **Relational DB:** PostgreSQL (Supabase) or SQLite (local config)
+  * **Relational DB:** PostgreSQL (Supabase)
 * **Metadata/Models:** JSON (`orjson` accelerated) and Joblib
 
 ## Core Services
@@ -38,7 +38,7 @@ DataForge_v3/
 │   └── dataforge/           # Contains models, pipelines, connectors, report parsers
 │       ├── anomaly_insight.py
 │       ├── automl_trainer.py
-│       ├── models.py        # SQLAlchemy schema (User, Job, Alert, Upload, etc.)
+│       ├── db.py            # Supabase API client and helper functions
 │       └── supabase_storage.py
 └── services/
     └── web/                 # The actual web microservice implementation
@@ -91,7 +91,8 @@ Create a `.env` file in the project root:
 |---|---|---|
 | `FLASK_SECRET_KEY` | UUID/Hash used for signing | **Required** |
 | `REDIS_URL` | Redis connection string (e.g. `redis://redis:6379/0`) | **Required** |
-| `DATABASE_URL` | Postgres/Supabase DB connection string | Optional (falls back to local SQLite) |
+| `SUPABASE_URL` | Postgres/Supabase API URL | Required |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key | Required |
 | `SUPABASE_URL` | Supabase project URL | Optional (falls back to local filesystem object storage) |
 | `SUPABASE_SERVICE_KEY` | Supabase service role key | Required if `SUPABASE_URL` is set |
 | `SUPABASE_BUCKET` | Supabase bucket name for parquets | Required if `SUPABASE_URL` is set |
@@ -102,4 +103,4 @@ Create a `.env` file in the project root:
 
 - **Stateless Requests:** Do not use `flask.session` to store anything mutable (like DataFrames or project state). Routes should ingest an `upload_id` and rely on `_upath(...)` and `_load(...)`.
 - **Backgrounding Heavy Tasks:** Any route that blocks for > 1 second (AutoML, complex insights) must be structured as an asynchronous Celery task in `tasks.py` and returned a `202 Accepted` to the frontend with a `{ "task_id": job.id }` for polling.
-- **SQLAlchemy Jobs:** Background process tracking belongs in the `Job` SQLAlchemy model.
+- **Supabase Jobs:** Background process tracking belongs in the `jobs` table in Supabase.

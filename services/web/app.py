@@ -15,7 +15,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-import os, io, uuid, json, pickle, tempfile, traceback
+import os, io, uuid, json, pickle, tempfile
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -23,8 +23,8 @@ from functools import wraps
 
 import pandas as pd
 import numpy as np
-from flask import (Flask, render_template, request, jsonify, session,
-                   send_file, redirect, url_for, Response, flash)
+from flask import (Flask, render_template, request, jsonify,
+                   send_file, redirect, url_for, Response)
 from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -35,7 +35,7 @@ if str(SHARED_DIR) not in sys.path:
 
 load_dotenv(override=True, dotenv_path=ROOT_DIR / ".env")
 
-from dataforge.settings import INSTANCE_DIR, PROJECTS_DIR
+from dataforge.settings import PROJECTS_DIR
 
 # ── App setup ──────────────────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -69,8 +69,7 @@ def _ws_push(event: str, data: dict, user_id: int | None = None):
 
 from dataforge.db import (db_client, db_get, db_first, db_all, db_insert, 
                           db_update, db_delete, db_count)
-from dataforge.db import (User, Upload, Analysis, InsightRecord, Report, 
-                          Alert, ReportSchedule, DataSource, MetricDefinition, Job)
+from dataforge.db import (User, Upload, ReportSchedule)
 
 
 # ── Flask-Login ────────────────────────────────────────────────────────────────
@@ -135,6 +134,12 @@ def _get_upload_user_id(upload_id: int):
         return None
 
 
+def _get_filename(upload_id: int) -> str:
+    """Helper to fetch the filename from the cached profile or DB."""
+    p = _load(upload_id, "profile") or {}
+    return p.get("filename", "")
+
+
 def _persist(upload_id: int, key: str, obj):
     """
     Write-through storage: always saves to local disk, also pushes to
@@ -171,12 +176,9 @@ def _persist(upload_id: int, key: str, obj):
             # Persist the storage path into the Upload row for df_raw
             if key == "df_raw":
                 try:
-                    up = db.session.get(Upload, upload_id)
-                    if up:
-                        up.storage_path = path
-                        db.session.commit()
+                    db_update("uploads", upload_id, {"storage_path": path})
                 except Exception:
-                    db.session.rollback()
+                    pass
         except Exception as _exc:
             app.logger.warning("Supabase _persist failed (key=%s): %s", key, _exc)
 
@@ -565,7 +567,7 @@ def auth_google_callback():
     if not GOOGLE_AUTH_ENABLED:
         return redirect(url_for("index") + "?login=1")
     try:
-        token = oauth.google.authorize_access_token()
+        oauth.google.authorize_access_token()  # side-effect: validates + stores token
         resp     = oauth.google.get("https://openidconnect.googleapis.com/v1/userinfo")
         userinfo = resp.json()
     except Exception as e:
@@ -576,22 +578,27 @@ def auth_google_callback():
     if not google_id:
         return redirect(url_for("index") + "?login=1")
 
-    user = User.query.filter_by(google_id=google_id).first()
-    if user is None:
-        user = User(
-            google_id = google_id,
-            email     = userinfo.get("email"),
-            name      = userinfo.get("name"),
-            avatar    = userinfo.get("picture"),
-        )
-        db.session.add(user)
+    user_data = db_first("users", {"google_id": google_id})
+    if user_data is None:
+        new_user = {
+            "google_id": google_id,
+            "email": userinfo.get("email"),
+            "name": userinfo.get("name"),
+            "avatar": userinfo.get("picture"),
+        }
+        res = db_insert("users", new_user)
+        user = User(**res) if res else None
     else:
-        user.name       = userinfo.get("name", user.name)
-        user.avatar     = userinfo.get("picture", user.avatar)
-        user.last_login = datetime.utcnow()
+        db_update("users", user_data["id"], {
+            "name": userinfo.get("name", user_data.get("name")),
+            "avatar": userinfo.get("picture", user_data.get("avatar")),
+            "last_login": datetime.utcnow().isoformat()
+        })
+        updated = db_get("users", user_data["id"])
+        user = User(**updated) if updated else User(**user_data)
 
-    db.session.commit()
-    login_user(user, remember=True)
+    if user:
+        login_user(user, remember=True)
     return redirect(url_for("dashboard"))
 
 
@@ -775,10 +782,6 @@ def api_insights_run(upload_id):
     (task_run_insights, *_) = _tasks()
     job = task_run_insights.apply_async(args=[upload_id, current_user.id, top_n, use_gem])
     db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "insights"})
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
     _db_log_analysis("insights", "queued async")
     return jsonify({"task_id": job.id, "queued": True}), 202
 
@@ -789,12 +792,12 @@ def api_insights_list():
     upload_id = _get_upload_id()
     if not upload_id:
         return jsonify([])
-    recs = InsightRecord.query.filter_by(upload_id=upload_id, user_id=current_user.id)\
-                              .order_by(InsightRecord.importance.desc()).all()
+    recs = db_all("insight_records", {"upload_id": upload_id, "user_id": current_user.id})
+    recs.sort(key=lambda x: x.get("importance", 0), reverse=True)
     return jsonify([{
-        "id": r.id, "type": r.type, "title": r.title, "description": r.description,
-        "importance": r.importance, "chart_type": r.chart_type, "metric": r.metric,
-        "chart_data": json.loads(r.chart_data) if r.chart_data else None,
+        "id": r.get("id"), "type": r.get("type"), "title": r.get("title"), "description": r.get("description"),
+        "importance": r.get("importance"), "chart_type": r.get("chart_type"), "metric": r.get("metric"),
+        "chart_data": json.loads(r["chart_data"]) if r.get("chart_data") and isinstance(r["chart_data"], str) else r.get("chart_data"),
     } for r in recs])
 
 
@@ -1000,7 +1003,6 @@ def workspace():
     return render_template(
         "workspace.html",
         user      = current_user,
-        profile   = profile,
         gemini_ok = gemini_available(),
     )
 
@@ -1609,12 +1611,11 @@ def api_query(upload_id):
 
     if upload_id:
         try:
-            up = db.session.get(Upload, upload_id)
-            if up:
-                up.chat_history = json.dumps(history, default=str)
-                db.session.commit()
+            db_update("uploads", upload_id, {
+                "chat_history": json.dumps(history, default=str)
+            })
         except Exception:
-            db.session.rollback()
+            pass
 
     _db_log_analysis("query", query[:120])
     return jsonify(result)
@@ -1741,7 +1742,6 @@ def api_restore(upload_id):
         if source_type == "sheets" and up.get("storage_path"):
             try:
                 source_cfg = json.loads(up.get("storage_path"))
-                sheet_url  = source_cfg.get("url", "")
                 sheet_id_r = source_cfg.get("sheet_id", "")
                 if sheet_id_r:
                     from dataforge.sheets_connector import SheetsConnector
@@ -1753,7 +1753,7 @@ def api_restore(upload_id):
                     _persist(upload_id, "df_raw", df_refetch)
                     return jsonify({"ok": True, "needs_reupload": False, "profile": profile,
                                     "auto_restored": True, "source": "sheets"})
-            except Exception as _se:
+            except Exception:
                 pass  # fall through to needs_reupload
 
         profile = {

@@ -35,7 +35,7 @@ from flask import Flask
 from flask_socketio import SocketIO
 
 from dataforge.db import db_get, db_update, db_insert, db_delete, db_client
-from dataforge.settings import PROJECTS_DIR, INSTANCE_DIR
+from dataforge.settings import PROJECTS_DIR
 from celery_app import make_celery
 
 # Minimal Flask app for the worker (no routes needed)
@@ -486,8 +486,6 @@ def task_check_alerts(self, upload_id: int, user_id: int):
 @celery.task(bind=True, name="tasks.run_scheduled_report")
 def task_run_scheduled_report(self, schedule_id: int):
     """Used by Celery Beat for periodic report generation."""
-    from dataforge.models import ReportSchedule
-
     _job_start(self.request.id)
     try:
         sched = db_get("report_schedules", schedule_id)
