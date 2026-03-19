@@ -34,37 +34,16 @@ load_dotenv(override=True, dotenv_path=ROOT_DIR / ".env")
 from flask import Flask
 from flask_socketio import SocketIO
 
-from dataforge.models  import db, Job, Upload, InsightRecord, Report, Alert
+from dataforge.db import db_get, db_update, db_insert, db_delete, db_client
 from dataforge.settings import PROJECTS_DIR, INSTANCE_DIR
 from celery_app import make_celery
 
 # Minimal Flask app for the worker (no routes needed)
 def create_worker_app():
     _app = Flask(__name__)
-
-    _PG_URL = os.getenv("DATABASE_URL", "")
-    if _PG_URL:
-        if _PG_URL.startswith("postgres://"):
-            _PG_URL = "postgresql://" + _PG_URL[len("postgres://"):]
-        _app.config["SQLALCHEMY_DATABASE_URI"] = _PG_URL
-        _app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-            "pool_pre_ping": True, "pool_recycle": 300,
-            "connect_args": {"sslmode": "require"},
-        }
-    else:
-        DB_PATH = INSTANCE_DIR / "dataforge.db"
-        INSTANCE_DIR.mkdir(parents=True, exist_ok=True)
-        _app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
-
-    _app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     _app.config["CELERY_BROKER_URL"]    = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     _app.config["CELERY_RESULT_BACKEND"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     _app.secret_key = os.getenv("FLASK_SECRET_KEY", "worker-secret")
-
-    db.init_app(_app)
-    with _app.app_context():
-        db.create_all()
-
     return _app
 
 
@@ -150,28 +129,29 @@ def _save(upload_id: int, key: str, obj):
 
 
 def _job_start(task_id: str):
-    job = db.session.get(Job, task_id)
+    job = db_get("jobs", task_id)
     if job:
-        job.status = "started"
-        db.session.commit()
+        db_update("jobs", task_id, {"status": "started"})
 
 
 def _job_success(task_id: str, result_ref: dict):
-    job = db.session.get(Job, task_id)
+    job = db_get("jobs", task_id)
     if job:
-        job.status      = "success"
-        job.result_ref  = json.dumps(result_ref)
-        job.finished_at = datetime.utcnow()
-        db.session.commit()
+        db_update("jobs", task_id, {
+            "status": "success",
+            "result_ref": json.dumps(result_ref),
+            "finished_at": datetime.utcnow().isoformat()
+        })
 
 
 def _job_fail(task_id: str, error: str):
-    job = db.session.get(Job, task_id)
+    job = db_get("jobs", task_id)
     if job:
-        job.status      = "failure"
-        job.error       = error[:2000]
-        job.finished_at = datetime.utcnow()
-        db.session.commit()
+        db_update("jobs", task_id, {
+            "status": "failure",
+            "error": error[:2000],
+            "finished_at": datetime.utcnow().isoformat()
+        })
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -208,8 +188,8 @@ def task_run_insights(self, upload_id: int, user_id: int,
             except Exception:
                 pass
 
-        up = db.session.get(Upload, upload_id)
-        filename = up.filename if up else "Dataset"
+        up = db_get("uploads", upload_id)
+        filename = up.get("filename", "") if up else "Dataset"
         summary = summarise_with_gemini(
             insights, dataset_name=filename,
             dataset_type=schema["dataset_type"], gemini_fn=gemini_fn,
@@ -223,18 +203,22 @@ def task_run_insights(self, upload_id: int, user_id: int,
 
         # Persist insight rows to DB
         try:
-            InsightRecord.query.filter_by(upload_id=upload_id).delete()
+            db_delete("insight_records", upload_id, match_col="upload_id")
+            
+            insert_data = []
             for ins in insights:
-                db.session.add(InsightRecord(
-                    upload_id=upload_id, user_id=user_id,
-                    type=ins.get("type", ""),        title=ins.get("title", ""),
-                    description=ins.get("description", ""), importance=ins.get("importance", 0.0),
-                    chart_type=ins.get("chart"),     metric=ins.get("metric", ""),
-                    chart_data=json.dumps(ins.get("chart_data")) if ins.get("chart_data") else None,
-                ))
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+                insert_data.append({
+                    "upload_id": upload_id, "user_id": user_id,
+                    "type": ins.get("type", ""), "title": ins.get("title", ""),
+                    "description": ins.get("description", ""), "importance": ins.get("importance", 0.0),
+                    "chart_type": ins.get("chart"), "metric": ins.get("metric", ""),
+                    "chart_data": json.dumps(ins.get("chart_data")) if ins.get("chart_data") else None,
+                })
+            
+            if insert_data:
+                db_client.table("insight_records").insert(insert_data).execute()
+        except Exception as e:
+            log.warning("Failed to bulk persist insights inside Celery: %s", e)
 
         # Invalidate Redis cache
         from cache import invalidate_upload
@@ -296,25 +280,24 @@ def task_run_automl(self, upload_id: int, user_id: int,
 
         # Update Upload row
         try:
-            up = db.session.get(Upload, upload_id)
-            if up:
-                up.automl_meta_json = json.dumps(result, default=str)
-                db.session.commit()
-        except Exception:
-            db.session.rollback()
+            db_update("uploads", upload_id, {
+                "automl_meta_json": json.dumps(result, default=str)
+            })
+        except Exception as e:
+            log.warning("Failed to save automl_meta_json to DB: %s", e)
 
         from cache import invalidate_upload
         invalidate_upload(upload_id)
 
         _job_success(self.request.id, {"key": "automl_meta"})
 
-        up = db.session.get(Upload, upload_id)
+        up = db_get("uploads", upload_id)
         _ws("automl_ready", {
             "upload_id":     upload_id,
             "best_estimator": result.get("best_estimator", ""),
             "task":          result.get("task", ""),
             "elapsed_s":     result.get("elapsed_s", ""),
-            "filename":      up.filename if up else "",
+            "filename":      up.get("filename", "") if up else "",
             "ts":            datetime.utcnow().isoformat(),
         }, user_id)
 
@@ -354,10 +337,10 @@ def task_run_eda(self, upload_id: int, user_id: int):
 
         _job_success(self.request.id, {"key": "eda_html"})
 
-        up = db.session.get(Upload, upload_id)
+        up = db_get("uploads", upload_id)
         _ws("eda_ready", {
             "upload_id": upload_id,
-            "filename":  up.filename if up else "",
+            "filename":  up.get("filename", "") if up else "",
             "ts":        datetime.utcnow().isoformat(),
         }, user_id)
 
@@ -396,8 +379,8 @@ def task_generate_report(self, upload_id: int, user_id: int):
                                              dataset_type=schema["dataset_type"])
 
         profile = _load(upload_id, "profile") or {}
-        up      = db.session.get(Upload, upload_id)
-        filename = up.filename if up else "Dataset"
+        up = db_get("uploads", upload_id)
+        filename = up.get("filename", "") if up else "Dataset"
 
         html = generate_html_report(
             insights=insights, summary_text=summary or "",
@@ -406,22 +389,22 @@ def task_generate_report(self, upload_id: int, user_id: int):
             profile=profile,
         )
 
-        rep = Report(
-            upload_id=upload_id, user_id=user_id,
-            report_html=html,
-            report_json=json.dumps({
+        rep = {
+            "upload_id": upload_id, "user_id": user_id,
+            "report_html": html,
+            "report_json": json.dumps({
                 "summary": summary,
                 "insights": [{k: v for k, v in i.items() if k != "chart_data"}
                              for i in insights],
             }, default=str),
-            triggered_by="async",
-        )
-        db.session.add(rep)
+            "triggered_by": "async",
+        }
+        
         try:
-            db.session.commit()
-            report_id = rep.id
-        except Exception:
-            db.session.rollback()
+            res = db_insert("reports", rep)
+            report_id = res.get("id") if res else None
+        except Exception as e:
+            log.warning("Failed to insert report to DB: %s", e)
             report_id = None
 
         _save(upload_id, "report_html", html)
@@ -464,25 +447,28 @@ def task_check_alerts(self, upload_id: int, user_id: int):
         fired_raw = engine.check(upload_id, df, schema)
 
         fired = []
+        insert_data = []
         for a in fired_raw:
-            row = Alert(upload_id=upload_id, user_id=user_id,
-                        rule=a["rule"], message=a["message"], severity=a["severity"],
-                        metric=a.get("metric", ""), pct_change=a.get("pct_change"))
-            db.session.add(row)
+            insert_data.append({
+                "upload_id": upload_id, "user_id": user_id,
+                "rule": a["rule"], "message": a["message"], "severity": a["severity"],
+                "metric": a.get("metric", ""), "pct_change": a.get("pct_change")
+            })
             fired.append(a)
 
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
+        if insert_data:
+            try:
+                db_client.table("alerts").insert(insert_data).execute()
+            except Exception as e:
+                log.warning("Failed to bulk insert alerts to DB: %s", e)
 
         # Cache the alert status
         from cache import set_alert_status
         set_alert_status(upload_id, {"count": len(fired), "alerts": fired})
 
         for a in fired:
-            up = db.session.get(Upload, upload_id)
-            _ws("alert", {**a, "filename": up.filename if up else "",
+            up = db_get("uploads", upload_id)
+            _ws("alert", {**a, "filename": up.get("filename", "") if up else "",
                           "ts": datetime.utcnow().isoformat()}, user_id)
 
         _job_success(self.request.id, {"fired": len(fired)})
@@ -504,20 +490,22 @@ def task_run_scheduled_report(self, schedule_id: int):
 
     _job_start(self.request.id)
     try:
-        sched = db.session.get(ReportSchedule, schedule_id)
-        if not sched or not sched.enabled:
+        sched = db_get("report_schedules", schedule_id)
+        if not sched or not sched.get("enabled"):
             _job_success(self.request.id, {"skipped": True})
             return
 
         # Delegate to generate_report task
         inner = task_generate_report.apply_async(
-            args=[sched.upload_id, sched.user_id]
+            args=[sched.get("upload_id"), sched.get("user_id")]
         )
 
         # Update last_run_at
-        sched.last_run_at = datetime.utcnow()
-        sched.last_run    = sched.last_run_at
-        db.session.commit()
+        now_ts = datetime.utcnow().isoformat()
+        db_update("report_schedules", schedule_id, {
+            "last_run_at": now_ts,
+            "last_run": now_ts
+        })
 
         _job_success(self.request.id, {"delegated_task_id": inner.id})
         return {"delegated_task_id": inner.id}

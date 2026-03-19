@@ -55,13 +55,14 @@ def make_celery(app):
             from datetime import datetime
             try:
                 with app.app_context():
-                    from dataforge.models import db, Job
-                    job = db.session.get(Job, task_id)
+                    from dataforge.db import db_get, db_update
+                    job = db_get("jobs", task_id)
                     if job:
-                        job.status      = "failure"
-                        job.error       = str(exc)[:2000]
-                        job.finished_at = datetime.utcnow()
-                        db.session.commit()
+                        db_update("jobs", task_id, {
+                            "status": "failure",
+                            "error": str(exc)[:2000],
+                            "finished_at": datetime.utcnow().isoformat()
+                        })
             except Exception:
                 pass  # best-effort; don't crash the worker
 

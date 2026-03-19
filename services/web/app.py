@@ -64,31 +64,14 @@ def _ws_push(event: str, data: dict, user_id: int | None = None):
         pass  # WebSocket push is best-effort — never break the HTTP response
 
 # ── Database ───────────────────────────────────────────────────────────────────
-# ── Database — Supabase Postgres (SQLite fallback for local dev) ──────────────
-_PG_URL = os.getenv("DATABASE_URL", "")
-if _PG_URL:
-    # Supabase / standard Postgres connection string
-    # Fix "postgres://" → "postgresql://" (SQLAlchemy 2.x requirement)
-    if _PG_URL.startswith("postgres://"):
-        _PG_URL = "postgresql://" + _PG_URL[len("postgres://"):]
-    app.config["SQLALCHEMY_DATABASE_URI"] = _PG_URL
-    # For Supabase pooled connections, disable pre-ping overhead per-request
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_pre_ping": True,
-        "pool_recycle":  300,
-        "connect_args":  {"sslmode": "require"},
-    }
-else:
-    # Local SQLite fallback
-    DB_PATH = INSTANCE_DIR / "dataforge.db"
-    INSTANCE_DIR.mkdir(parents=True, exist_ok=True)
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# ── Database — Supabase Native ──────────────────────────────────────────────────
+# Replaced SQLAlchemy SQLite/Postgres ORM with direct PostgREST calls
 
-from dataforge.models import (db, User, Upload, Analysis,
-                             InsightRecord, Report, Alert,
-                             ReportSchedule, DataSource, MetricDefinition, Job)
-db.init_app(app)
+from dataforge.db import (db_client, db_get, db_first, db_all, db_insert, 
+                          db_update, db_delete, db_count)
+from dataforge.db import (User, Upload, Analysis, InsightRecord, Report, 
+                          Alert, ReportSchedule, DataSource, MetricDefinition, Job)
+
 
 # ── Flask-Login ────────────────────────────────────────────────────────────────
 from flask_login import (LoginManager, login_user, logout_user,
@@ -110,7 +93,8 @@ def unauthorized():
 
 @login_manager.user_loader
 def load_user(user_id: str):
-    return db.session.get(User, int(user_id))
+    data = db_get("users", int(user_id))
+    return User(**data) if data else None
 
 # ── Google OAuth via Authlib ───────────────────────────────────────────────────
 from authlib.integrations.flask_client import OAuth
@@ -145,8 +129,8 @@ PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 def _get_upload_user_id(upload_id: int):
     """Return the user_id for an Upload row (used by Supabase storage helpers)."""
     try:
-        up = db.session.get(Upload, upload_id)
-        return up.user_id if up else None
+        up = db_get("uploads", upload_id)
+        return up.get("user_id") if up else None
     except Exception:
         return None
 
@@ -356,54 +340,7 @@ def _tasks():
     return (task_run_insights, task_run_automl,
             task_run_eda, task_generate_report, task_check_alerts)
 
-with app.app_context():
-    db.create_all()
-    from sqlalchemy import text
-    with db.engine.connect() as _c:
-        for _s in [
-            # uploads
-            "ALTER TABLE uploads ADD COLUMN original_name TEXT",
-            "ALTER TABLE uploads ADD COLUMN missing_pct REAL DEFAULT 0.0",
-            "ALTER TABLE uploads ADD COLUMN chat_history TEXT",
-            "ALTER TABLE uploads ADD COLUMN clean_meta_json TEXT",
-            "ALTER TABLE uploads ADD COLUMN automl_meta_json TEXT",
-            "ALTER TABLE uploads ADD COLUMN source_type TEXT DEFAULT 'csv'",
-            "ALTER TABLE uploads ADD COLUMN source_id INTEGER",
-            "ALTER TABLE uploads ADD COLUMN storage_path TEXT",
-            # insight_records
-            "ALTER TABLE insight_records ADD COLUMN type TEXT",
-            "ALTER TABLE insight_records ADD COLUMN title TEXT",
-            "ALTER TABLE insight_records ADD COLUMN description TEXT",
-            "ALTER TABLE insight_records ADD COLUMN importance REAL DEFAULT 0.0",
-            "ALTER TABLE insight_records ADD COLUMN chart_type TEXT",
-            "ALTER TABLE insight_records ADD COLUMN metric TEXT",
-            "ALTER TABLE insight_records ADD COLUMN chart_data TEXT",
-            # reports
-            "ALTER TABLE reports ADD COLUMN filename TEXT",
-            "ALTER TABLE reports ADD COLUMN report_json TEXT",
-            "ALTER TABLE reports ADD COLUMN storage_path TEXT",
-            # alerts
-            "ALTER TABLE alerts ADD COLUMN filename TEXT",
-            "ALTER TABLE alerts ADD COLUMN colour TEXT",
-            "ALTER TABLE alerts ADD COLUMN metric TEXT",
-            "ALTER TABLE alerts ADD COLUMN pct_change REAL",
-            "ALTER TABLE alerts ADD COLUMN resolved_at DATETIME",
-            # metric_definitions
-            "ALTER TABLE metric_definitions ADD COLUMN category TEXT DEFAULT 'general'",
-            "ALTER TABLE metric_definitions ADD COLUMN description TEXT",
-            "ALTER TABLE metric_definitions ADD COLUMN updated_at DATETIME",
-            # report_schedules
-            "ALTER TABLE report_schedules ADD COLUMN cron TEXT",
-            "ALTER TABLE report_schedules ADD COLUMN cron_human TEXT",
-            "ALTER TABLE report_schedules ADD COLUMN email TEXT",
-            "ALTER TABLE report_schedules ADD COLUMN last_run DATETIME",
-            "ALTER TABLE report_schedules ADD COLUMN created_at DATETIME",
-            # jobs (new table for Celery task tracking)
-            "ALTER TABLE jobs ADD COLUMN result_ref TEXT",
-            "ALTER TABLE jobs ADD COLUMN finished_at DATETIME",
-        ]:
-            try: _c.execute(text(_s)); _c.commit()
-            except Exception: pass
+# Note: No local SQLite migrations needed. All schema definition is in supabase/schema.sql
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -483,10 +420,10 @@ def _get_upload_id() -> int | None:
     return None
 
 def _get_upload_or_403(upload_id: int):
-    upload = db.session.get(Upload, upload_id)
-    if not upload or upload.user_id != current_user.id:
+    data = db_get("uploads", upload_id)
+    if not data or data.get("user_id") != current_user.id:
         return None, (jsonify({"error": "Unauthorized"}), 403)
-    return upload, None
+    return Upload(**data), None
 
 def _require_df(fn):
     @wraps(fn)
@@ -512,23 +449,20 @@ def _db_log_upload(profile: dict, source_type: str = "csv", source_config: dict 
     if not current_user.is_authenticated:
         return None
     try:
-        up = Upload(
-            user_id      = current_user.id,
-            filename     = profile.get("filename", ""),
-            original_name = profile.get("filename", ""),
-            rows         = profile.get("rows", 0),
-            cols         = profile.get("cols", 0),
-            missing_pct  = profile.get("missing_pct", 0.0),
-            source_type  = source_type,
-            # For Google Sheets: storage_path stores the JSON config (url, sheet_id)
-            # so it can be re-fetched on restore. For CSV: filled by _persist().
-            storage_path = json.dumps(source_config) if source_config and source_type != "csv" else None,
-        )
-        db.session.add(up)
-        db.session.commit()
-        return up.id
-    except Exception:
-        db.session.rollback()
+        up_dict = {
+            "user_id": current_user.id,
+            "filename": profile.get("filename", ""),
+            "original_name": profile.get("filename", ""),
+            "rows": profile.get("rows", 0),
+            "cols": profile.get("cols", 0),
+            "missing_pct": profile.get("missing_pct", 0.0),
+            "source_type": source_type,
+            "storage_path": json.dumps(source_config) if source_config and source_type != "csv" else None,
+        }
+        res = db_insert("uploads", up_dict)
+        return res.get("id")
+    except Exception as e:
+        app.logger.warning("Failed to log upload: %s", e)
         return None
 
 
@@ -537,30 +471,30 @@ def _db_log_analysis(type_: str, summary: str = ""):
     if not current_user.is_authenticated:
         return
     try:
-        an = Analysis(
-            user_id   = current_user.id,
-            upload_id = _get_upload_id(),
-            type      = type_,
-            summary   = summary,
-        )
-        db.session.add(an)
-        db.session.commit()
+        upload_id = _get_upload_id()
+        an_dict = {
+            "user_id": current_user.id,
+            "upload_id": upload_id,
+            "type": type_,
+            "summary": summary,
+        }
+        res = db_insert("analyses", an_dict)
         uid = current_user.id
         _ws_push("activity", {
             "type":     type_,
             "summary":  summary,
-            "filename": _get_filename(upload_id),
+            "filename": _get_filename(upload_id) if upload_id else "",
             "ts":       datetime.utcnow().isoformat(),
-            "analysis_id": an.id,
+            "analysis_id": res.get("id"),
         }, user_id=uid)
         _ws_push("stats_update", {
-            "uploads":  current_user.total_uploads,
-            "analyses": current_user.total_analyses,
-            "models":   current_user.total_models,
-            "queries":  current_user.total_queries,
+            "uploads":  db_count("uploads", {"user_id": uid}),
+            "analyses": db_count("analyses", {"user_id": uid}),
+            "models":   db_count("analyses", {"user_id": uid, "type": "automl"}),
+            "queries":  db_count("analyses", {"user_id": uid, "type": "query"}),
         }, user_id=uid)
-    except Exception:
-        db.session.rollback()
+    except Exception as e:
+        app.logger.warning("Failed to log analysis: %s", e)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -679,18 +613,19 @@ def index():
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    from sqlalchemy import func as sqfunc
-
     user = current_user
-    recent_uploads = (
-        Upload.query.filter_by(user_id=user.id)
-        .order_by(Upload.uploaded_at.desc()).limit(10).all()
-    )
+    
+    recent_uploads = db_all("uploads", {"user_id": user.id}, order_by="uploaded_at", limit=10)
 
-    def _time_ago_local(dt):
-        if not dt:
+    def _time_ago_local(dt_str):
+        if not dt_str:
             return ""
-        diff = datetime.utcnow() - dt
+        try:
+            dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+            # Supabase returns UTC ISO strings. Convert naive datetime.utcnow() logically
+            diff = datetime.now(dt.tzinfo) - dt if dt.tzinfo else datetime.utcnow() - dt
+        except Exception:
+            return ""
         s = int(diff.total_seconds())
         if s < 60:       return "just now"
         if s < 3600:     return f"{s//60}m ago"
@@ -698,47 +633,66 @@ def dashboard():
         return f"{s//86400}d ago"
 
     uploads_data = [{
-        "filename":    u.filename,
-        "rows":        getattr(u, "rows", 0) or 0,
-        "cols":        getattr(u, "cols", 0) or 0,
-        "missing_pct": getattr(u, "missing_pct", 0) or 0,
-        "time_ago":    _time_ago_local(u.uploaded_at),
-        "id":          u.id,
-        "source_type": getattr(u, "source_type", "csv") or "csv",
+        "filename":    u.get("filename", ""),
+        "rows":        u.get("rows", 0) or 0,
+        "cols":        u.get("cols", 0) or 0,
+        "missing_pct": u.get("missing_pct", 0) or 0,
+        "time_ago":    _time_ago_local(u.get("uploaded_at")),
+        "id":          u.get("id"),
+        "source_type": u.get("source_type", "csv") or "csv",
     } for u in recent_uploads]
 
     _icon_map = {"eda": "📊", "automl": "🤖", "clean": "🧹", "query": "💬",
                  "insights": "💡", "report": "📄"}
-    recent_analyses = (
-        Analysis.query.filter_by(user_id=user.id)
-        .order_by(Analysis.created_at.desc()).limit(30).all()
-    )
-    analyses_data = [{
-        "type":     a.type,
-        "label":    a.label,
-        "icon":     _icon_map.get(a.type, "⚡"),
-        "summary":  a.summary or "",
-        "filename": a.upload.filename if a.upload else "",
-        "time_ago": _time_ago_local(a.created_at),
-    } for a in recent_analyses]
+                 
+    _map_labels = {
+        "eda":      "EDA Report",
+        "automl":   "AutoML Training",
+        "clean":    "Data Cleaning",
+        "query":    "AI Query",
+        "insights": "Insights",
+        "report":   "Report Generated",
+    }
+    
+    # Supabase Join: fetch Analysis and its parent Upload's filename
+    analyses_res = db_client.table("analyses").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(30).execute()
+    recent_analyses = analyses_res.data if analyses_res and analyses_res.data else []
+    
+    analyses_data = []
+    for a in recent_analyses:
+        type_ = a.get("type", "")
+        up = a.get("uploads") or {}
+        analyses_data.append({
+            "type":     type_,
+            "label":    _map_labels.get(type_, type_.title()),
+            "icon":     _icon_map.get(type_, "⚡"),
+            "summary":  a.get("summary") or "",
+            "filename": up.get("filename", ""),
+            "time_ago": _time_ago_local(a.get("created_at")),
+        })
 
-    alert_count = Alert.query.filter_by(user_id=user.id, resolved=False).count()
-    recent_reports = Report.query.filter_by(user_id=user.id)\
-                                 .order_by(Report.created_at.desc()).limit(5).all()
-    reports_data = [{
-        "id": r.id,
-        "filename": r.upload.filename if r.upload else "",
-        "triggered_by": r.triggered_by,
-        "time_ago": _time_ago_local(r.created_at),
-    } for r in recent_reports]
+    alert_count = db_count("alerts", {"user_id": user.id, "resolved": False})
+    
+    reports_res = db_client.table("reports").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(5).execute()
+    recent_reports = reports_res.data if reports_res and reports_res.data else []
+    
+    reports_data = []
+    for r in recent_reports:
+        up = r.get("uploads") or {}
+        reports_data.append({
+            "id": r.get("id"),
+            "filename": up.get("filename", ""),
+            "triggered_by": r.get("triggered_by", ""),
+            "time_ago": _time_ago_local(r.get("created_at")),
+        })
 
-    schedule_count = ReportSchedule.query.filter_by(user_id=user.id, enabled=True).count()
+    schedule_count = db_count("report_schedules", {"user_id": user.id, "enabled": True})
 
     class Stats:
-        uploads  = user.total_uploads
-        analyses = user.total_analyses
-        models   = user.total_models
-        queries  = user.total_queries
+        uploads  = db_count("uploads", {"user_id": user.id})
+        analyses = db_count("analyses", {"user_id": user.id})
+        models   = db_count("analyses", {"user_id": user.id, "type": "automl"})
+        queries  = db_count("analyses", {"user_id": user.id, "type": "query"})
 
     return render_template(
         "dashboard.html",
@@ -777,18 +731,26 @@ def on_ping(data):
 
 def _persist_insights(upload_id, user_id, insights):
     try:
-        InsightRecord.query.filter_by(upload_id=upload_id).delete()
+        db_delete("insight_records", upload_id) # actually needs to match upload_id, not id
+        db_client.table("insight_records").delete().eq("upload_id", upload_id).execute()
+        
+        insert_data = []
         for ins in insights:
-            db.session.add(InsightRecord(
-                upload_id=upload_id, user_id=user_id,
-                type=ins.get("type",""), title=ins.get("title",""),
-                description=ins.get("description",""), importance=ins.get("importance",0.0),
-                chart_type=ins.get("chart"), metric=ins.get("metric",""),
-                chart_data=json.dumps(ins.get("chart_data")) if ins.get("chart_data") else None,
-            ))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+            insert_data.append({
+                "upload_id": upload_id,
+                "user_id": user_id,
+                "type": ins.get("type", ""),
+                "title": ins.get("title", ""),
+                "description": ins.get("description", ""),
+                "importance": ins.get("importance", 0.0),
+                "chart_type": ins.get("chart"),
+                "metric": ins.get("metric", ""),
+                "chart_data": json.dumps(ins.get("chart_data")) if ins.get("chart_data") else None,
+            })
+        if insert_data:
+            db_client.table("insight_records").insert(insert_data).execute()
+    except Exception as e:
+        app.logger.warning("Failed to bulk persist insights: %s", e)
 
 
 @app.route("/api/insights/run", methods=["POST"])
@@ -802,9 +764,9 @@ def api_insights_run(upload_id):
         return jsonify({"error": "Rate limit: max 3 insight jobs per minute"}), 429
 
     # Idempotency: don't queue a second job if one is already running
-    existing = Job.query.filter_by(upload_id=upload_id, type="insights", status="started").first()
+    existing = db_first("jobs", {"upload_id": upload_id, "type": "insights", "status": "started"})
     if existing:
-        return jsonify({"task_id": existing.id, "queued": False}), 200
+        return jsonify({"task_id": existing["id"], "queued": False}), 200
 
     body    = request.get_json(force=True) or {}
     top_n   = int(body.get("top_n", 6))
@@ -812,8 +774,7 @@ def api_insights_run(upload_id):
 
     (task_run_insights, *_) = _tasks()
     job = task_run_insights.apply_async(args=[upload_id, current_user.id, top_n, use_gem])
-    db.session.add(Job(id=job.id, user_id=current_user.id,
-                       upload_id=upload_id, type="insights"))
+    db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "insights"})
     try:
         db.session.commit()
     except Exception:
@@ -848,18 +809,13 @@ def api_report_generate(upload_id):
     if not REPORTING_ENABLED:
         return jsonify({"error": "Reporting engine not installed"}), 503
 
-    existing = Job.query.filter_by(upload_id=upload_id, type="report", status="started").first()
+    existing = db_first("jobs", {"upload_id": upload_id, "type": "report", "status": "started"})
     if existing:
-        return jsonify({"task_id": existing.id, "queued": False}), 200
+        return jsonify({"task_id": existing.get("id"), "queued": False}), 200
 
     (_, _, _, task_generate_report, _) = _tasks()
     job = task_generate_report.apply_async(args=[upload_id, current_user.id])
-    db.session.add(Job(id=job.id, user_id=current_user.id,
-                       upload_id=upload_id, type="report"))
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+    db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "report"})
     _db_log_analysis("report", "queued async")
     return jsonify({"task_id": job.id, "queued": True}), 202
 
@@ -867,10 +823,10 @@ def api_report_generate(upload_id):
 @app.route("/api/reports/<int:report_id>")
 @login_required
 def api_report_view(report_id):
-    rep = db.session.get(Report, report_id)
-    if not rep or rep.user_id != current_user.id:
+    rep = db_get("reports", report_id)
+    if not rep or rep.get("user_id") != current_user.id:
         return Response("Not found", status=404)
-    return Response(rep.report_html, mimetype="text/html")
+    return Response(rep.get("report_html", ""), mimetype="text/html")
 
 
 @app.route("/api/reports/current")
@@ -888,19 +844,18 @@ def api_report_current():
 @app.route("/api/reports")
 @login_required
 def api_reports_list():
-    reps = Report.query.filter_by(user_id=current_user.id)\
-                       .order_by(Report.created_at.desc()).limit(50).all()
+    res = db_client.table("reports").select("*, uploads(filename)").eq("user_id", current_user.id).order("created_at", desc=True).limit(50).execute()
+    reps = res.data if res and res.data else []
+    
     out = []
     for r in reps:
-        try:
-            fname = r.upload.filename if r.upload else (r.filename or "")
-        except Exception:
-            fname = getattr(r, "filename", "") or ""
+        up = r.get("uploads") or {}
+        fname = up.get("filename") or r.get("filename") or ""
         out.append({
-            "id": r.id, "upload_id": r.upload_id,
+            "id": r.get("id"), "upload_id": r.get("upload_id"),
             "filename": fname,
-            "triggered_by": r.triggered_by,
-            "created_at": r.created_at.isoformat(),
+            "triggered_by": r.get("triggered_by"),
+            "created_at": r.get("created_at"),
         })
     return jsonify(out)
 
@@ -911,22 +866,22 @@ def api_reports_list():
 @app.route("/api/alerts")
 @login_required
 def api_alerts_list():
-    alerts = Alert.query.filter_by(user_id=current_user.id, resolved=False)\
-                        .order_by(Alert.triggered_at.desc()).limit(100).all()
+    res = db_client.table("alerts").select("*, uploads(filename)").eq("user_id", current_user.id).eq("resolved", False).order("triggered_at", desc=True).limit(100).execute()
+    alerts = res.data if res and res.data else []
+    
     out = []
     for a in alerts:
-        try:
-            fname = a.upload.filename if a.upload else (getattr(a, "filename", "") or "")
-        except Exception:
-            fname = getattr(a, "filename", "") or ""
+        up = a.get("uploads") or {}
+        fname = up.get("filename") or a.get("filename") or ""
+        
         out.append({
-            "id": a.id, "upload_id": a.upload_id,
+            "id": a.get("id"), "upload_id": a.get("upload_id"),
             "filename": fname,
-            "rule": a.rule, "message": a.message, "severity": a.severity,
-            "colour": getattr(a, "colour", getattr(a, "severity_colour", "#F59E0B")),
-            "metric": getattr(a, "metric", ""),
-            "pct_change": getattr(a, "pct_change", None),
-            "triggered_at": a.triggered_at.isoformat(),
+            "rule": a.get("rule"), "message": a.get("message"), "severity": a.get("severity"),
+            "colour": a.get("colour", a.get("severity_colour", "#F59E0B")),
+            "metric": a.get("metric", ""),
+            "pct_change": a.get("pct_change", None),
+            "triggered_at": a.get("triggered_at"),
         })
     return jsonify(out)
 
@@ -942,33 +897,27 @@ def api_alerts_check(upload_id):
     if cached:
         return jsonify({"ok": True, "from_cache": True, **cached})
 
-    existing = Job.query.filter_by(upload_id=upload_id, type="alerts", status="started").first()
+    existing = db_first("jobs", {"upload_id": upload_id, "type": "alerts", "status": "started"})
     if existing:
-        return jsonify({"task_id": existing.id, "queued": False}), 200
+        return jsonify({"task_id": existing.get("id"), "queued": False}), 200
 
     (_, _, _, _, task_check_alerts) = _tasks()
     job = task_check_alerts.apply_async(args=[upload_id, current_user.id])
-    db.session.add(Job(id=job.id, user_id=current_user.id,
-                       upload_id=upload_id, type="alerts"))
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+    db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "alerts"})
     return jsonify({"task_id": job.id, "queued": True}), 202
 
 
 @app.route("/api/alerts/<int:alert_id>/resolve", methods=["POST"])
 @login_required
 def api_alert_resolve(alert_id):
-    a = db.session.get(Alert, alert_id)
-    if not a or a.user_id != current_user.id:
+    a = db_get("alerts", alert_id)
+    if not a or a.get("user_id") != current_user.id:
         return jsonify({"error": "Not found"}), 404
-    a.resolved = True
-    a.resolved_at = datetime.utcnow()
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+        
+    db_update("alerts", alert_id, {
+        "resolved": True,
+        "resolved_at": datetime.utcnow().isoformat()
+    })
     return jsonify({"ok": True})
 
 
@@ -999,32 +948,32 @@ def api_schedules_create():
     email = (body.get("email") or "").strip()
     if not upload_id:
         return jsonify({"error": "upload_id required — upload a dataset first"}), 400
-    upload = db.session.get(Upload, upload_id)
-    if not upload or upload.user_id != current_user.id:
+    upload = db_get("uploads", upload_id)
+    if not upload or upload.get("user_id") != current_user.id:
         return jsonify({"error": "Upload not found"}), 404
-    sched = ReportSchedule(upload_id=upload_id, user_id=current_user.id,
-                           cron_expression=cron, email=email, enabled=True)
-    db.session.add(sched)
+        
+    sched = {
+        "upload_id": upload_id, "user_id": current_user.id,
+        "cron_expression": cron, "email": email, "enabled": True
+    }
     try:
-        db.session.commit()
+        res = db_insert("report_schedules", sched)
+        return jsonify({"ok": True, "schedule_id": res.get("id"), "cron_human": ReportSchedule(**res).cron_human_text if res else ""})
     except Exception as e:
-        db.session.rollback()
         return jsonify({"error": str(e)}), 500
-    return jsonify({"ok": True, "schedule_id": sched.id, "cron_human": sched.cron_human})
 
 
 @app.route("/api/schedules/<int:schedule_id>", methods=["DELETE"])
 @login_required
 def api_schedules_delete(schedule_id):
-    sched = db.session.get(ReportSchedule, schedule_id)
-    if not sched or sched.user_id != current_user.id:
+    sched = db_get("report_schedules", schedule_id)
+    if not sched or sched.get("user_id") != current_user.id:
         return jsonify({"error": "Not found"}), 404
-    sched.enabled = False
     try:
-        db.session.commit()
+        db_update("report_schedules", schedule_id, {"enabled": False})
+        return jsonify({"ok": True})
     except Exception:
-        db.session.rollback()
-    return jsonify({"ok": True})
+        return jsonify({"error": "Failed to delete"}), 500
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1034,10 +983,10 @@ def api_schedules_delete(schedule_id):
 @app.route("/api/sources", methods=["GET"])
 @login_required
 def api_sources_list():
-    sources = DataSource.query.filter_by(user_id=current_user.id, enabled=True).all()
+    sources = db_all("data_sources", {"user_id": current_user.id, "enabled": True})
     return jsonify([{
-        "id": s.id, "name": s.name, "source_type": s.source_type,
-        "last_sync": s.last_sync.isoformat() if s.last_sync else None,
+        "id": s.get("id"), "name": s.get("name"), "source_type": s.get("source_type"),
+        "last_sync": s.get("last_sync"),
     } for s in sources])
 
 
@@ -1164,22 +1113,23 @@ def api_workspace_state():
     upload_id = _get_upload_id()
     if upload_id and df_raw is None:
         try:
-            up = db.session.get(Upload, upload_id)
+            up = db_get("uploads", upload_id)
             if up:
-                src = getattr(up, "source_type", "csv") or "csv"
+                src = up.get("source_type", "csv") or "csv"
                 reupload_source_type = src
+                up_filename = up.get("filename", "")
 
                 # Google Sheets: attempt silent re-fetch before declaring reupload
-                if src == "sheets" and up.storage_path:
+                if src == "sheets" and up.get("storage_path"):
                     try:
-                        src_cfg = json.loads(up.storage_path)
+                        src_cfg = json.loads(up.get("storage_path"))
                         sheet_id_r = src_cfg.get("sheet_id", "")
                         if sheet_id_r:
                             from dataforge.sheets_connector import SheetsConnector
                             df_refetch = SheetsConnector().load_public(sheet_id_r)
                             _save(upload_id, "df_raw", df_refetch)
                             df_raw = df_refetch                         # used below for state dict
-                            profile = _df_profile(df_refetch, up.filename)
+                            profile = _df_profile(df_refetch, up_filename)
                             _save(upload_id, "profile", profile)
                             _persist(upload_id, "df_raw", df_refetch)  # cache for next time
                     except Exception:
@@ -1187,24 +1137,24 @@ def api_workspace_state():
 
                 if df_raw is None:
                     needs_reupload    = True
-                    reupload_filename = up.filename
+                    reupload_filename = up_filename
                     if src == "sheets":
                         reupload_message = (
-                            f"Could not re-fetch '{up.filename}' from Google Sheets. "
+                            f"Could not re-fetch '{up_filename}' from Google Sheets. "
                             "The sheet may be private or the URL changed. Re-connect it."
                         )
                     else:
                         reupload_message = (
-                            f"'{up.filename}' was saved before data persistence was enabled. "
+                            f"'{up_filename}' was saved before data persistence was enabled. "
                             "Re-upload the original file to continue your analysis."
                         )
                     # Populate profile from DB row so the workspace shows metadata
                     if not profile:
                         profile = {
-                            "filename":    up.filename,
-                            "rows":        getattr(up, "rows", 0) or 0,
-                            "cols":        getattr(up, "cols", 0) or 0,
-                            "missing_pct": getattr(up, "missing_pct", 0.0) or 0.0,
+                            "filename":    up_filename,
+                            "rows":        up.get("rows", 0) or 0,
+                            "cols":        up.get("cols", 0) or 0,
+                            "missing_pct": up.get("missing_pct", 0.0) or 0.0,
                             "missing":     0,
                             "numeric":     0,
                             "columns":     [],
@@ -1303,12 +1253,9 @@ def api_clean(upload_id):
         except Exception:
             pass
         try:
-            up = db.session.get(Upload, upload_id)
-            if up:
-                up.clean_meta_json = json.dumps(meta, default=str)
-                db.session.commit()
-        except Exception:
-            db.session.rollback()
+            db_update("uploads", upload_id, {"clean_meta_json": json.dumps(meta, default=str)})
+        except Exception as e:
+            app.logger.warning("Failed to save clean_meta_json to DB: %s", e)
 
     _db_log_analysis("clean", f"Removed {result['stats'].get('rows_removed',0)} rows · "
                                f"{result['stats'].get('cols_removed',0)} cols dropped")
@@ -1597,20 +1544,15 @@ def api_automl_train(upload_id):
         }), 400
 
     # Idempotency: reuse existing running job
-    existing = Job.query.filter_by(upload_id=upload_id, type="automl", status="started").first()
+    existing = db_first("jobs", {"upload_id": upload_id, "type": "automl", "status": "started"})
     if existing:
-        return jsonify({"task_id": existing.id, "queued": False}), 200
+        return jsonify({"task_id": existing.get("id"), "queued": False}), 200
 
     (_, task_run_automl, *_) = _tasks()
     job = task_run_automl.apply_async(
         args=[upload_id, current_user.id, target_col, task_choice, time_budget, test_size]
     )
-    db.session.add(Job(id=job.id, user_id=current_user.id,
-                       upload_id=upload_id, type="automl"))
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+    db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "automl"})
     _db_log_analysis("automl", f"queued · target={target_col} · budget={time_budget}s")
     return jsonify({"task_id": job.id, "queued": True}), 202
 
@@ -1635,13 +1577,13 @@ def api_query(upload_id):
     metric_context = ""
     if current_user.is_authenticated:
         try:
-            user_metrics = MetricDefinition.query.filter_by(user_id=current_user.id).all()
+            user_metrics = db_all("metric_definitions", {"user_id": current_user.id})
             if user_metrics:
                 lines = ["Defined business metrics:"]
                 for m in user_metrics:
-                    l = f"  {m.name} = {m.formula}"
-                    if m.description:
-                        l += f"  # {m.description}"
+                    l = f"  {m.get('name')} = {m.get('formula')}"
+                    if m.get("description"):
+                        l += f"  # {m.get('description')}"
                     lines.append(l)
                 metric_context = "\n".join(lines)
         except Exception:
@@ -1689,37 +1631,37 @@ def api_task_status(task_id):
     Combined status endpoint: merges our Job DB row with Celery's AsyncResult.
     DB is the source of truth for status; Celery result backend is a fallback.
     """
-    job = db.session.get(Job, task_id)
-    if not job or job.user_id != current_user.id:
+    job = db_get("jobs", task_id)
+    if not job or job.get("user_id") != current_user.id:
         return jsonify({"error": "Not found"}), 404
 
     # Try to enrich with Celery native state (handles edge cases like worker crash)
-    celery_status = job.status
+    celery_status = job.get("status")
     try:
         from celery.result import AsyncResult
         (task_run_insights, *_) = _tasks()          # any import just to get the celery instance
         res = AsyncResult(task_id)
-        if res.state == "FAILURE" and job.status not in ("failure", "success"):
+        if res.state == "FAILURE" and job.get("status") not in ("failure", "success"):
             celery_status = "failure"
-        elif res.state == "SUCCESS" and job.status not in ("failure", "success"):
+        elif res.state == "SUCCESS" and job.get("status") not in ("failure", "success"):
             celery_status = "success"
     except Exception:
         pass
 
     result_ref = None
     try:
-        result_ref = json.loads(job.result_ref) if job.result_ref else None
+        result_ref = json.loads(job.get("result_ref")) if job.get("result_ref") else None
     except Exception:
         pass
 
     return jsonify({
-        "id":          job.id,
-        "type":        job.type,
+        "id":          job.get("id"),
+        "type":        job.get("type"),
         "status":      celery_status,
         "result_ref":  result_ref,
-        "error":       job.error,
-        "created_at":  job.created_at.isoformat() if job.created_at else None,
-        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        "error":       job.get("error"),
+        "created_at":  job.get("created_at"),
+        "finished_at": job.get("finished_at"),
     })
 
 
@@ -1727,9 +1669,11 @@ def api_task_status(task_id):
 @login_required
 def api_tasks_list():
     """List recent jobs for the current user (last 20)."""
-    jobs = Job.query.filter_by(user_id=current_user.id)\
-                    .order_by(Job.created_at.desc()).limit(20).all()
-    return jsonify([j.to_dict() for j in jobs])
+    jobs = db_all("jobs", {"user_id": current_user.id}, order_by="created_at", limit=20)
+    return jsonify([{
+        "id": j.get("id"), "type": j.get("type"), "status": j.get("status"), 
+        "error": j.get("error"), "created_at": j.get("created_at")
+    } for j in jobs])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1739,21 +1683,19 @@ def api_tasks_list():
 @app.route("/api/projects")
 @login_required
 def api_projects():
-    uploads = (Upload.query
-               .filter_by(user_id=current_user.id)
-               .order_by(Upload.uploaded_at.desc())
-               .limit(50).all())
+    uploads = db_all("uploads", {"user_id": current_user.id}, order_by="uploaded_at", limit=50)
     result = []
     for u in uploads:
-        meta = _project_meta(u.id)
+        uid = u.get("id")
+        meta = _project_meta(uid)
         result.append({
-            "id":          u.id,
-            "filename":    u.filename,
-            "rows":        getattr(u, "rows", 0) or 0,
-            "cols":        getattr(u, "cols", 0) or 0,
-            "missing_pct": getattr(u, "missing_pct", 0) or 0,
-            "uploaded_at": u.uploaded_at.isoformat() if u.uploaded_at else "",
-            "source_type": getattr(u, "source_type", "csv") or "csv",
+            "id":          uid,
+            "filename":    u.get("filename", ""),
+            "rows":        u.get("rows", 0) or 0,
+            "cols":        u.get("cols", 0) or 0,
+            "missing_pct": u.get("missing_pct", 0) or 0,
+            "uploaded_at": u.get("uploaded_at") or "",
+            "source_type": u.get("source_type", "csv") or "csv",
             **meta,
         })
     return jsonify(result)
@@ -1776,8 +1718,8 @@ def api_restore(upload_id):
         targeted "re-upload" prompt instead of a silent broken state.
       • Never returns a 500 for the missing-files case.
     """
-    up = db.session.get(Upload, upload_id)
-    if not up or up.user_id != current_user.id:
+    up = db_get("uploads", upload_id)
+    if not up or up.get("user_id") != current_user.id:
         return jsonify({"error": "Not found"}), 404
 
     _clear_store(upload_id)
@@ -1794,17 +1736,18 @@ def api_restore(upload_id):
     if "df_raw" not in loaded_keys and "df_clean" not in loaded_keys:
 
         # Google Sheets: if we stored the URL in storage_path, re-fetch it now
-        source_type = getattr(up, "source_type", "csv") or "csv"
-        if source_type == "sheets" and up.storage_path:
+        source_type = up.get("source_type", "csv") or "csv"
+        up_filename = up.get("filename", "")
+        if source_type == "sheets" and up.get("storage_path"):
             try:
-                source_cfg = json.loads(up.storage_path)
+                source_cfg = json.loads(up.get("storage_path"))
                 sheet_url  = source_cfg.get("url", "")
                 sheet_id_r = source_cfg.get("sheet_id", "")
                 if sheet_id_r:
                     from dataforge.sheets_connector import SheetsConnector
                     df_refetch = SheetsConnector().load_public(sheet_id_r)
                     _save(upload_id, "df_raw", df_refetch)
-                    profile = _df_profile(df_refetch, up.filename)
+                    profile = _df_profile(df_refetch, up_filename)
                     _save(upload_id, "profile", profile)
                     # Re-persist so subsequent restores are fast
                     _persist(upload_id, "df_raw", df_refetch)
@@ -1814,10 +1757,10 @@ def api_restore(upload_id):
                 pass  # fall through to needs_reupload
 
         profile = {
-            "filename":    up.filename,
-            "rows":        getattr(up, "rows", 0) or 0,
-            "cols":        getattr(up, "cols", 0) or 0,
-            "missing_pct": getattr(up, "missing_pct", 0.0) or 0.0,
+            "filename":    up_filename,
+            "rows":        up.get("rows", 0) or 0,
+            "cols":        up.get("cols", 0) or 0,
+            "missing_pct": up.get("missing_pct", 0.0) or 0.0,
             "missing":     0,
             "numeric":     0,
             "columns":     [],
@@ -1826,11 +1769,11 @@ def api_restore(upload_id):
 
         # Tailor the message to the source type
         if source_type == "sheets":
-            msg = (f"Could not re-fetch '{up.filename}' from Google Sheets. "
+            msg = (f"Could not re-fetch '{up_filename}' from Google Sheets. "
                    "The sheet may have been made private or the URL changed. "
                    "Re-connect the sheet to continue.")
         else:
-            msg = (f"'{up.filename}' was saved before data persistence was enabled. "
+            msg = (f"'{up_filename}' was saved before data persistence was enabled. "
                    "Re-upload the original file to continue your analysis.")
 
         return jsonify({
@@ -1842,26 +1785,26 @@ def api_restore(upload_id):
         })
 
     # ── Normal restore ────────────────────────────────────────────────────────
-    if up.clean_meta_json:
+    if up.get("clean_meta_json"):
         try:
-            _save(upload_id, "clean_meta", json.loads(up.clean_meta_json))
+            _save(upload_id, "clean_meta", json.loads(up.get("clean_meta_json")))
         except Exception:
             pass
 
-    if up.automl_meta_json:
+    if up.get("automl_meta_json"):
         try:
-            _save(upload_id, "automl_meta", json.loads(up.automl_meta_json))
+            _save(upload_id, "automl_meta", json.loads(up.get("automl_meta_json")))
         except Exception:
             pass
 
-    if up.chat_history:
+    if up.get("chat_history"):
         try:
-            _save(upload_id, "chat_history", json.loads(up.chat_history))
+            _save(upload_id, "chat_history", json.loads(up.get("chat_history")))
         except Exception:
             pass
 
     _dc = _load(upload_id, "df_clean"); df = _dc if _dc is not None else _load(upload_id, "df_raw")
-    profile = _df_profile(df, up.filename)
+    profile = _df_profile(df, up.get("filename", ""))
     _save(upload_id, "profile", profile)
 
     return jsonify({"ok": True, "needs_reupload": False, "profile": profile})
@@ -2095,8 +2038,7 @@ def api_delete_upload(upload_id):
     if err:
         return err
     
-    db.session.delete(upload)
-    db.session.commit()
+    db_delete("uploads", upload.id)
     
     _clear_store(upload_id)
     return jsonify({"ok": True})
@@ -2159,8 +2101,12 @@ def api_root_cause(upload_id):
 @login_required
 def api_metrics_list():
     """List all metric definitions for the current user."""
-    metrics = MetricDefinition.query.filter_by(user_id=current_user.id)                                    .order_by(MetricDefinition.created_at.desc()).all()
-    return jsonify([m.to_dict() for m in metrics])
+    metrics = db_all("metric_definitions", {"user_id": current_user.id}, order_by="created_at")
+    return jsonify([{
+        "id": m.get("id"), "name": m.get("name"), "formula": m.get("formula"),
+        "description": m.get("description"), "category": m.get("category"),
+        "created_at": m.get("created_at")
+    } for m in metrics])
 
 
 @app.route("/api/metrics", methods=["POST"])
@@ -2174,45 +2120,34 @@ def api_metrics_create():
         return jsonify({"error": "name and formula are required"}), 400
 
     # Upsert — update existing metric with same name
-    existing = MetricDefinition.query.filter_by(
-        user_id=current_user.id, name=name
-    ).first()
+    existing = db_first("metric_definitions", {"user_id": current_user.id, "name": name})
+    
+    m_dict = {
+        "user_id": current_user.id,
+        "name": name,
+        "formula": formula,
+        "description": body.get("description", ""),
+        "category": body.get("category", "general"),
+    }
+    
     if existing:
-        existing.formula     = formula
-        existing.description = body.get("description", existing.description)
-        existing.category    = body.get("category", existing.category or "general")
-        existing.updated_at  = datetime.utcnow()
+        m_dict["updated_at"] = datetime.utcnow().isoformat()
+        res = db_update("metric_definitions", existing.get("id"), m_dict)
     else:
-        existing = MetricDefinition(
-            user_id     = current_user.id,
-            name        = name,
-            formula     = formula,
-            description = body.get("description", ""),
-            category    = body.get("category", "general"),
-        )
-        db.session.add(existing)
+        res = db_insert("metric_definitions", m_dict)
 
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
-
-    return jsonify({"ok": True, "metric": existing.to_dict()})
+    return jsonify({"ok": True, "metric": res})
 
 
 @app.route("/api/metrics/<int:metric_id>", methods=["DELETE"])
 @login_required
 def api_metrics_delete(metric_id):
     """Delete a metric definition."""
-    m = db.session.get(MetricDefinition, metric_id)
-    if not m or m.user_id != current_user.id:
+    m = db_get("metric_definitions", metric_id)
+    if not m or m.get("user_id") != current_user.id:
         return jsonify({"error": "Not found"}), 404
-    db.session.delete(m)
-    try:
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+        
+    db_delete("metric_definitions", metric_id)
     return jsonify({"ok": True})
 
 
@@ -2220,14 +2155,14 @@ def api_metrics_delete(metric_id):
 @login_required
 def api_metrics_context():
     """Return metric definitions formatted as a Gemini prompt context block."""
-    metrics = MetricDefinition.query.filter_by(user_id=current_user.id).all()
+    metrics = db_all("metric_definitions", {"user_id": current_user.id})
     if not metrics:
         return jsonify({"context": ""})
     lines = ["Defined business metrics:"]
     for m in metrics:
-        line = f"  {m.name} = {m.formula}"
-        if m.description:
-            line += f"  # {m.description}"
+        line = f"  {m.get('name')} = {m.get('formula')}"
+        if m.get('description'):
+            line += f"  # {m.get('description')}"
         lines.append(line)
     return jsonify({"context": "\n".join(lines)})
 
