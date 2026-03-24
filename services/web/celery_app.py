@@ -23,8 +23,8 @@ def make_celery(app):
     """
     celery = Celery(
         app.import_name,
-        broker=app.config["CELERY_BROKER_URL"],
-        backend=app.config["CELERY_RESULT_BACKEND"],
+        broker=app.config["broker_url"],
+        backend=app.config["result_backend"],
     )
 
     # Push Flask config values into Celery namespace

@@ -36,13 +36,13 @@ from flask_socketio import SocketIO
 
 from dataforge.db import db_get, db_update, db_insert, db_delete, db_client
 from dataforge.settings import PROJECTS_DIR
-from celery_app import make_celery
+from .celery_app import make_celery
 
 # Minimal Flask app for the worker (no routes needed)
 def create_worker_app():
     _app = Flask(__name__)
-    _app.config["CELERY_BROKER_URL"]    = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    _app.config["CELERY_RESULT_BACKEND"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    _app.config["broker_url"]    = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    _app.config["result_backend"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     _app.secret_key = os.getenv("FLASK_SECRET_KEY", "worker-secret")
     return _app
 
@@ -221,7 +221,7 @@ def task_run_insights(self, upload_id: int, user_id: int,
             log.warning("Failed to bulk persist insights inside Celery: %s", e)
 
         # Invalidate Redis cache
-        from cache import invalidate_upload
+        from .cache import invalidate_upload
         invalidate_upload(upload_id)
 
         _job_success(self.request.id, {"key": "last_insights", "count": len(insights)})
@@ -286,7 +286,7 @@ def task_run_automl(self, upload_id: int, user_id: int,
         except Exception as e:
             log.warning("Failed to save automl_meta_json to DB: %s", e)
 
-        from cache import invalidate_upload
+        from .cache import invalidate_upload
         invalidate_upload(upload_id)
 
         _job_success(self.request.id, {"key": "automl_meta"})
@@ -332,7 +332,7 @@ def task_run_eda(self, upload_id: int, user_id: int):
         (d / "eda_html").write_text(html, encoding="utf-8")
         _save(upload_id, "eda_html", html)
 
-        from cache import invalidate_upload
+        from .cache import invalidate_upload
         invalidate_upload(upload_id)
 
         _job_success(self.request.id, {"key": "eda_html"})
@@ -463,7 +463,7 @@ def task_check_alerts(self, upload_id: int, user_id: int):
                 log.warning("Failed to bulk insert alerts to DB: %s", e)
 
         # Cache the alert status
-        from cache import set_alert_status
+        from .cache import set_alert_status
         set_alert_status(upload_id, {"count": len(fired), "alerts": fired})
 
         for a in fired:

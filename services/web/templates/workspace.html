@@ -15,6 +15,7 @@
     <title>DataForge</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
@@ -1178,10 +1179,14 @@ function workspaceApp() {
         edaWarning: '',
         edaMinimal: true, edaSampleN: 5000,
 
+        profileCols: [],
+        socket: null,
+        user_id: {{ current_user.id | tojson }},
+        uploadId: {{ upload_id | tojson }},
+
         isTraining: false, automlResult: null, automlError: '',
         automlTarget: '', automlTask: 'auto-detect', automlTimeBudget: 120, automlTestSize: 20,
         detectedTask: '', detectedNUnique: 0,
-        profileCols: [],
 
         async _fetch(url, opts={}) {
             const res = await fetch(url, opts);
@@ -1191,13 +1196,49 @@ function workspaceApp() {
             return res;
         },
 
+        async pollTask(taskId, label='Task') {
+            console.log(`Polling: ${label} (${taskId})`);
+            for (let i=0; i<100; i++) { // Max 5 mins
+                try {
+                    const res = await fetch(`/api/task/${taskId}`);
+                    const data = await res.json();
+                    if (data.status === 'success') return { ok: true, data: data.result };
+                    if (data.status === 'failure') return { ok: false, error: data.error || 'Task failed' };
+                } catch (e) { console.warn('Poll error', e); }
+                await new Promise(r => setTimeout(r, 3000));
+            }
+            return { ok: false, error: 'Timeout waiting for task' };
+        },
+
         async init() {
             const saved = localStorage.getItem('analyst-theme');
             this.darkMode = saved !== 'light';
             this.applyTheme();
 
+            // Initialize WebSocket
             try {
-                const res  = await this._fetch('/api/workspace/state');
+                this.socket = io('/', { transports: ['websocket'] });
+                this.socket.on('connect', () => { console.log('WS: Connected'); });
+                this.socket.on('insight_ready', (data) => { if (data.upload_id == this.uploadId) this.fetchInsights(); });
+                this.socket.on('automl_ready', (data) => { if (data.upload_id == this.uploadId) this.fetchWorkspaceState(); });
+                this.socket.on('eda_ready', (data) => { if (data.upload_id == this.uploadId) this.edaReady = true; });
+            } catch (e) { console.warn('WS: Failed to init', e); }
+
+            try {
+                // If the page was opened with ?upload_id=..., pass it through so
+                // /api/workspace/state can restore the correct project.
+                const params = new URLSearchParams(window.location.search);
+                const urlUploadId = params.get('upload_id');
+                // Only overwrite the Jinja-injected uploadId when the URL
+                // actually carries one (e.g. coming from /projects).
+                // Without this guard, params.get() returns null and silently
+                // overwrites the server-side value — every API call then has
+                // no upload_id, tasks target the wrong session and time out.
+                if (urlUploadId !== null) this.uploadId = urlUploadId;
+                const stateUrl = this.uploadId
+                    ? ('/api/workspace/state?upload_id=' + encodeURIComponent(this.uploadId))
+                    : '/api/workspace/state';
+                const res  = await this._fetch(stateUrl);
                 if (!res) return;
                 const st = await res.json();
 
@@ -1257,7 +1298,10 @@ function workspaceApp() {
                     this.edaReady = true;
                     this.$nextTick(() => {
                         const iframe = document.getElementById('eda-frame');
-                        if (iframe) iframe.src = '/api/eda/report?t=' + Date.now();
+                        if (iframe) {
+                            const theme = this.darkMode ? 'dark' : 'light';
+                            iframe.src = '/api/eda/report?t=' + Date.now() + '&theme=' + theme + (this.uploadId ? '&upload_id=' + encodeURIComponent(this.uploadId) : '');
+                        }
                     });
                 }
 
@@ -1278,7 +1322,7 @@ function workspaceApp() {
             // Refresh EDA iframe
             const edaFrame = document.getElementById('eda-frame');
             if (edaFrame && edaFrame.src && edaFrame.src.includes('/api/eda/report')) {
-                edaFrame.src = '/api/eda/report?t=' + Date.now() + '&theme=' + t;
+                edaFrame.src = '/api/eda/report?t=' + Date.now() + '&theme=' + t + (this.uploadId ? '&upload_id=' + encodeURIComponent(this.uploadId) : '');
             }
             // Refresh report iframe — update src with new theme param
             if (this.currentReportId) {
@@ -1292,7 +1336,7 @@ function workspaceApp() {
         },
 
         async loadPreview(limit = 200) {
-            const url = `/api/preview?limit=${limit}${this.previewClean && this.cleanProfile ? '&clean=true' : ''}`;
+            const url = `/api/preview?limit=${limit}${this.previewClean && this.cleanProfile ? '&clean=true' : ''}${this.uploadId ? '&upload_id=' + encodeURIComponent(this.uploadId) : ''}`;
             const _r = await this._fetch(url); if (_r) this.previewData = await _r.json();
         },
 
@@ -1309,7 +1353,9 @@ function workspaceApp() {
         async loadDashboard() {
             this.isDashLoading = true;
             try {
-                const res = await this._fetch('/api/dashboard/stats');
+                const res = await this._fetch(
+                    '/api/dashboard/stats' + (this.uploadId ? '?upload_id=' + encodeURIComponent(this.uploadId) : '')
+                );
                 if (!res) return;
                 const d = await res.json();
                 this.dashStats   = d.stats   || [];
@@ -1360,7 +1406,11 @@ function workspaceApp() {
             this.query = ''; this.isAnalyzing = true;
             this.$nextTick(() => this.scrollChat());
             try {
-                const res  = await this._fetch('/api/query', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({query: q})});
+                const res  = await this._fetch('/api/query', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({upload_id: this.uploadId, query: q})
+                });
                 if (!res) return;
                 const data = await res.json();
                 if (data.error) { this.messages.push({role:'assistant', content:'⚠ Error: ' + data.error}); }
@@ -1397,7 +1447,11 @@ function workspaceApp() {
         async runCleaning() {
             this.isCleaning = true; this.cleanError = '';
             try {
-                const res = await this._fetch('/api/clean', {method:'POST'});
+                const res = await this._fetch('/api/clean', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({upload_id: this.uploadId})
+                });
                 if (!res) return;
                 let data;
                 try { data = await res.json(); }
@@ -1418,7 +1472,11 @@ function workspaceApp() {
                 const res = await this._fetch('/api/eda', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({minimal: this.edaMinimal, sample_n: parseInt(this.edaSampleN)})
+                    body: JSON.stringify({
+                        upload_id: this.uploadId,
+                        minimal: this.edaMinimal,
+                        sample_n: parseInt(this.edaSampleN)
+                    })
                 });
                 if (!res) return;
 
@@ -1444,7 +1502,7 @@ function workspaceApp() {
                     const f = document.getElementById('eda-frame');
                     if (f) {
                         const theme = this.darkMode ? 'dark' : 'light';
-                        f.src = '/api/eda/report?t=' + Date.now() + '&theme=' + theme;
+                        f.src = '/api/eda/report?t=' + Date.now() + '&theme=' + theme + (this.uploadId ? '&upload_id=' + encodeURIComponent(this.uploadId) : '');
                     }
                 });
             } catch(e) { this.edaError = 'Network error: ' + e.message; }
@@ -1457,7 +1515,7 @@ function workspaceApp() {
                 const res = await this._fetch('/api/automl/detect-task', {
                     method:'POST',
                     headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({target_col: this.automlTarget})
+                    body: JSON.stringify({upload_id: this.uploadId, target_col: this.automlTarget})
                 });
                 if (!res) return;
                 const data = await res.json();
@@ -1487,11 +1545,28 @@ function workspaceApp() {
             if (!this.automlTarget) return;
             this.isTraining = true; this.automlError = ''; this.automlResult = null;
             try {
-                const res = await this._fetch('/api/automl/train', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target_col:this.automlTarget, task_choice:this.automlTask, time_budget:parseInt(this.automlTimeBudget), test_size:parseInt(this.automlTestSize)})});
+                const res = await this._fetch('/api/automl/train', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({
+                        upload_id: this.uploadId,
+                        target_col:this.automlTarget,
+                        task_choice:this.automlTask,
+                        time_budget:parseInt(this.automlTimeBudget),
+                        test_size:parseInt(this.automlTestSize)
+                    })
+                });
                 if (!res) return;
                 const data = await res.json();
                 if (data.error) { this.automlError = data.error; return; }
-                this.automlResult = data;
+                
+                // data = {task_id, queued}
+                const poll = await this.pollTask(data.task_id, 'AutoML');
+                if (poll.ok) {
+                    await this.fetchWorkspaceState(); 
+                } else {
+                    this.automlError = poll.error;
+                }
             } catch(e) { this.automlError = 'Network error: ' + e.message; }
             finally { this.isTraining = false; }
         },
@@ -1552,24 +1627,27 @@ function workspaceApp() {
         },
 
         async runInsights() {
-            this.isRunningInsights = true; this.insightError = '';
+            this.isRunningInsights = true; this.insightError = ''; this.insightCards = [];
             try {
                 const res = await this._fetch('/api/insights/run', {
                     method: 'POST',
                     headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({top_n: parseInt(this.insightTopN), use_gemini: this.insightUseGemini})
+                    body: JSON.stringify({
+                        upload_id: this.uploadId,
+                        top_n: parseInt(this.insightTopN),
+                        use_gemini: this.insightUseGemini
+                    })
                 });
                 if (!res) return;
                 const data = await res.json();
                 if (data.error) { this.insightError = data.error; return; }
-                this.insightCards   = data.insights || [];
-                this.insightSummary = data.summary  || '';
-                this.insightSchema  = data.schema   || null;
-                this.$nextTick(() => {
-                    this.insightCards.forEach((ins, i) => {
-                        if (ins.chart_data) this.renderInsightChart(i, ins);
-                    });
-                });
+                
+                const poll = await this.pollTask(data.task_id, 'Insights');
+                if (poll.ok) {
+                    await this.fetchInsights();
+                } else {
+                    this.insightError = poll.error;
+                }
             } catch(e) { this.insightError = 'Error: ' + e.message; }
             finally { this.isRunningInsights = false; }
         },
@@ -1664,7 +1742,11 @@ function workspaceApp() {
         async checkAlerts() {
             this.isCheckingAlerts = true; this.alertCheckMsg = '';
             try {
-                const res = await this._fetch('/api/alerts/check', {method:'POST'});
+                const res = await this._fetch('/api/alerts/check', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({upload_id: this.uploadId})
+                });
                 if (!res) return;
                 const data = await res.json();
                 const n = (data.alerts||[]).length;
@@ -1707,7 +1789,11 @@ function workspaceApp() {
                 const res = await this._fetch('/api/schedules', {
                     method: 'POST',
                     headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({cron: this.newScheduleCron, email: this.newScheduleEmail})
+                    body: JSON.stringify({
+                        upload_id: this.uploadId,
+                        cron: this.newScheduleCron,
+                        email: this.newScheduleEmail
+                    })
                 });
                 if (!res) return;
                 const data = await res.json();
@@ -1746,8 +1832,11 @@ function dfExplorer() {
             if (limit) this.rowLimit = limit;
             const ws = document.querySelector('[x-data="workspaceApp()"]')?._x_dataStack?.[0];
             const useClean = this.showClean && ws?.cleanProfile;
-            const url = `/api/preview?limit=${this.rowLimit}${useClean ? '&clean=true' : ''}`;
-            const r = await fetch(url);
+            const params = new URLSearchParams(window.location.search);
+            const uploadId = ws?.uploadId || params.get('upload_id');
+            const url = `/api/preview?limit=${this.rowLimit}${useClean ? '&clean=true' : ''}${uploadId ? '&upload_id=' + encodeURIComponent(uploadId) : ''}`;
+            const r = await ws?._fetch ? await ws._fetch(url) : await fetch(url);
+            if (!r) return;
             if (!r.ok) return;
             const data = await r.json();
             this.headers = data.headers || [];

@@ -78,10 +78,15 @@ If you prefer to run services natively (mostly for development/debugging):
 6. **Run Worker (in a new terminal):** 
    ```bash
    # Linux / macOS
-   celery -A services.web.tasks worker --loglevel=info
+   celery -A services.web.tasks.celery worker --loglevel=info
    # Windows
-   celery -A services.web.tasks worker --pool=solo --loglevel=info
+   celery -A services.web.tasks.celery worker --pool=solo --loglevel=info
    ```
+7. **Verify async infra health (optional but recommended):**
+   ```bash
+   curl http://127.0.0.1:5000/api/health/background
+   ```
+   Expect `{"ok": true, ...}` when task imports and broker connectivity are healthy.
 
 ## Essential Environment Variables
 

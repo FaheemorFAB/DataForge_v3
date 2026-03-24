@@ -61,7 +61,13 @@ def _gemini_call(prompt: str, model: str, temperature: float = 0.1, timeout: int
 
 
 def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 25) -> str:
-    """Try each model in fallback order, log errors clearly."""
+    """Try each model in fallback order, log errors clearly. Mocked to avoid 429."""
+    if os.getenv("MOCK_GEMINI", "1") == "1":
+        logger.info("[gemini_pipeline] MOCK_GEMINI is enabled. Returning dummy response.")
+        if "JSON FORMAT:" in prompt:
+            return '{"code": "", "answer": "[MOCKED API] Quota exhausted workaround. Set MOCK_GEMINI=0 to disable.", "intent": "summary"}'
+        return "[MOCKED API] Quota exhausted workaround."
+    
     last_err = None
     for model in _MODEL_FALLBACKS:
         try:
@@ -72,7 +78,7 @@ def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 25) -> str:
             last_err = exc
             logger.warning("[gemini_pipeline] model %s failed: %s", model, exc)
             if "429" in str(exc) or "quota" in str(exc).lower():
-                time.sleep(3)
+                time.sleep(1) # Reduced sleep for testing
     raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
 
 

@@ -44,13 +44,21 @@ app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200 MB
 
 # ── Redis / Celery config ─────────────────────────────────────────────────────
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-app.config["CELERY_BROKER_URL"]     = REDIS_URL
-app.config["CELERY_RESULT_BACKEND"]  = REDIS_URL
+app.config["broker_url"]     = REDIS_URL
+app.config["result_backend"]  = REDIS_URL
+SYNC_FALLBACK_ENABLED = os.getenv("DATAFORGE_SYNC_FALLBACK", "1") == "1"
 
 # ── WebSocket via flask-socketio ──────────────────────────────────────────────
 # message_queue enables workers to emit events across processes via Redis pub/sub
 from flask_socketio import SocketIO, emit as ws_emit_raw, join_room
-_sio_mq = REDIS_URL if os.getenv("REDIS_URL") else None
+# Enable Socket.IO Redis pub/sub only when redis-py is installed.
+# Otherwise, fallback to in-process Socket.IO without noisy pubsub thread errors.
+try:
+    import redis  # noqa: F401
+    _redis_py_ok = True
+except Exception:
+    _redis_py_ok = False
+_sio_mq = REDIS_URL if (os.getenv("REDIS_URL") and _redis_py_ok) else None
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading",
                     logger=False, engineio_logger=False,
                     message_queue=_sio_mq)
@@ -117,8 +125,8 @@ if GOOGLE_AUTH_ENABLED:
     )
 
 # Temp storage dir for large objects (DataFrames, models)
-STORE_DIR = Path(tempfile.gettempdir()) / "dataforge_store"
-STORE_DIR.mkdir(exist_ok=True)
+STORE_DIR = Path(os.getenv("DATAFORGE_STORE_DIR", str(Path.home() / ".dataforge_store")))
+STORE_DIR.mkdir(exist_ok=True, parents=True)
 
 import math
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -307,7 +315,7 @@ except ImportError:
 
 # ── Redis cache helpers ───────────────────────────────────────────────────────
 try:
-    from cache import (
+    from .cache import (
         get_profile, set_profile,
         get_schema, set_schema,
         get_clean_meta, set_clean_meta,
@@ -334,11 +342,68 @@ except ImportError:
     def _rate_limit(uid, action, limit=3, window_s=60): return True
 
 # ── Celery tasks (lazy import to avoid circular on app boot) ──────────────────
+_TASKS_CACHE = None
+
 def _tasks():
-    from tasks import (task_run_insights, task_run_automl,
-                       task_run_eda, task_generate_report, task_check_alerts)
-    return (task_run_insights, task_run_automl,
-            task_run_eda, task_generate_report, task_check_alerts)
+    global _TASKS_CACHE
+    if _TASKS_CACHE is not None:
+        return _TASKS_CACHE
+
+    # Support multiple execution styles:
+    # - package import (from services.web.app import app)
+    # - direct module/script execution during local debugging
+    try:
+        from .tasks import (task_run_insights, task_run_automl,
+                            task_run_eda, task_generate_report, task_check_alerts)
+    except Exception:
+        try:
+            from services.web.tasks import (task_run_insights, task_run_automl,
+                                            task_run_eda, task_generate_report, task_check_alerts)
+        except Exception:
+            from tasks import (task_run_insights, task_run_automl,
+                               task_run_eda, task_generate_report, task_check_alerts)
+    _TASKS_CACHE = (task_run_insights, task_run_automl,
+                    task_run_eda, task_generate_report, task_check_alerts)
+    return _TASKS_CACHE
+
+
+def _background_health(check_broker: bool = True) -> dict:
+    """
+    Lightweight runtime diagnostics for background pipeline availability.
+    Returns JSON-serializable status payload; never raises.
+    """
+    out = {
+        "tasks_import_ok": False,
+        "broker_ok": False,
+        "redis_py_installed": _redis_py_ok,
+        "redis_url_set": bool(os.getenv("REDIS_URL")),
+        "details": "",
+    }
+    try:
+        (task_run_insights, *_) = _tasks()
+        out["tasks_import_ok"] = True
+        if check_broker:
+            try:
+                with task_run_insights.app.connection_for_read() as conn:
+                    conn.ensure_connection(max_retries=1)
+                out["broker_ok"] = True
+            except Exception as be:
+                out["details"] = f"Broker unavailable: {be}"
+        else:
+            out["broker_ok"] = False
+    except Exception as ie:
+        out["details"] = f"Task import failed: {ie}"
+    return out
+
+
+def _run_task_sync(task, args: list):
+    """
+    Execute a Celery task inline (no broker) and return its result payload.
+    Uses task.apply() so bound tasks and task context still work.
+    """
+    eager = task.apply(args=args)
+    # propagate=True surfaces task exceptions to route-level handler
+    return eager.get(propagate=True)
 
 # Note: No local SQLite migrations needed. All schema definition is in supabase/schema.sql
 
@@ -777,7 +842,6 @@ def on_ping(data):
 
 def _persist_insights(upload_id, user_id, insights):
     try:
-        db_delete("insight_records", upload_id) # actually needs to match upload_id, not id
         db_client.table("insight_records").delete().eq("upload_id", upload_id).execute()
         
         insert_data = []
@@ -818,11 +882,33 @@ def api_insights_run(upload_id):
     top_n   = int(body.get("top_n", 6))
     use_gem = bool(body.get("use_gemini", True))
 
-    (task_run_insights, *_) = _tasks()
-    job = task_run_insights.apply_async(args=[upload_id, current_user.id, top_n, use_gem])
-    db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "insights"})
-    _db_log_analysis("insights", "queued async")
-    return jsonify({"task_id": job.id, "queued": True}), 202
+    try:
+        (task_run_insights, *_) = _tasks()
+        job = task_run_insights.apply_async(args=[upload_id, current_user.id, top_n, use_gem])
+        db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "insights"})
+        _db_log_analysis("insights", "queued async")
+        return jsonify({"task_id": job.id, "queued": True}), 202
+    except Exception as e:
+        app.logger.error("Celery task dispatch failed: %s", e)
+        if not SYNC_FALLBACK_ENABLED:
+            return jsonify({"error": "Background task system unavailable. Please try again soon."}), 503
+        try:
+            (task_run_insights, *_) = _tasks()
+            _run_task_sync(task_run_insights, [upload_id, current_user.id, top_n, use_gem])
+            insights = _load(upload_id, "last_insights") or []
+            summary = _load(upload_id, "last_summary") or ""
+            schema = _load(upload_id, "last_schema") or {}
+            _db_log_analysis("insights", "completed sync fallback")
+            return jsonify({
+                "queued": False,
+                "sync": True,
+                "insights": insights,
+                "summary": summary,
+                "schema": schema,
+            }), 200
+        except Exception as se:
+            app.logger.exception("Sync fallback failed for insights: %s", se)
+            return jsonify({"error": f"Insights failed: {se}"}), 500
 
 
 @app.route("/api/insights/list")
@@ -855,11 +941,15 @@ def api_report_generate(upload_id):
     if existing:
         return jsonify({"task_id": existing.get("id"), "queued": False}), 200
 
-    (_, _, _, task_generate_report, _) = _tasks()
-    job = task_generate_report.apply_async(args=[upload_id, current_user.id])
-    db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "report"})
-    _db_log_analysis("report", "queued async")
-    return jsonify({"task_id": job.id, "queued": True}), 202
+    try:
+        (_, _, _, task_generate_report, _) = _tasks()
+        job = task_generate_report.apply_async(args=[upload_id, current_user.id])
+        db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "report"})
+        _db_log_analysis("report", "queued async")
+        return jsonify({"task_id": job.id, "queued": True}), 202
+    except Exception as e:
+        app.logger.error("Celery task dispatch failed: %s", e)
+        return jsonify({"error": "Background task system unavailable. Please try again soon."}), 503
 
 
 @app.route("/api/reports/<int:report_id>")
@@ -943,10 +1033,14 @@ def api_alerts_check(upload_id):
     if existing:
         return jsonify({"task_id": existing.get("id"), "queued": False}), 200
 
-    (_, _, _, _, task_check_alerts) = _tasks()
-    job = task_check_alerts.apply_async(args=[upload_id, current_user.id])
-    db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "alerts"})
-    return jsonify({"task_id": job.id, "queued": True}), 202
+    try:
+        (_, _, _, _, task_check_alerts) = _tasks()
+        job = task_check_alerts.apply_async(args=[upload_id, current_user.id])
+        db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "alerts"})
+        return jsonify({"task_id": job.id, "queued": True}), 202
+    except Exception as e:
+        app.logger.error("Celery task dispatch failed: %s", e)
+        return jsonify({"error": "Background task system unavailable. Please try again soon."}), 503
 
 
 @app.route("/api/alerts/<int:alert_id>/resolve", methods=["POST"])
@@ -1032,6 +1126,18 @@ def api_sources_list():
     } for s in sources])
 
 
+@app.route("/api/health/background", methods=["GET"])
+def api_health_background():
+    """
+    Runtime health endpoint for async infra diagnostics.
+    - 200 when task imports + broker connectivity are both healthy
+    - 503 otherwise
+    """
+    payload = _background_health(check_broker=True)
+    healthy = payload.get("tasks_import_ok") and payload.get("broker_ok")
+    return jsonify({"ok": bool(healthy), **payload}), (200 if healthy else 503)
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE ROUTES — workspace & projects
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1039,10 +1145,12 @@ def api_sources_list():
 @app.route("/workspace")
 @login_required
 def workspace():
+    upload_id = request.args.get("upload_id", type=int)
     return render_template(
         "workspace.html",
         user      = current_user,
         gemini_ok = gemini_available(),
+        upload_id = upload_id,
         # workspace.html renders `profile` via `{{ profile | tojson }}` on page load,
         # so we must always pass a JSON-serializable initial value.
         profile   = {},
@@ -1348,9 +1456,7 @@ def api_eda(upload_id):
 
     if html:
         _save(upload_id, "eda_html", html)
-        upload_id = _get_upload_id()
-        if upload_id:
-            _persist(upload_id, "eda_html", html)
+        _persist(upload_id, "eda_html", html)
 
     _db_log_analysis("eda", f"EDA report · {rows_profiled} rows profiled")
 
@@ -1592,13 +1698,27 @@ def api_automl_train(upload_id):
     if existing:
         return jsonify({"task_id": existing.get("id"), "queued": False}), 200
 
-    (_, task_run_automl, *_) = _tasks()
-    job = task_run_automl.apply_async(
-        args=[upload_id, current_user.id, target_col, task_choice, time_budget, test_size]
-    )
-    db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "automl"})
-    _db_log_analysis("automl", f"queued · target={target_col} · budget={time_budget}s")
-    return jsonify({"task_id": job.id, "queued": True}), 202
+    try:
+        (_, task_run_automl, *_) = _tasks()
+        job = task_run_automl.apply_async(
+            args=[upload_id, current_user.id, target_col, task_choice, time_budget, test_size]
+        )
+        db_insert("jobs", {"id": job.id, "user_id": current_user.id, "upload_id": upload_id, "type": "automl"})
+        _db_log_analysis("automl", f"queued · target={target_col} · budget={time_budget}s")
+        return jsonify({"task_id": job.id, "queued": True}), 202
+    except Exception as e:
+        app.logger.error("Celery task dispatch failed: %s", e)
+        if not SYNC_FALLBACK_ENABLED:
+            return jsonify({"error": "Background task system unavailable. Please try again soon."}), 503
+        try:
+            (_, task_run_automl, *_) = _tasks()
+            _run_task_sync(task_run_automl, [upload_id, current_user.id, target_col, task_choice, time_budget, test_size])
+            meta = _load(upload_id, "automl_meta") or {}
+            _db_log_analysis("automl", f"completed sync fallback · target={target_col}")
+            return jsonify({"queued": False, "sync": True, **meta}), 200
+        except Exception as se:
+            app.logger.exception("Sync fallback failed for automl: %s", se)
+            return jsonify({"error": f"AutoML failed: {se}"}), 500
 
 
 # ══════════════════════════════════════════════════════════════════════════════
