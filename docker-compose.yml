@@ -31,7 +31,7 @@ services:
       dockerfile: services/web/Dockerfile
     # Use --pool=solo on Windows; use --pool=prefork on Linux/macOS
     command: >
-      celery -A tasks worker
+      celery --app=services.web.tasks:celery worker
       --loglevel=info
       --pool=solo
       --queues=celery
@@ -48,7 +48,7 @@ services:
     build:
       context: .
       dockerfile: services/web/Dockerfile
-    command: celery -A tasks beat --loglevel=info
+    command: celery --app=services.web.tasks:celery beat --loglevel=info
     env_file:
       - .env
     environment:
@@ -60,7 +60,7 @@ services:
     build:
       context: .
       dockerfile: services/web/Dockerfile
-    command: celery -A tasks flower --port=5555
+    command: celery --app=services.web.tasks:celery flower --port=5555
     ports:
       - "5555:5555"
     env_file:
