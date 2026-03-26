@@ -239,12 +239,16 @@ class SupabaseStorage:
         """
         Download a pickle from Supabase Storage and deserialise it.
         Returns None on failure rather than raising.
+
+        .. deprecated:: Use upload_joblib / download_joblib instead.
+            Pickle deserialization is a security risk (RCE) for untrusted data.
         """
+        log.warning("download_pickle is deprecated — migrate to joblib format: %s", storage_path)
         if not STORAGE_OK:
             return self._load_local_pkl(storage_path)
         try:
             data = self.download_bytes(storage_path)
-            return pickle.loads(data)
+            return pickle.loads(data)  # noqa: S301 — legacy, to be removed
         except Exception as exc:
             log.warning("SupabaseStorage.download_pickle failed: %s", exc)
 
@@ -380,6 +384,8 @@ class SupabaseStorage:
     def _save_local_pkl(
         self, user_id: int, upload_id: int, key: str, obj: Any
     ) -> str:
+        """Deprecated: use _save_local_bytes with joblib serialization instead."""
+        log.warning("_save_local_pkl is deprecated — migrate to joblib format")
         p = self._local_dir(user_id, upload_id) / f"{key}.pkl"
         with open(p, "wb") as f:
             pickle.dump(obj, f)
@@ -387,12 +393,14 @@ class SupabaseStorage:
         return str(p)
 
     def _load_local_pkl(self, path: str) -> Any:
+        """Deprecated: use joblib format instead."""
+        log.warning("_load_local_pkl is deprecated — migrate to joblib format")
         p = Path(path)
         if not p.exists():
             return None
         try:
             with open(p, "rb") as f:
-                return pickle.load(f)
+                return pickle.load(f)  # noqa: S301 — legacy, to be removed
         except Exception:
             return None
 
