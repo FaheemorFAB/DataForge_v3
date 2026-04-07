@@ -151,7 +151,7 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 New Analysis
             </a>
-            <a href="/logout" class="flex items-center gap-2 px-4 py-2 text-xs font-medium hover:opacity-80 transition-opacity" style="color:#ef4444;text-decoration:none">
+            <a href="{{ auth_logout_url('/') }}" class="flex items-center gap-2 px-4 py-2 text-xs font-medium hover:opacity-80 transition-opacity" style="color:#ef4444;text-decoration:none">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 Sign Out
             </a>
@@ -527,7 +527,7 @@
                 <p class="sl mt-0.5">Member since {{ member_since }}</p>
             </div>
         </div>
-        <a href="/logout" class="text-[10px] font-bold uppercase tracking-widest hover:opacity-70 transition-opacity" style="color:#ef4444;text-decoration:none">Sign Out</a>
+        <a href="{{ auth_logout_url('/') }}" class="text-[10px] font-bold uppercase tracking-widest hover:opacity-70 transition-opacity" style="color:#ef4444;text-decoration:none">Sign Out</a>
     </div>
 
 </main>
@@ -540,7 +540,7 @@ async function apiFetch(url, opts = {}) {
     try {
         const res = await fetch(url, opts);
         if (res.status === 401) {
-            window.location.href = '/login';
+            window.location.href = {{ auth_login_url('/dashboard') | tojson }};
             return { ok: false, status: 401, data: null, error: 'Not authenticated' };
         }
         const ct = res.headers.get('content-type') || '';

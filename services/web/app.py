@@ -15,7 +15,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-import os, io, uuid, json, pickle, tempfile
+import os, io, json, pickle, tempfile
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -24,7 +24,7 @@ from functools import wraps
 import pandas as pd
 import numpy as np
 from flask import (Flask, render_template, request, jsonify,
-                   send_file, redirect, url_for, Response, session)
+                   send_file, redirect, url_for, Response)
 from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -36,32 +36,46 @@ if str(SHARED_DIR) not in sys.path:
 load_dotenv(override=True, dotenv_path=ROOT_DIR / ".env")
 
 from dataforge.settings import PROJECTS_DIR
+from services.auth import (
+    google_auth_enabled,
+    init_shared_auth,
+    register_auth_template_globals,
+)
 
-# ── App setup ──────────────────────────────────────────────────────────────────
+from dataforge.db import (db_client, db_get, db_first, db_all, db_insert,
+                          db_update, db_delete, db_count)
+from dataforge.db import (Upload, ReportSchedule)
+from flask_login import login_required, current_user
+
+# App setup
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", uuid.uuid4().hex)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "dataforge-dev-secret")
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200 MB
 
-# ── Redis / Celery config ─────────────────────────────────────────────────────
+# Redis / Celery config
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-app.config["broker_url"]     = REDIS_URL
-app.config["result_backend"]  = REDIS_URL
+app.config["broker_url"] = REDIS_URL
+app.config["result_backend"] = REDIS_URL
 SYNC_FALLBACK_ENABLED = os.getenv("DATAFORGE_SYNC_FALLBACK", "1") == "1"
 
-# ── WebSocket via flask-socketio ──────────────────────────────────────────────
-# message_queue enables workers to emit events across processes via Redis pub/sub
+# WebSocket via flask-socketio
 from flask_socketio import SocketIO, emit as ws_emit_raw, join_room
-# Enable Socket.IO Redis pub/sub only when redis-py is installed.
-# Otherwise, fallback to in-process Socket.IO without noisy pubsub thread errors.
 try:
     import redis  # noqa: F401
     _redis_py_ok = True
 except Exception:
     _redis_py_ok = False
 _sio_mq = REDIS_URL if (os.getenv("REDIS_URL") and _redis_py_ok) else None
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading",
-                    logger=False, engineio_logger=False,
-                    message_queue=_sio_mq)
+_socketio_kwargs = {
+    "cors_allowed_origins": "*",
+    "logger": False,
+    "engineio_logger": False,
+    "message_queue": _sio_mq,
+}
+if os.getenv("SOCKETIO_ASYNC_MODE"):
+    _socketio_kwargs["async_mode"] = os.getenv("SOCKETIO_ASYNC_MODE")
+socketio = SocketIO(app, **_socketio_kwargs)
+
 
 def _ws_push(event: str, data: dict, user_id: int | None = None):
     """Emit a socketio event to a specific user's room (or broadcast)."""
@@ -69,60 +83,11 @@ def _ws_push(event: str, data: dict, user_id: int | None = None):
         room = f"user_{user_id}" if user_id else None
         socketio.emit(event, data, room=room, namespace="/")
     except Exception:
-        pass  # WebSocket push is best-effort — never break the HTTP response
-
-# ── Database ───────────────────────────────────────────────────────────────────
-# ── Database — Supabase Native ──────────────────────────────────────────────────
-# Replaced SQLAlchemy SQLite/Postgres ORM with direct PostgREST calls
-
-from dataforge.db import (db_client, db_get, db_first, db_all, db_insert, 
-                          db_update, db_delete, db_count)
-from dataforge.db import (User, Upload, ReportSchedule)
+        pass
 
 
-# ── Flask-Login ────────────────────────────────────────────────────────────────
-from flask_login import (LoginManager, login_user, logout_user,
-                          login_required, current_user)
-
-login_manager = LoginManager(app)
-login_manager.login_view = "login_page"
-login_manager.login_message = ""
-
-# ── API calls return JSON 401 instead of HTML redirect ────────────────────────
-@login_manager.unauthorized_handler
-def unauthorized():
-    if request.path.startswith("/api/"):
-        return jsonify({"error": "Authentication required", "redirect": "/login"}), 401
-    if ("application/json" in request.headers.get("Accept", "") or
-            request.headers.get("Content-Type", "").startswith("application/json")):
-        return jsonify({"error": "Authentication required", "redirect": "/login"}), 401
-    return redirect(url_for("index") + "?login=1")
-
-@login_manager.user_loader
-def load_user(user_id: str):
-    data = db_get("users", int(user_id))
-    return User(**data) if data else None
-
-# ── Google OAuth via Authlib ───────────────────────────────────────────────────
-from authlib.integrations.flask_client import OAuth
-
-_GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
-_GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_AUTH_ENABLED   = bool(_GOOGLE_CLIENT_ID and _GOOGLE_CLIENT_SECRET)
-
-oauth = OAuth(app)
-if GOOGLE_AUTH_ENABLED:
-    oauth.register(
-        name="google",
-        client_id=_GOOGLE_CLIENT_ID,
-        client_secret=_GOOGLE_CLIENT_SECRET,
-        # server_metadata_url enables auto-discovery of JWKS, nonce validation,
-        # and userinfo endpoint — required for Authlib 1.x OIDC id_token parsing.
-        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-        client_kwargs={
-            "scope": "openid email profile",
-        },
-    )
+login_manager = init_shared_auth(app)
+register_auth_template_globals(app)
 
 # Temp storage dir for large objects (DataFrames, models)
 STORE_DIR = Path(os.getenv("DATAFORGE_STORE_DIR", str(Path.home() / ".dataforge_store")))
@@ -608,97 +573,16 @@ def _time_ago(dt: datetime) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# AUTH ROUTES
-# ══════════════════════════════════════════════════════════════════════════════
-@app.route("/login")
-def login_page():
-    if current_user.is_authenticated:
-        return redirect(url_for("dashboard"))
-    return redirect(url_for("index") + "?login=1")
-
-
-@app.route("/login/google")
-def login_google():
-    if not GOOGLE_AUTH_ENABLED:
-        return redirect(url_for("index") + "?login=1")
-    # Allow the caller (e.g. upload page) to choose where to go after login.
-    # Stored in Flask session to avoid changing the Google redirect URI.
-    next_url = request.args.get("next") or url_for("dashboard")
-    if not isinstance(next_url, str) or not next_url.startswith("/"):
-        next_url = url_for("dashboard")
-    session["next_url"] = next_url
-    redirect_uri = url_for("auth_google_callback", _external=True)
-    return oauth.google.authorize_redirect(redirect_uri)
-
-
-@app.route("/auth/google/callback")
-def auth_google_callback():
-    if not GOOGLE_AUTH_ENABLED:
-        return redirect(url_for("index") + "?login=1")
-    try:
-        # authorize_access_token() completes the OAuth exchange AND parses the
-        # id_token (using the JWKS fetched via server_metadata_url), returning
-        # a dict that includes a "userinfo" key.  A separate HTTP GET is NOT
-        # needed and will fail because the session token is no longer available.
-        token    = oauth.google.authorize_access_token()
-        userinfo = token.get("userinfo")
-        if not userinfo:
-            # Safety fallback: fetch from userinfo endpoint if id_token was absent
-            userinfo = oauth.google.userinfo(token=token)
-    except Exception as e:
-        app.logger.error(f"Google OAuth callback error: {e}")
-        return redirect(url_for("index") + "?login=1&error=oauth")
-
-    google_id = userinfo.get("sub")
-    if not google_id:
-        return redirect(url_for("index") + "?login=1")
-
-    try:
-        user_data = db_first("users", {"google_id": google_id})
-        if user_data is None:
-            new_user = {
-                "google_id": google_id,
-                "email": userinfo.get("email"),
-                "name": userinfo.get("name"),
-                "avatar": userinfo.get("picture"),
-            }
-            res = db_insert("users", new_user)
-            if not res:
-                app.logger.error("Google OAuth: db_insert('users') returned None — check SUPABASE_KEY in .env")
-                return redirect(url_for("index") + "?login=1&error=db")
-            user = User(**res)
-        else:
-            db_update("users", user_data["id"], {
-                "name": userinfo.get("name", user_data.get("name")),
-                "avatar": userinfo.get("picture", user_data.get("avatar")),
-                "last_login": datetime.utcnow().isoformat()
-            })
-            updated = db_get("users", user_data["id"])
-            user = User(**updated) if updated else User(**user_data)
-
-        login_user(user, remember=True)
-        next_url = session.pop("next_url", None)
-        if isinstance(next_url, str) and next_url.startswith("/"):
-            return redirect(next_url)
-        return redirect(url_for("dashboard"))
-    except Exception as e:
-        app.logger.error(f"Google OAuth DB error: {e}")
-        return redirect(url_for("index") + "?login=1&error=db")
-
-
-@app.route("/logout")
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for("index"))
-
-
-# ══════════════════════════════════════════════════════════════════════════════
 # PAGE ROUTES
 # ══════════════════════════════════════════════════════════════════════════════
 @app.route("/")
 def index():
-    return render_template("upload.html", user=current_user, google_enabled=GOOGLE_AUTH_ENABLED)
+    return render_template("upload.html", user=current_user, google_enabled=google_auth_enabled())
+
+
+@app.route("/healthz")
+def healthz():
+    return {"ok": True, "service": "web"}
 
 
 @app.route("/dashboard")
@@ -2337,3 +2221,5 @@ if __name__ == "__main__":
         use_reloader=False,
         allow_unsafe_werkzeug=True,
     )
+
+

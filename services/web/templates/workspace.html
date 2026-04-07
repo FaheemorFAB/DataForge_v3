@@ -258,10 +258,10 @@
                 <p class="text-[10px] truncate mt-0.5" style="color:var(--txt-m)">{{ user.email or '' }}</p>
             </div>
             <a href="/dashboard" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium hover:opacity-80" style="color:var(--txt-m);text-decoration:none;">My Account</a>
-            <a href="/logout" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium hover:opacity-80" style="color:#ef4444;text-decoration:none;">Sign Out</a>
+            <a href="{{ auth_logout_url('/') }}" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium hover:opacity-80" style="color:#ef4444;text-decoration:none;">Sign Out</a>
         </div>
         {% else %}
-        <a href="/login" class="px-3 py-1.5 rounded-lg text-[11px] font-bold border" style="border-color:var(--border);color:var(--txt-m);text-decoration:none;">Sign In</a>
+        <a href="{{ auth_login_url('/workspace') }}" class="px-3 py-1.5 rounded-lg text-[11px] font-bold border" style="border-color:var(--border);color:var(--txt-m);text-decoration:none;">Sign In</a>
         {% endif %}
     </div>
 </nav>
@@ -1190,7 +1190,7 @@ function workspaceApp() {
 
         async _fetch(url, opts={}) {
             const res = await fetch(url, opts);
-            if (res.status === 401) { window.location.href = '/login'; return null; }
+            if (res.status === 401) { window.location.href = {{ auth_login_url('/workspace') | tojson }}; return null; }
             const ct = res.headers.get('content-type') || '';
             if (!res.ok && !ct.includes('application/json')) throw new Error(`Server error ${res.status}`);
             return res;

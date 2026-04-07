@@ -1,6 +1,8 @@
 Flask>=3.0.0
 Flask-SocketIO
 Flask-Login>=0.6.3
+gunicorn>=22.0.0
+eventlet>=0.36.0
 pandas>=2.0.0
 numpy>=1.24.0
 python-dotenv>=1.0.0
