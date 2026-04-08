@@ -12,9 +12,10 @@ insights_bp = Blueprint("insights_bp", __name__)
 @login_required
 def api_insights_run():
     from flask import current_app
-    from ..storage import _load
+    from ..storage import _load, _save
     from ..helpers import (_get_upload_id, _get_upload_or_403, _exists,
                            _rate_limit, _tasks, _run_task_sync, _db_log_analysis,
+                           _load_persisted,
                            REPORTING_ENABLED, SYNC_FALLBACK_ENABLED)
     from dataforge.db import db_first, db_insert
 
@@ -27,8 +28,25 @@ def api_insights_run():
     upload, err = _get_upload_or_403(upload_id)
     if err:
         return err
-    if not _exists(upload_id, "df_raw") and not _exists(upload_id, "df_clean"):
-        return jsonify({"error": "No dataset loaded."}), 400
+
+    df = _load(upload_id, "df_clean")
+    if df is None:
+        df = _load(upload_id, "df_raw")
+    if df is None:
+        for key in ("df_clean", "df_raw"):
+            restored = _load_persisted(upload_id, key)
+            if restored is not None:
+                _save(upload_id, key, restored)
+                df = restored
+                break
+    if df is None and not _exists(upload_id, "df_raw") and not _exists(upload_id, "df_clean"):
+        return jsonify({
+            "error": "Dataset for this upload could not be restored. The saved file is missing or corrupted. Re-upload the original dataset and try again."
+        }), 400
+    if df is None:
+        return jsonify({
+            "error": "Dataset for this upload is not readable right now. Try reopening the project or re-upload the original dataset."
+        }), 400
 
     if not _rate_limit(current_user.id, "insights"):
         return jsonify({"error": "Rate limit: max 3 insight jobs per minute"}), 429
@@ -72,6 +90,7 @@ def api_insights_run():
 def api_insights_list():
     import json
     from ..helpers import _get_upload_id
+    from ..storage import _load
     from dataforge.db import db_all
 
     upload_id = _get_upload_id()
@@ -79,12 +98,34 @@ def api_insights_list():
         return jsonify([])
     recs = db_all("insight_records", {"upload_id": upload_id, "user_id": current_user.id})
     recs.sort(key=lambda x: x.get("importance", 0), reverse=True)
+    if not recs:
+        return jsonify(_load(upload_id, "last_insights") or [])
     return jsonify([{
         "id": r.get("id"), "type": r.get("type"), "title": r.get("title"),
         "description": r.get("description"), "importance": r.get("importance"),
         "chart_type": r.get("chart_type"), "metric": r.get("metric"),
         "chart_data": json.loads(r["chart_data"]) if r.get("chart_data") and isinstance(r["chart_data"], str) else r.get("chart_data"),
     } for r in recs])
+
+
+@insights_bp.route("/api/insights/current")
+@login_required
+def api_insights_current():
+    from ..storage import _load
+    from ..helpers import _get_upload_id, _get_upload_or_403
+
+    upload_id = _get_upload_id()
+    if upload_id is None:
+        return jsonify({"error": "upload_id required"}), 400
+    _, err = _get_upload_or_403(upload_id)
+    if err:
+        return err
+
+    return jsonify({
+        "insights": _load(upload_id, "last_insights") or [],
+        "summary": _load(upload_id, "last_summary") or "",
+        "schema": _load(upload_id, "last_schema") or {},
+    })
 
 
 @insights_bp.route("/api/insights/root-cause", methods=["POST"])

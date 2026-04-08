@@ -1306,6 +1306,7 @@ function workspaceApp() {
                 }
 
                 if (st.has_df) await this.loadPreview(200);
+                if (this.uploadId) await this.fetchInsights();
                 await Promise.all([this.loadAlerts(), this.loadSchedules()]);
 
             } catch(e) {
@@ -1650,6 +1651,29 @@ function workspaceApp() {
                 }
             } catch(e) { this.insightError = 'Error: ' + e.message; }
             finally { this.isRunningInsights = false; }
+        },
+
+        async fetchInsights() {
+            if (!this.uploadId) return;
+            try {
+                const res = await this._fetch('/api/insights/current?upload_id=' + encodeURIComponent(this.uploadId));
+                if (!res) return;
+                const data = await res.json();
+                if (data.error) {
+                    this.insightError = data.error;
+                    return;
+                }
+                this.insightCards = data.insights || [];
+                this.insightSummary = data.summary || '';
+                this.insightSchema = data.schema || null;
+                this.$nextTick(() => {
+                    this.insightCards.forEach((ins, i) => {
+                        if (ins && ins.chart_data) this.renderInsightChart(i, ins);
+                    });
+                });
+            } catch (e) {
+                this.insightError = 'Error: ' + e.message;
+            }
         },
 
         insightBadgeStyle(type) {

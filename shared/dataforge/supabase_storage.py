@@ -23,8 +23,8 @@ Storage layout
     users/{user_id}/uploads/{upload_id}/
       raw.csv          ← original upload
       clean.csv        ← cleaned DataFrame
-      clean.pkl        ← cleaned DataFrame pickle
-      model.pkl        ← trained AutoML model
+      clean.joblib     ← cleaned DataFrame joblib
+      model.joblib     ← trained AutoML model bytes
       eda.html         ← EDA HTML report
 
 Usage
@@ -39,15 +39,14 @@ Usage
     # Download
     df = store.download_dataframe(path)
 
-    # Pickle
-    path = store.upload_pickle(user_id=1, upload_id=42, key="model", obj=model)
-    model = store.download_pickle(path)
+    # Joblib
+    path = store.upload_joblib(user_id=1, upload_id=42, key="model", obj_bytes=model_bytes)
+    model_bytes = store.download_joblib(path)
 """
 
 import io
 import logging
 import os
-import pickle
 from pathlib import Path
 from typing import Any, Optional
 
@@ -213,44 +212,7 @@ class SupabaseStorage:
 
     # ── Pickle helpers ────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _pkl_path(user_id: int, upload_id: int, key: str) -> str:
-        return f"users/{user_id}/uploads/{upload_id}/{key}.pkl"
 
-    def upload_pickle(
-        self,
-        user_id:   int,
-        upload_id: int,
-        key:       str,
-        obj:       Any,
-    ) -> str:
-        """
-        Pickle `obj` and upload to Supabase Storage.
-        Returns the storage path.
-        """
-        if not STORAGE_OK:
-            return self._save_local_pkl(user_id, upload_id, key, obj)
-
-        path      = self._pkl_path(user_id, upload_id, key)
-        pkl_bytes = pickle.dumps(obj)
-        return self.upload_bytes(path, pkl_bytes, "application/octet-stream")
-
-    def download_pickle(self, storage_path: str) -> Any:
-        """
-        Download a pickle from Supabase Storage and deserialise it.
-        Returns None on failure rather than raising.
-
-        .. deprecated:: Use upload_joblib / download_joblib instead.
-            Pickle deserialization is a security risk (RCE) for untrusted data.
-        """
-        log.warning("download_pickle is deprecated — migrate to joblib format: %s", storage_path)
-        if not STORAGE_OK:
-            return self._load_local_pkl(storage_path)
-        try:
-            data = self.download_bytes(storage_path)
-            return pickle.loads(data)  # noqa: S301 — legacy, to be removed
-        except Exception as exc:
-            log.warning("SupabaseStorage.download_pickle failed: %s", exc)
 
     # ── JSON helpers ────────────────────────────────────────────────────────
     def upload_json(self, user_id: int, upload_id: int, key: str, obj: Any) -> str:
@@ -381,28 +343,7 @@ class SupabaseStorage:
         except Exception:
             return None
 
-    def _save_local_pkl(
-        self, user_id: int, upload_id: int, key: str, obj: Any
-    ) -> str:
-        """Deprecated: use _save_local_bytes with joblib serialization instead."""
-        log.warning("_save_local_pkl is deprecated — migrate to joblib format")
-        p = self._local_dir(user_id, upload_id) / f"{key}.pkl"
-        with open(p, "wb") as f:
-            pickle.dump(obj, f)
-        log.debug("SupabaseStorage[local]: saved pickle → %s", p)
-        return str(p)
 
-    def _load_local_pkl(self, path: str) -> Any:
-        """Deprecated: use joblib format instead."""
-        log.warning("_load_local_pkl is deprecated — migrate to joblib format")
-        p = Path(path)
-        if not p.exists():
-            return None
-        try:
-            with open(p, "rb") as f:
-                return pickle.load(f)  # noqa: S301 — legacy, to be removed
-        except Exception:
-            return None
 
     def _save_local_bytes(
         self, user_id: int, upload_id: int, filename: str, data: bytes

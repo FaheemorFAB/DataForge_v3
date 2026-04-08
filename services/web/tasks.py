@@ -43,7 +43,7 @@ def create_worker_app():
     _app = Flask(__name__)
     _app.config["broker_url"]    = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     _app.config["result_backend"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    _app.secret_key = os.environ.get("FLASK_SECRET_KEY", "worker-fallback")
+    _app.secret_key = os.environ["FLASK_SECRET_KEY"]
     return _app
 
 
@@ -113,6 +113,7 @@ def task_run_insights(self, upload_id: int, user_id: int,
                       top_n: int = 6, use_gemini: bool = True):
     from dataforge.insight_engine import detect_schema, run_insights, summarise_with_gemini
     from dataforge.gemini_pipeline import is_available as gemini_available
+    from .helpers import _load_persisted
 
     _job_start(self.request.id)
     try:
@@ -120,7 +121,17 @@ def task_run_insights(self, upload_id: int, user_id: int,
         df_raw   = _load(upload_id, "df_raw")
         df       = df_clean if df_clean is not None else df_raw
         if df is None:
-            raise RuntimeError("No dataset found for upload_id=%s" % upload_id)
+            for key in ("df_clean", "df_raw"):
+                restored = _load_persisted(upload_id, key)
+                if restored is not None:
+                    _save(upload_id, key, restored)
+                    df = restored
+                    break
+        if df is None:
+            raise RuntimeError(
+                "Dataset for upload_id=%s could not be restored. The saved file is missing or corrupted."
+                % upload_id
+            )
 
         automl_meta = _load(upload_id, "automl_meta") or {}
         fi = {r["feature"]: r["importance"]

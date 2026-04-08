@@ -21,6 +21,7 @@ services:
 
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DATAFORGE_STORE_DIR=/app/services/web/instance/projects
 
     depends_on:
       - redis
@@ -39,6 +40,7 @@ services:
       - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DATAFORGE_STORE_DIR=/app/services/web/instance/projects
     volumes:
       - ./services/web/instance:/app/services/web/instance
     depends_on:
@@ -53,6 +55,7 @@ services:
       - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DATAFORGE_STORE_DIR=/app/services/web/instance/projects
     depends_on:
       - redis
 
@@ -67,5 +70,6 @@ services:
       - .env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DATAFORGE_STORE_DIR=/app/services/web/instance/projects
     depends_on:
       - redis

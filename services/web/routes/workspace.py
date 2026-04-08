@@ -49,6 +49,17 @@ def api_workspace_state():
     chat_history = _load(upload_id, "chat_history") or []
     has_eda     = _upath(upload_id, "eda_html").exists()
 
+    if df_raw is None and df_clean is None:
+        for key in ("df_clean", "df_raw"):
+            restored = _load_persisted(upload_id, key)
+            if restored is not None:
+                _save(upload_id, key, restored)
+                if key == "df_clean":
+                    df_clean = restored
+                else:
+                    df_raw = restored
+                break
+
     clean_profile = None
     if df_clean is not None:
         clean_profile = _df_profile(df_clean, _get_filename(upload_id))
@@ -58,7 +69,7 @@ def api_workspace_state():
     reupload_message  = ""
     reupload_source_type = "csv"
     upload_id = _get_upload_id()
-    if upload_id and df_raw is None:
+    if upload_id and df_raw is None and df_clean is None:
         try:
             up = db_get("uploads", upload_id)
             if up:
@@ -91,8 +102,8 @@ def api_workspace_state():
                         )
                     else:
                         reupload_message = (
-                            f"'{up_filename}' was saved before data persistence was enabled. "
-                            "Re-upload the original file to continue your analysis."
+                            f"'{up_filename}' could not be restored from saved storage. "
+                            "The cached dataset may be missing or corrupted, so re-upload the original file to continue your analysis."
                         )
                     if not profile:
                         profile = {

@@ -48,8 +48,9 @@ Replace the hard Redis message-queue dependency::
 
 from __future__ import annotations
 
+import io
+import joblib
 import logging
-import pickle
 import threading
 import time
 from typing import Any, Optional
@@ -180,7 +181,8 @@ class CacheManager:
             try:
                 raw = self._redis.get(key)
                 if raw is not None:
-                    return pickle.loads(raw)  # noqa: S301
+                    buf = io.BytesIO(raw)
+                    return joblib.load(buf)
                 return None
             except Exception as exc:
                 log.warning("CacheManager.get Redis error for key %r: %s — using memory", key, exc)
@@ -197,7 +199,9 @@ class CacheManager:
         # Try Redis
         if self._redis is not None and self._reconnect_if_needed():
             try:
-                self._redis.setex(key, ttl, pickle.dumps(value))
+                buf = io.BytesIO()
+                joblib.dump(value, buf)
+                self._redis.setex(key, ttl, buf.getvalue())
                 return True
             except Exception as exc:
                 log.warning("CacheManager.set Redis error for key %r: %s — using memory", key, exc)

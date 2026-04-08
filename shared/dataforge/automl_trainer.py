@@ -12,9 +12,10 @@ FIXES (2026-03):
 """
 
 import math
+import io
+import joblib
 import pandas as pd
 import numpy as np
-import pickle
 import time
 
 
@@ -216,7 +217,9 @@ def run_automl(
     except Exception:
         pass
 
-    model_pkl = pickle.dumps(automl.model)
+    buf = io.BytesIO()
+    joblib.dump(automl.model, buf)
+    model_pkl = buf.getvalue()
 
     return {
         "error":              None,
