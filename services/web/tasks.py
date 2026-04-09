@@ -43,7 +43,7 @@ def create_worker_app():
     _app = Flask(__name__)
     _app.config["broker_url"]    = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     _app.config["result_backend"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    _app.secret_key = os.getenv("FLASK_SECRET_KEY", "worker-secret")
+    _app.secret_key = os.environ.get("FLASK_SECRET_KEY", "worker-fallback")
     return _app
 
 
@@ -74,58 +74,8 @@ def _ws(event: str, data: dict, user_id: int):
         log.debug("Worker WS push failed: %s", e)
 
 
-# ── Shared storage helpers (mirrors app.py _load / _save) ────────────────────
-import pandas as pd
-from filelock import FileLock
-
-STORE_DIR = Path(os.getenv("DATAFORGE_STORE_DIR",
-                            str(Path.home() / ".dataforge_store")))
-STORE_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _upath(upload_id: int, key: str) -> Path:
-    d = STORE_DIR / str(upload_id)
-    d.mkdir(parents=True, exist_ok=True)
-    return d / key
-
-
-def _lock_path(path: Path) -> Path:
-    return path.with_suffix(path.suffix + ".lock")
-
-
-def _load(upload_id: int, key: str):
-    path = _upath(upload_id, key)
-    p_pq   = path.with_suffix(".parquet")
-    p_json = path.with_suffix(".json")
-    p_bin  = path.with_suffix(".joblib")
-    if p_pq.exists():
-        with FileLock(_lock_path(p_pq)):
-            return pd.read_parquet(p_pq)
-    if p_json.exists():
-        with FileLock(_lock_path(p_json)):
-            return json.loads(p_json.read_text(encoding="utf-8"))
-    if p_bin.exists():
-        with FileLock(_lock_path(p_bin)):
-            return p_bin.read_bytes()
-    return None
-
-
-def _save(upload_id: int, key: str, obj):
-    path = _upath(upload_id, key)
-    lock = FileLock(_lock_path(path))
-    with lock:
-        if isinstance(obj, pd.DataFrame):
-            tmp = path.with_suffix(".parquet.tmp")
-            obj.to_parquet(tmp, index=False, compression="snappy")
-            tmp.replace(path.with_suffix(".parquet"))
-        elif isinstance(obj, bytes):
-            tmp = path.with_suffix(".joblib.tmp")
-            tmp.write_bytes(obj)
-            tmp.replace(path.with_suffix(".joblib"))
-        else:
-            tmp = path.with_suffix(".json.tmp")
-            tmp.write_text(json.dumps(obj, default=str), encoding="utf-8")
-            tmp.replace(path.with_suffix(".json"))
+# ── Shared storage helpers (single source from storage.py) ───────────────────
+from .storage import STORE_DIR, _upath, _lock_path, _save, _load
 
 
 def _job_start(task_id: str):
