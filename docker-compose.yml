@@ -1,0 +1,75 @@
+services:
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+
+  web:
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+
+    volumes:
+      - ./services/web/instance:/app/services/web/instance
+
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATAFORGE_STORE_DIR=/app/services/web/instance/projects
+
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+    # Use --pool=solo on Windows; use --pool=prefork on Linux/macOS
+    command: >
+      celery --app=services.web.tasks:celery worker
+      --loglevel=info
+      --pool=solo
+      --queues=celery
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATAFORGE_STORE_DIR=/app/services/web/instance/projects
+    volumes:
+      - ./services/web/instance:/app/services/web/instance
+    depends_on:
+      - redis
+
+  beat:
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+    command: celery --app=services.web.tasks:celery beat --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATAFORGE_STORE_DIR=/app/services/web/instance/projects
+    depends_on:
+      - redis
+
+  flower:
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+    command: celery --app=services.web.tasks:celery flower --port=5555
+    ports:
+      - "5555:5555"
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATAFORGE_STORE_DIR=/app/services/web/instance/projects
+    depends_on:
+      - redis
