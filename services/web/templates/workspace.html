@@ -1756,6 +1756,26 @@ function workspaceApp() {
             } catch(e) {}
         },
 
+        // ── FETCH WORKSPACE STATE ─────────────────────────────────────────────
+        // Re-fetches /api/workspace/state and syncs automlResult (and other state)
+        // back to the Alpine component. Called after AutoML completes.
+        async fetchWorkspaceState() {
+            try {
+                const stateUrl = this.uploadId
+                    ? ('/api/workspace/state?upload_id=' + encodeURIComponent(this.uploadId))
+                    : '/api/workspace/state';
+                const res = await this._fetch(stateUrl);
+                if (!res) return;
+                const st = await res.json();
+                if (st.automl_meta) {
+                    this.automlResult = st.automl_meta;
+                    if (st.automl_meta.target_col) this.automlTarget = st.automl_meta.target_col;
+                }
+                if (st.profile && st.profile.rows) this.profile = st.profile;
+                if (st.clean_profile)              this.cleanProfile = st.clean_profile;
+            } catch(e) { console.warn('fetchWorkspaceState error:', e); }
+        },
+
         async runAutoml() {
             if (!this.automlTarget) return;
             this.isTraining = true; this.automlError = ''; this.automlResult = null;
@@ -1774,11 +1794,11 @@ function workspaceApp() {
                 if (!res) return;
                 const data = await res.json();
                 if (data.error) { this.automlError = data.error; return; }
-                
-                // data = {task_id, queued}
+
+                // data = {task_id, queued} — poll until done, then sync state
                 const poll = await this.pollTask(data.task_id, 'AutoML');
                 if (poll.ok) {
-                    await this.fetchWorkspaceState(); 
+                    await this.fetchWorkspaceState();
                 } else {
                     this.automlError = poll.error;
                 }

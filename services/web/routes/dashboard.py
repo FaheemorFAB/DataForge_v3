@@ -179,15 +179,65 @@ def api_dashboard_stats():
     valid_dims = cat_cols + [c for c in numeric_cols if c.lower().endswith("id") or c.lower() == "id"]
     dim = chart_dim if chart_dim in df.columns else (valid_dims[0] if valid_dims else (cat_cols[0] if cat_cols else None))
 
-    for col in numeric_cols[:4]:
+    # 1. Total Rows Indicator
+    stats.append({
+        "label": "Total Rows",
+        "value": f"{len(df):,}",
+        "sub": f"{df.shape[1]} total columns",
+        "type": "count"
+    })
+    
+    # 2. Dynamic Metric Stat
+    if metric:
+        s = df[metric].dropna()
+        if len(s) > 0:
+            total_val = s.sum()
+            mean_val = s.mean()
+            formatted_val = round(float(total_val), 2) if abs(total_val) < 1e6 else f"{total_val/1e6:.2f}M"
+            stats.append({
+                "label": f"{metric} (Total)",
+                "value": formatted_val,
+                "sub": f"Avg: {round(float(mean_val), 2)}",
+                "type": "sum"
+            })
+            
+    # 3. Dynamic Dimension Stat
+    if dim:
+        s = df[dim].dropna()
+        if len(s) > 0:
+            unique_cnt = s.nunique()
+            top_val = str(s.mode().iloc[0]) if not s.mode().empty else "N/A"
+            # truncate top_val if too long
+            if len(top_val) > 15: top_val = top_val[:12] + "..."
+            stats.append({
+                "label": f"Unique {dim}",
+                "value": f"{unique_cnt:,}",
+                "sub": f"Top: {top_val}",
+                "type": "distinct"
+            })
+
+    # 4. Additional numeric column or Missing Values
+    other_metrics = [c for c in valid_metrics if c != metric]
+    if other_metrics:
+        col = other_metrics[0]
         s = df[col].dropna()
-        if len(s) == 0:
-            continue
+        if len(s) > 0:
+            stats.append({
+                "label": f"Avg {col}",
+                "value": round(float(s.mean()), 2),
+                "sub": f"Max/Min: {round(float(s.max()), 2)} / {round(float(s.min()), 2)}",
+                "type": "mean"
+            })
+    
+    # Fill up to 4 if we didn't reach 4
+    if len(stats) < 4:
+        missing = int(df.isnull().sum().sum())
+        missing_pct = (missing / (df.shape[0] * df.shape[1])) * 100 if df.shape[0]*df.shape[1] > 0 else 0
         stats.append({
-            "label": col,
-            "value": round(float(s.sum()), 2) if s.sum() > 1000 else round(float(s.mean()), 4),
-            "sub":   f"mean {round(float(s.mean()), 2)} · {len(s):,} values",
-            "type":  "sum" if s.sum() > 1000 else "mean",
+            "label": "Missing Values",
+            "value": f"{missing:,}",
+            "sub": f"{missing_pct:.1f}% of dataset",
+            "type": "missing"
         })
 
     schema = _load(upload_id, "last_schema")

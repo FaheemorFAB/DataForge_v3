@@ -100,32 +100,66 @@ class InsightEngine:
 
         for col in df.columns:
             col_lower = col.lower()
+            dtype = df[col].dtype
+            
+            # Safe unique count
+            try:
+                n_unique = df[col].nunique()
+            except Exception:
+                n_unique = 0
 
-            # Skip obvious ID columns before numeric check
-            is_id = any(h in col_lower for h in ID_HINTS)
+            # 1. Direct datetime type check
+            if pd.api.types.is_datetime64_any_dtype(dtype):
+                if schema["date"] is None:
+                    schema["date"] = col
+                continue
 
-            # Date detection — try name hints first, then parse attempt
-            if any(h in col_lower for h in DATE_HINTS):
+            # 2. Date/Year inference via naming conventions
+            is_date_hint = any(h in col_lower for h in DATE_HINTS)
+            if is_date_hint:
+                head_vals = df[col].dropna().head(10)
+                
+                # Special handling for simple integer years (e.g. 2022, 2023) to prevent float interpolation
+                if pd.api.types.is_numeric_dtype(dtype):
+                    if len(head_vals) > 0 and head_vals.between(1900, 2100).all():
+                        if col not in schema["dimensions"]:
+                            schema["dimensions"].append(col) # treat as dimension so it isn't averaged
+                        if schema["date"] is None:
+                            schema["date"] = col
+                        continue
+                
                 try:
-                    pd.to_datetime(df[col].dropna().head(10), errors="raise")
+                    pd.to_datetime(head_vals, errors="raise")
                     if schema["date"] is None:
                         schema["date"] = col
                     continue
                 except Exception:
                     pass
 
-            dtype = df[col].dtype
-            if pd.api.types.is_datetime64_any_dtype(dtype):
-                if schema["date"] is None:
-                    schema["date"] = col
-                continue
+            # 3. ID / Key validation
+            is_id = any(h in col_lower for h in ID_HINTS)
 
-            if pd.api.types.is_numeric_dtype(dtype) and not is_id:
-                schema["metrics"].append(col)
-            elif df[col].dtype == object or pd.api.types.is_categorical_dtype(df[col]):
-                n_unique = df[col].nunique()
-                if n_unique <= max(50, len(df) * 0.1):   # not a free-text column
-                    schema["dimensions"].append(col)
+            # 4. Categorisation Engine
+            if pd.api.types.is_numeric_dtype(dtype):
+                # Numerics can act as Metrics or Dimensions
+                if is_id or col_lower == 'year' or ('year' in col_lower and n_unique < 50):
+                    # IDs and Explicit Years -> Dimension 
+                    if col not in schema["dimensions"]:
+                        schema["dimensions"].append(col)
+                elif n_unique <= max(10, len(df) * 0.05) and n_unique > 0:
+                    # Low Cardinality Numerical -> Categorical representation (e.g. status codes, priority)
+                    if col not in schema["dimensions"]:
+                        schema["dimensions"].append(col)
+                else:
+                    # General numerical operations -> Metric
+                    if col not in schema["metrics"]:
+                        schema["metrics"].append(col)
+            else:
+                # Text / Boolean / Objects / Categoricals
+                if (n_unique <= max(50, len(df) * 0.2) and n_unique > 0) or is_id:
+                    # Prevents ingesting verbose free-text descriptions into UI charts
+                    if col not in schema["dimensions"]:
+                        schema["dimensions"].append(col)
 
         schema["dataset_type"] = self._detect_type(df.columns.tolist())
         return schema
