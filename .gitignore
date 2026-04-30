@@ -1,0 +1,36 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Local data / instance
+instance/
+backend/instance/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Testing
+.pytest_cache/
+pytest-cache-files-*/
+.coverage
+htmlcov/
