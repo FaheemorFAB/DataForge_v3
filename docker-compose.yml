@@ -6,13 +6,26 @@ services:
       - "6379:6379"
     restart: unless-stopped
 
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_BACKEND_URL: http://web:5000
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://web:5000
+    depends_on:
+      - web
+    restart: unless-stopped
 
   web:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     env_file:
       - .env
 
@@ -23,6 +36,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app/backend
       - DATAFORGE_PROJECTS_DIR=/app/backend/instance/projects
+      - PUBLIC_BASE_URL=http://localhost:3000
 
     depends_on:
       - redis

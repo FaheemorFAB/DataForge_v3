@@ -1,40 +1,118 @@
-# Deployment
+﻿# Deployment
 
-This document explains **what is running**, **why it works locally**, and **what will change for production** so everyone understands the deployment path.
+This project now runs with one browser-facing process:
 
-**Current State (Local Docker)**
-- The app runs with `python backend/app.py`, which calls `socketio.run(...)`.
-- This uses the Werkzeug **development** server — it is fine for local testing but not designed for production load.
-- Docker setup is only for local use right now.
+- Next.js frontend/proxy on host port `3000`
+- Flask/Socket.IO backend UI/API internally on port `5000`
 
-**How To Run Locally (Docker)**
-1. Create `.env` from `.env.example`.
-2. Build and start: `docker compose up --build`
-3. Open `http://localhost:5000`
+Celery worker, Celery Beat, Redis, and Flower run beside them.
 
-**Why We Need Gunicorn In Production**
-- Flask’s built-in server is single‑process and intended only for development.
-- It is not designed for real traffic, stability, or long‑running WebSocket connections.
-- Your project uses `flask_socketio`, which requires an async worker to keep WebSockets alive.
+## Local Docker Deployment
 
-**Recommended Production Server**
-- `gunicorn` = the main Python HTTP server
-- `eventlet` (or `gevent`) = async worker required by SocketIO
+After the frontend conversion, rebuild the images:
 
-**What Production Run Command Looks Like**
+```bash
+docker compose up --build
+```
+
+Open the app at:
+
+```text
+http://localhost:3000
+```
+
+The Flask backend is not published to the host in Docker. It is available to containers as:
+
+```text
+http://web:5000
+```
+
+The frontend container uses:
+
+```env
+NEXT_PUBLIC_BACKEND_URL=http://web:5000
+```
+
+That value is correct inside Docker because Compose service names are DNS names.
+
+For non-Docker local development, run Flask on another port, such as `5001`, and run Next on `3000`.
+
+## Rebuild Rules
+
+Rebuild everything after dependency or Dockerfile changes:
+
+```bash
+docker compose up --build
+```
+
+Rebuild only the frontend after changes in `frontend/`:
+
+```bash
+docker compose up --build frontend
+```
+
+Rebuild backend services after changes in `backend/requirements.txt`, `backend/Dockerfile`, or backend Python dependencies:
+
+```bash
+docker compose up --build web worker beat flower
+```
+
+Regular code changes may work with a restart, but rebuilding is the cleanest path while the app is still evolving.
+
+## Production Shape
+
+Recommended production services:
+
+1. `frontend`: Next.js server or static-compatible Next deployment.
+2. `web`: Flask/Socket.IO API server.
+3. `worker`: Celery worker.
+4. `beat`: Celery scheduler.
+5. `redis`: broker and cache.
+
+For a single VPS, Docker Compose is acceptable if you put a reverse proxy in front:
+
+- `/` routes to Next on `frontend:3000`
+- `/api/*` routes to Flask on `web:5000`
+- Socket.IO routes should also reach Flask if you use live dashboard events
+
+For managed platforms, deploy frontend and backend as separate services and set:
+
+```env
+NEXT_PUBLIC_BACKEND_URL=https://your-backend-domain.example
+```
+
+## Backend Server Note
+
+The current backend command is:
+
+```bash
+python backend/app.py
+```
+
+That uses Werkzeug through Flask-SocketIO and is fine for local Docker/testing. For production traffic, use a Socket.IO-compatible server such as Gunicorn with Eventlet or Gevent.
+
+Example production command from the backend context:
+
 ```bash
 gunicorn -k eventlet -w 1 dataforge.web.wsgi:app
 ```
-Run this from the `backend/` folder, or set `PYTHONPATH` to the absolute backend path. This uses `backend/dataforge/web/wsgi.py`, which is the backend WSGI entry point.
 
-**What Changes When We Go Production**
-- Add production dependencies: `gunicorn` + `eventlet`
-- Change the Dockerfile or hosting command to use gunicorn instead of `python backend/app.py`
-- Add health checks and proper logging
-- Add platform‑specific steps (Render/Railway/Fly/VPS/etc.)
+Before switching to that command, add production dependencies such as `gunicorn` and `eventlet` to `backend/requirements.txt`, then rebuild the backend image.
 
-**When You’re Ready To Deploy**
-Tell us the target platform and we’ll:
-- Add production dependencies
-- Update Docker/Docker Compose
-- Provide exact deployment steps for that platform
+## Health Checks
+
+Backend health endpoint through the Next proxy:
+
+```text
+http://localhost:3000/api/health/background
+```
+
+Inside the Docker network, the same Flask endpoint is:
+
+```text
+http://web:5000/api/health/background
+```
+
+The `localhost:3000` URL should return `200` when the frontend and backend are connected.
+
+

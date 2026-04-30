@@ -166,7 +166,11 @@ def api_dashboard_stats():
     charts = []
 
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-    cat_cols = df.select_dtypes(include="object").columns.tolist()
+    cat_cols = df.select_dtypes(include=["object", "category", "string", "bool"]).columns.tolist()
+    date_like_cols = [
+        c for c in df.columns
+        if "date" in c.lower() or "time" in c.lower() or "created" in c.lower() or "posted" in c.lower()
+    ]
 
     # Identify valid dimensions and metrics
     # Exclude ID columns from metrics if possible
@@ -241,21 +245,31 @@ def api_dashboard_stats():
         })
 
     schema = _load(upload_id, "last_schema")
-    if schema and schema.get("date") and valid_metrics:
+    date_col_for_chart = (schema or {}).get("date") or (date_like_cols[0] if date_like_cols else None)
+    if date_col_for_chart and (valid_metrics or True):
         try:
-            date_col = schema["date"]
-            ts_metric = valid_metrics[0]
-            ts = df[[date_col, ts_metric]].copy()
+            date_col = date_col_for_chart
+            ts_metric = valid_metrics[0] if valid_metrics else None
+            cols = [date_col] + ([ts_metric] if ts_metric else [])
+            ts = df[cols].copy()
             ts[date_col] = pd.to_datetime(ts[date_col], errors="coerce")
             ts = ts.dropna().sort_values(date_col)
-            agg = ts.groupby(ts[date_col].dt.to_period("M"))[ts_metric].sum()
-            charts.append({
-                "id": "trend", "type": "line",
-                "title": f"{ts_metric} over time",
-                "labels": [str(p) for p in agg.index[-24:]],
-                "values": [round(float(v), 2) for v in agg.values[-24:]],
-                "x_label": date_col, "y_label": ts_metric,
-            })
+            if len(ts) > 0:
+                if ts_metric:
+                    agg = ts.groupby(ts[date_col].dt.to_period("M"))[ts_metric].sum()
+                    title = f"{ts_metric} over time"
+                    y_label = ts_metric
+                else:
+                    agg = ts.groupby(ts[date_col].dt.to_period("M")).size()
+                    title = f"Records over time"
+                    y_label = "records"
+                charts.append({
+                    "id": "trend", "type": "line",
+                    "title": title,
+                    "labels": [str(p) for p in agg.index[-24:]],
+                    "values": [round(float(v), 2) for v in agg.values[-24:]],
+                    "x_label": date_col, "y_label": y_label,
+                })
         except Exception:
             pass
 
@@ -269,6 +283,18 @@ def api_dashboard_stats():
                 "labels": [str(i) for i in grp.index],
                 "values": [round(float(v), 2) for v in grp.values],
                 "x_label": dim, "y_label": metric,
+            })
+        except Exception:
+            pass
+    elif dim:
+        try:
+            grp = df[dim].dropna().astype(str).value_counts().head(10)
+            charts.append({
+                "id": "top_cat", "type": "bar",
+                "title": f"Top {dim} by record count",
+                "labels": [str(i)[:40] for i in grp.index],
+                "values": [int(v) for v in grp.values],
+                "x_label": dim, "y_label": "records",
             })
         except Exception:
             pass
@@ -294,6 +320,34 @@ def api_dashboard_stats():
                 })
         except Exception:
             pass
+    elif cat_cols:
+        try:
+            col = dim or cat_cols[0]
+            vc = df[col].dropna().astype(str).value_counts().head(6)
+            charts.append({
+                "id": "dist", "type": "pie",
+                "title": f"{col} Distribution",
+                "labels": [str(i)[:30] for i in vc.index],
+                "values": [int(v) for v in vc.values],
+                "x_label": col, "y_label": "records",
+            })
+        except Exception:
+            pass
+
+    if not charts and df.shape[1] > 0:
+        try:
+            missing_by_col = df.isnull().sum().sort_values(ascending=False)
+            missing_by_col = missing_by_col[missing_by_col > 0].head(10)
+            if len(missing_by_col) > 0:
+                charts.append({
+                    "id": "missing_cols", "type": "bar",
+                    "title": "Missing Values by Column",
+                    "labels": [str(i)[:35] for i in missing_by_col.index],
+                    "values": [int(v) for v in missing_by_col.values],
+                    "x_label": "column", "y_label": "missing values",
+                })
+        except Exception:
+            pass
 
     # Extras for Dashboard table views
     try:
@@ -314,6 +368,11 @@ def api_dashboard_stats():
         if dim and metric:
             for _, row in df.dropna(subset=[dim, metric]).tail(5).iterrows():
                 raw_list.append({dim: str(row[dim]), metric: float(row[metric])})
+        elif dim:
+            for _, row in df.dropna(subset=[dim]).tail(5).iterrows():
+                raw_list.append({dim: str(row[dim]), "records": 1})
+            if raw_list:
+                metric = "records"
     except Exception:
         id_stats = None
         raw_list = []

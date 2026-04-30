@@ -150,7 +150,7 @@ def run_automl(
     try:
         from flaml import AutoML
     except ImportError:
-        return {"error": "FLAML is not installed properly. Run: pip install flaml[automl]",
+        return {"error": "FLAML is not installed properly. Run: pip install flaml",
                 "model_pkl": None}
 
     from sklearn.model_selection import train_test_split

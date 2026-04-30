@@ -1,4 +1,5 @@
-FROM python:3.12-slim
+# syntax=docker/dockerfile:1.7
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -20,8 +21,14 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /app/backend/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r /app/backend/requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip setuptools wheel && \
+    python -m pip install \
+        --prefer-binary \
+        --retries 10 \
+        --timeout 1000 \
+        --progress-bar off \
+        -r /app/backend/requirements.txt
 
 COPY backend /app/backend
 COPY frontend /app/frontend

@@ -1,0 +1,872 @@
+﻿<!DOCTYPE html>
+<html lang="en" id="html-root">
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard â€” DataForge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <style>
+        :root {
+            --bg:#050505; --surface:#0A0A0B; --border:#1A1A1C;
+            --accent:#2E5BFF; --glow:rgba(46,91,255,0.15);
+            --txt:#5e5a5a; --txt-m:#666666; --card:rgba(10,10,11,0.75);
+            --nav:rgba(5,5,5,0.92);
+        }
+        html.light {
+            --bg:#e9e2e2; --surface:#d8d4d4; --border:#e2e2e6;
+            --accent:#08227e; --glow:rgba(27,68,215,0.1);
+            --txt:#0a0a0b; --txt-m:#4b5563; --card:#cac7c7;
+            --nav:rgba(242,242,245,0.96);
+        }
+        *, *::before, *::after { box-sizing:border-box; }
+        body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--txt); min-height:100vh; transition:background .2s,color .2s; }
+        .noise { position:fixed;inset:0;pointer-events:none;opacity:.03;z-index:9999;
+            background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+        html.light .noise { opacity:.01; }
+        .gc { background:var(--card); border:1px solid var(--border); transition:border-color .2s,background .2s; }
+        .sl { font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--txt-m); }
+        .ibt { width:32px;height:32px;border-radius:.45rem;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--txt-m);display:flex;align-items:center;justify-content:center;transition:border-color .15s,color .15s;flex-shrink:0; }
+        .ibt:hover { border-color:var(--accent);color:var(--txt); }
+        [x-cloak] { display:none !important; }
+        ::-webkit-scrollbar { width:4px;height:4px; }
+        ::-webkit-scrollbar-track { background:var(--bg); }
+        ::-webkit-scrollbar-thumb { background:var(--border);border-radius:10px; }
+        ::-webkit-scrollbar-thumb:hover { background:var(--accent); }
+        .stat-card { background:var(--card);border:1px solid var(--border);border-radius:1rem;padding:1.25rem 1.5rem;transition:border-color .2s,transform .2s; }
+        .stat-card:hover { border-color:var(--accent);transform:translateY(-2px); }
+        .stat-num { font-size:2.25rem;font-weight:900;letter-spacing:-.05em;line-height:1; }
+        .dt { width:100%;border-collapse:collapse;font-size:.72rem; }
+        .dt th { padding:10px 14px;text-align:left;font-weight:700;font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;color:var(--txt-m);border-bottom:1px solid var(--border);white-space:nowrap; }
+        .dt td { padding:9px 14px;border-bottom:1px solid var(--border);color:var(--txt-m);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis; }
+        .dt tbody tr:hover td { background:rgba(46,91,255,.04);color:var(--txt); }
+        .tab-btn { padding:.5rem 1.1rem;font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:.6rem;border:none;cursor:pointer;transition:all .15s;color:var(--txt-m);background:transparent; }
+        .tab-btn.active { background:var(--accent);color:#fff; }
+        .tab-btn:not(.active):hover { color:var(--txt); }
+        .badge { display:inline-flex;align-items:center;gap:.3rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;padding:.22rem .55rem;border-radius:999px; }
+        .badge-eda    { background:rgba(139,92,246,.12);color:#a78bfa;border:1px solid rgba(139,92,246,.25); }
+        .badge-automl { background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25); }
+        .badge-clean  { background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.25); }
+        .badge-query  { background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.25); }
+        .badge-insights { background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.25); }
+        .badge-report { background:rgba(20,184,166,.12);color:#2dd4bf;border:1px solid rgba(20,184,166,.25); }
+        .sev-info     { background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.25); }
+        .sev-warning  { background:rgba(245,158,11,.1);color:#fbbf24;border:1px solid rgba(245,158,11,.25); }
+        .sev-critical { background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25); }
+        .ld { width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 6px #10b981;animation:ld 2s ease-in-out infinite; }
+        .ld.offline { background:#6b7280;box-shadow:none;animation:none; }
+        @keyframes ld { 0%,100%{opacity:1}50%{opacity:.4} }
+        @keyframes slideInFeed { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+        .feed-item { animation:slideInFeed .3s ease; }
+        .toast { position:fixed;bottom:1.5rem;right:1.5rem;z-index:1000;min-width:280px;max-width:380px;padding:1rem 1.25rem;border-radius:1rem;border:1px solid var(--border);backdrop-filter:blur(16px);display:flex;align-items:flex-start;gap:.75rem;box-shadow:0 8px 32px rgba(0,0,0,.4); }
+        @keyframes toastIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes toastOut { to{opacity:0;transform:translateY(12px)} }
+        .toast-enter { animation:toastIn .25s ease; }
+        .toast-leave { animation:toastOut .25s ease forwards; }
+        .insight-card { background:var(--card);border:1px solid var(--border);border-radius:1rem;padding:1.1rem 1.25rem;transition:border-color .2s; }
+        .insight-card:hover { border-color:var(--accent); }
+        .btn-p { background:var(--accent);color:#fff;font-weight:700;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;padding:.6rem 1.2rem;border-radius:.6rem;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;border:none;text-decoration:none;transition:filter .15s,transform .15s; }
+        .btn-p:hover { filter:brightness(1.1);transform:translateY(-1px); }
+        .btn-p:disabled { opacity:.5;cursor:not-allowed;transform:none; }
+        .btn-s { background:transparent;color:var(--txt-m);font-weight:700;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;padding:.6rem 1.2rem;border-radius:.6rem;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;border:1px solid var(--border);text-decoration:none;transition:border-color .15s,color .15s; }
+        .btn-s:hover { border-color:var(--accent);color:var(--txt); }
+        .grad-txt { background:linear-gradient(135deg,var(--txt) 0%,var(--txt-m) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
+        .imp-bar { height:4px;border-radius:999px;background:rgba(46,91,255,.12);overflow:hidden; }
+        .imp-fill { height:100%;border-radius:999px;background:linear-gradient(90deg,#6366f1,#2E5BFF); }
+    </style>
+</head>
+
+<body x-data="dashApp()" x-init="init()" x-cloak>
+<div class="noise"></div>
+
+<!-- â•â•â• TOASTS â•â•â• -->
+<div class="fixed bottom-6 right-6 z-[100] space-y-2 pointer-events-none" style="max-width:380px">
+    <template x-for="toast in toasts" :key="toast.id">
+        <div class="toast pointer-events-auto"
+             :class="toast.leaving ? 'toast-leave' : 'toast-enter'"
+             :style="'background:' + (toast.type==='alert' ? 'rgba(15,5,5,.94)' : toast.type==='report' ? 'rgba(5,15,15,.94)' : 'rgba(10,10,11,.94)') + '; border-color:' + (toast.type==='alert' ? 'rgba(239,68,68,.3)' : toast.type==='report' ? 'rgba(20,184,166,.3)' : 'var(--border)')">
+            <div class="text-lg flex-shrink-0" x-text="toast.icon"></div>
+            <div class="flex-1 min-w-0">
+                <p class="font-bold text-xs" style="color:var(--txt)" x-text="toast.title"></p>
+                <p class="text-[11px] mt-0.5 truncate" style="color:var(--txt-m)" x-text="toast.body"></p>
+            </div>
+            <button @click="dismissToast(toast.id)" class="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity" style="color:var(--txt-m)">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/></svg>
+            </button>
+        </div>
+    </template>
+</div>
+
+<!-- â•â•â• NAV â•â•â• -->
+<nav class="sticky top-0 z-30 flex items-center gap-2 px-3 md:px-5 border-b backdrop-blur-md"
+     style="background:var(--nav);border-color:var(--border);height:52px">
+    <a href="/" class="flex items-center gap-2 flex-shrink-0 no-underline">
+        <div class="w-7 h-7 flex items-center justify-center rounded-sm" style="background:var(--txt)">
+            <div class="w-3.5 h-3.5 rotate-45" style="background:var(--bg)"></div>
+        </div>
+        <span class="font-black text-[11px] tracking-widest uppercase hidden sm:block" style="color:var(--txt)">DataForge</span>
+    </a>
+    <div class="w-px h-5 flex-shrink-0" style="background:var(--border)"></div>
+    <a href="/workspace" class="btn-p text-[10px] py-1.5 px-2.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        <span class="hidden sm:inline">Workspace</span>
+    </a>
+    <div class="flex-1"></div>
+    <!-- WS indicator -->
+    <div class="hidden md:flex items-center gap-1.5 mr-3">
+        <div class="ld" :class="wsConnected ? '' : 'offline'"></div>
+        <span class="text-[10px] font-bold uppercase tracking-tight"
+              :style="wsConnected ? 'color:#10b981' : 'color:var(--txt-m)'"
+              x-text="wsConnected ? 'Live' : 'Offline'"></span>
+    </div>
+    <!-- Alert bell -->
+    <button @click="activeTab='alerts'" class="relative ibt mr-1" title="Alerts">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <span x-show="alertCount > 0" x-text="alertCount > 9 ? '9+' : alertCount"
+              class="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center"
+              style="background:#ef4444;color:#fff"></span>
+    </button>
+    <button @click="toggleTheme()" class="ibt mr-2">
+        <svg x-show="darkMode" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg x-show="!darkMode" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <div class="relative" x-data="{open:false}">
+        <button @click="open=!open" class="flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg border transition-colors"
+                style="border-color:var(--border)" :style="open?'border-color:var(--accent)':''">
+            <div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black" style="background:var(--accent);color:#fff">U</div>
+            <div class="w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px]" style="background:var(--accent);color:#fff">U</div>
+            <span class="hidden sm:block font-bold text-[11px]" style="color:var(--txt)">User</span>
+            <svg class="w-3 h-3 transition-transform" :class="open?'rotate-180':''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--txt-m)"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div x-show="open" @click.outside="open=false" x-transition class="absolute right-0 mt-2 w-44 rounded-xl py-1 z-50 shadow-xl" style="background:var(--surface);border:1px solid var(--border)">
+            <div class="px-4 py-3 border-b" style="border-color:var(--border)">
+                <p class="font-bold text-xs truncate" style="color:var(--txt)">User</p>
+                <p class="text-[10px] truncate mt-0.5" style="color:var(--txt-m)"></p>
+            </div>
+            <a href="/" class="flex items-center gap-2 px-4 py-2 text-xs font-medium hover:opacity-80 transition-opacity" style="color:var(--txt-m);text-decoration:none">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                New Analysis
+            </a>
+            <a href="/logout" class="flex items-center gap-2 px-4 py-2 text-xs font-medium hover:opacity-80 transition-opacity" style="color:#ef4444;text-decoration:none">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                Sign Out
+            </a>
+        </div>
+    </div>
+</nav>
+
+<!-- â•â•â• MAIN â•â•â• -->
+<main class="max-w-6xl mx-auto px-4 md:px-6 py-7 space-y-6">
+
+    <!-- Welcome -->
+    <div class="flex items-center justify-between flex-wrap gap-4">
+        <div class="flex items-center gap-4">
+            <img src="" class="w-12 h-12 rounded-full hidden sm:block" style="border:2px solid var(--border)">
+            <div>
+                <p class="sl mb-1">Welcome back</p>
+                <h1 class="text-2xl md:text-3xl font-black tracking-tight grad-txt">Analyst</h1>
+                <p class="text-xs mt-0.5" style="color:var(--txt-m)">analyst@dataforge.local</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <button @click="activeTab='reports';generateReport()" class="btn-s">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Generate Report
+            </button>
+            <a href="/" class="btn-p">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                New Analysis
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div class="stat-card">
+            <div class="flex items-center justify-between mb-3"><p class="sl">Uploads</p>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(46,91,255,.12)">
+                    <svg class="w-4 h-4" style="color:#2E5BFF" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                </div>
+            </div>
+            <p class="stat-num" style="color:#2E5BFF" x-text="stats.uploads"></p>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between mb-3"><p class="sl">Analyses</p>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(139,92,246,.12)">
+                    <svg class="w-4 h-4" style="color:#a78bfa" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </div>
+            </div>
+            <p class="stat-num" style="color:#a78bfa" x-text="stats.analyses"></p>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between mb-3"><p class="sl">Models</p>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(16,185,129,.12)">
+                    <svg class="w-4 h-4" style="color:#10b981" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                </div>
+            </div>
+            <p class="stat-num" style="color:#10b981" x-text="stats.models"></p>
+        </div>
+        <div class="stat-card">
+            <div class="flex items-center justify-between mb-3"><p class="sl">AI Queries</p>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(245,158,11,.12)">
+                    <svg class="w-4 h-4" style="color:#fbbf24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                </div>
+            </div>
+            <p class="stat-num" style="color:#fbbf24" x-text="stats.queries"></p>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex items-center gap-1 p-1 rounded-xl" style="background:var(--card);border:1px solid var(--border)">
+        <template x-for="tab in tabs" :key="tab.id">
+            <button @click="activeTab=tab.id" :class="activeTab===tab.id?'active':''" class="tab-btn flex items-center gap-1.5">
+                <span x-text="tab.label"></span>
+                <span x-show="tab.id==='alerts' && alertCount>0" x-text="alertCount"
+                      class="w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center"
+                      style="background:#ef4444;color:#fff"></span>
+            </button>
+        </template>
+    </div>
+
+    <!-- â•â• TAB: OVERVIEW â•â• -->
+    <div x-show="activeTab==='overview'" class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+        <!-- Recent uploads table -->
+        <div class="lg:col-span-3 gc rounded-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color:var(--border)">
+                <div><p class="font-bold text-sm" style="color:var(--txt)">Recent Uploads</p><p class="sl mt-0.5">Last 0 datasets</p></div>
+                <a href="/" class="text-[10px] font-bold uppercase tracking-widest hover:opacity-70 transition-opacity" style="color:var(--accent);text-decoration:none">+ Upload</a>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="dt">
+                    <thead><tr><th>File</th><th>Src</th><th>Rows</th><th>Cols</th><th>Missing</th><th>When</th></tr></thead>
+                    <tbody>
+                        
+                        <tr>
+                            <td><div class="flex items-center gap-2">
+                                <div class="w-6 h-6 rounded flex items-center justify-center text-[8px] font-black flex-shrink-0" style="background:var(--accent);color:#fff"></div>
+                                <span class="font-medium truncate" style="color:var(--txt);max-width:140px"></span>
+                            </div></td>
+                            <td><span class="badge" style="background:rgba(46,91,255,.07);color:var(--txt-m);border:1px solid var(--border)"></span></td>
+                            <td class="font-mono">0</td>
+                            <td class="font-mono"></td>
+                            <td class="font-mono" style="color:">%</td>
+                            <td style="color:var(--txt-m)"></td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="flex flex-col items-center justify-center py-14 text-center">
+                <p class="font-bold text-sm mb-1" style="color:var(--txt)">No uploads yet</p>
+                <a href="/" class="btn-p text-xs mt-2">Upload CSV</a>
+            </div>
+            
+        </div>
+
+        <!-- Live Feed -->
+        <div class="lg:col-span-2 gc rounded-2xl overflow-hidden flex flex-col">
+            <div class="px-5 py-4 border-b flex items-center justify-between flex-shrink-0" style="border-color:var(--border)">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <p class="font-bold text-sm" style="color:var(--txt)">Live Activity</p>
+                        <div class="ld" :class="wsConnected?'':'offline'"></div>
+                    </div>
+                    <p class="sl mt-0.5">Real-time analysis events</p>
+                </div>
+                <span x-show="newEventCount>0" class="badge" style="background:rgba(46,91,255,.12);color:var(--accent);border:1px solid rgba(46,91,255,.25)">
+                    <span x-text="newEventCount+' new'"></span>
+                </span>
+            </div>
+            <div class="overflow-y-auto flex-1 p-3 space-y-1" style="max-height:430px" id="feed-scroll">
+                <template x-for="item in feedItems" :key="item.id">
+                    <div class="feed-item flex items-start gap-3 p-3 rounded-xl transition-all"
+                         :style="item.isNew ? 'background:rgba(46,91,255,.06);box-shadow:inset 0 0 0 1px rgba(46,91,255,.2)' : 'background:rgba(255,255,255,.02)'">
+                        <span class="text-base leading-none mt-0.5 flex-shrink-0" x-text="item.icon"></span>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 mb-0.5 flex-wrap">
+                                <span class="badge" :class="'badge-'+item.type" x-text="item.label"></span>
+                                <span x-show="item.isNew" class="badge" style="background:rgba(46,91,255,.15);color:#2E5BFF;border:1px solid rgba(46,91,255,.3);font-size:.55rem">NEW</span>
+                            </div>
+                            <p x-show="item.filename" class="text-[10px] font-medium truncate" style="color:var(--txt)" x-text="item.filename"></p>
+                            <p x-show="item.summary" class="text-[10px] truncate mt-0.5" style="color:var(--txt-m)" x-text="item.summary"></p>
+                            <p class="text-[9px] mt-1 opacity-60" style="color:var(--txt-m)" x-text="item.time_ago"></p>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="feedItems.length===0">
+                    <div class="flex flex-col items-center justify-center py-12 text-center">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style="background:rgba(46,91,255,.08)">
+                            <svg class="w-5 h-5" style="color:var(--accent)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        </div>
+                        <p class="text-xs font-bold mb-1" style="color:var(--txt)">Waiting for events</p>
+                        <p class="text-[10px]" style="color:var(--txt-m)">Run analyses in the workspace</p>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- â•â• TAB: INSIGHTS â•â• -->
+    <div x-show="activeTab==='insights'" class="space-y-5">
+        <div class="flex items-center justify-between">
+            <div><p class="font-bold" style="color:var(--txt)">Automated Insights</p><p class="sl mt-0.5">AI-generated intelligence from your latest dataset</p></div>
+            <button @click="runInsights()" :disabled="insightsLoading" class="btn-p">
+                <svg x-show="insightsLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <svg x-show="!insightsLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span x-text="insightsLoading?'Analysing...':'Run Insights'"></span>
+            </button>
+        </div>
+        <template x-if="insightSummary">
+            <div class="p-5 rounded-2xl" style="background:rgba(99,102,241,.07);border:1px solid rgba(99,102,241,.2)">
+                <div class="flex items-center gap-2 mb-3">
+                    <svg class="w-4 h-4" style="color:#818cf8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    <p class="font-bold text-xs" style="color:#818cf8">AI Executive Summary</p>
+                </div>
+                <p class="text-sm leading-relaxed" style="color:var(--txt)" x-text="insightSummary"></p>
+            </div>
+        </template>
+        <template x-if="insightError">
+            <div class="p-4 rounded-xl" style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2)">
+                <p class="text-xs font-bold text-red-400" x-text="insightError"></p>
+            </div>
+        </template>
+        <template x-if="insights.length>0">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <template x-for="ins in insights" :key="ins.title">
+                    <div class="insight-card">
+                        <div class="flex items-start justify-between gap-3 mb-3">
+                            <div class="flex-1 min-w-0">
+                                <p class="font-bold text-sm leading-tight" style="color:var(--txt)" x-text="ins.title"></p>
+                                <p class="text-xs mt-1 leading-relaxed" style="color:var(--txt-m)" x-text="ins.description"></p>
+                            </div>
+                            <span class="badge flex-shrink-0" style="background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.2)" x-text="ins.type"></span>
+                        </div>
+                        <div class="imp-bar mt-3"><div class="imp-fill" :style="'width:'+(ins.importance*100).toFixed(0)+'%'"></div></div>
+                        <p class="text-[10px] mt-1.5" style="color:var(--txt-m)">Importance: <span style="color:var(--txt)" x-text="(ins.importance*100).toFixed(0)+'%'"></span></p>
+                    </div>
+                </template>
+            </div>
+        </template>
+        <template x-if="insights.length===0 && !insightsLoading && !insightSummary">
+            <div class="flex flex-col items-center justify-center py-16 gc rounded-2xl text-center">
+                <div class="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style="background:rgba(99,102,241,.08)">
+                    <svg class="w-8 h-8" style="color:#818cf8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                </div>
+                <p class="font-bold text-sm mb-1" style="color:var(--txt)">No insights yet</p>
+                <p class="text-xs mb-4" style="color:var(--txt-m)">Upload a dataset, then click Run Insights</p>
+            </div>
+        </template>
+    </div>
+
+    <!-- â•â• TAB: REPORTS â•â• -->
+    <div x-show="activeTab==='reports'" class="space-y-5">
+        <div class="flex items-center justify-between">
+            <div><p class="font-bold" style="color:var(--txt)">Generated Reports</p><p class="sl mt-0.5">Automated HTML reporting engine</p></div>
+            <button @click="generateReport()" :disabled="reportLoading" class="btn-p">
+                <svg x-show="reportLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <svg x-show="!reportLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <span x-text="reportLoading?'Generating...':'Generate Report'"></span>
+            </button>
+        </div>
+        <template x-if="previewReportId">
+            <div class="gc rounded-2xl overflow-hidden">
+                <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color:var(--border)">
+                    <p class="font-bold text-sm" style="color:var(--txt)">Report Preview</p>
+                    <a :href="'/api/reports/'+previewReportId" target="_blank" class="btn-s text-[10px] py-1.5 px-3">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Open Full
+                    </a>
+                </div>
+                <iframe :src="'/api/reports/'+previewReportId" class="w-full rounded-b-2xl" style="height:480px;border:0;background:#050505"></iframe>
+            </div>
+        </template>
+        <div class="gc rounded-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b" style="border-color:var(--border)"><p class="font-bold text-sm" style="color:var(--txt)">All Reports</p></div>
+            <template x-if="reports.length>0">
+                <table class="dt"><thead><tr><th>Dataset</th><th>Type</th><th>Created</th><th>Action</th></tr></thead><tbody>
+                    <template x-for="r in reports" :key="r.id">
+                        <tr>
+                            <td class="font-medium" style="color:var(--txt)" x-text="r.filename||'Dataset'"></td>
+                            <td><span class="badge badge-report" x-text="r.triggered_by"></span></td>
+                            <td style="color:var(--txt-m)" x-text="timeAgo(r.created_at)"></td>
+                            <td><button @click="previewReportId=r.id" class="badge" style="background:rgba(46,91,255,.1);color:var(--accent);border:1px solid rgba(46,91,255,.2);cursor:pointer">Preview</button></td>
+                        </tr>
+                    </template>
+                </tbody></table>
+            </template>
+            <template x-if="reports.length===0">
+                <div class="flex flex-col items-center justify-center py-12 text-center"><p class="text-xs font-bold mb-1" style="color:var(--txt)">No reports generated yet</p></div>
+            </template>
+        </div>
+    </div>
+
+    <!-- â•â• TAB: ALERTS â•â• -->
+    <div x-show="activeTab==='alerts'" class="space-y-5">
+        <div class="flex items-center justify-between">
+            <div><p class="font-bold" style="color:var(--txt)">Data Alerts</p><p class="sl mt-0.5">Anomaly & threshold monitoring</p></div>
+            <button @click="checkAlerts()" :disabled="alertsChecking" class="btn-p">
+                <svg x-show="alertsChecking" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <svg x-show="!alertsChecking" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                <span x-text="alertsChecking?'Checking...':'Check Now'"></span>
+            </button>
+        </div>
+        <template x-if="alerts.length>0">
+            <div class="space-y-3">
+                <template x-for="a in alerts" :key="a.id">
+                    <div class="gc rounded-xl p-4 flex items-start gap-4">
+                        <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                             :style="'background:' + (a.severity==='critical'?'rgba(239,68,68,.12)':a.severity==='warning'?'rgba(245,158,11,.12)':'rgba(99,102,241,.12)')">
+                            <svg class="w-4 h-4" :style="'color:'+(a.severity==='critical'?'#ef4444':a.severity==='warning'?'#fbbf24':'#818cf8')" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                <span class="badge" :class="'sev-'+a.severity" x-text="a.severity.toUpperCase()"></span>
+                                <span class="text-[10px] font-bold" style="color:var(--txt)" x-text="a.rule"></span>
+                            </div>
+                            <p class="text-xs" style="color:var(--txt-m)" x-text="a.message"></p>
+                            <p class="text-[10px] mt-1 opacity-60" style="color:var(--txt-m)" x-text="(a.filename||'')+'  Â·  '+timeAgo(a.triggered_at)"></p>
+                        </div>
+                        <button @click="resolveAlert(a.id)" class="flex-shrink-0 btn-s text-[10px] py-1 px-2">Resolve</button>
+                    </div>
+                </template>
+            </div>
+        </template>
+        <template x-if="alerts.length===0">
+            <div class="flex flex-col items-center justify-center py-16 gc rounded-2xl text-center">
+                <div class="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style="background:rgba(16,185,129,.08)">
+                    <svg class="w-7 h-7" style="color:#10b981" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <p class="font-bold text-sm mb-1" style="color:var(--txt)">All clear</p>
+                <p class="text-xs" style="color:var(--txt-m)">No active alerts on your datasets</p>
+            </div>
+        </template>
+    </div>
+
+    <!-- â•â• TAB: SCHEDULES â•â• -->
+    <div x-show="activeTab==='schedules'" class="space-y-5">
+        <div class="flex items-center justify-between">
+            <div><p class="font-bold" style="color:var(--txt)">Report Schedules</p><p class="sl mt-0.5">Automated recurring report delivery</p></div>
+            <button @click="showNewSchedule=!showNewSchedule" class="btn-p">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                New Schedule
+            </button>
+        </div>
+        <template x-if="showNewSchedule">
+            <div class="gc rounded-2xl p-5 space-y-4">
+                <p class="font-bold text-sm" style="color:var(--txt)">New Report Schedule</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="sl">Frequency</label>
+                        <select x-model="newSched.cron"
+                                @change="touchSchedField('cron')"
+                                :style="schedErrors.cron ? 'border-color:#ef4444 !important' : ''"
+                                class="w-full px-3 py-2 rounded-lg text-xs font-medium outline-none" style="background:var(--surface);border:1px solid var(--border);color:var(--txt)">
+                            <option value="0 9 * * 1">Every Monday 9AM</option>
+                            <option value="0 9 * * *">Every day 9AM</option>
+                            <option value="0 9 1 * *">Monthly (1st)</option>
+                            <option value="0 9 * * 1-5">Weekdays 9AM</option>
+                        </select>
+                        <p x-show="schedErrors.cron" x-text="schedErrors.cron" class="text-[10px] font-semibold" style="color:#ef4444"></p>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="sl">Email <span style="color:var(--txt-m);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+                        <input x-model="newSched.email"
+                               @blur="touchSchedField('email')"
+                               @input="if(schedErrors.email) touchSchedField('email')"
+                               :style="schedErrors.email ? 'border-color:#ef4444 !important' : ''"
+                               type="email" placeholder="you@company.com"
+                               class="w-full px-3 py-2 rounded-lg text-xs outline-none" style="background:var(--surface);border:1px solid var(--border);color:var(--txt)">
+                        <p x-show="schedErrors.email" x-text="schedErrors.email" class="text-[10px] font-semibold" style="color:#ef4444"></p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button @click="createSchedule()" :disabled="schedLoading" class="btn-p"><span x-text="schedLoading?'Creating...':'Create Schedule'"></span></button>
+                    <button @click="showNewSchedule=false; schedErrors={cron:'',email:''}" class="btn-s">Cancel</button>
+                </div>
+            </div>
+        </template>
+        <template x-if="schedules.length>0">
+            <div class="gc rounded-2xl overflow-hidden">
+                <table class="dt"><thead><tr><th>Dataset</th><th>Frequency</th><th>Email</th><th>Last Run</th><th></th></tr></thead><tbody>
+                    <template x-for="s in schedules" :key="s.id">
+                        <tr>
+                            <td class="font-medium" style="color:var(--txt)" x-text="s.filename||'Dataset'"></td>
+                            <td><span class="badge badge-insights" x-text="s.cron_human"></span></td>
+                            <td style="color:var(--txt-m)" x-text="s.email||'â€”'"></td>
+                            <td style="color:var(--txt-m)" x-text="s.last_run?timeAgo(s.last_run):'Never'"></td>
+                            <td><button @click="deleteSchedule(s.id)" class="badge" style="background:rgba(239,68,68,.08);color:#ef4444;border:1px solid rgba(239,68,68,.2);cursor:pointer">Delete</button></td>
+                        </tr>
+                    </template>
+                </tbody></table>
+            </div>
+        </template>
+        <template x-if="schedules.length===0 && !showNewSchedule">
+            <div class="flex flex-col items-center justify-center py-16 gc rounded-2xl text-center">
+                <div class="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style="background:rgba(46,91,255,.08)">
+                    <svg class="w-7 h-7" style="color:var(--accent)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                </div>
+                <p class="font-bold text-sm mb-1" style="color:var(--txt)">No schedules configured</p>
+                <p class="text-xs mb-4" style="color:var(--txt-m)">Automate report delivery on a cadence</p>
+            </div>
+        </template>
+    </div>
+
+    <!-- Footer -->
+    <div class="flex items-center justify-between py-4 px-5 rounded-xl" style="background:var(--card);border:1px solid var(--border)">
+        <div class="flex items-center gap-3">
+            <svg class="w-4 h-4 flex-shrink-0" style="color:#10b981" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 4.946-3.078 9.141-7.404 10.825L10 18l-.596-.234C5.078 16.082 2 11.886 2 7.001c0-.682.057-1.35.166-2.002z" clip-rule="evenodd"/></svg>
+            <div>
+                <p class="text-xs font-bold" style="color:var(--txt)">analyst@dataforge.local</p>
+                <p class="sl mt-0.5">Member since April 2026</p>
+            </div>
+        </div>
+        <a href="/logout" class="text-[10px] font-bold uppercase tracking-widest hover:opacity-70 transition-opacity" style="color:#ef4444;text-decoration:none">Sign Out</a>
+    </div>
+
+</main>
+
+<script>
+// â”€â”€ Safe JSON fetch helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Returns { ok, status, data, error } â€” NEVER throws or returns raw HTML.
+async function apiFetch(url, opts = {}) {
+    opts.headers = { 'Accept': 'application/json', ...(opts.headers || {}) };
+    try {
+        const res = await fetch(url, opts);
+        if (res.status === 401) {
+            window.location.href = '/login';
+            return { ok: false, status: 401, data: null, error: 'Not authenticated' };
+        }
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            const text = await res.text();
+            const preview = text.replace(/<[^>]+>/g, '').trim().slice(0, 120);
+            return { ok: false, status: res.status, data: null,
+                     error: `Server returned non-JSON (${res.status}): ${preview || 'empty response'}` };
+        }
+        const data = await res.json();
+        return { ok: res.ok, status: res.status, data, error: data.error || null };
+    } catch (e) {
+        return { ok: false, status: 0, data: null, error: 'Network error: ' + e.message };
+    }
+}
+
+// â”€â”€ Validation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const V = {
+    email(v) {
+        if (!v) return null;  // optional fields return null when empty
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? null : 'Enter a valid email address';
+    },
+    emailRequired(v) {
+        if (!v || !v.trim()) return 'Email is required';
+        return V.email(v);
+    },
+    cron(v) {
+        if (!v || !v.trim()) return 'Cron expression is required';
+        const parts = v.trim().split(/\s+/);
+        if (parts.length !== 5) return 'Cron must have 5 fields: minute hour day month weekday';
+        const valid = parts.every(p => /^(\*|[0-9,\-\/]+)$/.test(p));
+        if (!valid) return 'Invalid cron expression';
+        return null;
+    },
+    url(v) {
+        if (!v || !v.trim()) return 'URL is required';
+        try { new URL(v.trim()); return null; }
+        catch { return 'Enter a valid URL (include https://)'; }
+    },
+    notEmpty(v, label) {
+        if (!v || !String(v).trim()) return `${label} is required`;
+        return null;
+    },
+};
+
+function dashApp() {
+    return {
+        darkMode:      true,
+        activeTab:     'overview',
+        wsConnected:   false,
+        newEventCount: 0,
+
+        stats: {
+            uploads: 0,
+            analyses: 0,
+            models: 0,
+            queries: 0,
+        },
+
+        feedItems: [],
+        alertCount: 0,
+        alerts:         [],
+        alertsChecking: false,
+
+        insights:        [],
+        insightSummary:  '',
+        insightError:    '',
+        insightsLoading: false,
+
+        reports: [],
+        previewReportId: null,
+        reportLoading:   false,
+
+        schedules:       [],
+        showNewSchedule: false,
+        schedLoading:    false,
+        newSched:        { cron:'0 9 * * 1', email:'' },
+        schedErrors:     { cron:'', email:'' },
+
+        toasts:   [],
+        _toastCtr: 0,
+
+        // â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        async init() {
+            const saved = localStorage.getItem('analyst-theme');
+            this.darkMode = saved !== 'light';
+            this.applyTheme();
+            this.connectWS();
+            // Load in parallel â€” failures are silent (user may have no data yet)
+            await Promise.allSettled([
+                this.loadAlerts(),
+                this.loadReports(),
+                this.loadSchedules(),
+            ]);
+        },
+
+        // â”€â”€ Theme â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        toggleTheme() {
+            this.darkMode = !this.darkMode;
+            this.applyTheme();
+            localStorage.setItem('analyst-theme', this.darkMode ? 'dark' : 'light');
+        },
+        applyTheme() {
+            document.getElementById('html-root').classList.toggle('light', !this.darkMode);
+        },
+
+        // â”€â”€ WebSocket â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        connectWS() {
+            const socket = io({ transports: ['websocket', 'polling'] });
+            socket.on('connect',       () => { this.wsConnected = true; });
+            socket.on('disconnect',    () => { this.wsConnected = false; });
+            socket.on('connect_error', () => { this.wsConnected = false; });
+
+            socket.on('activity',     (d) => { this.onActivity(d); });
+            socket.on('stats_update', (d) => { this.stats = { ...this.stats, ...d }; });
+
+            socket.on('alert', (d) => {
+                this.alertCount++;
+                this.alerts.unshift({
+                    id: Date.now(), rule: d.rule, message: d.message,
+                    severity: d.severity, filename: d.filename, triggered_at: d.ts,
+                });
+                this.pushToast({
+                    type: 'alert',
+                    icon: d.severity === 'critical' ? 'ðŸš¨' : 'âš ï¸',
+                    title: `Alert: ${d.rule}`,
+                    body: d.message,
+                });
+            });
+
+            socket.on('report_ready', (d) => {
+                this.previewReportId = d.report_id;
+                this.loadReports();
+                this.pushToast({ type:'report', icon:'ðŸ“„',
+                                  title:'Report Ready', body:`Generated for ${d.filename || 'dataset'}` });
+            });
+
+            socket.on('insight_ready', (d) => {
+                this.pushToast({ type:'info', icon:'ðŸ’¡',
+                                  title:`${d.count} Insights Ready`,
+                                  body:`${d.dataset_type} Â· ${d.filename}` });
+            });
+        },
+
+        onActivity(d) {
+            const icons  = { eda:'ðŸ“Š', automl:'ðŸ¤–', clean:'ðŸ§¹', query:'ðŸ’¬', insights:'ðŸ’¡', report:'ðŸ“„' };
+            const labels = { eda:'EDA', automl:'AutoML', clean:'Cleaning',
+                              query:'AI Query', insights:'Insights', report:'Report' };
+            const item = {
+                id: Date.now() + Math.random(), type: d.type,
+                label: labels[d.type] || d.type, icon: icons[d.type] || 'âš¡',
+                summary: d.summary, filename: d.filename, time_ago: 'just now', isNew: true,
+            };
+            this.feedItems.unshift(item);
+            if (this.feedItems.length > 60) this.feedItems.pop();
+            this.newEventCount++;
+            setTimeout(() => {
+                const f = this.feedItems.find(x => x.id === item.id);
+                if (f) f.isNew = false;
+                this.newEventCount = Math.max(0, this.newEventCount - 1);
+            }, 5000);
+            this.$nextTick(() => {
+                const el = document.getElementById('feed-scroll');
+                if (el) el.scrollTop = 0;
+            });
+            this.pushToast({ type: 'info', icon: icons[d.type] || 'âš¡',
+                              title: `${labels[d.type] || d.type} complete`,
+                              body: d.summary || d.filename || '' });
+        },
+
+        // â”€â”€ Toasts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        pushToast({ type, icon, title, body }) {
+            const id = ++this._toastCtr;
+            this.toasts.push({ id, type, icon, title, body, leaving: false });
+            setTimeout(() => this.dismissToast(id), 5500);
+        },
+        dismissToast(id) {
+            const t = this.toasts.find(t => t.id === id);
+            if (!t) return;
+            t.leaving = true;
+            setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 280);
+        },
+
+        // â”€â”€ Insights â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        async runInsights() {
+            this.insightsLoading = true;
+            this.insightError    = '';
+            const { ok, data, error } = await apiFetch('/api/insights/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ top_n: 8, use_gemini: true }),
+            });
+            this.insightsLoading = false;
+            if (!ok) { this.insightError = error; return; }
+            this.insights       = data.insights || [];
+            this.insightSummary = data.summary  || '';
+        },
+
+        // â”€â”€ Reports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        async loadReports() {
+            const { ok, data } = await apiFetch('/api/reports');
+            if (ok && Array.isArray(data)) this.reports = data;
+        },
+        async generateReport() {
+            this.reportLoading = true;
+            const { ok, data, error } = await apiFetch('/api/reports/generate', { method: 'POST' });
+            this.reportLoading = false;
+            if (!ok) {
+                this.pushToast({ type:'alert', icon:'âŒ', title:'Report failed', body: error });
+                return;
+            }
+            if (data && data.report_id) {
+                this.previewReportId = data.report_id;
+                this.activeTab = 'reports';
+                await this.loadReports();
+            }
+        },
+
+        // â”€â”€ Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        async loadAlerts() {
+            const { ok, data } = await apiFetch('/api/alerts');
+            if (ok && Array.isArray(data)) {
+                this.alerts     = data;
+                this.alertCount = data.length;
+            }
+        },
+        async checkAlerts() {
+            this.alertsChecking = true;
+            const { ok, data, error } = await apiFetch('/api/alerts/check', { method: 'POST' });
+            this.alertsChecking = false;
+            if (!ok) {
+                this.pushToast({ type:'alert', icon:'âŒ', title:'Check failed', body: error });
+                return;
+            }
+            if (data.count > 0) {
+                await this.loadAlerts();
+                this.pushToast({ type:'alert', icon:'âš ï¸',
+                                  title:`${data.count} alert(s) fired`, body:'See the Alerts tab' });
+            } else {
+                this.pushToast({ type:'info', icon:'âœ…',
+                                  title:'All clear', body:'No threshold violations detected' });
+            }
+        },
+        async resolveAlert(alertId) {
+            const { ok } = await apiFetch(`/api/alerts/${alertId}/resolve`, { method: 'POST' });
+            if (ok) {
+                this.alerts     = this.alerts.filter(a => a.id !== alertId);
+                this.alertCount = Math.max(0, this.alertCount - 1);
+            }
+        },
+
+        // â”€â”€ Schedules â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        async loadSchedules() {
+            const { ok, data } = await apiFetch('/api/schedules');
+            if (ok && Array.isArray(data)) this.schedules = data;
+        },
+
+        // Validate the schedule form â€” returns true if valid
+        validateSchedule() {
+            let valid = true;
+            const cronErr = V.cron(this.newSched.cron);
+            this.schedErrors.cron = cronErr || '';
+            if (cronErr) valid = false;
+
+            const emailErr = V.email(this.newSched.email);   // optional field
+            this.schedErrors.email = emailErr || '';
+            if (emailErr) valid = false;
+
+            return valid;
+        },
+        // Live validation on blur
+        touchSchedField(field) {
+            if (field === 'cron')  this.schedErrors.cron  = V.cron(this.newSched.cron)  || '';
+            if (field === 'email') this.schedErrors.email = V.email(this.newSched.email) || '';
+        },
+
+        async createSchedule() {
+            if (!this.validateSchedule()) return;
+            this.schedLoading = true;
+            const { ok, data, error } = await apiFetch('/api/schedules', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({
+                    cron:  this.newSched.cron.trim(),
+                    email: this.newSched.email.trim(),
+                }),
+            });
+            this.schedLoading = false;
+            if (!ok) {
+                this.pushToast({ type:'alert', icon:'âŒ', title:'Could not create schedule', body: error });
+                return;
+            }
+            this.showNewSchedule = false;
+            this.newSched        = { cron:'0 9 * * 1', email:'' };
+            this.schedErrors     = { cron:'', email:'' };
+            await this.loadSchedules();
+            this.pushToast({ type:'info', icon:'ðŸ“…', title:'Schedule created', body: data.cron_human });
+        },
+        async deleteSchedule(id) {
+            const { ok } = await apiFetch(`/api/schedules/${id}`, { method: 'DELETE' });
+            if (ok) this.schedules = this.schedules.filter(s => s.id !== id);
+        },
+
+        // â”€â”€ Utils â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        get tabs() {
+            return [
+                { id:'overview',  label:'Overview'  },
+                { id:'insights',  label:'Insights'  },
+                { id:'reports',   label:'Reports'   },
+                { id:'alerts',    label:'Alerts'    },
+                { id:'schedules', label:'Schedules' },
+            ];
+        },
+        timeAgo(iso) {
+            if (!iso) return '';
+            const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+            if (s < 60)    return 'just now';
+            if (s < 3600)  return Math.floor(s / 60) + 'm ago';
+            if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+            return Math.floor(s / 86400) + 'd ago';
+        },
+    };
+}
+</script>
+</body>
+</html>
+
+

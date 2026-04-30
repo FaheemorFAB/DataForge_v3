@@ -1,0 +1,2233 @@
+﻿<!DOCTYPE html>
+<!--
+  DataForge â€” workspace.html (PATCHED)
+  Fix: Insight cards without chart_data now show a rich stat fallback visual
+  instead of blank empty space.
+  
+  Changes applied:
+  1. Added parseInsightStats() method to workspaceApp()
+  2. Added <template x-if="!ins.chart_data"> fallback block in insight card loop
+-->
+<html lang="en" id="html-root">
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataForge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <style>
+    
+        /* â”€â”€â”€ DARK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        :root{--bg:#050505;--surface:#0A0A0B;--border:#1A1A1C;--accent:#2E5BFF;--glow:rgba(46,91,255,0.15);--txt:#ffffff;--txt-m:#666666;--txt-f:#2e2e30;--card:rgba(10,10,11,0.75);--nav:rgba(5,5,5,0.92);--inp-bg:#0A0A0B;--row-h:rgba(255,255,255,0.03);--row-head:rgba(255,255,255,0.02);}
+        html.light{--bg:#c8c8cd;--surface:#d1caca;--border:#e2e2e6;--accent:#08227e;--glow:rgba(46,91,255,0.08);--txt:#0a0a0b;--txt-m:#37373c;--txt-f:#343438;--card:#dbd2d2e6;--nav:rgba(242,242,245,0.96);--inp-bg:#f8f8fb;--row-h:rgba(0,0,0,0.03);--row-head:rgba(0,0,0,0.015);}
+        *,*::before,*::after{box-sizing:border-box;}
+        html,body{height:100%;height:100dvh;margin:0;padding:0;overflow:hidden;}
+        body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);display:flex;flex-direction:column;transition:background .2s,color .2s;}
+        .noise{position:fixed;inset:0;pointer-events:none;opacity:.035;z-index:9999;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+        html.light .noise{opacity:.015;}
+        .gc{background:var(--card);backdrop-filter:blur(20px);border:1px solid var(--border);transition:border-color .2s,background .2s;}
+        /* NAV */
+        #topnav{position:sticky;top:0;z-index:30;background:var(--nav);border-bottom:1px solid var(--border);backdrop-filter:blur(16px);height:52px;flex-shrink:0;display:flex;align-items:center;padding:0 .75rem;gap:0;transition:background .2s,border-color .2s;overflow-x:clip;overflow-y:visible;}
+        .tab-strip{display:none;}
+        @media(min-width:768px){.tab-strip{display:flex;align-items:center;gap:1px;flex:1;min-width:0;}}
+        .more-dropdown{position:relative;flex-shrink:0;}
+        .more-menu{position:absolute;top:calc(100% + 6px);left:0;min-width:160px;padding:4px;background:var(--surface);border:1px solid var(--border);border-radius:.65rem;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.45);}
+        .more-menu button{display:flex;align-items:center;gap:.6rem;width:100%;padding:.55rem .75rem;border-radius:.4rem;border:none;background:transparent;font-size:.7rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--txt-m);cursor:pointer;text-align:left;transition:background .12s,color .12s;}
+        .more-menu button:hover{background:rgba(46,91,255,.1);color:var(--accent);}
+        .more-menu button.na{background:rgba(46,91,255,.12);color:var(--accent);}
+        /* BOTTOM TABS */
+        #bottom-tabs{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:25;background:var(--nav);border-top:1px solid var(--border);height:56px;padding:0 .1rem;}
+        #bottom-tabs button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:none;background:transparent;cursor:pointer;padding:.2rem .05rem;color:var(--txt-m);font-size:.38rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-radius:.375rem;transition:color .15s;min-width:0;overflow:hidden;}
+        #bottom-tabs button .bt-icon{font-size:1.1rem;line-height:1.15;display:block;}
+        #bottom-tabs button span:not(.bt-icon){display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+        #bottom-tabs button.na{color:var(--accent);}
+        @media(min-width:768px){#bottom-tabs{display:none;}}
+        @media(max-width:767px){#main-content{padding-bottom:60px;}#chat-panel{height:calc(100dvh - 52px - 60px);}#app-footer{display:none;}}
+        .tab-strip::-webkit-scrollbar{display:none;}
+        .ntab{padding:.38rem .75rem;border-radius:.45rem;font-size:.63rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--txt-m);cursor:pointer;background:transparent;border:none;white-space:nowrap;flex-shrink:0;transition:all .15s;}
+        .ntab:hover{color:var(--txt);}
+        .ntab.na{background:rgba(255,255,255,.09);color:var(--txt);}
+        html.light .ntab.na{background:rgba(46,91,255,.1);color:var(--accent);}
+        .ibt{width:32px;height:32px;border-radius:.45rem;border:1px solid var(--border);background:transparent;cursor:pointer;color:var(--txt-m);display:flex;align-items:center;justify-content:center;transition:border-color .15s,color .15s;flex-shrink:0;}
+        .ibt:hover{border-color:var(--accent);color:var(--txt);}
+        /* DRAWER */
+        #dov{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);z-index:40;}
+        #dpn{position:fixed;top:0;right:0;bottom:0;width:260px;max-width:85vw;background:var(--surface);border-left:1px solid var(--border);z-index:50;display:flex;flex-direction:column;padding:1.25rem;transition:transform .25s cubic-bezier(.4,0,.2,1),background .2s;}
+        #dpn.dc{transform:translateX(100%);}
+        #dpn.do{transform:translateX(0);}
+        .dtab{display:flex;align-items:center;gap:.75rem;padding:.65rem .875rem;border-radius:.5rem;font-size:.75rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--txt-m);background:transparent;border:none;cursor:pointer;transition:all .15s;width:100%;text-align:left;}
+        .dtab:hover{background:var(--border);color:var(--txt);}
+        .dtab.na{background:rgba(46,91,255,.12);color:var(--accent);}
+        /* MAIN SCROLL */
+        #main-content{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;}
+        /* TAB PANELS */
+        .tab-panel{padding:.65rem;}
+        @media(min-width:640px){.tab-panel{padding:1rem;}}
+        @media(min-width:1024px){.tab-panel{padding:1.5rem;}}
+        /* CHAT */
+        #chat-panel{display:flex;flex-direction:column;gap:.75rem;height:calc(100dvh - 52px - 40px);padding:.65rem;overflow:hidden;}
+        @media(min-width:640px){#chat-panel{padding:1rem;}}
+        @media(min-width:1024px){#chat-panel{padding:1.5rem;height:calc(100dvh - 52px - 38px);}}
+        #chat-thread{flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;}
+        /* TABLES */
+        .dt{width:100%;border-collapse:collapse;font-size:.7rem;}
+        .dt th{padding:9px 12px;text-align:left;font-weight:700;font-size:.58rem;text-transform:uppercase;letter-spacing:.12em;color:var(--txt-m);border-bottom:1px solid var(--border);background:var(--row-head);white-space:nowrap;position:sticky;top:0;z-index:2;}
+        .dt td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--txt-m);white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;}
+        .dt tbody tr:hover td{background:var(--row-h);color:var(--txt);}
+        .tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;}
+        .tbl-scroll .dt{min-width:480px;}
+        @media(max-width:640px){.dt th,.dt td{padding:5px 8px;font-size:.6rem;}}
+        ::-webkit-scrollbar{width:4px;height:4px;}
+        ::-webkit-scrollbar-track{background:var(--bg);}
+        ::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px;}
+        ::-webkit-scrollbar-thumb:hover{background:var(--accent);}
+        /* BUTTONS */
+        .bp{background:var(--accent);color:#fff;font-weight:700;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;padding:.6rem 1.2rem;border-radius:.6rem;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:.5rem;border:none;white-space:nowrap;flex-shrink:0;}
+        .bp:hover{filter:brightness(1.12);transform:translateY(-1px);}
+        .bp:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+        .bg{background:transparent;border:1px solid var(--border);color:var(--txt-m);font-weight:700;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;padding:.6rem 1.1rem;border-radius:.6rem;cursor:pointer;transition:all .2s;white-space:nowrap;flex-shrink:0;text-decoration:none;display:inline-flex;align-items:center;}
+        .bg:hover{border-color:var(--accent);color:var(--txt);}
+        @media(max-width:480px){.bp,.bg{font-size:.62rem;padding:.48rem .8rem;}}
+        .bok{display:inline-flex;align-items:center;gap:.4rem;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#1e9902;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.3rem .7rem;border-radius:999px;}
+        .bwrn{display:inline-flex;align-items:center;gap:.4rem;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:#f59e0b;font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.3rem .7rem;border-radius:999px;}
+        .code-blk{background:#0d1117;border-radius:.5rem;padding:.75rem 1rem;font-family:monospace;font-size:.72rem;color:#1e9902;overflow-x:auto;margin-top:.5rem;white-space:pre;}
+        .lf{border-left:3px solid var(--accent);}
+        .ld{border-left:3px solid #ef4444;}
+        [x-cloak]{display:none !important;}
+        .spin{animation:spin .8s linear infinite;}
+        @keyframes spin{to{transform:rotate(360deg);}}
+        .sc{background:var(--card);border:1px solid var(--border);border-radius:.875rem;padding:.875rem 1rem;transition:background .2s,border-color .2s;}
+        @media(max-width:480px){.sc{padding:.6rem .7rem;}}
+        .qbg{height:3px;width:100%;background:var(--border);border-radius:99px;overflow:hidden;}
+        .qbf{height:100%;border-radius:99px;transition:width .4s;}
+        .inp{background:var(--inp-bg);border:1px solid var(--border);border-radius:.5rem;padding:.5rem .75rem;color:var(--txt);font-family:inherit;font-size:.85rem;outline:none;transition:border-color .15s;width:100%;}
+        .inp:focus{border-color:var(--accent);}
+        .inp::placeholder{color:var(--txt-m);}
+        textarea.inp{resize:vertical;}
+        /* EDA IFRAME */
+        #eda-frame{width:100%;border:none;border-radius:.75rem;height:clamp(420px,calc(100dvh - 180px),1000px);background:var(--bg);display:block;}
+        @media(max-width:640px){#eda-frame{height:clamp(380px,calc(100dvh - 160px),900px);border-radius:.5rem;}}
+        .ld2{width:8px;height:8px;border-radius:50%;background:#05e62e;box-shadow:0 0 6px #05e62e;animation:ld2 2s ease-in-out infinite;}
+        @keyframes ld2{0%,100%{opacity:1}50%{opacity:.4}}
+        .sl{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--txt-m);}
+        .cub{background:rgba(46,91,255,.1);border:1px solid rgba(46,91,255,.18);}
+        html.light .cub{background:rgba(46,91,255,.07);border-color:rgba(46,91,255,.15);}
+        /* GRIDS */
+        .grid-2-4{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem;}
+        @media(min-width:640px){.grid-2-4{grid-template-columns:repeat(4,1fr);gap:.75rem;}}
+        .grid-1-2{display:grid;grid-template-columns:1fr;gap:1rem;}
+        @media(min-width:768px){.grid-1-2{grid-template-columns:repeat(2,1fr);gap:1.25rem;}}
+        .grid-1-3{display:grid;grid-template-columns:1fr;gap:.75rem;}
+        @media(min-width:640px){.grid-1-3{grid-template-columns:repeat(2,1fr);}}
+        @media(min-width:1024px){.grid-1-3{grid-template-columns:repeat(3,1fr);}}
+        .grid-2-4m{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;}
+        @media(min-width:768px){.grid-2-4m{grid-template-columns:repeat(4,1fr);}}
+        /* SECTION HEADS */
+        .sec-hd{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.75rem;}
+        .sec-hd h2{font-size:1.15rem;font-weight:900;text-transform:uppercase;letter-spacing:-.02em;line-height:1.1;margin:0;}
+        @media(min-width:640px){.sec-hd h2{font-size:1.6rem;}}
+        @media(min-width:768px){.sec-hd h2{font-size:2rem;}}
+        .sec-hd-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+        .sec-sub{font-size:.63rem;margin-top:.25rem;color:var(--txt-m);}
+        /* EXPLORER */
+        .expl-toolbar{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.5rem;}
+        .expl-controls{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;}
+        @media(max-width:640px){.expl-controls input[type=text]{width:130px !important;}}
+        /* FEATURE IMPORTANCE */
+        .fi-row{display:flex;align-items:center;gap:.5rem;min-width:0;}
+        .fi-label{font-size:.7rem;font-family:monospace;flex-shrink:0;width:5.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--txt);}
+        .fi-track{flex:1;height:8px;border-radius:99px;overflow:hidden;background:var(--border);min-width:30px;}
+        .fi-fill{height:100%;border-radius:99px;background:var(--accent);transition:width .5s cubic-bezier(.4,0,.2,1);}
+        .fi-val{font-size:.68rem;font-family:monospace;flex-shrink:0;width:3rem;text-align:right;color:var(--txt-m);}
+        /* FOOTER */
+        #app-footer{flex-shrink:0;padding:.5rem 1.25rem;border-top:1px solid var(--border);background:var(--nav);font-size:.6rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-m);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;}
+        @media(max-width:480px){.footer-tech{display:none;}}
+        @media(max-width:767px){
+            .sec-hd{flex-direction:column;align-items:flex-start;}
+            .sec-hd-actions{width:100%;}
+            .text-2xl{font-size:1.3rem !important;}
+            .grid-1-3 > div > input[type=range]{width:100%;}
+            #chat-panel textarea{font-size:.9rem;}
+            .grid.grid-cols-1.md\\:grid-cols-2.xl\\:grid-cols-3{grid-template-columns:1fr !important;}
+            .grid.grid-cols-2.md\\:grid-cols-4{grid-template-columns:repeat(2,1fr) !important;}
+            .tbl-scroll{-webkit-overflow-scrolling:touch;}
+            .fi-label{width:4.5rem;}
+            iframe[src*="/api/reports/"]{min-height:520px;}
+        }
+        @media(max-width:640px){
+            .inp{font-size:.8rem;padding:.45rem .6rem;}
+            select.inp{padding:.4rem .5rem;}
+        }
+        .tab-panel > *{max-width:100%;word-break:break-word;}
+        .tbl-scroll{scroll-snap-type:x proximity;}
+
+        /* â”€â”€ INSIGHT FALLBACK STAT CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .ins-stat-wrap{border-radius:.75rem;overflow:hidden;background:rgba(46,91,255,.04);border:1px solid rgba(46,91,255,.12);min-height:84px;}
+        .ins-stat-box{flex:1;border-radius:.5rem;padding:.6rem .75rem;text-align:center;}
+    
+    </style>
+</head>
+
+<body x-data="workspaceApp()" x-init="init()" x-cloak>
+<div class="noise"></div>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• NAV â•â•â• -->
+<nav id="topnav">
+    <a href="/" class="flex items-center gap-2.5 flex-shrink-0 no-underline">
+        <div class="w-7 h-7 flex items-center justify-center rounded-sm flex-shrink-0" style="background:var(--txt)">
+            <div class="w-3.5 h-3.5 rotate-45" style="background:var(--bg)"></div>
+        </div>
+        <span class="font-black text-[11px] tracking-widest uppercase hidden sm:block" style="color:var(--txt)">DataForge </span>
+    </a>
+
+    <div class="w-px h-5 mx-3 flex-shrink-0" style="background:var(--border)"></div>
+
+    <div class="tab-strip" x-data="{moreOpen:false}" @click.outside="moreOpen=false">
+        <template x-for="tab in tabs.slice(0,6)" :key="tab.id">
+            <button @click="switchTab(tab.id)" :class="activeTab === tab.id ? 'na' : ''" class="ntab" x-text="tab.label"></button>
+        </template>
+        <template x-if="tabs.length > 6">
+            <div class="more-dropdown" style="flex-shrink:0">
+                <button @click="moreOpen=!moreOpen"
+                    :class="tabs.slice(6).some(t=>t.id===activeTab) ? 'na' : ''"
+                    class="ntab flex items-center gap-1">
+                    <span x-text="tabs.slice(6).find(t=>t.id===activeTab)?.label || 'More'"></span>
+                    <svg :class="moreOpen?'rotate-180':''" class="w-3 h-3 transition-transform" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                <div x-show="moreOpen" x-transition class="more-menu">
+                    <template x-for="tab in tabs.slice(6)" :key="tab.id">
+                        <button @click="switchTab(tab.id); moreOpen=false"
+                            :class="activeTab === tab.id ? 'na' : ''">
+                            <span x-text="tab.icon"></span>
+                            <span x-text="tab.label"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <template x-if="profile">
+        <div class="hidden xl:flex items-center gap-2 mr-3 font-mono" style="font-size:.6rem; color:var(--txt-m)">
+            <span class="font-bold" style="color:var(--txt)" x-text="profile.filename || 'dataset.csv'"></span>
+            <span style="color:var(--txt-f)">Â·</span>
+            <span x-text="(profile.rows||0).toLocaleString() + ' rows'"></span>
+            <span style="color:var(--txt-f)">Â·</span>
+            <span x-text="(profile.cols||0) + ' cols'"></span>
+            <template x-if="cleanProfile"><span class="bok ml-1">âœ“ Cleaned</span></template>
+        </div>
+    </template>
+
+    <div class="hidden lg:flex items-center gap-1.5 mr-3 flex-shrink-0">
+        <div class="ld2"></div>
+        <span class="text-[#1e9902] font-bold text-[10px] uppercase tracking-tight">Engine Live</span>
+    </div>
+
+    <button @click="toggleTheme()" class="ibt mr-2" title="Toggle theme">
+        <svg x-show="darkMode" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg x-show="!darkMode" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+
+    <button @click="drawerOpen = true" class="ibt md:hidden" aria-label="Menu">
+        <svg width="15" height="12" viewBox="0 0 15 12" fill="none" stroke="currentColor" stroke-width="1.6">
+            <line x1="0" y1="1" x2="15" y2="1"/><line x1="0" y1="6" x2="15" y2="6"/><line x1="0" y1="11" x2="15" y2="11"/>
+        </svg>
+    </button>
+    <div class="relative ml-2 flex-shrink-0" x-data="{uOpen:false}">
+        
+        <button @click="uOpen=!uOpen" class="flex items-center gap-2 pl-2 pr-2 py-1 rounded-lg border" style="border-color:var(--border);background:transparent;" :style="uOpen?'border-color:var(--accent)':'' ">
+            
+            <img src="" class="w-6 h-6 rounded-full object-cover flex-shrink-0" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" alt="">
+            <div class="w-6 h-6 rounded-full items-center justify-center text-[9px] font-black flex-shrink-0" style="background:var(--accent);color:#fff;display:none;">U</div>
+            
+            <div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0" style="background:var(--accent);color:#fff;">U</div>
+            
+            <span class="hidden sm:block font-bold text-[11px] max-w-[80px] truncate" style="color:var(--txt)">User</span>
+            <svg class="w-3 h-3 flex-shrink-0 transition-transform" :class="uOpen?'rotate-180':''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--txt-m)"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div x-show="uOpen" @click.outside="uOpen=false" x-transition class="absolute right-0 mt-2 w-48 rounded-xl shadow-2xl py-1 overflow-hidden" style="background:var(--surface);border:1px solid var(--border);z-index:9999;">
+            <div class="px-4 py-3 border-b" style="border-color:var(--border)">
+                <p class="font-bold text-xs truncate" style="color:var(--txt)">User</p>
+                <p class="text-[10px] truncate mt-0.5" style="color:var(--txt-m)"></p>
+            </div>
+            <a href="/dashboard" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium hover:opacity-80" style="color:var(--txt-m);text-decoration:none;">My Account</a>
+            <a href="/logout" class="flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium hover:opacity-80" style="color:#ef4444;text-decoration:none;">Sign Out</a>
+        </div>
+        
+        <a href="/login" class="px-3 py-1.5 rounded-lg text-[11px] font-bold border" style="border-color:var(--border);color:var(--txt-m);text-decoration:none;">Sign In</a>
+        
+    </div>
+</nav>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• DRAWER â•â•â• -->
+<div x-show="drawerOpen" @click="drawerOpen = false" id="dov"
+     x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+
+<div :class="drawerOpen ? 'do' : 'dc'" id="dpn">
+    <div class="flex items-center justify-between mb-5">
+        <button @click="drawerOpen = false" class="ibt">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="1" y1="1" x2="11" y2="11"/><line x1="11" y1="1" x2="1" y2="11"/>
+            </svg>
+        </button>
+    </div>
+    <nav class="flex flex-col gap-1">
+        <template x-for="tab in tabs" :key="tab.id">
+            <button @click="activeTab = tab.id; drawerOpen = false" :class="activeTab === tab.id ? 'na' : ''" class="dtab">
+                <span x-text="tab.icon" class="text-base leading-none"></span>
+                <span x-text="tab.label"></span>
+            </button>
+        </template>
+    </nav>
+    <template x-if="profile">
+        <div class="mt-auto pt-4 border-t" style="border-color:var(--border)">
+            <p class="sl mb-1">Dataset</p>
+            <p class="font-bold text-xs truncate" style="color:var(--txt)" x-text="profile.filename || 'dataset.csv'"></p>
+            <div class="flex gap-3 mt-1 font-mono text-[10px]" style="color:var(--txt-m)">
+                <span x-text="(profile.rows||0).toLocaleString() + ' rows'"></span>
+                <span>Â·</span>
+                <span x-text="(profile.cols||0) + ' cols'"></span>
+            </div>
+            <div class="flex items-center gap-1.5 mt-2">
+                <div class="ld2"></div>
+                <span class="text-[#1e9902] font-bold text-[10px] uppercase tracking-tight">Engine Live</span>
+            </div>
+        </div>
+    </template>
+</div>
+
+<!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• CONTENT â•â•â• -->
+<main id="main-content">
+
+    <!-- â”€â”€ PREVIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <div x-show="activeTab === 'preview'" class="tab-panel space-y-4">
+        <template x-if="needsReupload">
+            <div class="p-4 rounded-xl flex items-start justify-between gap-4 flex-wrap"
+                 style="background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.25)">
+                <div class="flex items-start gap-3">
+                    <span style="font-size:1.2rem;line-height:1;flex-shrink:0">âš </span>
+                    <div>
+                        <p class="font-bold text-sm" style="color:#f59e0b">Dataset not available on disk</p>
+                        <p class="text-xs mt-1" style="color:var(--txt-m)" x-text="reuploadMessage"></p>
+                    </div>
+                </div>
+                <a href="/" class="bp" style="background:#f59e0b">â†‘ Re-upload File</a>
+            </div>
+        </template>
+
+        <div class="grid-2-4">
+            <template x-if="profile && profile.rows">
+                <div class="contents">
+                    <div class="sc">
+                        <p class="sl mb-1">Rows</p>
+                        <p class="text-2xl font-black tracking-tighter" x-text="(cleanProfile || profile).rows.toLocaleString()"></p>
+                        <template x-if="cleanProfile"><p class="text-[10px] mt-0.5" style="color:var(--txt-m)">was <span style="color:#1e9902" x-text="profile.rows.toLocaleString()"></span></p></template>
+                    </div>
+                    <div class="sc">
+                        <p class="sl mb-1">Columns</p>
+                        <p class="text-2xl font-black tracking-tighter" x-text="(cleanProfile || profile).cols"></p>
+                        <p class="text-[10px] mt-0.5" style="color:var(--txt-m)" x-text="(cleanProfile || profile).numeric + ' numeric'"></p>
+                    </div>
+                    <div class="sc">
+                        <p class="sl mb-1">Missing</p>
+                        <p class="text-2xl font-black tracking-tighter" x-text="(cleanProfile || profile).missing_pct + '%'"></p>
+                        <p class="text-[10px] mt-0.5" style="color:var(--txt-m)" x-text="((cleanProfile || profile).missing||0).toLocaleString() + ' cells'"></p>
+                    </div>
+                    <div class="sc">
+                        <p class="sl mb-1">Quality</p>
+                        <p class="text-2xl font-black tracking-tighter" style="color:#1e9902" x-text="(100 - (cleanProfile || profile).missing_pct).toFixed(1) + '%'"></p>
+                        <p class="text-[10px] mt-0.5" style="color:var(--txt-m)">completeness</p>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <template x-if="profile && profile.columns && profile.columns.length">
+            <div class="gc rounded-2xl overflow-hidden">
+                <div class="px-5 py-3 border-b flex items-center justify-between flex-wrap gap-2" style="border-color:var(--border)">
+                    <p class="sl">Column Schema</p>
+                    <div class="flex items-center gap-2">
+                        <template x-if="cleanProfile"><span class="bok">âœ“ Cleaned</span></template>
+                        <span class="font-mono text-[10px]" style="color:var(--txt-m)" x-text="(cleanProfile || profile).columns.length + ' columns'"></span>
+                    </div>
+                </div>
+                <div class="tbl-scroll">
+                    <table class="dt">
+                        <thead><tr><th>Column</th><th>Type</th><th>Null %</th><th style="min-width:110px">Quality</th></tr></thead>
+                        <tbody>
+                            <template x-for="col in (cleanProfile || profile).columns" :key="col.name">
+                                <tr>
+                                    <td class="font-mono font-bold" style="color:var(--txt)" x-text="col.name"></td>
+                                    <td><span class="font-mono text-[10px] px-1.5 py-0.5 rounded" style="background:var(--border); color:var(--txt-m)" x-text="col.dtype.substring(0,10)"></span></td>
+                                    <td class="font-mono" x-text="col.null_pct + '%'"></td>
+                                    <td>
+                                        <div class="flex items-center gap-2">
+                                            <div class="qbg flex-1"><div class="qbf" :style="`width:${col.quality}%; background:${col.quality >= 90 ? '#1e9902' : col.quality >= 70 ? '#f59e0b' : '#ef4444'}`"></div></div>
+                                            <span class="font-mono text-[10px] w-8 text-right flex-shrink-0" style="color:var(--txt-m)" x-text="col.quality + '%'"></span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </template>
+
+        <div x-data="dfExplorer()" x-init="init()" class="space-y-3">
+            <div class="expl-toolbar">
+                <div class="flex items-center gap-2">
+                    <h2 class="text-2xl font-black uppercase tracking-tight" style="background:linear-gradient(135deg,var(--txt),var(--txt-m));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Live Explorer</h2>
+                    <span class="font-mono text-[10px] px-2 py-0.5 rounded-full font-bold" style="background:rgba(46,91,255,.12);color:var(--accent)" x-text="filteredRows.length.toLocaleString() + ' / ' + allRows.length.toLocaleString() + ' rows'"></span>
+                </div>
+                <div class="expl-controls">
+                    <div class="relative">
+                        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none" style="color:var(--txt-m)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input x-model="globalSearch" @input="applyFilters()" placeholder="Search all columnsâ€¦"
+                            class="pl-7 pr-3 py-1.5 rounded-lg text-[11px] font-medium outline-none"
+                            style="background:var(--inp-bg);border:1px solid var(--border);color:var(--txt);width:180px;">
+                    </div>
+                    <template x-if="$store && cleanProfile || true">
+                        <label class="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input type="checkbox" x-model="showClean" @change="reload()" class="accent-[#2E5BFF]">
+                            <span class="font-bold uppercase tracking-widest text-[10px]" style="color:var(--txt-m)">Cleaned</span>
+                        </label>
+                    </template>
+                    <select x-model="rowLimit" @change="reload()" class="text-[11px] font-bold rounded-lg px-2 py-1.5 outline-none" style="background:var(--inp-bg);border:1px solid var(--border);color:var(--txt)">
+                        <option value="200">200 rows</option>
+                        <option value="500">500 rows</option>
+                        <option value="1000">1000 rows</option>
+                        <option value="2000">2000 rows</option>
+                    </select>
+                    <button x-show="hasActiveFilters()" @click="clearAll()"
+                        class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg transition-all"
+                        style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25)">
+                        âœ• Clear filters
+                    </button>
+                </div>
+            </div>
+
+            <div x-show="activeCol !== null" x-transition
+                class="gc rounded-xl p-4"
+                style="border-left:3px solid var(--accent)">
+                <div>
+                    <p class="sl mb-1" x-text="activeCol"></p>
+                    <p class="text-xs font-bold" style="color:var(--txt-m)">Click a column header to inspect it</p>
+                </div>
+                <template x-if="colStats">
+                    <div class="flex flex-wrap gap-5">
+                        <div><p class="sl">Unique</p><p class="text-lg font-black" x-text="colStats.unique"></p></div>
+                        <div><p class="sl">Nulls</p><p class="text-lg font-black" x-text="colStats.nulls"></p></div>
+                        <template x-if="colStats.min !== null">
+                            <div><p class="sl">Min</p><p class="text-lg font-black font-mono" x-text="colStats.min"></p></div>
+                        </template>
+                        <template x-if="colStats.max !== null">
+                            <div><p class="sl">Max</p><p class="text-lg font-black font-mono" x-text="colStats.max"></p></div>
+                        </template>
+                        <template x-if="colStats.mean !== null">
+                            <div><p class="sl">Mean</p><p class="text-lg font-black font-mono" x-text="colStats.mean"></p></div>
+                        </template>
+                        <div>
+                            <p class="sl mb-1.5">Top values</p>
+                            <div class="space-y-1">
+                                <template x-for="v in colStats.top" :key="v.val">
+                                    <div class="flex items-center gap-2">
+                                        <div class="h-1.5 rounded-full flex-shrink-0" style="background:var(--accent)"
+                                            :style="`width:${v.pct * 0.8}px; min-width:4px`"></div>
+                                        <span class="text-[10px] font-mono truncate max-w-[120px]" style="color:var(--txt)" x-text="v.val === null ? '(null)' : v.val"></span>
+                                        <span class="text-[10px]" style="color:var(--txt-m)" x-text="v.count + ' (' + v.pct + '%)'"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <div class="gc rounded-2xl overflow-hidden">
+                <div class="overflow-auto" style="max-height:520px">
+                    <table class="dt" style="min-width:100%">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;text-align:center;color:var(--txt-f)">#</th>
+                                <template x-for="h in headers" :key="h">
+                                    <th @click="toggleSort(h); inspectCol(h)"
+                                        class="cursor-pointer select-none"
+                                        :style="sortCol === h ? 'color:var(--accent)' : ''"
+                                        style="white-space:nowrap">
+                                        <div class="flex items-center gap-1">
+                                            <span x-text="h"></span>
+                                            <span x-show="sortCol === h" x-text="sortDir === 1 ? 'â†‘' : 'â†“'" style="color:var(--accent);font-size:.7rem"></span>
+                                            <span x-show="sortCol !== h" style="opacity:.2;font-size:.6rem">â‡…</span>
+                                        </div>
+                                    </th>
+                                </template>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(row, ri) in pagedRows" :key="ri">
+                                <tr>
+                                    <td class="text-center font-mono" style="color:var(--txt-f);font-size:.6rem" x-text="(currentPage * pageSize) + ri + 1"></td>
+                                    <template x-for="(cell, ci) in row" :key="ci">
+                                        <td :class="isMatch(cell, headers[ci]) ? 'bg-yellow-500/10' : ''"
+                                            x-text="cell === null || cell === '' ? 'â€”' : cell"
+                                            :title="cell !== null ? String(cell) : ''"></td>
+                                    </template>
+                                </tr>
+                            </template>
+                            <template x-if="pagedRows.length === 0">
+                                <tr><td :colspan="headers.length + 1" class="text-center py-8 font-mono text-sm" style="color:var(--txt-m)">No rows match your filters</td></tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="px-3 py-2.5 border-t flex items-center justify-between flex-wrap gap-2" style="border-color:var(--border);background:var(--surface)">
+                    <div class="flex items-center gap-2">
+                        <button @click="currentPage = Math.max(0, currentPage-1)" :disabled="currentPage === 0"
+                            class="ibt text-[10px] font-bold" style="width:28px;height:28px">â€¹</button>
+                        <span class="text-[10px] font-mono" style="color:var(--txt-m)">
+                            Page <span x-text="currentPage+1"></span> / <span x-text="Math.max(1,Math.ceil(filteredRows.length/pageSize))"></span>
+                        </span>
+                        <button @click="currentPage = Math.min(Math.ceil(filteredRows.length/pageSize)-1, currentPage+1)"
+                            :disabled="currentPage >= Math.ceil(filteredRows.length/pageSize)-1"
+                            class="ibt text-[10px] font-bold" style="width:28px;height:28px">â€º</button>
+                        <select x-model="pageSize" @change="currentPage=0" class="text-[10px] font-bold rounded px-1.5 py-1 outline-none ml-1" style="background:var(--inp-bg);border:1px solid var(--border);color:var(--txt)">
+                            <option value="25">25/page</option>
+                            <option value="50" selected>50/page</option>
+                            <option value="100">100/page</option>
+                        </select>
+                    </div>
+                    <button @click="reload(parseInt(rowLimit) < 2000 ? parseInt(rowLimit)+500 : rowLimit)"
+                        class="font-bold uppercase tracking-[.2em] text-[10px] hover:opacity-70 transition-opacity"
+                        style="color:var(--accent)">Load More Rows +</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- â”€â”€ AI QUERY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <div x-show="activeTab === 'query'" id="chat-panel" class="tab-panel flex flex-col gap-3" style="padding-bottom:0">
+        <template x-if="!geminiOk">
+            <div class="p-4 rounded-xl" style="background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.2)">
+                <p class="text-amber-400 font-bold text-sm">âš  Gemini API key not configured</p>
+                <p class="text-xs mt-1" style="color:var(--txt-m)">Set <code class="text-amber-300">GEMINI_API_KEY</code> in your <code>.env</code> and restart.</p>
+            </div>
+        </template>
+
+        <div id="chat-thread" class="space-y-5">
+            <template x-for="(msg, i) in messages" :key="i">
+                <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                    <div :class="msg.role === 'user' ? 'max-w-[80%] cub p-4 rounded-2xl rounded-tr-none' : 'w-full max-w-4xl space-y-3'">
+                        <template x-if="msg.role === 'assistant'">
+                            <div class="flex items-center gap-2 mb-1">
+                                <div class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black italic" style="background:var(--txt); color:var(--bg)">AI</div>
+                                <span class="font-bold uppercase tracking-widest text-[10px]" style="color:var(--txt-m)">Analyst Pipeline</span>
+                                <template x-if="msg.intent"><span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="color:var(--accent); background:rgba(46,91,255,.1)" x-text="msg.intent.type"></span></template>
+                            </div>
+                        </template>
+                        <p class="text-sm leading-relaxed" x-text="msg.content"></p>
+                        <template x-if="msg.chartData">
+                            <div class="mt-4 pt-4 border-t" style="border-color:var(--border)"><canvas :id="'chart-' + i" height="200"></canvas></div>
+                        </template>
+                        <template x-if="msg.tableData">
+                            <div class="mt-4 overflow-x-auto" style="max-height:260px">
+                                <table class="dt">
+                                    <thead><tr><template x-for="h in msg.tableData.headers" :key="h"><th x-text="h"></th></template></tr></thead>
+                                    <tbody>
+                                        <template x-for="(row, ri) in msg.tableData.rows.slice(0,50)" :key="ri">
+                                            <tr><template x-for="(cell, ci) in row" :key="ci"><td x-text="cell === null ? 'â€”' : cell"></td></template></tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <p class="text-[9px] mt-2 text-center" style="color:var(--txt-m)" x-text="msg.tableData.rows.length > 50 ? '(showing 50 of ' + msg.tableData.total + ' rows)' : ''"></p>
+                            </div>
+                        </template>
+                        <template x-if="msg.insight">
+                            <p class="text-xs italic leading-relaxed mt-2 pl-3 border-l" style="color:var(--txt-m); border-color:rgba(46,91,255,.3)" x-text="'ðŸ’¡ ' + msg.insight"></p>
+                        </template>
+                        <template x-if="msg.code">
+                            <div x-data="{open:false}" class="mt-3">
+                                <button @click="open=!open" class="flex items-center gap-1.5 text-[9px] font-bold hover:opacity-70 transition-opacity" style="color:var(--txt-m)">
+                                    <svg :class="open?'rotate-90':''" class="w-3 h-3 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></svg>
+                                    VIEW GENERATED PYTHON
+                                </button>
+                                <div x-show="open" x-transition class="code-blk mt-2" x-text="msg.code"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+            <template x-if="isAnalyzing">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-2 h-2 rounded-full bg-[#2E5BFF] animate-pulse"></div>
+                    <div class="w-2 h-2 rounded-full bg-[#2E5BFF] animate-pulse" style="animation-delay:.15s"></div>
+                    <div class="w-2 h-2 rounded-full bg-[#2E5BFF] animate-pulse" style="animation-delay:.3s"></div>
+                    <span class="font-bold uppercase tracking-[.3em] text-[10px]" style="color:var(--txt-m)">Processingâ€¦</span>
+                </div>
+            </template>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5">
+            <template x-for="action in quickActions" :key="action">
+                <button @click="query = action; runQuery()" class="text-[10px] font-medium border rounded-full px-3 py-1.5 hover:border-[#2E5BFF] transition-all" style="border-color:var(--border); background:var(--card); color:var(--txt-m)" x-text="action" :disabled="isAnalyzing"></button>
+            </template>
+        </div>
+
+        <div class="gc rounded-2xl p-2 pr-3 flex items-end gap-2">
+            <textarea x-model="query" @keydown.enter.prevent="if(!$event.shiftKey) runQuery()" placeholder="Ask anything about your dataâ€¦ (Enter to send)" class="flex-1 bg-transparent text-sm py-2.5 px-3 resize-none min-h-[44px] max-h-32 font-light focus:outline-none" style="color:var(--txt)"></textarea>
+            <button @click="runQuery()" :disabled="isAnalyzing || !query.trim()" class="bp flex-shrink-0">
+                <template x-if="!isAnalyzing"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></template>
+                <template x-if="isAnalyzing"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
+            </button>
+        </div>
+    </div>
+
+    <!-- â”€â”€ CLEANING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <div x-show="activeTab === 'cleaning'" class="tab-panel space-y-5">
+        <div class="sec-hd"><div><h2>Data Cleaning</h2><p class="sec-sub">Auto-fix missing values Â· pyjanitor structural repair Â· Download cleaned CSV</p></div>
+            <div class="flex gap-3 flex-wrap">
+                <button @click="runCleaning()" :disabled="isCleaning || !!cleanResult" class="bp">
+                    <template x-if="isCleaning"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
+                    <span x-text="isCleaning ? 'CLEANINGâ€¦' : (cleanResult ? 'âœ“ CLEANED' : 'RUN PIPELINE')"></span>
+                </button>
+                <template x-if="cleanResult"><a href="/api/clean/download" class="bg">â¬‡ DOWNLOAD CSV</a></template>
+            </div>
+        </div>
+
+        <template x-if="cleanError">
+            <div class="p-4 rounded-xl space-y-1" style="background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.2)">
+                <p class="font-bold text-sm text-red-400">âš  Cleaning Failed</p>
+                <p class="font-mono text-xs text-red-400" x-text="cleanError"></p>
+                <p class="text-[10px] mt-2" style="color:var(--txt-m)">Check that your dataset is uploaded and pyjanitor is installed on the server.</p>
+            </div>
+        </template>
+
+        <template x-if="cleanResult">
+            <div class="grid-2-4m">
+                <div class="gc p-4 rounded-xl"><p class="sl">Original Rows</p><p class="text-2xl font-black tracking-tighter mt-1" x-text="cleanResult.stats.original_rows.toLocaleString()"></p></div>
+                <div class="gc p-4 rounded-xl"><p class="sl">Cleaned Rows</p><p class="text-2xl font-black tracking-tighter mt-1 text-emerald-400" x-text="cleanResult.stats.cleaned_rows.toLocaleString()"></p></div>
+                <div class="gc p-4 rounded-xl"><p class="sl">Original Cols</p><p class="text-2xl font-black tracking-tighter mt-1" x-text="cleanResult.stats.original_cols"></p></div>
+                <div class="gc p-4 rounded-xl"><p class="sl">Cleaned Cols</p><p class="text-2xl font-black tracking-tighter mt-1 text-emerald-400" x-text="cleanResult.stats.cleaned_cols"></p></div>
+            </div>
+        </template>
+
+        <template x-if="cleanResult && cleanResult.missing_log.length">
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--txt-m)">Missing Value Fixes</h3>
+                <div class="gc rounded-xl overflow-hidden">
+                    <div class="tbl-scroll">
+                        <table class="dt">
+                            <thead><tr><th>Column</th><th>Missing</th><th>% Missing</th><th>Action</th></tr></thead>
+                            <tbody>
+                                <template x-for="row in cleanResult.missing_log" :key="row.column">
+                                    <tr :class="row.type === 'drop' ? 'ld' : 'lf'">
+                                        <td class="font-mono" style="color:var(--txt)" x-text="row.column"></td>
+                                        <td x-text="row.missing.toLocaleString()"></td>
+                                        <td x-text="row.pct_missing + '%'"></td>
+                                        <td x-text="row.action"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </template>
+        <template x-if="cleanResult && !cleanResult.missing_log.length"><span class="bok">âœ“ No missing values found</span></template>
+
+        <template x-if="cleanResult">
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--txt-m)">Structural Cleaning Â· pyjanitor</h3>
+                <div class="space-y-2">
+                    <template x-for="action in cleanResult.struct_actions" :key="action">
+                        <div class="flex items-center gap-3 text-sm" style="color:var(--txt)">
+                            <svg class="w-4 h-4 flex-shrink-0" style="color:#1e9902;" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span x-text="action"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="!cleanResult">
+            <div>
+                <h3 class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--txt-m)">Raw Data Preview</h3>
+                <div class="gc rounded-xl overflow-hidden">
+                    <div class="tbl-scroll" style="max-height:360px">
+                        <table class="dt">
+                            <thead><tr><template x-for="h in previewData.headers" :key="h"><th x-text="h"></th></template></tr></thead>
+                            <tbody>
+                                <template x-for="(row, ri) in previewData.rows.slice(0,20)" :key="ri">
+                                    <tr><template x-for="(cell,ci) in row" :key="ci"><td x-text="cell===null?'â€”':cell"></td></template></tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- â”€â”€ EDA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <div x-show="activeTab === 'eda'" class="tab-panel space-y-4">
+        <div class="sec-hd"><div><h2>EDA Report</h2><p class="sec-sub">ydata-profiling Â· Distribution Â· Correlation Â· Alerts</p></div>
+            <div class="sec-hd-actions">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" x-model="edaMinimal" class="accent-[#2E5BFF]">
+                    <span class="font-bold uppercase tracking-widest text-[10px]" style="color:var(--txt-m)">Minimal</span>
+                </label>
+                <select x-model="edaSampleN" class="inp" style="width:auto; padding:.4rem .7rem; font-size:.75rem; font-weight:700">
+                    <option value="1000">1k rows</option>
+                    <option value="5000" selected>5k rows</option>
+                    <option value="0">All rows</option>
+                </select>
+                <button @click="runEda()" :disabled="isGeneratingEda" class="bp">
+                    <template x-if="isGeneratingEda"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
+                    <span x-text="isGeneratingEda ? 'PROFILINGâ€¦' : 'GENERATE REPORT'"></span>
+                </button>
+                <template x-if="edaReady"><a href="/api/eda/report" target="_blank" class="bg">â¬‡ REPORT</a></template>
+            </div>
+        </div>
+
+        <template x-if="edaError">
+            <div class="p-4 rounded-xl space-y-1" style="background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.2)">
+                <p class="font-bold text-sm text-red-400">âš  EDA Report Failed</p>
+                <p class="font-mono text-xs text-red-400" x-text="edaError"></p>
+                <p class="text-[10px] mt-2" style="color:var(--txt-m)">Try enabling <strong>âœ“ Minimal</strong> mode or reducing the sample size, then run again.</p>
+            </div>
+        </template>
+
+        <template x-if="edaWarning && !edaError && edaReady">
+            <div class="p-3 rounded-xl flex items-start gap-3" style="background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.2)">
+                <span style="font-size:1rem;flex-shrink:0;line-height:1.4">âš </span>
+                <div>
+                    <p class="font-bold text-xs" style="color:#f59e0b">Lightweight report shown</p>
+                    <p class="text-[10px] mt-0.5" style="color:var(--txt-m)" x-text="edaWarning"></p>
+                    <p class="text-[10px] mt-0.5" style="color:var(--txt-m)">Install <code>ydata-profiling</code> for the full report: <code>pip install ydata-profiling</code></p>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="isGeneratingEda">
+            <div class="flex flex-col items-center justify-center gap-4 py-20">
+                <div class="w-12 h-12 border-2 border-t-transparent rounded-full animate-spin" style="border-color:var(--accent); border-top-color:transparent"></div>
+                <p class="font-mono uppercase tracking-widest text-sm" style="color:var(--txt-m)">Profiling datasetâ€¦ 30â€“60s</p>
+            </div>
+        </template>
+        <template x-if="edaReady && !isGeneratingEda">
+            <iframe id="eda-frame" src="/api/eda/report" title="EDA Report"></iframe>
+        </template>
+        <template x-if="!edaReady && !isGeneratingEda && !edaError">
+            <div class="flex flex-col items-center justify-center gap-4 py-20 text-center">
+                <div class="w-20 h-20 rounded-full flex items-center justify-center" style="background:rgba(46,91,255,.08)">
+                    <svg class="w-10 h-10" style="color:var(--accent)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                </div>
+                <p class="text-sm max-w-xs" style="color:var(--txt-m)">Click "Generate Report" to run a full exploratory data analysis with distributions, correlations, and quality alerts.</p>
+            </div>
+        </template>
+    </div>
+
+    <!-- â”€â”€ AUTOML â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <div x-show="activeTab === 'automl'" class="tab-panel space-y-5">
+        <div class="sec-hd"><div><h2>AutoML</h2><p class="sec-sub">FLAML Â· Auto-detect task Â· Leaderboard Â· Model export</p></div>
+            <template x-if="automlResult"><a href="/api/automl/download" class="bg">â¬‡ DOWNLOAD MODEL (.pkl)</a></template>
+        </div>
+
+        <div class="grid-1-3">
+            <div>
+                <label class="sl block mb-2">Target Column</label>
+                <select x-model="automlTarget" @change="detectTask()" class="inp">
+                    <option value="">â€” select target â€”</option>
+                    <template x-if="profile && profile.columns && profile.columns.length">
+                        <template x-for="col in profile.columns" :key="col.name">
+                            <option :value="col.name" x-text="col.name"></option>
+                        </template>
+                    </template>
+                    <template x-if="!(profile && profile.columns && profile.columns.length) && profileCols.length">
+                        <template x-for="col in profileCols" :key="col">
+                            <option :value="col" x-text="col"></option>
+                        </template>
+                    </template>
+                </select>
+                <template x-if="detectedTask">
+                    <p class="text-[10px] mt-1.5" style="color:var(--txt-m)">Auto-detected: <span class="font-bold" style="color:var(--txt)" x-text="detectedTask"></span> Â· <span x-text="detectedNUnique + ' unique values'"></span></p>
+                </template>
+            </div>
+            <div>
+                <label class="sl block mb-2">Task Type</label>
+                <select x-model="automlTask" class="inp">
+                    <option value="auto-detect">Auto-detect</option>
+                    <option value="classification">Classification</option>
+                    <option value="regression">Regression</option>
+                </select>
+            </div>
+            <div>
+                <label class="sl block mb-2">Time Budget: <span x-text="automlTimeBudget + 's'"></span></label>
+                <input type="range" x-model="automlTimeBudget" min="30" max="600" step="30" class="w-full accent-[#2E5BFF]">
+            </div>
+        </div>
+
+        <div class="flex items-center gap-6 flex-wrap">
+            <div class="flex items-center gap-3">
+                <label class="sl">Test Split: <span x-text="automlTestSize + '%'"></span></label>
+                <input type="range" x-model="automlTestSize" min="10" max="40" step="5" class="accent-[#2E5BFF] w-32">
+            </div>
+            <button @click="runAutoml()" :disabled="isTraining || !automlTarget" class="bp">
+                <template x-if="isTraining"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
+                <span x-text="isTraining ? 'TRAINING FLAMLâ€¦' : 'â–¶ TRAIN AUTOML'"></span>
+            </button>
+        </div>
+
+        <template x-if="automlError"><div class="p-4 rounded-xl font-mono text-sm text-red-400" style="background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.2)" x-text="automlError"></div></template>
+
+        <template x-if="automlResult">
+            <div class="space-y-6">
+                <div class="p-4 rounded-xl" style="background:rgba(46,91,255,.06); border:1px solid rgba(46,91,255,.2)">
+                    <p class="font-bold uppercase tracking-widest text-[9px] mb-1" style="color:var(--accent)">Best Estimator</p>
+                    <p class="text-xl font-black" x-text="automlResult.best_estimator"></p>
+                    <p class="text-[10px] mt-1" style="color:var(--txt-m)">Val loss: <span class="font-mono" style="color:var(--txt)" x-text="automlResult.best_loss"></span> Â· Trained in <span class="font-mono" style="color:var(--txt)" x-text="automlResult.elapsed_s + 's'"></span></p>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--txt-m)">Test Set Metrics</h3>
+                    <div class="grid-2-4m">
+                        <template x-for="[k, v] in Object.entries(automlResult.metrics)" :key="k">
+                            <div class="gc p-4 rounded-xl"><p class="sl" x-text="k"></p><p class="text-2xl font-black tracking-tighter mt-1" style="color:var(--accent)" x-text="v"></p></div>
+                        </template>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--txt-m)">Model Leaderboard</h3>
+                    <div class="gc rounded-xl overflow-hidden">
+                        <div class="tbl-scroll">
+                            <table class="dt">
+                                <thead><tr><th>Model</th><th>Val Loss</th><th>Best Config</th></tr></thead>
+                                <tbody>
+                                    <template x-for="row in automlResult.leaderboard" :key="row.model">
+                                        <tr :class="row.best ? 'lf' : ''">
+                                            <td>
+                                                <template x-if="row.best"><span class="text-amber-400 mr-1"></span></template>
+                                                <span class="font-mono font-bold" :style="row.best ? 'color:var(--accent)' : 'color:var(--txt)'" x-text="row.model"></span>
+                                            </td>
+                                            <td class="font-mono" x-text="row.metric ?? 'â€”'"></td>
+                                            <td class="font-mono text-[10px]" style="max-width:200px; overflow:hidden; text-overflow:ellipsis" x-text="row.best_config ?? 'â€”'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <template x-if="automlResult.feature_importance.length">
+                    <div>
+                        <h3 class="text-xs font-bold uppercase tracking-widest mb-3" style="color:var(--txt-m)">Feature Importance (Top 15)</h3>
+                        <div class="space-y-2.5">
+                            <template x-for="fi in automlResult.feature_importance" :key="fi.feature">
+                                <div class="fi-row">
+                                    <span class="fi-label" :title="fi.feature" x-text="fi.feature"></span>
+                                    <div class="fi-track">
+                                        <div class="fi-fill"
+                                            :style="'width:' + (automlResult.feature_importance[0].importance > 0 ? Math.max(1, (fi.importance / automlResult.feature_importance[0].importance) * 100) : 1).toFixed(1) + '%'">
+                                        </div>
+                                    </div>
+                                    <span class="fi-val" x-text="Number(fi.importance).toFixed(4)"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+    <!-- â”€â”€ DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <div x-show="activeTab === 'dashboard'" class="tab-panel space-y-5">
+        <div class="sec-hd">
+            <div>
+                <h2>ANALYTICS DASHBOARD</h2>
+                <p class="sec-sub">KPIs Â· Trend Charts Â· Category Analysis Â· Distribution</p>
+            </div>
+            <div class="sec-hd-actions">
+                <button @click="loadDashboard()" :disabled="isDashLoading" class="bp">
+                    <template x-if="isDashLoading"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
+                    <span x-text="isDashLoading ? 'LOADINGâ€¦' : 'â†» REFRESH'"></span>
+                </button>
+            </div>
+        </div>
+
+        <template x-if="dashStats.length">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <template x-for="stat in dashStats" :key="stat.label">
+                    <div class="sc p-4">
+                        <p class="sl mb-1 truncate" x-text="stat.label"></p>
+                        <p class="text-3xl font-black tracking-tighter" style="color:var(--accent)" x-text="stat.value.toLocaleString()"></p>
+                        <p class="text-[10px] mt-1 truncate" style="color:var(--txt-m)" x-text="stat.sub"></p>
+                    </div>
+                </template>
+            </div>
+        </template>
+
+        <template x-if="dashCharts.length || dashIdStats">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <!-- Column 1 -->
+                <div class="space-y-5">
+                    <template x-for="ch in dashCharts.filter(c => c.type === 'bar')" :key="ch.id">
+                        <div class="gc rounded-2xl p-5 border-l-4" style="border-left-color: rgba(46,91,255,0.5)">
+                            <p class="font-bold text-xs uppercase tracking-widest mb-4" style="color:var(--txt-m)" x-text="ch.title"></p>
+                            <div style="height:250px;position:relative"><canvas :id="'dash-chart-' + ch.id"></canvas></div>
+                        </div>
+                    </template>
+                    
+                    <template x-if="dashSummary">
+                        <div class="gc rounded-2xl p-5" style="border-left:3px solid var(--accent)">
+                            <p class="sl mb-2">AI Summary</p>
+                            <p class="text-xs leading-relaxed" style="color:var(--txt)" x-text="dashSummary"></p>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Column 2 -->
+                <div class="space-y-5">
+                    <template x-for="ch in dashCharts.filter(c => c.type === 'line')" :key="ch.id">
+                        <div class="gc rounded-2xl p-5 border-l-4" style="border-left-color: rgba(46,91,255,0.5)">
+                            <p class="font-bold text-xs uppercase tracking-widest mb-4" style="color:var(--txt-m)" x-text="ch.title"></p>
+                            <div style="height:150px;position:relative"><canvas :id="'dash-chart-' + ch.id"></canvas></div>
+                        </div>
+                    </template>
+                    
+                    <template x-if="dashIdStats">
+                        <div class="gc rounded-2xl p-5">
+                            <p class="font-bold text-xs uppercase tracking-widest mb-4" style="color:var(--txt-m)">ID STATISTICS</p>
+                            <div class="flex items-center justify-between">
+                                <div><p class="sl mb-1" style="color:var(--txt)">Total IDs</p><p class="text-3xl font-black" style="color:#2E5BFF" x-text="dashIdStats.total"></p></div>
+                                <div><p class="sl mb-1" style="color:var(--txt)">Minimum</p><p class="text-2xl font-black" x-text="dashIdStats.min"></p></div>
+                                <div><p class="sl mb-1" style="color:var(--txt)">Maximum</p><p class="text-2xl font-black" x-text="dashIdStats.max"></p></div>
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <template x-if="dashRecent.length">
+                        <div class="gc rounded-2xl p-5">
+                            <div class="flex items-center justify-between mb-4">
+                                <p class="font-bold text-xs uppercase tracking-widest" style="color:var(--txt-m)">RECENT DATA ENTRIES</p>
+                                <span class="text-[10px] font-bold" style="color:var(--accent);cursor:pointer">VIEW ALL</span>
+                            </div>
+                            <table class="w-full text-sm">
+                                <thead><tr style="color:var(--txt-m)"><th class="text-left pb-2 font-medium" x-text="dashDim"></th><th class="text-left pb-2 font-medium" x-text="dashMetric"></th></tr></thead>
+                                <tbody>
+                                    <template x-for="(row, idx) in dashRecent" :key="idx">
+                                        <tr style="border-bottom:1px solid rgba(255,255,255,0.05)">
+                                            <td class="py-1" x-text="row[dashDim]"></td>
+                                            <td class="py-1" x-text="row[dashMetric]"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Column 3 -->
+                <div class="space-y-5">
+                    <div class="gc rounded-2xl p-5 h-[160px] overflow-hidden">
+                        <p class="font-bold text-xs uppercase tracking-widest mb-3" style="color:var(--txt-m)">INSIGHTS & ALERTS</p>
+                        <div class="space-y-3">
+                            <template x-for="ins in dashboardInsights.slice(0,4)" :key="ins.title || ins.description">
+                                <div class="flex items-start gap-2">
+                                    <span class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" :style="'background:' + (ins.type === 'anomaly' ? '#f59e0b' : '#2dd4bf')"></span>
+                                    <p class="text-xs leading-tight line-clamp-2" style="color:var(--txt)" x-text="ins.description || ins.title"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <template x-for="ch in dashCharts.filter(c => c.type === 'pie')" :key="ch.id">
+                        <div class="gc rounded-2xl p-5">
+                            <p class="font-bold text-xs uppercase tracking-widest mb-4" style="color:var(--txt-m)" x-text="ch.title"></p>
+                            <div style="height:150px;position:relative"><canvas :id="'dash-chart-' + ch.id"></canvas></div>
+                        </div>
+                    </template>
+
+                    <div class="gc rounded-2xl p-5">
+                        <p class="font-bold text-xs uppercase tracking-widest mb-2 flex items-center gap-2" style="color:var(--txt-m)"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> DATA ANALYSIS</p>
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            <button @click="showDrillDownModal = true" class="flex flex-col items-center justify-center p-3 rounded-xl transition-all hover:bg-[rgba(255,255,255,0.05)]" style="background:rgba(255,255,255,0.01);border:1px solid var(--border)">
+                                <svg class="w-7 h-7 mb-2" fill="none" stroke="currentcolor" viewBox="0 0 24 24" style="color:#a78bfa"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>
+                                <span class="text-[10px] font-bold uppercase" style="color:var(--txt-m)">Drill Down</span>
+                            </button>
+                            <button @click="showFilterModal = true" class="flex flex-col items-center justify-center p-3 rounded-xl transition-all hover:bg-[rgba(255,255,255,0.05)]" style="background:rgba(255,255,255,0.01);border:1px solid var(--border)">
+                                <svg class="w-7 h-7 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color:#2dd4bf"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                                <span class="text-[10px] font-bold uppercase" style="color:var(--txt-m)">Filter Data</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="!dashStats.length && !isDashLoading">
+            <div class="flex flex-col items-center justify-center gap-4 py-20 text-center">
+                <div class="w-20 h-20 rounded-full flex items-center justify-center" style="background:rgba(46,91,255,.08)">
+                    <svg class="w-10 h-10" style="color:var(--accent)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1" stroke-width="1.5"/></svg>
+                </div>
+                <p class="text-sm max-w-xs" style="color:var(--txt-m)">Click Refresh to auto-generate your dashboard with KPIs, trend charts, and category analysis.</p>
+                <button @click="loadDashboard()" class="bp">Generate Dashboard</button>
+            </div>
+        </template>
+    </div>
+
+    <!-- â”€â”€ INSIGHTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <div x-show="activeTab === 'insights'" class="tab-panel space-y-5">
+        <div class="sec-hd"><div><h2>Insight Engine</h2><p class="sec-sub">Auto-detect patterns Â· Trends Â· Anomalies Â· Correlations Â· Dataset type detection</p></div>
+            <div class="flex gap-2 flex-wrap items-center">
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" x-model="insightUseGemini" class="accent-[#2E5BFF]">
+                    <span class="font-bold uppercase tracking-widest text-[10px]" style="color:var(--txt-m)">Gemini Summary</span>
+                </label>
+                <select x-model="insightTopN" class="inp" style="width:auto;padding:.4rem .7rem;font-size:.75rem;font-weight:700">
+                    <option value="4">4 insights</option>
+                    <option value="6" selected>6 insights</option>
+                    <option value="9">9 insights</option>
+                </select>
+                <button @click="runInsights()" :disabled="isRunningInsights" class="bp">
+                    <template x-if="isRunningInsights"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
+                    <span x-text="isRunningInsights ? 'ANALYSINGâ€¦' : 'â–¶ RUN INSIGHTS'"></span>
+                </button>
+            </div>
+        </div>
+
+        <template x-if="insightError">
+            <div class="p-4 rounded-xl font-mono text-sm text-red-400" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2)" x-text="insightError"></div>
+        </template>
+
+        <template x-if="insightSchema">
+            <div class="flex flex-wrap gap-3 items-center">
+                <span class="bwrn" x-text="'ðŸ“‚ ' + (insightSchema.dataset_type || 'general').toUpperCase() + ' DATASET'"></span>
+                <template x-if="insightSchema.date"><span class="bok" x-text="'ðŸ“… Date: ' + insightSchema.date"></span></template>
+                <span class="font-mono text-[10px] px-2 py-1 rounded" style="background:rgba(46,91,255,.1);color:var(--accent)"
+                    x-text="(insightSchema.metrics||[]).length + ' metrics Â· ' + (insightSchema.dimensions||[]).length + ' dimensions'"></span>
+            </div>
+        </template>
+
+        <template x-if="insightSummary">
+            <div class="gc rounded-xl p-5" style="border-left:4px solid var(--accent)">
+                <p class="sl mb-3">Executive Summary</p>
+                <div class="text-sm space-y-0" style="color:var(--txt)" x-html="formatSummary(insightSummary)"></div>
+            </div>
+        </template>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <template x-for="(ins, i) in insightCards" :key="i">
+                <div class="gc rounded-xl p-4 space-y-3">
+                    <div class="flex items-start justify-between gap-2">
+                        <p class="font-black text-sm leading-tight" style="color:var(--txt)" x-text="ins.title"></p>
+                        <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-full flex-shrink-0"
+                            :style="insightBadgeStyle(ins.type)" x-text="ins.type"></span>
+                    </div>
+                    <p class="text-xs leading-relaxed" style="color:var(--txt-m)" x-text="ins.description"></p>
+                    <div class="flex items-center gap-2">
+                        <span class="sl">Importance</span>
+                        <div class="flex-1 h-1.5 rounded-full overflow-hidden" style="background:var(--border)">
+                            <div class="h-full rounded-full"
+                                :style="`width:${(ins.importance*100).toFixed(0)}%; background:var(--accent)`"></div>
+                        </div>
+                        <span class="font-mono text-[10px]" style="color:var(--txt-m)" x-text="(ins.importance*100).toFixed(0)+'%'"></span>
+                    </div>
+
+                    <!-- Chart when backend provides data -->
+                    <template x-if="ins.chart_data">
+                        <div style="height:140px"><canvas :id="'ins-chart-'+i" height="140"></canvas></div>
+                    </template>
+
+                    <!-- â•â• FALLBACK VISUAL when no chart_data â•â• -->
+                    <template x-if="!ins.chart_data">
+                        <div class="mt-1 rounded-xl overflow-hidden ins-stat-wrap">
+
+                            <!-- ANOMALY: show count / peak value / sigma boxes -->
+                            <template x-if="ins.type === 'anomaly'">
+                                <div class="p-3 space-y-2.5">
+                                    <div class="flex gap-2">
+                                        <template x-if="parseInsightStats(ins).count !== null">
+                                            <div class="ins-stat-box" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.18)">
+                                                <p class="font-black text-xl leading-none" style="color:#ef4444" x-text="parseInsightStats(ins).count.toLocaleString()"></p>
+                                                <p class="text-[9px] font-bold uppercase tracking-widest mt-1" style="color:var(--txt-m)">Anomalies</p>
+                                            </div>
+                                        </template>
+                                        <template x-if="parseInsightStats(ins).sigma !== null">
+                                            <div class="ins-stat-box" style="background:rgba(46,91,255,.08);border:1px solid rgba(46,91,255,.18)">
+                                                <p class="font-black text-xl leading-none" style="color:var(--accent)" x-text="parseInsightStats(ins).sigma + 'Ïƒ'"></p>
+                                                <p class="text-[9px] font-bold uppercase tracking-widest mt-1" style="color:var(--txt-m)">From Mean</p>
+                                            </div>
+                                        </template>
+                                        <template x-if="parseInsightStats(ins).value !== null">
+                                            <div class="ins-stat-box" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.18)">
+                                                <p class="font-black text-sm font-mono leading-tight truncate" style="color:#f59e0b" x-text="parseInsightStats(ins).value"></p>
+                                                <p class="text-[9px] font-bold uppercase tracking-widest mt-1" style="color:var(--txt-m)">Peak</p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 px-0.5">
+                                        <span class="inline-block w-2 h-2 rounded-full flex-shrink-0" style="background:#ef4444;box-shadow:0 0 5px #ef4444;animation:ld2 2s ease-in-out infinite"></span>
+                                        <p class="text-[10px] truncate" style="color:var(--txt-m)" x-text="parseInsightStats(ins).date ? 'Detected: ' + parseInsightStats(ins).date : 'Outliers detected in dataset'"></p>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- CHANGE: before / % arrow / after -->
+                            <template x-if="ins.type === 'change'">
+                                <div class="p-3 space-y-2">
+                                    <div class="flex items-stretch gap-2">
+                                        <template x-if="parseInsightStats(ins).prev !== null">
+                                            <div class="ins-stat-box" style="background:rgba(255,255,255,.03);border:1px solid var(--border)">
+                                                <p class="text-[9px] font-bold uppercase tracking-widest" style="color:var(--txt-m)">Before</p>
+                                                <p class="font-black text-xs font-mono mt-1 truncate" style="color:var(--txt)" x-text="Number(parseInsightStats(ins).prev).toLocaleString()"></p>
+                                            </div>
+                                        </template>
+                                        <template x-if="parseInsightStats(ins).pct !== null">
+                                            <div class="ins-stat-box flex flex-col items-center justify-center" style="background:transparent;border:none;min-width:52px;">
+                                                <p class="font-black text-lg leading-none"
+                                                   :style="parseFloat(parseInsightStats(ins).pct) >= 0 ? 'color:#1e9902' : 'color:#ef4444'"
+                                                   x-text="(parseFloat(parseInsightStats(ins).pct) >= 0 ? 'â–²' : 'â–¼') + Math.abs(parseFloat(parseInsightStats(ins).pct)) + '%'"></p>
+                                                <p class="text-[8px] font-bold uppercase tracking-widest mt-1" style="color:var(--txt-m)">change</p>
+                                            </div>
+                                        </template>
+                                        <template x-if="parseInsightStats(ins).curr !== null">
+                                            <div class="ins-stat-box" style="background:rgba(30,153,2,.06);border:1px solid rgba(30,153,2,.2)">
+                                                <p class="text-[9px] font-bold uppercase tracking-widest" style="color:var(--txt-m)">After</p>
+                                                <p class="font-black text-xs font-mono mt-1 truncate" style="color:#1e9902" x-text="Number(parseInsightStats(ins).curr).toLocaleString()"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    <template x-if="parseInsightStats(ins).pct !== null">
+                                        <div class="h-1.5 rounded-full overflow-hidden" style="background:var(--border)">
+                                            <div class="h-full rounded-full transition-all duration-700"
+                                                :style="'width:' + Math.min(100, Math.abs(parseFloat(parseInsightStats(ins).pct))) + '%; background:' + (parseFloat(parseInsightStats(ins).pct) >= 0 ? '#1e9902' : '#ef4444')"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <!-- OTHER types: icon placeholder -->
+                            <template x-if="ins.type !== 'anomaly' && ins.type !== 'change'">
+                                <div class="flex items-center justify-center py-5">
+                                    <div class="text-center space-y-1.5">
+                                        <div class="text-3xl" x-text="ins.type==='trend'?'ðŸ“ˆ':ins.type==='distribution'?'ðŸ“Š':ins.type==='correlation'?'ðŸ”—':ins.type==='ranking'?'ðŸ†':ins.type==='segment'?'ðŸŽ¯':'ðŸ“Œ'"></div>
+                                        <p class="text-[9px] font-bold uppercase tracking-[.2em]" style="color:var(--txt-m)" x-text="ins.type + ' insight'"></p>
+                                    </div>
+                                </div>
+                            </template>
+
+                        </div>
+                    </template>
+                    <!-- â•â• END FALLBACK â•â• -->
+
+                </div>
+            </template>
+        </div>
+
+        <template x-if="!insightCards.length && !isRunningInsights">
+            <div class="flex flex-col items-center justify-center gap-4 py-20 text-center">
+                <div class="w-20 h-20 rounded-full flex items-center justify-center" style="background:rgba(46,91,255,.08)">
+                    <span class="text-4xl">ðŸ’¡</span>
+                </div>
+                <p class="text-sm max-w-xs" style="color:var(--txt-m)">Click "Run Insights" to automatically detect trends, anomalies, top performers, correlations, and more.</p>
+            </div>
+        </template>
+    </div>
+
+
+    <!-- â”€â”€ ALERTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <div x-show="activeTab === 'alerts'" class="tab-panel space-y-5">
+        <div class="sec-hd"><div><h2>Monitoring & Alerts</h2><p class="sec-sub">Detect metric drops Â· Spikes Â· Data quality issues Â· Row count changes</p></div>
+            <div class="flex gap-2 flex-wrap">
+                <button @click="checkAlerts()" :disabled="isCheckingAlerts" class="bp">
+                    <template x-if="isCheckingAlerts"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
+                    <span x-text="isCheckingAlerts ? 'CHECKINGâ€¦' : 'â–¶ RUN CHECKS'"></span>
+                </button>
+                <button @click="loadAlerts()" class="bg">â†» REFRESH</button>
+            </div>
+        </div>
+
+        <template x-if="alertCheckMsg">
+            <div class="p-4 rounded-xl text-sm font-bold" :style="alertCheckMsg.startsWith('âœ“') ? 'background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#1e9902' : 'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:#f59e0b'" x-text="alertCheckMsg"></div>
+        </template>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <template x-for="rule in alertRules" :key="rule.name">
+                <div class="gc rounded-xl p-3">
+                    <p class="text-[9px] font-bold uppercase tracking-wider mb-1" :style="'color:'+rule.color" x-text="rule.label"></p>
+                    <p class="text-xs" style="color:var(--txt-m)" x-text="rule.desc"></p>
+                </div>
+            </template>
+        </div>
+
+        <div>
+            <p class="sl mb-3">Active Alerts</p>
+            <template x-if="activeAlerts.length">
+                <div class="space-y-3">
+                    <template x-for="a in activeAlerts" :key="a.id">
+                        <div class="gc rounded-xl p-4 flex items-start justify-between gap-4">
+                            <div class="flex items-start gap-3 flex-1">
+                                <div class="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0"
+                                    :style="'background:'+a.colour+';box-shadow:0 0 6px '+a.colour"></div>
+                                <div>
+                                    <p class="font-bold text-sm" style="color:var(--txt)" x-text="a.message"></p>
+                                    <p class="text-[10px] mt-1 font-mono" style="color:var(--txt-m)"
+                                        x-text="a.filename + ' Â· ' + a.severity.toUpperCase() + ' Â· ' + new Date(a.triggered_at).toLocaleString()"></p>
+                                </div>
+                            </div>
+                            <button @click="resolveAlert(a.id)"
+                                class="text-[10px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0 transition-all"
+                                style="background:rgba(16,185,129,.1);color:#1e9902;border:1px solid rgba(16,185,129,.2)">
+                                Resolve âœ“
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </template>
+            <template x-if="!activeAlerts.length">
+                <div class="gc rounded-xl py-12 text-center">
+                    <p class="text-3xl mb-3">âœ…</p>
+                    <p class="text-sm font-bold" style="color:var(--txt-m)">No active alerts</p>
+                    <p class="text-xs mt-1" style="color:var(--txt-m)">Run checks to monitor your dataset for anomalies</p>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- â”€â”€ MODALS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <template x-if="showFilterModal">
+        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="showFilterModal=false">
+            <div class="gc w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-5" @click.stop>
+                <h3 class="font-black text-lg uppercase tracking-widest text-[#2dd4bf]">Filter Data</h3>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="sl block mb-2">Primary Dimension (X-Axis)</label>
+                        <select x-model="dashFilters.chart_dim" class="w-full px-3 py-2 rounded-lg text-sm bg-[var(--inp-bg)] border-[var(--border)] text-white/90">
+                            <option value="">-- Auto-Detect --</option>
+                            <template x-for="col in profileCols" :key="col">
+                                <option :value="col" x-text="col"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="sl block mb-2">Primary Metric (Y-Axis)</label>
+                        <select x-model="dashFilters.chart_metric" class="w-full px-3 py-2 rounded-lg text-sm bg-[var(--inp-bg)] border-[var(--border)] text-white/90">
+                            <option value="">-- Auto-Detect --</option>
+                            <template x-for="col in dashNumericCols" :key="col">
+                                <option :value="col" x-text="col"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 mt-4 pt-4 border-t border-[var(--border)]">
+                    <button @click="showFilterModal=false" class="bg text-xs py-1.5 px-4">Cancel</button>
+                    <button @click="loadDashboard(); showFilterModal=false" class="bp text-xs py-1.5 px-4 bg-[#2dd4bf] text-black">Apply Filters</button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template x-if="showDrillDownModal">
+        <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="showDrillDownModal=false">
+            <div class="gc w-full max-w-4xl rounded-2xl p-6 shadow-2xl flex flex-col" style="max-height:85vh" @click.stop>
+                <div class="flex items-center justify-between mb-5">
+                    <div>
+                        <h3 class="font-black text-lg uppercase tracking-widest text-[#a78bfa]">Drill Down View</h3>
+                        <p class="text-xs text-[var(--txt-m)] mt-1">Detailed records for this cluster</p>
+                    </div>
+                    <button @click="showDrillDownModal=false" class="w-8 h-8 flex items-center justify-center rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)]">&times;</button>
+                </div>
+                
+                <template x-if="drillDownLoading">
+                    <div class="flex flex-col items-center justify-center flex-1 py-12">
+                        <svg class="w-8 h-8 spin" style="color:#a78bfa" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                        <p class="font-bold text-[10px] mt-4 uppercase tracking-widest text-[var(--txt-m)]">Fetching records...</p>
+                    </div>
+                </template>
+                
+                <template x-if="drillDownData && !drillDownLoading">
+                    <div class="flex flex-col min-h-0 flex-1">
+                        <div class="overflow-auto border border-[var(--border)] rounded-xl">
+                            <table class="dt w-full min-w-[600px]">
+                                <thead>
+                                    <tr>
+                                        <template x-for="c in drillDownData.columns" :key="c">
+                                            <th x-text="c" class="sticky top-0 bg-[var(--surface)]"></th>
+                                        </template>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="(r, ri) in drillDownData.rows" :key="ri">
+                                        <tr><template x-for="c in drillDownData.columns" :key="c"><td x-text="r[c]"></td></template></tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex items-center justify-between border-t border-[var(--border)] pt-3">
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">
+                                Showing <span class="text-white" x-text="drillDownData.rows.length"></span> limits of <span class="text-white" x-text="drillDownData.total_matches"></span> matching records
+                            </p>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+</main>
+
+<footer id="app-footer">
+    <span class="footer-tech">FLAML Â· PyJanitor Â· ydata-profiling Â· Gemini 2.0</span>
+    <span class="text-[#1e9902] font-bold text-[10px] uppercase tracking-tight">Open Source</span>
+</footer>
+
+<script>
+function workspaceApp() {
+    return {
+        activeTab: 'preview',
+        tabs: [
+            { id:'preview',   label:'Preview',   icon:'ðŸ“Š' },
+            { id:'dashboard', label:'Dashboard', icon:'ðŸ—‚ï¸' },
+            { id:'insights',  label:'Insights',  icon:'ðŸ’¡' },
+            { id:'query',     label:'AI Query',  icon:'ðŸ’¬' },
+            { id:'cleaning',  label:'Cleaning',  icon:'ðŸ§¹' },
+            { id:'eda',       label:'EDA',       icon:'ðŸ“ˆ' },
+            { id:'automl',    label:'AutoML',    icon:'ðŸ¤–' },
+            { id:'alerts',    label:'Alerts',    icon:'ðŸ””' },
+        ],
+        profile: {},
+        cleanProfile: null,
+        geminiOk: false,
+        darkMode:     true,
+        drawerOpen:   false,
+
+        needsReupload:   false,
+        reuploadMessage: '',
+
+        previewData:  {headers:[], rows:[]},
+        previewClean: false,
+
+        query: '', isAnalyzing: false, messages: [],
+        quickActions: ['Summarize this dataset','Distribution of numeric columns','Top 10 categories by count','Show correlation between numeric columns'],
+
+        isCleaning: false, cleanResult: null, cleanError: '',
+
+        isGeneratingEda: false, edaReady: false,
+        edaError: '',
+        edaWarning: '',
+        edaMinimal: true, edaSampleN: 5000,
+
+        profileCols: [],
+        socket: null,
+        user_id: null,
+        uploadId: new URLSearchParams(window.location.search).get('upload_id'),
+
+        isTraining: false, automlResult: null, automlError: '',
+        automlTarget: '', automlTask: 'auto-detect', automlTimeBudget: 120, automlTestSize: 20,
+        detectedTask: '', detectedNUnique: 0,
+
+        async _fetch(url, opts={}) {
+            const res = await fetch(url, opts);
+            if (res.status === 401) { window.location.href = '/login'; return null; }
+            const ct = res.headers.get('content-type') || '';
+            if (!res.ok && !ct.includes('application/json')) throw new Error(`Server error ${res.status}`);
+            return res;
+        },
+
+        async pollTask(taskId, label='Task') {
+            console.log(`Polling: ${label} (${taskId})`);
+            for (let i=0; i<100; i++) { // Max 5 mins
+                try {
+                    const res = await fetch(`/api/task/${taskId}`);
+                    const data = await res.json();
+                    if (data.status === 'success') return { ok: true, data: data.result };
+                    if (data.status === 'failure') return { ok: false, error: data.error || 'Task failed' };
+                } catch (e) { console.warn('Poll error', e); }
+                await new Promise(r => setTimeout(r, 3000));
+            }
+            return { ok: false, error: 'Timeout waiting for task' };
+        },
+
+        async init() {
+            const saved = localStorage.getItem('analyst-theme');
+            this.darkMode = saved !== 'light';
+            this.applyTheme();
+
+            // Initialize WebSocket
+            try {
+                this.socket = io('/', { transports: ['websocket'] });
+                this.socket.on('connect', () => { console.log('WS: Connected'); });
+                this.socket.on('insight_ready', (data) => { if (data.upload_id == this.uploadId) this.fetchInsights(); });
+                this.socket.on('automl_ready', (data) => { if (data.upload_id == this.uploadId) this.fetchWorkspaceState(); });
+                this.socket.on('eda_ready', (data) => { if (data.upload_id == this.uploadId) this.edaReady = true; });
+            } catch (e) { console.warn('WS: Failed to init', e); }
+
+            try {
+                // If the page was opened with ?upload_id=..., pass it through so
+                // /api/workspace/state can restore the correct project.
+                const params = new URLSearchParams(window.location.search);
+                const urlUploadId = params.get('upload_id');
+                // Only overwrite the Jinja-injected uploadId when the URL
+                // actually carries one (e.g. coming from /projects).
+                // Without this guard, params.get() returns null and silently
+                // overwrites the server-side value â€” every API call then has
+                // no upload_id, tasks target the wrong session and time out.
+                if (urlUploadId !== null) this.uploadId = urlUploadId;
+                const stateUrl = this.uploadId
+                    ? ('/api/workspace/state?upload_id=' + encodeURIComponent(this.uploadId))
+                    : '/api/workspace/state';
+                const res  = await this._fetch(stateUrl);
+                if (!res) return;
+                const st = await res.json();
+
+                if (st.needs_reupload) {
+                    this.needsReupload   = true;
+                    this.reuploadMessage = st.reupload_message || '';
+                    if (st.profile) this.profile = st.profile;
+                    await Promise.all([this.loadAlerts(), this.loadSchedules()]);
+                    return;
+                }
+
+                if (st.profile  && st.profile.rows)  this.profile      = st.profile;
+                if (st.clean_profile)                 this.cleanProfile = st.clean_profile;
+                if (st.columns && st.columns.length)  this.profileCols  = st.columns;
+
+                if (st.clean_meta) {
+                    this.cleanResult = {
+                        stats:          st.clean_meta.stats          || {},
+                        missing_log:    st.clean_meta.missing_log    || [],
+                        struct_actions: st.clean_meta.struct_actions || [],
+                        ok: true,
+                    };
+                    this.cleanProfile = st.clean_meta.clean_profile || st.clean_profile || null;
+                }
+
+                if (st.automl_meta) {
+                    this.automlResult = st.automl_meta;
+                    if (st.automl_meta.target_col) {
+                        const currentCols = (st.profile?.columns || []).map(c => c.name)
+                                         .concat(st.columns || []);
+                        if (!currentCols.length || currentCols.includes(st.automl_meta.target_col)) {
+                            this.automlTarget = st.automl_meta.target_col;
+                        } else {
+                            this.automlTarget = '';
+                        }
+                    }
+                }
+
+                if (st.chat_history && st.chat_history.length) {
+                    this.messages = st.chat_history.map(m => {
+                        const msg = {role: m.role, content: m.content || ''};
+                        if (m.chartData)  msg.chartData  = m.chartData;
+                        if (m.tableData)  msg.tableData  = m.tableData;
+                        if (m.insight)    msg.insight    = m.insight;
+                        if (m.code)       msg.code       = m.code;
+                        return msg;
+                    });
+                    this.$nextTick(() => {
+                        this.messages.forEach((m, idx) => {
+                            if (m.chartData) this.renderChart(idx, m.chartData);
+                        });
+                        this.scrollChat();
+                    });
+                }
+
+                if (st.has_eda) {
+                    this.edaReady = true;
+                    this.$nextTick(() => {
+                        const iframe = document.getElementById('eda-frame');
+                        if (iframe) {
+                            const theme = this.darkMode ? 'dark' : 'light';
+                            iframe.src = '/api/eda/report?t=' + Date.now() + '&theme=' + theme + (this.uploadId ? '&upload_id=' + encodeURIComponent(this.uploadId) : '');
+                        }
+                    });
+                }
+
+                if (st.has_df) await this.loadPreview(200);
+                if (this.uploadId) await this.fetchInsights();
+                await Promise.all([this.loadAlerts(), this.loadSchedules()]);
+
+            } catch(e) {
+                console.warn('State restore failed:', e);
+                await this.loadPreview(200);
+            }
+        },
+
+        toggleTheme() {
+            this.darkMode = !this.darkMode;
+            this.applyTheme();
+            const t = this.darkMode ? 'dark' : 'light';
+            localStorage.setItem('analyst-theme', t);
+            // Refresh EDA iframe
+            const edaFrame = document.getElementById('eda-frame');
+            if (edaFrame && edaFrame.src && edaFrame.src.includes('/api/eda/report')) {
+                edaFrame.src = '/api/eda/report?t=' + Date.now() + '&theme=' + t + (this.uploadId ? '&upload_id=' + encodeURIComponent(this.uploadId) : '');
+            }
+            // Refresh report iframe â€” update src with new theme param
+            if (this.currentReportId) {
+                const rf = document.getElementById('report-frame');
+                if (rf) rf.src = '/api/reports/' + this.currentReportId + '?theme=' + t + '&t=' + Date.now();
+            }
+        },
+
+        applyTheme() {
+            document.getElementById('html-root').classList.toggle('light', !this.darkMode);
+        },
+
+        async loadPreview(limit = 200) {
+            const url = `/api/preview?limit=${limit}${this.previewClean && this.cleanProfile ? '&clean=true' : ''}${this.uploadId ? '&upload_id=' + encodeURIComponent(this.uploadId) : ''}`;
+            const _r = await this._fetch(url); if (_r) this.previewData = await _r.json();
+        },
+
+        // â”€â”€ DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        isDashLoading: false, showFilterModal: false, showDrillDownModal: false,
+        dashStats: [], dashCharts: [], dashSummary: '', dashSchema: null,
+        dashboardInsights: [],
+        dashFilters: { chart_dim: '', chart_metric: '' },
+        dashIdStats: null, dashRecent: [], dashDim: 'Category', dashMetric: 'Metric',
+        dashNumericCols: [], drillDownLoading: false, drillDownData: null,
+
+        switchTab(id) {
+            this.activeTab = id;
+            if (id === 'dashboard' && !this.dashStats.length) this.loadDashboard();
+            if (id === 'alerts'    && !this.activeAlerts.length) this.loadAlerts();
+        },
+
+        async doDrillDown(chart_id, x_label, col_name) {
+            this.showDrillDownModal = true;
+            this.drillDownLoading = true;
+            try {
+                const res = await this._fetch('/api/dashboard/drilldown', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ chart_id, x_label, col_name })
+                });
+                if(res) {
+                    this.drillDownData = await res.json();
+                }
+            } catch(e) { console.error('Drill down error:', e); }
+            finally { this.drillDownLoading = false; }
+        },
+
+        async loadDashboard() {
+            this.isDashLoading = true;
+            try {
+                const url = '/api/dashboard/stats' + (this.uploadId ? '?upload_id=' + encodeURIComponent(this.uploadId) : '');
+                const res = await this._fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chart_dim: this.dashFilters.chart_dim,
+                        chart_metric: this.dashFilters.chart_metric
+                    })
+                });
+                if (!res) return;
+                const d = await res.json();
+                this.dashStats   = d.stats   || [];
+                this.dashCharts  = d.charts  || [];
+                this.dashSummary = d.summary || '';
+                this.dashSchema  = d.schema  || {};
+                this.dashIdStats = d.id_stats || null;
+                this.dashRecent  = d.recent_data || [];
+                this.dashDim     = d.dim || 'Category';
+                this.dashMetric  = d.metric || 'Metric';
+                this.dashNumericCols = d.numeric_cols || [];
+                this.dashboardInsights = d.insights || [];
+                if(d.cat_cols && !this.profileCols.length) {
+                    this.profileCols = d.cat_cols.concat(d.numeric_cols); 
+                }
+                
+                this.$nextTick(() => {
+                    this.dashCharts.forEach(ch => this.renderDashChart(ch));
+                });
+            } catch(e) { console.error('Dashboard error:', e); }
+            finally { this.isDashLoading = false; }
+        },
+
+        renderDashChart(ch) {
+            const canvas = document.getElementById('dash-chart-' + ch.id);
+            if (!canvas) return;
+            if (canvas._chart) { canvas._chart.destroy(); }
+            const gc = this.darkMode ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)';
+            const tc = this.darkMode ? '#666' : '#999';
+            const ctx = canvas.getContext('2d');
+            const c = '#2E5BFF';
+
+            // Catch onClick for drill-down
+            const onclick = (evt, elements) => {
+                if (elements.length > 0) {
+                    const idx = elements[0].index;
+                    const x_label = ch.labels[idx];
+                    this.doDrillDown(ch.id, x_label, ch.x_label);
+                }
+            };
+
+            const isPie = ch.type === 'pie';
+            const pieColors = ['#2E5BFF', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
+
+            const chart = new Chart(ctx, {
+                type: isPie ? 'pie' : ch.type,
+                data: {
+                    labels: ch.labels,
+                    datasets: [{ 
+                        label: ch.y_label, 
+                        data: ch.values,
+                        backgroundColor: isPie ? pieColors : (ch.type === 'line' ? c + '20' : c + 'ee'),
+                        borderColor: isPie ? 'rgba(0,0,0,0.1)' : c, 
+                        borderWidth: isPie ? 1 : (ch.type === 'line' ? 2 : 0),
+                        tension: 0.3, fill: ch.type === 'line', pointRadius: 2,
+                        borderRadius: ch.type === 'bar' ? 4 : 0
+                    }]
+                },
+                options: {
+                    onClick: onclick,
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { 
+                            display: isPie, position: isPie ? 'right' : 'top',
+                            labels: { color: tc, font: {size: 10}, boxWidth: 12, padding: 10 }
+                        } 
+                    },
+                    scales: isPie ? {} : {
+                        x: { ticks:{color:tc,font:{size:9},maxRotation:45}, grid:{color:gc, display:false} },
+                        y: { ticks:{color:tc,font:{size:9}}, grid:{color:gc}, beginAtZero:true }
+                    }
+                }
+            });
+            canvas._chart = chart;
+        },
+
+        // â”€â”€ QUERY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        async runQuery() {
+            const q = this.query.trim();
+            if (!q || this.isAnalyzing) return;
+            this.messages.push({role:'user', content: q});
+            this.query = ''; this.isAnalyzing = true;
+            this.$nextTick(() => this.scrollChat());
+            try {
+                const res  = await this._fetch('/api/query', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({upload_id: this.uploadId, query: q})
+                });
+                if (!res) return;
+                const data = await res.json();
+                if (data.error) { this.messages.push({role:'assistant', content:'âš  Error: ' + data.error}); }
+                else {
+                    const r = data.result;
+                    let msg = {role:'assistant', content:'', insight:data.insight, code:data.code, intent:data.intent};
+                    if (r.type === 'metric')        msg.content = `Result: ${r.value}`;
+                    else if (r.type === 'summary')  msg.content = r.text;
+                    else if (r.type === 'table')    { msg.content = `Found ${r.total} rows:`; msg.tableData = r; }
+                    else if (['bar_chart','line_chart','histogram'].includes(r.type)) { msg.content = `${r.x_label} vs ${r.y_label}`; msg.chartData = r; }
+                    else if (r.type === 'scatter_chart') { msg.content = `${r.x_label} vs ${r.y_label} (${r.points.length} points)`; msg.chartData = r; }
+                    else msg.content = JSON.stringify(r).substring(0, 200);
+                    this.messages.push(msg);
+                    if (msg.chartData) { const idx = this.messages.length - 1; this.$nextTick(() => this.renderChart(idx, msg.chartData)); }
+                }
+            } catch(e) { this.messages.push({role:'assistant', content:'Network error: ' + e.message}); }
+            finally { this.isAnalyzing = false; this.$nextTick(() => this.scrollChat()); }
+        },
+
+        scrollChat() { const el = document.getElementById('chat-thread'); if (el) el.scrollTop = el.scrollHeight; },
+
+        renderChart(idx, data) {
+            const canvas = document.getElementById('chart-' + idx);
+            if (!canvas) return;
+            const gc = this.darkMode ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)';
+            const tc = this.darkMode ? '#666' : '#999';
+            const ctx = canvas.getContext('2d');
+            const opts = { plugins:{legend:{labels:{color:tc,font:{size:10}}}}, scales:{x:{ticks:{color:tc,font:{size:10}},grid:{color:gc}},y:{ticks:{color:tc,font:{size:10}},grid:{color:gc}}} };
+            if (data.type === 'scatter_chart') { new Chart(ctx, {type:'scatter', data:{datasets:[{data:data.points, backgroundColor:'rgba(46,91,255,.6)', pointRadius:4}]}, options:{...opts}}); }
+            else { const t = data.type === 'line_chart' ? 'line' : 'bar'; new Chart(ctx, {type:t, data:{labels:data.labels, datasets:[{label:data.y_label, data:data.values, backgroundColor:t==='bar'?'rgba(46,91,255,.7)':'rgba(46,91,255,.2)', borderColor:'#2E5BFF', borderWidth:t==='line'?2:0, tension:.3, fill:t==='line'}]}, options:{...opts}}); }
+        },
+
+        // â”€â”€ CLEANING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        async runCleaning() {
+            this.isCleaning = true; this.cleanError = '';
+            try {
+                const res = await this._fetch('/api/clean', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({upload_id: this.uploadId})
+                });
+                if (!res) return;
+                let data;
+                try { data = await res.json(); }
+                catch(je) { this.cleanError = 'Server error (500) during cleaning. Ensure a dataset is uploaded and pyjanitor is installed on the server.'; return; }
+                if (data.error) { this.cleanError = data.error; return; }
+                this.cleanResult = data; this.cleanProfile = data.clean_profile;
+                this.previewClean = true; await this.loadPreview(200);
+            } catch(e) { this.cleanError = 'Network error: ' + e.message; }
+            finally { this.isCleaning = false; }
+        },
+
+        // â”€â”€ EDA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        async runEda() {
+            this.isGeneratingEda = true;
+            this.edaError   = '';
+            this.edaWarning = '';
+            try {
+                const res = await this._fetch('/api/eda', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        upload_id: this.uploadId,
+                        minimal: this.edaMinimal,
+                        sample_n: parseInt(this.edaSampleN)
+                    })
+                });
+                if (!res) return;
+
+                let data;
+                try { data = await res.json(); }
+                catch(je) {
+                    this.edaError = 'EDA failed: unexpected server response. Try enabling Minimal mode.';
+                    return;
+                }
+
+                if (!data.ok) {
+                    this.edaError = data.warning || 'EDA report could not be generated.';
+                    return;
+                }
+
+                this.edaReady = true;
+
+                if (data.warning) {
+                    this.edaWarning = data.warning;
+                }
+
+                this.$nextTick(() => {
+                    const f = document.getElementById('eda-frame');
+                    if (f) {
+                        const theme = this.darkMode ? 'dark' : 'light';
+                        f.src = '/api/eda/report?t=' + Date.now() + '&theme=' + theme + (this.uploadId ? '&upload_id=' + encodeURIComponent(this.uploadId) : '');
+                    }
+                });
+            } catch(e) { this.edaError = 'Network error: ' + e.message; }
+            finally { this.isGeneratingEda = false; }
+        },
+
+        async detectTask() {
+            if (!this.automlTarget) return;
+            try {
+                const res = await this._fetch('/api/automl/detect-task', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({upload_id: this.uploadId, target_col: this.automlTarget})
+                });
+                if (!res) return;
+                const data = await res.json();
+
+                if (data.needs_selection) {
+                    if (data.columns && data.columns.length) {
+                        this.profileCols = data.columns;
+                        if (this.profile) {
+                            this.profile = {
+                                ...this.profile,
+                                columns: data.columns.map(c => ({name: c, dtype: ''}))
+                            };
+                        }
+                    }
+                    this.automlTarget = '';
+                    this.detectedTask = '';
+                    this.detectedNUnique = 0;
+                    return;
+                }
+
+                this.detectedTask    = data.task;
+                this.detectedNUnique = data.n_unique;
+            } catch(e) {}
+        },
+
+        // â”€â”€ FETCH WORKSPACE STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // Re-fetches /api/workspace/state and syncs automlResult (and other state)
+        // back to the Alpine component. Called after AutoML completes.
+        async fetchWorkspaceState() {
+            try {
+                const stateUrl = this.uploadId
+                    ? ('/api/workspace/state?upload_id=' + encodeURIComponent(this.uploadId))
+                    : '/api/workspace/state';
+                const res = await this._fetch(stateUrl);
+                if (!res) return;
+                const st = await res.json();
+                if (st.automl_meta) {
+                    this.automlResult = st.automl_meta;
+                    if (st.automl_meta.target_col) this.automlTarget = st.automl_meta.target_col;
+                }
+                if (st.profile && st.profile.rows) this.profile = st.profile;
+                if (st.clean_profile)              this.cleanProfile = st.clean_profile;
+            } catch(e) { console.warn('fetchWorkspaceState error:', e); }
+        },
+
+        async runAutoml() {
+            if (!this.automlTarget) return;
+            this.isTraining = true; this.automlError = ''; this.automlResult = null;
+            try {
+                const res = await this._fetch('/api/automl/train', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({
+                        upload_id: this.uploadId,
+                        target_col:this.automlTarget,
+                        task_choice:this.automlTask,
+                        time_budget:parseInt(this.automlTimeBudget),
+                        test_size:parseInt(this.automlTestSize)
+                    })
+                });
+                if (!res) return;
+                const data = await res.json();
+                if (data.error) { this.automlError = data.error; return; }
+
+                // data = {task_id, queued} â€” poll until done, then sync state
+                const poll = await this.pollTask(data.task_id, 'AutoML');
+                if (poll.ok) {
+                    await this.fetchWorkspaceState();
+                } else {
+                    this.automlError = poll.error;
+                }
+            } catch(e) { this.automlError = 'Network error: ' + e.message; }
+            finally { this.isTraining = false; }
+        },
+
+        // â”€â”€ INSIGHTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        isRunningInsights: false, insightError: '',
+        insightCards: [], insightSummary: '', insightSchema: null,
+        insightTopN: 6, insightUseGemini: true,
+
+        formatSummary(raw) {
+            if (!raw) return '';
+            let text = raw
+                .replace(/Automated Insight Report[^\n]*/g, '')
+                .replace(/={5,}/g, '')
+                .replace(/^\s*\n/gm, '')
+                .trim();
+
+            const lines = text.split('\n');
+            const blocks = [];
+            let cur = '';
+            for (const line of lines) {
+                if (/^\d+[.)]\s/.test(line.trim())) {
+                    if (cur.trim()) blocks.push(cur.trim());
+                    cur = line.trim();
+                } else {
+                    cur += ' ' + line.trim();
+                }
+            }
+            if (cur.trim()) blocks.push(cur.trim());
+
+            if (blocks.length <= 1) {
+                return '<p>' + text.replace(/\n/g, '<br>') + '</p>';
+            }
+
+            return blocks.map(part => {
+                const m = part.match(/^(\d+)[.)]\s+([\s\S]+)$/);
+                if (!m) return '<p class="text-xs opacity-60">' + part + '</p>';
+                const num = m[1];
+                const body = m[2].trim();
+                let title = body, desc = '';
+                const dashIdx = body.indexOf(' â€” ');
+                if (dashIdx > -1) {
+                    title = body.substring(0, dashIdx);
+                    desc  = body.substring(dashIdx + 3);
+                } else {
+                    const dotIdx = body.indexOf('. ');
+                    if (dotIdx > -1 && dotIdx < 80) {
+                        title = body.substring(0, dotIdx);
+                        desc  = body.substring(dotIdx + 2);
+                    }
+                }
+                return '<div class="flex gap-3 items-start py-2" style="border-bottom:1px solid var(--border)">'
+                    + '<span style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;margin-top:1px">' + num + '</span>'
+                    + '<div><span style="font-weight:700;font-size:.72rem;color:var(--txt)">' + title + (title.endsWith('.') ? '' : '.') + '</span>'
+                    + (desc ? ' <span style="font-size:.72rem;color:var(--txt-m)">' + desc + '</span>' : '')
+                    + '</div></div>';
+            }).join('');
+        },
+
+        async runInsights() {
+            this.isRunningInsights = true; this.insightError = ''; this.insightCards = [];
+            try {
+                const res = await this._fetch('/api/insights/run', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        upload_id: this.uploadId,
+                        top_n: parseInt(this.insightTopN),
+                        use_gemini: this.insightUseGemini
+                    })
+                });
+                if (!res) return;
+                const data = await res.json();
+                if (data.error) { this.insightError = data.error; return; }
+                
+                const poll = await this.pollTask(data.task_id, 'Insights');
+                if (poll.ok) {
+                    await this.fetchInsights();
+                } else {
+                    this.insightError = poll.error;
+                }
+            } catch(e) { this.insightError = 'Error: ' + e.message; }
+            finally { this.isRunningInsights = false; }
+        },
+
+        async fetchInsights() {
+            if (!this.uploadId) return;
+            try {
+                const res = await this._fetch('/api/insights/current?upload_id=' + encodeURIComponent(this.uploadId));
+                if (!res) return;
+                const data = await res.json();
+                if (data.error) {
+                    this.insightError = data.error;
+                    return;
+                }
+                this.insightCards = data.insights || [];
+                this.insightSummary = data.summary || '';
+                this.insightSchema = data.schema || null;
+                this.$nextTick(() => {
+                    this.insightCards.forEach((ins, i) => {
+                        if (ins && ins.chart_data) this.renderInsightChart(i, ins);
+                    });
+                });
+            } catch (e) {
+                this.insightError = 'Error: ' + e.message;
+            }
+        },
+
+        insightBadgeStyle(type) {
+            const map = {
+                trend:'background:rgba(99,102,241,.15);color:#6366F1',
+                ranking:'background:rgba(16,185,129,.15);color:#10B981',
+                correlation:'background:rgba(245,158,11,.15);color:#F59E0B',
+                anomaly:'background:rgba(239,68,68,.15);color:#EF4444',
+                distribution:'background:rgba(59,130,246,.15);color:#3B82F6',
+                contribution:'background:rgba(20,184,166,.15);color:#14B8A6',
+                segment:'background:rgba(139,92,246,.15);color:#8B5CF6',
+                change:'background:rgba(236,72,153,.15);color:#EC4899',
+            };
+            return map[type] || 'background:rgba(46,91,255,.1);color:var(--accent)';
+        },
+
+        // â”€â”€ NEW: Parse key stats from insight description text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        parseInsightStats(ins) {
+            const d = ins.description || '';
+            let count = null, value = null, sigma = null, pct = null, prev = null, curr = null, date = null;
+
+            // Anomaly patterns: "anomalies found: 399" or "399 anomalies"
+            const countM = d.match(/(\d[\d,]*)\s+anomalies?\s+found|anomalies?\s+found[:\s]+(\d[\d,]*)/i);
+            if (countM) count = parseInt((countM[1]||countM[2]).replace(/,/g,''));
+
+            // Peak value: "Value was 516135.14"
+            const valM = d.match(/[Vv]alue was ([\d,\.]+)/);
+            if (valM) value = parseFloat(valM[1].replace(/,/g,'')).toLocaleString(undefined,{maximumFractionDigits:0});
+
+            // Sigma: "10.6Ïƒ" or "10.6 from mean"
+            const sigM = d.match(/([\d\.]+)\s*[ÏƒÏƒ]|from mean[:\s]+([\d\.]+)/);
+            if (sigM) sigma = parseFloat(sigM[1]||sigM[2]).toFixed(1);
+
+            // Percentage change: "up 49.4%" or "down 12.3%"
+            const pctM = d.match(/([\d\.]+)%/);
+            if (pctM) {
+                pct = parseFloat(pctM[1]).toFixed(1);
+                if (/\b(down|declin|decreas|fell|drop)\b/i.test(d)) pct = '-' + pct;
+            }
+
+            // Before/after: "(41671.12 vs 27886.86)"
+            const vsM = d.match(/\(([\d,\.]+)\s+vs\s+([\d,\.]+)\)/i);
+            if (vsM) { curr = vsM[1]; prev = vsM[2]; }
+
+            // Date
+            const dateM = d.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[\s\-]\d{1,2},?\s*\d{4}|\d{4}-\d{2}-\d{2}/i);
+            if (dateM) date = dateM[0];
+
+            return { count, value, sigma, pct, prev, curr, date };
+        },
+
+        renderInsightChart(i, ins) {
+            const canvas = document.getElementById('ins-chart-' + i);
+            if (!canvas || !ins.chart_data) return;
+            const cd   = ins.chart_data;
+            const gc   = this.darkMode ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.05)';
+            const tc   = this.darkMode ? '#555' : '#999';
+            const ctx  = canvas.getContext('2d');
+            const opts = {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {legend:{display:false}},
+                scales: {x:{ticks:{color:tc,font:{size:9}},grid:{color:gc}},
+                         y:{ticks:{color:tc,font:{size:9}},grid:{color:gc}}}
+            };
+            if (ins.chart === 'scatter') {
+                const pts = (cd.x||[]).map((x,j)=>({x,y:(cd.y||[])[j]}));
+                new Chart(ctx, {type:'scatter', data:{datasets:[{data:pts,backgroundColor:'rgba(46,91,255,.5)',pointRadius:3}]}, options:{...opts,scales:{x:{ticks:{color:tc,font:{size:9}}},y:{ticks:{color:tc,font:{size:9}}}}}});
+            } else {
+                const type = ins.chart === 'line' ? 'line' : 'bar';
+                new Chart(ctx, {type, data:{
+                    labels: (cd.labels||[]).map(l=>String(l).slice(0,12)),
+                    datasets:[{data:cd.values||[], backgroundColor:type==='bar'?'rgba(46,91,255,.6)':'rgba(46,91,255,.2)', borderColor:'#2E5BFF', borderWidth:type==='line'?2:1, tension:.3, fill:type==='line'}]
+                }, options:opts});
+            }
+        },
+
+        // â”€â”€ REPORTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+
+        // â”€â”€ ALERTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        isCheckingAlerts: false, alertCheckMsg: '',
+        activeAlerts: [],
+        alertRules: [
+            {name:'metric_drop',   label:'Metric Drop',    color:'#F59E0B', desc:'âˆ’20% vs baseline'},
+            {name:'critical_drop', label:'Critical Drop',  color:'#EF4444', desc:'âˆ’40% vs baseline'},
+            {name:'metric_spike',  label:'Metric Spike',   color:'#6366F1', desc:'+50% vs baseline'},
+            {name:'missing_values',label:'Data Quality',   color:'#3B82F6', desc:'>5% missing values'},
+        ],
+
+        async checkAlerts() {
+            this.isCheckingAlerts = true; this.alertCheckMsg = '';
+            try {
+                const res = await this._fetch('/api/alerts/check', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({upload_id: this.uploadId})
+                });
+                if (!res) return;
+                const data = await res.json();
+                const n = (data.alerts||[]).length;
+                this.alertCheckMsg = n > 0 ? `âš  ${n} alert(s) fired` : 'âœ“ No issues detected';
+                await this.loadAlerts();
+            } catch(e) { this.alertCheckMsg = 'Error: ' + e.message; }
+            finally { this.isCheckingAlerts = false; }
+        },
+
+        async loadAlerts() {
+            try {
+                const res = await this._fetch('/api/alerts');
+                if (!res) return;
+                this.activeAlerts = await res.json();
+            } catch(e) {}
+        },
+
+        async resolveAlert(id) {
+            try {
+                await this._fetch(`/api/alerts/${id}/resolve`, {method:'POST'});
+                this.activeAlerts = this.activeAlerts.filter(a => a.id !== id);
+            } catch(e) {}
+        },
+
+        // â”€â”€ SCHEDULES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        schedules: [], isCreatingSchedule: false,
+        newScheduleCron: '0 9 * * 1', newScheduleEmail: '', scheduleMsg: '',
+
+        async loadSchedules() {
+            try {
+                const res = await this._fetch('/api/schedules');
+                if (!res) return;
+                this.schedules = await res.json();
+            } catch(e) {}
+        },
+
+        async createSchedule() {
+            this.isCreatingSchedule = true; this.scheduleMsg = '';
+            try {
+                const res = await this._fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        upload_id: this.uploadId,
+                        cron: this.newScheduleCron,
+                        email: this.newScheduleEmail
+                    })
+                });
+                if (!res) return;
+                const data = await res.json();
+                if (data.error) { this.scheduleMsg = 'âœ— ' + data.error; return; }
+                this.scheduleMsg = 'âœ“ Schedule created: ' + (data.cron_human || '');
+                this.newScheduleEmail = '';
+                await this.loadSchedules();
+            } catch(e) { this.scheduleMsg = 'âœ— ' + e.message; }
+            finally { this.isCreatingSchedule = false; }
+        },
+
+        async deleteSchedule(id) {
+            try {
+                await this._fetch(`/api/schedules/${id}`, {method:'DELETE'});
+                this.schedules = this.schedules.filter(s => s.id !== id);
+            } catch(e) {}
+        },
+    }
+}
+function dfExplorer() {
+    return {
+        headers: [], allRows: [], filteredRows: [], pagedRows: [],
+        globalSearch: '', colFilters: {},
+        sortCol: null, sortDir: 1,
+        currentPage: 0, pageSize: 50,
+        rowLimit: 200, showClean: false,
+        activeCol: null, colStats: null,
+
+        async init() {
+            await this.reload();
+            this.$watch('currentPage', () => this.updatePage());
+            this.$watch('pageSize', () => { this.currentPage = 0; this.updatePage(); });
+        },
+
+        async reload(limit) {
+            if (limit) this.rowLimit = limit;
+            const ws = document.querySelector('[x-data="workspaceApp()"]')?._x_dataStack?.[0];
+            const useClean = this.showClean && ws?.cleanProfile;
+            const params = new URLSearchParams(window.location.search);
+            const uploadId = ws?.uploadId || params.get('upload_id');
+            const url = `/api/preview?limit=${this.rowLimit}${useClean ? '&clean=true' : ''}${uploadId ? '&upload_id=' + encodeURIComponent(uploadId) : ''}`;
+            const r = await ws?._fetch ? await ws._fetch(url) : await fetch(url);
+            if (!r) return;
+            if (!r.ok) return;
+            const data = await r.json();
+            this.headers = data.headers || [];
+            this.allRows = data.rows || [];
+            this.colFilters = {};
+            this.headers.forEach(h => this.colFilters[h] = '');
+            this.activeCol = null; this.colStats = null;
+            this.applyFilters();
+        },
+
+        applyFilters() {
+            const gs = this.globalSearch.toLowerCase().trim();
+            let rows = this.allRows;
+
+            if (gs) {
+                rows = rows.filter(row =>
+                    row.some(cell => cell !== null && String(cell).toLowerCase().includes(gs))
+                );
+            }
+
+            this.headers.forEach((h, ci) => {
+                const f = (this.colFilters[h] || '').toLowerCase().trim();
+                if (!f) return;
+                rows = rows.filter(row => {
+                    const cell = row[ci];
+                    return cell !== null && String(cell).toLowerCase().includes(f);
+                });
+            });
+
+            if (this.sortCol !== null) {
+                const ci = this.headers.indexOf(this.sortCol);
+                rows = [...rows].sort((a, b) => {
+                    const av = a[ci], bv = b[ci];
+                    if (av === null) return 1; if (bv === null) return -1;
+                    const an = parseFloat(av), bn = parseFloat(bv);
+                    if (!isNaN(an) && !isNaN(bn)) return (an - bn) * this.sortDir;
+                    return String(av).localeCompare(String(bv)) * this.sortDir;
+                });
+            }
+
+            this.filteredRows = rows;
+            this.currentPage = 0;
+            this.updatePage();
+        },
+
+        updatePage() {
+            const s = this.currentPage * this.pageSize;
+            this.pagedRows = this.filteredRows.slice(s, s + this.pageSize);
+        },
+
+        toggleSort(col) {
+            if (this.sortCol === col) {
+                this.sortDir = this.sortDir === 1 ? -1 : 1;
+            } else {
+                this.sortCol = col;
+                this.sortDir = 1;
+            }
+            this.applyFilters();
+        },
+
+        inspectCol(col) {
+            this.activeCol = col;
+            const ci = this.headers.indexOf(col);
+            const vals = this.allRows.map(r => r[ci]);
+            const nonNull = vals.filter(v => v !== null && v !== '');
+            const nulls = vals.length - nonNull.length;
+            const unique = new Set(nonNull).size;
+
+            const nums = nonNull.map(v => parseFloat(v)).filter(v => !isNaN(v));
+            let min = null, max = null, mean = null;
+            if (nums.length > 0) {
+                min = Math.min(...nums);
+                max = Math.max(...nums);
+                mean = (nums.reduce((a,b) => a+b, 0) / nums.length).toFixed(3);
+                const fmt = n => Number.isInteger(n) ? n : parseFloat(n.toFixed(4));
+                min = fmt(min); max = fmt(max);
+            }
+
+            const freq = {};
+            vals.forEach(v => { const k = v === null ? null : String(v); freq[k] = (freq[k]||0)+1; });
+            const total = vals.length;
+            const top = Object.entries(freq)
+                .sort((a,b) => b[1]-a[1])
+                .slice(0, 8)
+                .map(([val, count]) => ({
+                    val: val === 'null' ? null : val,
+                    count,
+                    pct: ((count/total)*100).toFixed(1)
+                }));
+
+            this.colStats = { unique, nulls, min, max, mean, top };
+        },
+
+        isMatch(cell, col) {
+            const gs = this.globalSearch.toLowerCase().trim();
+            const cf = (this.colFilters[col] || '').toLowerCase().trim();
+            if (!gs && !cf) return false;
+            const s = cell !== null ? String(cell).toLowerCase() : '';
+            return (gs && s.includes(gs)) || (cf && s.includes(cf));
+        },
+
+        hasActiveFilters() {
+            return this.globalSearch.trim() !== '' ||
+                   this.headers.some(h => (this.colFilters[h]||'').trim() !== '');
+        },
+
+        clearAll() {
+            this.globalSearch = '';
+            this.headers.forEach(h => this.colFilters[h] = '');
+            this.sortCol = null;
+            this.applyFilters();
+        },
+    }
+}
+</script>
+
+<!-- â”€â”€ Mobile bottom tab bar â”€â”€ -->
+<nav id="bottom-tabs" class="md:hidden">
+    <template x-for="tab in tabs.slice(0,4)" :key="tab.id">
+        <button @click="switchTab(tab.id)" :class="activeTab === tab.id ? 'na' : ''">
+            <span class="bt-icon" x-text="tab.icon"></span>
+            <span class="bt-lbl" x-text="tab.label"></span>
+        </button>
+    </template>
+    <button @click="drawerOpen=true"
+        :class="tabs.slice(4).some(t=>t.id===activeTab) ? 'na' : ''">
+        <span class="bt-icon">â‹¯</span>
+        <span class="bt-lbl" x-text="tabs.slice(4).find(t=>t.id===activeTab)?.label || 'More'"></span>
+    </button>
+</nav>
+
+</body>
+</html>
+
+

@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
@@ -23,17 +25,41 @@ try:
 except RuntimeError:
     db_client = None  # Expected during some blind local imports before .env loads
 
+_db_lock = threading.RLock()
+
+
+def _execute(query, retries: int = 3):
+    """Run Supabase/PostgREST calls defensively.
+
+    The Supabase client keeps an HTTP connection pool. Under the threaded Flask
+    dev server, concurrent requests can occasionally trip httpx/httpcore HTTP/2
+    stream errors. Serializing these small metadata queries and retrying once or
+    twice keeps dashboard widgets from failing because one background request
+    raced another.
+    """
+    last_exc = None
+    for attempt in range(retries):
+        try:
+            with _db_lock:
+                return query.execute()
+        except Exception as exc:
+            last_exc = exc
+            if attempt == retries - 1:
+                raise
+            time.sleep(0.2 * (attempt + 1))
+    raise last_exc
+
 
 def db_get(table: str, id_val: Any) -> Optional[dict]:
     if not db_client: return None
-    res = db_client.table(table).select("*").eq("id", id_val).execute()
+    res = _execute(db_client.table(table).select("*").eq("id", id_val))
     return res.data[0] if res.data else None
 
 def db_first(table: str, match: dict) -> Optional[dict]:
     if not db_client: return None
     q = db_client.table(table).select("*")
     for k, v in match.items(): q = q.eq(k, v)
-    res = q.limit(1).execute()
+    res = _execute(q.limit(1))
     return res.data[0] if res.data else None
 
 def db_all(table: str, match: dict = None, order_by: str = None, desc: bool = True, limit: int = None) -> list[dict]:
@@ -45,19 +71,19 @@ def db_all(table: str, match: dict = None, order_by: str = None, desc: bool = Tr
         q = q.order(order_by, desc=desc)
     if limit:
         q = q.limit(limit)
-    return q.execute().data
+    return _execute(q).data
 
 def db_insert(table: str, data: dict) -> dict:
     if not db_client: return {}
-    return db_client.table(table).insert(data).execute().data[0]
+    return _execute(db_client.table(table).insert(data)).data[0]
 
 def db_update(table: str, id_val: Any, data: dict) -> dict:
     if not db_client: return {}
-    return db_client.table(table).update(data).eq("id", id_val).execute().data[0]
+    return _execute(db_client.table(table).update(data).eq("id", id_val)).data[0]
 
 def db_delete(table: str, id_val: Any) -> bool:
     if not db_client: return False
-    db_client.table(table).delete().eq("id", id_val).execute()
+    _execute(db_client.table(table).delete().eq("id", id_val))
     return True
 
 def db_count(table: str, match: dict = None) -> int:
@@ -65,7 +91,7 @@ def db_count(table: str, match: dict = None) -> int:
     q = db_client.table(table).select("*", count="exact")
     if match:
         for k, v in match.items(): q = q.eq(k, v)
-    res = q.limit(0).execute()
+    res = _execute(q.limit(0))
     return res.count if res.count is not None else 0
 
 # ══════════════════════════════════════════════════════════════════════════════

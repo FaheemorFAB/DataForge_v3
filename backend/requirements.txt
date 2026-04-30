@@ -1,8 +1,8 @@
 Flask>=3.0.0
 Flask-SocketIO
 Flask-Login>=0.6.3
-pandas>=2.0.0
-numpy>=1.24.0
+pandas>=2.0.0,<2.3
+numpy>=1.24.0,<2.0
 python-dotenv>=1.0.0
 Authlib>=1.3.0
 requests>=2.31.0
@@ -15,10 +15,10 @@ orjson
 flower
 joblib
 supabase>=2.3.0
-pydantic>=2.0.0
+pydantic>=2.0.0,<3.0.0
 scikit-learn>=1.3.0
-flaml[automl]>=2.1.0
-ydata-profiling>=4.6.0
+flaml>=2.1.0,<3.0.0
+ydata-profiling>=4.6.0,<5.0.0
 gspread
 spacy
 watchdog

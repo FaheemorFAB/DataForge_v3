@@ -1,6 +1,8 @@
 """
 routes/auth.py — Authentication Blueprint
 """
+import os
+
 from flask import Blueprint, redirect, url_for, request, session, jsonify
 from flask_login import login_required, login_user, logout_user, current_user
 from datetime import datetime
@@ -32,7 +34,11 @@ def login_google():
     if not isinstance(next_url, str) or not next_url.startswith("/"):
         next_url = url_for("dashboard_bp.dashboard")
     session["next_url"] = next_url
-    redirect_uri = url_for("auth.auth_google_callback", _external=True)
+    public_base_url = (os.getenv("PUBLIC_BASE_URL") or "").rstrip("/")
+    if public_base_url:
+        redirect_uri = f"{public_base_url}{url_for('auth.auth_google_callback')}"
+    else:
+        redirect_uri = url_for("auth.auth_google_callback", _external=True)
     return auth_bp.oauth.google.authorize_redirect(redirect_uri)
 
 
