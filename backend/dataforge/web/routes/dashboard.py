@@ -168,16 +168,48 @@ def api_dashboard_stats():
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     cat_cols = df.select_dtypes(include="object").columns.tolist()
 
-    # Identify valid dimensions and metrics
-    # Exclude ID columns from metrics if possible
-    valid_metrics = [c for c in numeric_cols if not c.lower().endswith("id") and c.lower() != "id"]
-    if not valid_metrics and numeric_cols:
-        valid_metrics = numeric_cols
+    # Keywords that indicate a numeric column is an ID/code/ordinal — not a true metric
+    _ID_KEYWORDS = (
+        "id", "no", "num", "number", "code", "roll", "batch",
+        "year", "reg", "serial", "seq", "rank", "index", "ref",
+        "emp", "student", "class", "section", "grade",
+    )
 
-    metric = chart_metric if chart_metric in df.columns else (valid_metrics[0] if valid_metrics else None)
-    
-    valid_dims = cat_cols + [c for c in numeric_cols if c.lower().endswith("id") or c.lower() == "id"]
-    dim = chart_dim if chart_dim in df.columns else (valid_dims[0] if valid_dims else (cat_cols[0] if cat_cols else None))
+    def _is_id_like_col(col_name: str, series: pd.Series) -> bool:
+        """Return True when a numeric column looks like a roll-no / batch / code."""
+        cl = col_name.lower().replace("_", " ").replace("-", " ")
+        # keyword match
+        if any(kw in cl.split() or cl.startswith(kw) or cl.endswith(kw)
+               for kw in _ID_KEYWORDS):
+            return True
+        # Structural check: integers with very low cardinality relative to rows,
+        # or integers that look like years (1900-2100)
+        if pd.api.types.is_integer_dtype(series):
+            unique_vals = series.dropna().unique()
+            if len(unique_vals) <= max(20, len(series) * 0.05):
+                return True  # low-cardinality integer
+            if all(1900 <= v <= 2100 for v in unique_vals[:50]):
+                return True  # looks like year
+        return False
+
+    # Separate true metrics from ID-like columns
+    id_like_cols = [c for c in numeric_cols if _is_id_like_col(c, df[c])]
+    true_metrics  = [c for c in numeric_cols
+                     if c not in id_like_cols
+                     and not c.lower().endswith("id")
+                     and c.lower() != "id"]
+    if not true_metrics and numeric_cols:
+        # fall back: use all numeric but prefer non-id-like
+        true_metrics = [c for c in numeric_cols if c not in id_like_cols] or numeric_cols
+
+    # Dims = object columns + id-like numeric columns
+    valid_dims = cat_cols + id_like_cols + [
+        c for c in numeric_cols if c.lower().endswith("id") or c.lower() == "id"
+    ]
+    metric = chart_metric if chart_metric in df.columns else (true_metrics[0] if true_metrics else None)
+    dim = chart_dim if chart_dim in df.columns else (
+        valid_dims[0] if valid_dims else (cat_cols[0] if cat_cols else None)
+    )
 
     # 1. Total Rows Indicator
     stats.append({
@@ -186,29 +218,39 @@ def api_dashboard_stats():
         "sub": f"{df.shape[1]} total columns",
         "type": "count"
     })
-    
-    # 2. Dynamic Metric Stat
+
+    # 2. Dynamic Metric Stat (true sum-able metric) or ID-like → show mode
     if metric:
         s = df[metric].dropna()
         if len(s) > 0:
-            total_val = s.sum()
-            mean_val = s.mean()
-            formatted_val = round(float(total_val), 2) if abs(total_val) < 1e6 else f"{total_val/1e6:.2f}M"
-            stats.append({
-                "label": f"{metric} (Total)",
-                "value": formatted_val,
-                "sub": f"Avg: {round(float(mean_val), 2)}",
-                "type": "sum"
-            })
-            
+            if _is_id_like_col(metric, s):
+                # Treat as categorical: show most frequent value
+                top_val = str(s.mode().iloc[0]) if not s.mode().empty else "N/A"
+                stats.append({
+                    "label": f"Most Common {metric}",
+                    "value": top_val,
+                    "sub": f"{s.nunique():,} unique values",
+                    "type": "mode"
+                })
+            else:
+                total_val = s.sum()
+                mean_val = s.mean()
+                formatted_val = round(float(total_val), 2) if abs(total_val) < 1e6 else f"{total_val/1e6:.2f}M"
+                stats.append({
+                    "label": f"{metric} (Total)",
+                    "value": formatted_val,
+                    "sub": f"Avg: {round(float(mean_val), 2)}",
+                    "type": "sum"
+                })
+
     # 3. Dynamic Dimension Stat
     if dim:
         s = df[dim].dropna()
         if len(s) > 0:
             unique_cnt = s.nunique()
             top_val = str(s.mode().iloc[0]) if not s.mode().empty else "N/A"
-            # truncate top_val if too long
-            if len(top_val) > 15: top_val = top_val[:12] + "..."
+            if len(top_val) > 15:
+                top_val = top_val[:12] + "..."
             stats.append({
                 "label": f"Unique {dim}",
                 "value": f"{unique_cnt:,}",
@@ -216,18 +258,27 @@ def api_dashboard_stats():
                 "type": "distinct"
             })
 
-    # 4. Additional numeric column or Missing Values
-    other_metrics = [c for c in valid_metrics if c != metric]
+    # 4. Additional numeric column (true metric) or Missing Values
+    other_metrics = [c for c in true_metrics if c != metric]
     if other_metrics:
         col = other_metrics[0]
         s = df[col].dropna()
         if len(s) > 0:
-            stats.append({
-                "label": f"Avg {col}",
-                "value": round(float(s.mean()), 2),
-                "sub": f"Max/Min: {round(float(s.max()), 2)} / {round(float(s.min()), 2)}",
-                "type": "mean"
-            })
+            if _is_id_like_col(col, s):
+                top_val = str(s.mode().iloc[0]) if not s.mode().empty else "N/A"
+                stats.append({
+                    "label": f"Most Common {col}",
+                    "value": top_val,
+                    "sub": f"{s.nunique():,} unique values",
+                    "type": "mode"
+                })
+            else:
+                stats.append({
+                    "label": f"Avg {col}",
+                    "value": round(float(s.mean()), 2),
+                    "sub": f"Max/Min: {round(float(s.max()), 2)} / {round(float(s.min()), 2)}",
+                    "type": "mean"
+                })
     
     # Fill up to 4 if we didn't reach 4
     if len(stats) < 4:
@@ -241,34 +292,44 @@ def api_dashboard_stats():
         })
 
     schema = _load(upload_id, "last_schema")
-    if schema and schema.get("date") and valid_metrics:
+    if schema and schema.get("date") and true_metrics:
         try:
             date_col = schema["date"]
-            ts_metric = valid_metrics[0]
+            ts_metric = true_metrics[0]
             ts = df[[date_col, ts_metric]].copy()
             ts[date_col] = pd.to_datetime(ts[date_col], errors="coerce")
             ts = ts.dropna().sort_values(date_col)
-            agg = ts.groupby(ts[date_col].dt.to_period("M"))[ts_metric].sum()
+            if _is_id_like_col(ts_metric, ts[ts_metric]):
+                agg = ts.groupby(ts[date_col].dt.to_period("M"))[ts_metric].count()
+                y_label = f"Count of {ts_metric}"
+            else:
+                agg = ts.groupby(ts[date_col].dt.to_period("M"))[ts_metric].sum()
+                y_label = ts_metric
             charts.append({
                 "id": "trend", "type": "line",
-                "title": f"{ts_metric} over time",
+                "title": f"{y_label} over time",
                 "labels": [str(p) for p in agg.index[-24:]],
                 "values": [round(float(v), 2) for v in agg.values[-24:]],
-                "x_label": date_col, "y_label": ts_metric,
+                "x_label": date_col, "y_label": y_label,
             })
         except Exception:
             pass
 
     if dim and metric:
         try:
-            # Bar Chart: Top dimension by metric
-            grp = df.groupby(dim)[metric].mean().sort_values(ascending=False).head(10)
+            # Bar Chart: group by dim. If metric is id-like, count occurrences; else mean.
+            if _is_id_like_col(metric, df[metric]):
+                grp = df.groupby(dim)[metric].count().sort_values(ascending=False).head(10)
+                y_label = f"Count of {metric}"
+            else:
+                grp = df.groupby(dim)[metric].mean().sort_values(ascending=False).head(10)
+                y_label = metric
             charts.append({
                 "id": "top_cat", "type": "bar",
-                "title": f"Top {dim} by {metric}",
+                "title": f"Top {dim} by {y_label}",
                 "labels": [str(i) for i in grp.index],
                 "values": [round(float(v), 2) for v in grp.values],
-                "x_label": dim, "y_label": metric,
+                "x_label": dim, "y_label": y_label,
             })
         except Exception:
             pass

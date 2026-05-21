@@ -6,38 +6,11 @@
     <title>DataForge</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
+    <script src="{{ url_for('static', filename='js/theme-switcher.js') }}"></script>
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <style>
-        /* ─── DARK ── */
-        :root {
-            --bg:      #050505;
-            --surface: #0A0A0B;
-            --border:  #1A1A1C;
-            --accent:  #2E5BFF;
-            --glow:    rgba(46,91,255,0.15);
-            --txt:     #c1b9b9;
-            --txt-m:   #6f6565;
-            --card:    rgba(10,10,11,0.7);
-            --nav:     rgba(5,5,5,0.88);
-        }
-        /* ─── LIGHT ── */
-        html.light {
-    --bg:        #e9e2e2;      /* main background */
-    --surface:   #e4dfdf;      /* cards / panels */
-    --border:    #e6e8ef;      /* subtle separators */
-    --accent:    #08227e;      /* primary action */
-    --accent-soft:#eef2ff;     /* soft hover bg */
-    --glow:      rgba(27, 68, 215, 0.12);
-
-    --txt:       #111827;      /* primary text */
-    --txt-m:     #7b838e;      /* secondary text */
-    --txt-f:     #858c9b;      /* faint text */
-
-    --card:      #c9c6c6;
-    --nav:       rgba(255,255,255,0.85);
-}
 
         *, *::before, *::after { box-sizing: border-box; }
 
@@ -91,8 +64,7 @@
         .btn-mag:hover { transform:scale(1.02) translateY(-2px); }
         .btn-mag:active { transform:scale(0.98); }
 
-        .pulse-dot { width:8px; height:8px; border-radius:50%; background:#1e9902; box-shadow:0 0 0 0 rgba(16,185,129,.4); animation:pd 2s infinite; }
-        @keyframes pd { 0%{box-shadow:0 0 0 0 rgba(16,185,129,.7)} 70%{box-shadow:0 0 0 8px rgba(16,185,129,0)} 100%{box-shadow:0 0 0 0 rgba(16,185,129,0)} }
+
 
         [x-cloak] { display:none !important; }
 
@@ -208,15 +180,55 @@
             <span class="font-bold text-sm tracking-widest uppercase" style="color:var(--txt)">DataForge</span>
         </div>
         <div class="flex items-center gap-3">
-            <div class="hidden md:flex items-center gap-2">
-                <div class="pulse-dot"></div>
-                <span class="text-[10px] font-bold text-[#1e9902] tracking-tighter uppercase">Engine Live</span>
+            <!-- Customize Theme & Font Dropdown -->
+            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                <button @click="open = !open" class="ibt" title="Customize Workspace Theme">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.32626 19.4754 5.99264 19.7423 6.66667 19.7423C7.03967 19.7423 7.39893 19.8659 7.69348 20.0954L8.13488 20.4393C8.94828 21.0719 9.94589 21.4925 11.0028 21.7857C11.3323 21.877 11.666 21.9489 12 22Z" stroke="currentColor" fill="none" />
+                        <circle cx="7.5" cy="10.5" r="1.2" fill="currentColor" stroke="none" />
+                        <circle cx="11.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+                        <circle cx="16.5" cy="9.5" r="1.2" fill="currentColor" stroke="none" />
+                        <circle cx="14.5" cy="14.5" r="1.2" fill="currentColor" stroke="none" />
+                    </svg>
+                </button>
+                <div x-show="open" x-transition class="absolute right-0 mt-2 w-64 rounded-xl shadow-2xl p-4 border customizer-dropdown text-left" style="background:var(--surface); border-color:var(--border); z-index:9999;">
+                    <h4 class="text-xs font-black uppercase tracking-wider mb-3" style="color:var(--txt)">Customize Workspace</h4>
+                    
+                    <!-- Themes -->
+                    <p class="sl mb-2">Color Palette</p>
+                    <div class="grid grid-cols-4 gap-2 mb-4">
+                        <template x-for="t in themes" :key="t.id">
+                            <button @click="setTheme(t.id)" 
+                                    class="h-8 rounded-lg flex flex-col items-center justify-center border relative transition-all theme-option w-full"
+                                    :class="currentTheme === t.id ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]' : 'border-[var(--border)] hover:border-[var(--txt-m)]'"
+                                    :title="t.name"
+                                    style="background: transparent;">
+                                <!-- Color Swatches inside button -->
+                                <div class="flex gap-0.5 w-6 h-3 rounded overflow-hidden">
+                                    <div class="w-1/3 h-full" :style="'background:' + t.preview[0]"></div>
+                                    <div class="w-1/3 h-full" :style="'background:' + t.preview[1]"></div>
+                                    <div class="w-1/3 h-full" :style="'background:' + t.preview[2]"></div>
+                                </div>
+                                <span class="text-[7px] font-bold mt-1 truncate max-w-full px-0.5" style="color:var(--txt-m)" x-text="t.name"></span>
+                            </button>
+                        </template>
+                    </div>
+
+                    <!-- Fonts -->
+                    <p class="sl mb-2">Typography</p>
+                    <div class="flex flex-col gap-1">
+                        <template x-for="f in fonts" :key="f.id">
+                            <button @click="setFont(f.id)" 
+                                    class="w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between border"
+                                    :class="currentFont === f.id ? 'border-[var(--accent)] bg-[rgba(46,91,255,0.08)]' : 'border-transparent hover:bg-[rgba(255,255,255,0.03)]'"
+                                    style="color:var(--txt)">
+                                <span x-text="f.name"></span>
+                                <span class="text-[9px] font-mono opacity-50">Aa</span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
             </div>
-            <!-- Theme toggle -->
-            <button @click="toggleTheme()" class="ibt" title="Toggle theme">
-                <svg x-show="darkMode" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                <svg x-show="!darkMode" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            </button>
             <!-- Auth: show dashboard link if logged in, else sign-in button -->
             {% if user and user.is_authenticated %}
             <a href="/dashboard" class="flex items-center gap-2 pl-2 pr-3 py-1 rounded-lg border transition-colors hover:border-[var(--accent)]" style="border-color:var(--border);text-decoration:none;">
@@ -485,7 +497,6 @@
             fileName:       '',
             profile:        null,
             errorMsg:       '',
-            darkMode:       true,
             showLoginModal: false,
             googleEnabled:  {{ "true" if google_enabled else "false" }},
             isLoggedIn:     {{ "true" if user and user.is_authenticated else "false" }},
@@ -495,24 +506,35 @@
             sheetsError:    '',
             isSheetsLoading: false,
 
+            currentTheme: '',
+            currentFont:  '',
+            themes:       window.ThemeManager ? window.ThemeManager.themes : [],
+            fonts:        window.ThemeManager ? window.ThemeManager.fonts : [],
 
             initTheme() {
-                const saved = localStorage.getItem('analyst-theme');
-                this.darkMode = saved !== 'light';
-                this.applyTheme();
+                if (window.ThemeManager) {
+                    this.currentTheme = window.ThemeManager.getTheme();
+                    this.currentFont = window.ThemeManager.getFont();
+                    window.ThemeManager.apply(this.currentTheme, this.currentFont);
+                }
                 // Auto-open login modal if redirected here with ?login=1
                 if (new URLSearchParams(window.location.search).get('login') === '1') {
                     this.showLoginModal = true;
                     window.history.replaceState({}, '', '/');
                 }
             },
-            toggleTheme() {
-                this.darkMode = !this.darkMode;
-                this.applyTheme();
-                localStorage.setItem('analyst-theme', this.darkMode ? 'dark' : 'light');
+            setTheme(themeId) {
+                this.currentTheme = themeId;
+                if (window.ThemeManager) {
+                    window.ThemeManager.setTheme(themeId);
+                    this.currentFont = window.ThemeManager.getFont();
+                }
             },
-            applyTheme() {
-                document.getElementById('html-root').classList.toggle('light', !this.darkMode);
+            setFont(fontId) {
+                this.currentFont = fontId;
+                if (window.ThemeManager) {
+                    window.ThemeManager.setFont(fontId);
+                }
             },
 
             async handleDrop(e) {

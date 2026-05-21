@@ -222,22 +222,49 @@ def _project_meta(upload_id: int) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _get_upload_id() -> int | None:
+    from flask import session
+    uid = None
     if request.is_json:
         body = request.get_json(silent=True)
         if body and "upload_id" in body:
-            return int(body["upload_id"])
-    if "upload_id" in request.form:
-        return int(request.form["upload_id"])
-    if "upload_id" in request.args:
-        return int(request.args["upload_id"])
-    return None
+            try:
+                uid = int(body["upload_id"])
+            except (ValueError, TypeError):
+                pass
+    if uid is None and "upload_id" in request.form:
+        try:
+            uid = int(request.form["upload_id"])
+        except (ValueError, TypeError):
+            pass
+    if uid is None and "upload_id" in request.args:
+        try:
+            uid = int(request.args["upload_id"])
+        except (ValueError, TypeError):
+            pass
+
+    if uid is not None:
+        session["last_upload_id"] = uid
+    else:
+        uid = session.get("last_upload_id")
+    return uid
 
 
 def _get_upload_or_403(upload_id: int):
-    data = db_get("uploads", upload_id)
-    if not data or data.get("user_id") != current_user.id:
-        return None, (jsonify({"error": "Unauthorized"}), 403)
-    return Upload(**data), None
+    from dataforge.db import db_client as _dbc
+    # If Supabase client is available, validate ownership via DB
+    if _dbc is not None:
+        data = db_get("uploads", upload_id)
+        if not data or data.get("user_id") != current_user.id:
+            return None, (jsonify({"error": "Unauthorized"}), 403)
+        return Upload(**data), None
+    # Local-only fallback: verify the project directory exists on disk.
+    # We cannot check user ownership without the DB, but the user is
+    # already authenticated via Flask-Login session.
+    project_dir = PROJECTS_DIR / str(upload_id)
+    if not project_dir.exists():
+        return None, (jsonify({"error": "Upload not found"}), 404)
+    # Return a minimal Upload object with just the id set
+    return Upload(id=upload_id), None
 
 
 def _require_df(fn):
@@ -386,6 +413,44 @@ def _time_ago(dt: datetime) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 _TASKS_CACHE = None
 SYNC_FALLBACK_ENABLED = True  # Will be overridden by app.py
+
+_BROKER_OK: bool | None = None  # None = untested
+_BROKER_CHECK_TS: float = 0.0
+
+def _broker_available(max_age_s: float = 30.0) -> bool:
+    """
+    Return True only if the Celery broker (Redis) is reachable AND a worker
+    is alive to consume tasks.  Result is cached for `max_age_s` seconds so
+    the first request per half-minute pays the ping cost.
+
+    If Redis is reachable but no worker is active, we return False so callers
+    fall back to synchronous execution — preventing tasks from sitting PENDING
+    forever.
+    """
+    import time
+    global _BROKER_OK, _BROKER_CHECK_TS
+
+    now = time.monotonic()
+    if _BROKER_OK is not None and (now - _BROKER_CHECK_TS) < max_age_s:
+        return _BROKER_OK
+
+    try:
+        (task_run_insights, *_) = _tasks()
+        app_ = task_run_insights.app
+        # 1. Check broker connectivity
+        with app_.connection_for_read() as conn:
+            conn.ensure_connection(max_retries=1, timeout=1)
+        # 2. Check at least one worker is active via a fast ping (1-second timeout)
+        inspector = app_.control.inspect(timeout=1)
+        active_workers = inspector.ping()  # dict of {worker: response} or None/{}
+        worker_alive = bool(active_workers)
+        _BROKER_OK = worker_alive
+    except Exception:
+        _BROKER_OK = False
+
+    _BROKER_CHECK_TS = now
+    return _BROKER_OK
+
 
 
 def _tasks():

@@ -11,24 +11,45 @@ tasks_api_bp = Blueprint("tasks_api_bp", __name__)
 @tasks_api_bp.route("/api/task/<task_id>")
 @login_required
 def api_task_status(task_id):
+    from datetime import datetime, timezone
     from ..helpers import _tasks
-    from dataforge.db import db_get
+    from dataforge.db import db_get, db_client as _dbc
+
+    # When no DB client (local only), no task records exist — treat as missing
+    if _dbc is None:
+        return jsonify({"error": "Not found"}), 404
 
     job = db_get("jobs", task_id)
     if not job or job.get("user_id") != current_user.id:
         return jsonify({"error": "Not found"}), 404
 
-    celery_status = job.get("status")
-    try:
-        from celery.result import AsyncResult
-        (task_run_insights, *_) = _tasks()
-        res = AsyncResult(task_id)
-        if res.state == "FAILURE" and job.get("status") not in ("failure", "success"):
-            celery_status = "failure"
-        elif res.state == "SUCCESS" and job.get("status") not in ("failure", "success"):
-            celery_status = "success"
-    except Exception:
-        pass
+    celery_status = job.get("status", "queued")
+
+    # Detect stale PENDING tasks: if still "queued"/"started" and > 15 s old,
+    # no worker is processing it — return failure so the UI stops polling.
+    STALE_THRESHOLD_S = 15
+    if celery_status in ("queued", "started"):
+        try:
+            created_str = job.get("created_at")
+            if created_str:
+                created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                age_s = (datetime.now(timezone.utc) - created_dt).total_seconds()
+                if age_s > STALE_THRESHOLD_S:
+                    celery_status = "failure"
+        except Exception:
+            pass
+
+    # Also check Celery result backend for SUCCESS/FAILURE transitions
+    if celery_status not in ("failure", "success"):
+        try:
+            from celery.result import AsyncResult
+            res = AsyncResult(task_id)
+            if res.state == "FAILURE":
+                celery_status = "failure"
+            elif res.state == "SUCCESS":
+                celery_status = "success"
+        except Exception:
+            pass
 
     result_ref = None
     try:
@@ -41,7 +62,7 @@ def api_task_status(task_id):
         "type":        job.get("type"),
         "status":      celery_status,
         "result_ref":  result_ref,
-        "error":       job.get("error"),
+        "error":       job.get("error") or ("No worker available — task was not executed." if celery_status == "failure" else None),
         "created_at":  job.get("created_at"),
         "finished_at": job.get("finished_at"),
     })

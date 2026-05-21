@@ -32,7 +32,7 @@ def is_available() -> bool:
 
 # ── Direct REST call to Gemini — no LangChain ────────────────────────────────
 
-def _gemini_call(prompt: str, model: str, temperature: float = 0.1, timeout: int = 25) -> str:
+def _gemini_call(prompt: str, model: str, temperature: float = 0.1, timeout: int = 10) -> str:
     import urllib.request, urllib.error
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{model}:generateContent?key={_GEMINI_API_KEY}")
@@ -61,7 +61,7 @@ def _gemini_call(prompt: str, model: str, temperature: float = 0.1, timeout: int
         raise RuntimeError(f"Network error reaching Gemini ({model}): {e.reason}") from e
 
 
-def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 25) -> str:
+def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 10) -> str:
     """Try each model in fallback order, log errors clearly."""
     if _MOCK_GEMINI:
         raise RuntimeError("MOCK_GEMINI is enabled; using deterministic fallback instead of synthetic LLM output.")
@@ -75,6 +75,8 @@ def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 25) -> str:
         except Exception as exc:
             last_err = exc
             logger.warning("[gemini_pipeline] model %s failed: %s", model, exc)
+            if any(err_code in str(exc) for err_code in ["HTTP 400", "HTTP 401", "HTTP 403"]):
+                break
             if "429" in str(exc) or "quota" in str(exc).lower():
                 time.sleep(1) # Reduced sleep for testing
     raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
@@ -130,7 +132,7 @@ JSON FORMAT:
 
 Available columns: {col_list}"""
 
-    raw  = _gemini(prompt, temperature=0.1, timeout=22)
+    raw  = _gemini(prompt, temperature=0.1, timeout=10)
     text = raw.strip()
     # Strip markdown fences if present
     text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
@@ -237,7 +239,7 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "") -
                             fix = _gemini(
                                 f"Fix this pandas code:\n```python\n{code}\n```\n"
                                 f"Error: {err}\nColumns available: {list(df.columns)}\n"
-                                "Return ONLY corrected Python code, no explanation.", timeout=12)
+                                "Return ONLY corrected Python code, no explanation.", timeout=10)
                             code = _clean_code(fix)
                         else:
                             logger.warning("[gemini_pipeline] code exec failed after retries: %s", err)

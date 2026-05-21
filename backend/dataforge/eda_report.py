@@ -52,20 +52,104 @@ def _sanitize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 
 _THEME_CSS = """
 <style id="df-theme-block">
-:root,[data-bs-theme="light"]{
-  --bg:          #ffffff;
-  --card-bg:     #f8f9fa;
-  --text:        #212529;
-  --border:      #dee2e6;
-  --navbar-bg:   #f8f9fa;
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Inter:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;700;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;500;700;900&family=Rajdhani:wght@500;700&display=swap');
+
+/* Default Theme: Dark */
+:root, [data-theme="dark"], [data-bs-theme="dark"] {
+  --bg:          #050505;
+  --card-bg:     #0A0A0B;
+  --text:        #ffffff;
+  --border:      #1A1A1C;
+  --navbar-bg:   #0A0A0B;
 }
-[data-theme="dark"],[data-bs-theme="dark"]{
-  --bg:          #0D0D1A;
-  --card-bg:     #161625;
-  --text:        #e2e8f0;
-  --border:      #2d3748;
-  --navbar-bg:   #161625;
+
+/* Light Theme */
+[data-theme="light"], [data-bs-theme="light"] {
+  --bg:          #c8c8cd;
+  --card-bg:     #dbd2d2;
+  --text:        #0a0a0b;
+  --border:      #e2e2e6;
+  --navbar-bg:   #d1caca;
 }
+
+/* Dracula */
+[data-theme="dracula"] {
+  --bg:          #282a36;
+  --card-bg:     #1e1f29;
+  --text:        #f8f8f2;
+  --border:      #44475a;
+  --navbar-bg:   #282a36;
+}
+
+/* Slate Blue */
+[data-theme="slate"] {
+  --bg:          #1e222b;
+  --card-bg:     #252a34;
+  --text:        #f1f5f9;
+  --border:      #303643;
+  --navbar-bg:   #1e222b;
+}
+
+/* Emerald Sage */
+[data-theme="emerald"] {
+  --bg:          #141e1b;
+  --card-bg:     #1b2824;
+  --text:        #e6f4f1;
+  --border:      #273a34;
+  --navbar-bg:   #141e1b;
+}
+
+/* Nord */
+[data-theme="nord"] {
+  --bg:          #2e3440;
+  --card-bg:     #3b4252;
+  --text:        #eceff4;
+  --border:      #4c566a;
+  --navbar-bg:   #2e3440;
+}
+
+/* Luxury */
+[data-theme="luxury"] {
+  --bg:          #09090b;
+  --card-bg:     #18181b;
+  --text:        #f4f4f5;
+  --border:      #27272a;
+  --navbar-bg:   #09090b;
+}
+
+/* Cupcake */
+[data-theme="cupcake"] {
+  --bg:          #faf7f5;
+  --card-bg:     #efeae6;
+  --text:        #291334;
+  --border:      #d3c5ba;
+  --navbar-bg:   #faf7f5;
+}
+
+/* Font Families */
+[data-font="inter"] {
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+[data-font="outfit"] {
+  --font-family: 'Outfit', sans-serif;
+}
+[data-font="poppins"] {
+  --font-family: 'Poppins', sans-serif;
+}
+[data-font="roboto-mono"] {
+  --font-family: 'Roboto Mono', monospace;
+}
+[data-font="playfair"] {
+  --font-family: 'Playfair Display', Georgia, serif;
+}
+[data-font="rajdhani"] {
+  --font-family: 'Rajdhani', sans-serif;
+}
+
+body, p, span, h1, h2, h3, h4, h5, h6, table, td, th, code, pre {
+  font-family: var(--font-family, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif) !important;
+}
+
 body{background:var(--bg)!important;color:var(--text)!important}
 .card{background:var(--card-bg)!important;border-color:var(--border)!important;color:var(--text)!important}
 .navbar,.navbar-default{background:var(--navbar-bg)!important;border-color:var(--border)!important}
@@ -78,20 +162,28 @@ body{background:var(--bg)!important;color:var(--text)!important}
 _THEME_JS = """
 <script id="df-theme-script">
 (function(){
-  function applyTheme(t){
-    document.documentElement.setAttribute('data-theme', t);
-    document.documentElement.setAttribute('data-bs-theme', t);
+  function applyTheme(t, f){
+    if(t) {
+      document.documentElement.setAttribute('data-theme', t);
+      document.documentElement.setAttribute('data-bs-theme', t === 'light' || t === 'cupcake' || t === 'retro' ? 'light' : 'dark');
+    }
+    if(f) {
+      document.documentElement.setAttribute('data-font', f);
+    }
   }
   // Apply theme sent from parent frame
   window.addEventListener('message', function(e){
-    if(e.data && e.data.type === 'set-theme') applyTheme(e.data.theme);
+    if(e.data && (e.data.type === 'theme-change' || e.data.type === 'set-theme')) {
+      applyTheme(e.data.theme, e.data.font);
+    }
   });
   // Inherit parent theme on load
   try{
     var p = window.parent;
     if(p && p !== window){
-      var t = p.document.documentElement.getAttribute('data-theme') || 'light';
-      applyTheme(t);
+      var t = p.document.documentElement.getAttribute('data-theme') || 'dark';
+      var f = p.document.documentElement.getAttribute('data-font') || 'inter';
+      applyTheme(t, f);
     }
   }catch(ex){}
 })();

@@ -1,0 +1,213 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Inter:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;700;900&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:wght@300;400;500;700;900&family=Rajdhani:wght@500;700&display=swap');
+
+/* ==========================================================================
+   FALLBACK DEFAULTS (when no data-theme is set yet)
+   These ensure variables are always defined to prevent invisible/broken UI
+   ========================================================================== */
+:root {
+    --bg: #050505;
+    --surface: #0A0A0B;
+    --border: #1A1A1C;
+    --accent: #2E5BFF;
+    --glow: rgba(46, 91, 255, 0.15);
+    --txt: #ffffff;
+    --txt-m: #666666;
+    --txt-f: #2e2e30;
+    --card: rgba(10, 10, 11, 0.75);
+    --nav: rgba(5, 5, 5, 0.92);
+    --inp-bg: #0A0A0B;
+    --row-h: rgba(255, 255, 255, 0.03);
+    --row-head: rgba(255, 255, 255, 0.02);
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ==========================================================================
+   COLOR PALETTES (THEMES)
+   ========================================================================== */
+
+/* 1. Dark Default */
+html[data-theme="dark"] {
+    --bg: #050505;
+    --surface: #0A0A0B;
+    --border: #1A1A1C;
+    --accent: #2E5BFF;
+    --glow: rgba(46, 91, 255, 0.15);
+    --txt: #ffffff;
+    --txt-m: #666666;
+    --txt-f: #2e2e30;
+    --card: rgba(10, 10, 11, 0.75);
+    --nav: rgba(5, 5, 5, 0.92);
+    --inp-bg: #0A0A0B;
+    --row-h: rgba(255, 255, 255, 0.03);
+    --row-head: rgba(255, 255, 255, 0.02);
+}
+
+/* 2. Light Default */
+html[data-theme="light"] {
+    --bg: #c8c8cd;
+    --surface: #d1caca;
+    --border: #e2e2e6;
+    --accent: #08227e;
+    --glow: rgba(46, 91, 255, 0.08);
+    --txt: #0a0a0b;
+    --txt-m: #37373c;
+    --txt-f: #343438;
+    --card: #dbd2d2e6;
+    --nav: rgba(242, 242, 245, 0.96);
+    --inp-bg: #f8f8fb;
+    --row-h: rgba(0, 0, 0, 0.03);
+    --row-head: rgba(0, 0, 0, 0.015);
+}
+
+/* 3. Dracula */
+html[data-theme="dracula"] {
+    --bg: #282a36;
+    --surface: #1e1f29;
+    --border: #44475a;
+    --accent: #bd93f9;
+    --glow: rgba(189, 147, 249, 0.2);
+    --txt: #f8f8f2;
+    --txt-m: #6272a4;
+    --txt-f: #44475a;
+    --card: rgba(30, 31, 41, 0.8);
+    --nav: rgba(40, 42, 54, 0.92);
+    --inp-bg: #1e1f29;
+    --row-h: rgba(255, 255, 255, 0.04);
+    --row-head: rgba(255, 255, 255, 0.02);
+}
+
+/* 4. Slate Blue */
+html[data-theme="slate"] {
+    --bg: #1e222b;
+    --surface: #252a34;
+    --border: #303643;
+    --accent: #38bdf8;
+    --glow: rgba(56, 189, 248, 0.15);
+    --txt: #f1f5f9;
+    --txt-m: #94a3b8;
+    --txt-f: #475569;
+    --card: rgba(37, 42, 52, 0.8);
+    --nav: rgba(30, 34, 43, 0.92);
+    --inp-bg: #252a34;
+    --row-h: rgba(255, 255, 255, 0.03);
+    --row-head: rgba(255, 255, 255, 0.02);
+}
+
+/* 5. Emerald Sage */
+html[data-theme="emerald"] {
+    --bg: #141e1b;
+    --surface: #1b2824;
+    --border: #273a34;
+    --accent: #10b981;
+    --glow: rgba(16, 185, 129, 0.15);
+    --txt: #e6f4f1;
+    --txt-m: #8fa8a2;
+    --txt-f: #3c544d;
+    --card: rgba(27, 40, 36, 0.8);
+    --nav: rgba(20, 30, 27, 0.92);
+    --inp-bg: #1b2824;
+    --row-h: rgba(255, 255, 255, 0.03);
+    --row-head: rgba(255, 255, 255, 0.02);
+}
+
+/* 6. Nord */
+html[data-theme="nord"] {
+    --bg: #2e3440;
+    --surface: #3b4252;
+    --border: #4c566a;
+    --accent: #88c0d0;
+    --glow: rgba(136, 192, 208, 0.2);
+    --txt: #eceff4;
+    --txt-m: #d8dee9;
+    --txt-f: #434c5e;
+    --card: rgba(59, 66, 82, 0.8);
+    --nav: rgba(46, 52, 64, 0.92);
+    --inp-bg: #3b4252;
+    --row-h: rgba(255, 255, 255, 0.03);
+    --row-head: rgba(255, 255, 255, 0.02);
+}
+
+/* 7. Luxury */
+html[data-theme="luxury"] {
+    --bg: #09090b;
+    --surface: #18181b;
+    --border: #27272a;
+    --accent: #d4af37;
+    --glow: rgba(212, 175, 55, 0.2);
+    --txt: #f4f4f5;
+    --txt-m: #a1a1aa;
+    --txt-f: #3f3f46;
+    --card: rgba(24, 24, 27, 0.8);
+    --nav: rgba(9, 9, 11, 0.92);
+    --inp-bg: #18181b;
+    --row-h: rgba(255, 255, 255, 0.03);
+    --row-head: rgba(255, 255, 255, 0.02);
+}
+
+/* 8. Cupcake */
+html[data-theme="cupcake"] {
+    --bg: #faf7f5;
+    --surface: #efeae6;
+    --border: #d3c5ba;
+    --accent: #65c3c8;
+    --glow: rgba(101, 195, 200, 0.2);
+    --txt: #291334;
+    --txt-m: #8d779b;
+    --txt-f: #d3c5ba;
+    --card: rgba(239, 234, 230, 0.8);
+    --nav: rgba(250, 247, 245, 0.92);
+    --inp-bg: #efeae6;
+    --row-h: rgba(0, 0, 0, 0.03);
+    --row-head: rgba(0, 0, 0, 0.02);
+}
+
+/* ==========================================================================
+   TYPOGRAPHY CONFIGURATION
+   ========================================================================== */
+
+html[data-font="inter"] {
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+html[data-font="outfit"] {
+    --font-family: 'Outfit', sans-serif;
+}
+html[data-font="poppins"] {
+    --font-family: 'Poppins', sans-serif;
+}
+html[data-font="roboto-mono"] {
+    --font-family: 'Roboto Mono', monospace;
+}
+html[data-font="playfair"] {
+    --font-family: 'Playfair Display', Georgia, serif;
+}
+html[data-font="rajdhani"] {
+    --font-family: 'Rajdhani', sans-serif;
+}
+
+body, input, select, textarea, button {
+    font-family: var(--font-family, 'Inter', sans-serif) !important;
+}
+
+/* Micro-animations and polish */
+.theme-option {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.theme-option:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--glow);
+}
+.customizer-dropdown {
+    backdrop-filter: blur(24px) !important;
+    animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

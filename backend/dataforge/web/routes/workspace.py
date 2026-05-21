@@ -27,6 +27,19 @@ def _quote_ident(name: str) -> str:
 def workspace():
     from ..helpers import gemini_available
     upload_id = request.args.get("upload_id", type=int)
+    if not upload_id:
+        from flask import session
+        upload_id = session.get("last_upload_id")
+        if upload_id:
+            from flask import redirect, url_for
+            return redirect(url_for("workspace_bp.workspace", upload_id=upload_id))
+
+        from dataforge.db import db_all
+        uploads = db_all("uploads", {"user_id": current_user.id}, order_by="uploaded_at", desc=True, limit=1)
+        if uploads:
+            from flask import redirect, url_for
+            return redirect(url_for("workspace_bp.workspace", upload_id=uploads[0]["id"]))
+
     return render_template(
         "workspace.html",
         user=current_user,
@@ -80,15 +93,17 @@ def api_workspace_state():
     reupload_filename = ""
     reupload_message  = ""
     reupload_source_type = "csv"
-    upload_id = _get_upload_id()
-    if upload_id and df_raw is None and df_clean is None:
-        try:
-            up = db_get("uploads", upload_id)
-            if up:
-                src = up.get("source_type", "csv") or "csv"
-                reupload_source_type = src
-                up_filename = up.get("filename", "")
+    
+    # Always get source_type from DB upload record
+    try:
+        up = db_get("uploads", upload_id)
+        if up:
+            src = up.get("source_type", "csv") or "csv"
+            reupload_source_type = src
+            up_filename = up.get("filename", "")
 
+            if df_raw is None and df_clean is None:
+                # Data needs to be reloaded
                 if src == "sheets" and up.get("storage_path"):
                     try:
                         src_cfg = json.loads(up.get("storage_path"))
@@ -127,8 +142,8 @@ def api_workspace_state():
                             "numeric":     0,
                             "columns":     [],
                         }
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     state = {
         "has_df":            df_raw is not None,
@@ -148,6 +163,78 @@ def api_workspace_state():
         "source_type":         reupload_source_type,
     }
     return jsonify(state)
+
+
+@workspace_bp.route("/api/workspace/sync-sheets", methods=["POST"])
+@login_required
+def api_workspace_sync_sheets():
+    import pandas as pd
+    from ..storage import _save, _load
+    from ..helpers import (_get_upload_id, _get_upload_or_403, _df_profile,
+                           _persist, _upath)
+    from dataforge.db import db_get, db_update
+
+    upload_id = _get_upload_id()
+    if not upload_id:
+        return jsonify({"error": "upload_id parameter is required"}), 400
+    up, err = _get_upload_or_403(upload_id)
+    if err:
+        return err
+
+    up_row = db_get("uploads", upload_id)
+    if not up_row:
+        return jsonify({"error": "Upload record not found"}), 404
+
+    src_type = up_row.get("source_type", "csv")
+    if src_type != "sheets":
+        return jsonify({"error": "This project was not loaded from Google Sheets"}), 400
+
+    storage_path = up_row.get("storage_path")
+    if not storage_path:
+        return jsonify({"error": "Google Sheets configuration not found for this project"}), 400
+
+    try:
+        src_cfg = json.loads(storage_path)
+        sheet_id = src_cfg.get("sheet_id", "")
+        if not sheet_id:
+            return jsonify({"error": "Sheet ID not found in configuration"}), 400
+    except Exception as e:
+        return jsonify({"error": f"Invalid Google Sheets configuration: {e}"}), 400
+
+    try:
+        from dataforge.sheets_connector import SheetsConnector
+        conn = SheetsConnector()
+        df = conn.load_public(sheet_id)
+    except Exception as e:
+        return jsonify({"error": f"Could not sync with Google Sheets: {e}"}), 400
+
+    filename = up_row.get("filename", "sheet.csv")
+    profile = _df_profile(df, filename)
+
+    for key in ("df_clean", "clean_meta", "automl_meta", "eda_html"):
+        p = _upath(upload_id, key)
+        for suffix in (".parquet", ".json", ".joblib", ".html", ""):
+            f = p.with_suffix(suffix) if suffix else p
+            if f.exists() and not f.is_dir():
+                try:
+                    f.unlink()
+                except Exception:
+                    pass
+
+    _save(upload_id, "df_raw", df)
+    _save(upload_id, "profile", profile)
+    _persist(upload_id, "df_raw", df)
+
+    try:
+        db_update("uploads", upload_id, {
+            "rows": profile.get("rows", 0),
+            "cols": profile.get("cols", 0),
+            "missing_pct": profile.get("missing_pct", 0.0),
+        })
+    except Exception:
+        pass
+
+    return jsonify({"ok": True, "profile": profile})
 
 
 @workspace_bp.route("/api/preview")
@@ -204,236 +291,6 @@ def api_preview():
     return jsonify(_df_to_json_rows(df, limit))
 
 
-@workspace_bp.route("/api/chart/build", methods=["POST"])
-@login_required
-def api_chart_build():
-    import numpy as np
-    import pandas as pd
-    from ..storage import _load
-    from ..helpers import _get_upload_id, _get_upload_or_403, _load_persisted, _safe_json_value
-
-    upload_id = _get_upload_id()
-    if upload_id is None:
-        return jsonify({"error": "upload_id required"}), 400
-    _, err = _get_upload_or_403(upload_id)
-    if err:
-        return err
-
-    body = request.get_json(force=True) or {}
-    chart_type = (body.get("chart_type") or "bar").strip().lower()
-    x_col = (body.get("x_col") or "").strip()
-    y_col = (body.get("y_col") or "").strip()
-    agg = (body.get("agg") or "count").strip().lower()
-    use_clean = bool(body.get("use_clean", True))
-    top_n = _clamp_int(body.get("top_n", 25), 25, 5, 100)
-
-    valid_chart_types = {"bar", "line", "scatter", "histogram", "pie"}
-    if chart_type not in valid_chart_types:
-        return jsonify({"error": f"Unsupported chart type '{chart_type}'"}), 400
-    if not x_col and chart_type != "histogram":
-        return jsonify({"error": "Please choose an X-axis column."}), 400
-
-    key = "df_clean" if use_clean else "df_raw"
-    df = _load(upload_id, key)
-    using_clean_df = use_clean and df is not None and key == "df_clean"
-    if df is None and key != "df_raw":
-        df = _load(upload_id, "df_raw")
-    if df is None:
-        for restore_key in ([key, "df_raw"] if key != "df_raw" else ["df_raw"]):
-            restored = _load_persisted(upload_id, restore_key)
-            if restored is not None:
-                df = restored
-                if restore_key == "df_clean":
-                    using_clean_df = True
-                break
-    if df is None:
-        return jsonify({"error": "No dataset loaded"}), 400
-
-    if chart_type != "histogram" and x_col not in df.columns:
-        return jsonify({"error": f"Column '{x_col}' was not found in this dataset."}), 400
-    if y_col and y_col not in df.columns:
-        return jsonify({"error": f"Column '{y_col}' was not found in this dataset."}), 400
-
-    def _coerce_datetime(series: pd.Series):
-        if pd.api.types.is_datetime64_any_dtype(series):
-            return series
-        if not (pd.api.types.is_object_dtype(series) or pd.api.types.is_string_dtype(series)):
-            return None
-        parsed = pd.to_datetime(series, errors="coerce")
-        valid = int(parsed.notna().sum())
-        if valid >= 3 and valid / max(len(series), 1) >= 0.6:
-            return parsed
-        return None
-
-    def _to_numeric(series: pd.Series) -> pd.Series:
-        return pd.to_numeric(series, errors="coerce")
-
-    def _format_label(value):
-        if pd.isna(value):
-            return "(missing)"
-        if isinstance(value, pd.Timestamp):
-            if value.time() == pd.Timestamp(value.date()).time():
-                return value.strftime("%Y-%m-%d")
-            return value.strftime("%Y-%m-%d %H:%M")
-        return str(value)
-
-    def _metric_label():
-        if agg == "count" or not y_col:
-            return "row count"
-        return f"{agg} of {y_col}"
-
-    if chart_type == "histogram":
-        source_col = y_col or x_col
-        if not source_col:
-            return jsonify({"error": "Please choose a numeric column for the histogram."}), 400
-        if source_col not in df.columns:
-            return jsonify({"error": f"Column '{source_col}' was not found in this dataset."}), 400
-
-        series = _to_numeric(df[source_col]).dropna()
-        if series.empty:
-            return jsonify({"error": f"Column '{source_col}' does not contain numeric values for a histogram."}), 400
-
-        bins = min(24, max(8, int(np.sqrt(len(series)))))
-        counts, edges = np.histogram(series, bins=bins)
-        labels = [f"{edges[i]:.2f} to {edges[i + 1]:.2f}" for i in range(len(edges) - 1)]
-        return jsonify({
-            "chart": {
-                "type": "histogram",
-                "labels": labels,
-                "values": [int(v) for v in counts.tolist()],
-                "x_label": source_col,
-                "y_label": "Count",
-            },
-            "summary": (
-                f"Built a histogram for {source_col} from the full dataset. "
-                f"Used {len(series):,} numeric rows out of {len(df):,} total rows."
-            ),
-            "meta": {
-                "total_rows": int(len(df)),
-                "rows_used": int(len(series)),
-                "backend_scope": "full_dataset",
-                "clean_used": bool(using_clean_df),
-            },
-        })
-
-    if chart_type == "scatter":
-        if not y_col:
-            return jsonify({"error": "Scatter charts need both X and Y numeric columns."}), 400
-        work = pd.DataFrame({
-            "x": _to_numeric(df[x_col]),
-            "y": _to_numeric(df[y_col]),
-        }).dropna()
-        if work.empty:
-            return jsonify({"error": "Those columns do not have enough numeric values for a scatter chart."}), 400
-
-        total_points = len(work)
-        if total_points > 1200:
-            work = work.sample(1200, random_state=42)
-
-        points = [
-            {"x": float(row.x), "y": float(row.y)}
-            for row in work.itertuples(index=False)
-        ]
-        corr = float(work["x"].corr(work["y"])) if len(work) >= 2 else None
-        corr_txt = f" Correlation is {corr:.3f}." if corr is not None and not np.isnan(corr) else ""
-        return jsonify({
-            "chart": {
-                "type": "scatter_chart",
-                "points": points,
-                "x_label": x_col,
-                "y_label": y_col,
-                "total_points": int(total_points),
-                "displayed_points": int(len(points)),
-            },
-            "summary": (
-                f"Built a scatter chart from the full dataset using {total_points:,} valid rows."
-                f"{corr_txt}"
-            ),
-            "meta": {
-                "total_rows": int(len(df)),
-                "rows_used": int(total_points),
-                "displayed_points": int(len(points)),
-                "backend_scope": "full_dataset",
-                "clean_used": bool(using_clean_df),
-            },
-        })
-
-    x_source = df[x_col]
-    x_datetime = _coerce_datetime(x_source)
-    work = pd.DataFrame({
-        "x": x_datetime if x_datetime is not None else x_source,
-    })
-
-    if agg != "count" and y_col:
-        work["y"] = _to_numeric(df[y_col])
-        work = work.dropna(subset=["x", "y"])
-    else:
-        work = work.dropna(subset=["x"])
-
-    if work.empty:
-        return jsonify({"error": "No usable rows remained after removing missing values for the selected chart."}), 400
-
-    valid_aggs = {"count", "sum", "mean", "median", "min", "max"}
-    if agg not in valid_aggs:
-        agg = "count"
-
-    if agg == "count" or not y_col:
-        grouped = work.groupby("x", dropna=False).size().reset_index(name="value")
-    else:
-        grouped = work.groupby("x", dropna=False)["y"].agg(agg).reset_index(name="value")
-
-    grouped = grouped.replace([np.inf, -np.inf], np.nan).dropna(subset=["value"])
-    if grouped.empty:
-        return jsonify({"error": "Could not produce a usable chart from the selected columns."}), 400
-
-    if x_datetime is not None:
-        grouped = grouped.sort_values("x")
-        if chart_type in {"line", "bar"} and len(grouped) > 60:
-            grouped = grouped.tail(60)
-    else:
-        grouped["x_label"] = grouped["x"].map(_format_label)
-        if chart_type == "line":
-            grouped = grouped.sort_values("x_label").head(60)
-        else:
-            grouped = grouped.sort_values("value", ascending=False).head(top_n)
-
-    if "x_label" not in grouped.columns:
-        grouped["x_label"] = grouped["x"].map(_format_label)
-
-    labels = grouped["x_label"].tolist()
-    values = [
-        _safe_json_value(float(v)) if pd.notna(v) else None
-        for v in grouped["value"].tolist()
-    ]
-    top_idx = max(range(len(values)), key=lambda i: values[i] if values[i] is not None else float("-inf"))
-    summary = (
-        f"{labels[top_idx]} has the highest {_metric_label()} at {values[top_idx]:,.2f}. "
-        f"Built from {len(work):,} usable rows out of {len(df):,} total rows."
-    )
-    if agg == "count" or not y_col:
-        summary = (
-            f"{labels[top_idx]} has the highest row count at {int(values[top_idx]):,}. "
-            f"Built from {len(work):,} usable rows out of {len(df):,} total rows."
-        )
-
-    return jsonify({
-        "chart": {
-            "type": "line_chart" if chart_type == "line" else "bar_chart",
-            "labels": labels,
-            "values": values,
-            "x_label": x_col,
-            "y_label": _metric_label(),
-            "render_as": chart_type,
-        },
-        "summary": summary,
-        "meta": {
-            "total_rows": int(len(df)),
-            "rows_used": int(len(work)),
-            "groups_rendered": int(len(labels)),
-            "backend_scope": "full_dataset",
-            "clean_used": bool(using_clean_df),
-        },
-    })
 
 
 @workspace_bp.route("/api/clean", methods=["POST"])

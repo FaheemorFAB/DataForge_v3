@@ -48,7 +48,7 @@ def api_automl_train():
     from ..storage import _load
     from ..helpers import (_get_upload_id, _get_upload_or_403, _exists,
                            _rate_limit, _tasks, _run_task_sync, _db_log_analysis,
-                           SYNC_FALLBACK_ENABLED)
+                           _broker_available, SYNC_FALLBACK_ENABLED)
     from dataforge.db import db_all, db_insert
 
     upload_id = _get_upload_id()
@@ -79,6 +79,20 @@ def api_automl_train():
             "candidates":      numeric_cols + cat_cols,
             "needs_selection": True,
         }), 400
+
+    # Use sync execution when no Celery worker is alive (no-docker local mode)
+    if not _broker_available():
+        if not SYNC_FALLBACK_ENABLED:
+            return jsonify({"error": "Background task system unavailable."}), 503
+        try:
+            (_, task_run_automl, *_) = _tasks()
+            _run_task_sync(task_run_automl, [upload_id, current_user.id, target_col, task_choice, time_budget, test_size])
+            meta = _load(upload_id, "automl_meta") or {}
+            _db_log_analysis("automl", f"completed sync (no worker) · target={target_col}")
+            return jsonify({"queued": False, "sync": True, **meta}), 200
+        except Exception as se:
+            current_app.logger.exception("Sync fallback failed for automl: %s", se)
+            return jsonify({"error": f"AutoML failed: {se}"}), 500
 
     existing_jobs = db_all("jobs", {"upload_id": upload_id, "type": "automl"}, order_by="created_at", limit=5)
     existing = next((j for j in existing_jobs if j.get("status") in {"queued", "started"}), None)

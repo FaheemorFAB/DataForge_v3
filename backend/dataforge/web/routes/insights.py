@@ -15,7 +15,7 @@ def api_insights_run():
     from ..storage import _load, _save
     from ..helpers import (_get_upload_id, _get_upload_or_403, _exists,
                            _rate_limit, _tasks, _run_task_sync, _db_log_analysis,
-                           _load_persisted,
+                           _load_persisted, _broker_available,
                            REPORTING_ENABLED, SYNC_FALLBACK_ENABLED)
     from dataforge.db import db_first, db_insert
 
@@ -51,13 +51,30 @@ def api_insights_run():
     if not _rate_limit(current_user.id, "insights"):
         return jsonify({"error": "Rate limit: max 3 insight jobs per minute"}), 429
 
-    existing = db_first("jobs", {"upload_id": upload_id, "type": "insights", "status": "started"})
-    if existing:
-        return jsonify({"task_id": existing["id"], "queued": False}), 200
-
     body    = request.get_json(force=True) or {}
     top_n   = int(body.get("top_n", 6))
     use_gem = bool(body.get("use_gemini", True))
+
+    # Use sync execution when no Celery worker is alive (no-docker local mode)
+    if not _broker_available():
+        if not SYNC_FALLBACK_ENABLED:
+            return jsonify({"error": "Background task system unavailable."}), 503
+        try:
+            (task_run_insights, *_) = _tasks()
+            _run_task_sync(task_run_insights, [upload_id, current_user.id, top_n, use_gem])
+            insights = _load(upload_id, "last_insights") or []
+            summary = _load(upload_id, "last_summary") or ""
+            schema = _load(upload_id, "last_schema") or {}
+            _db_log_analysis("insights", "completed sync (no worker)")
+            return jsonify({"queued": False, "sync": True,
+                            "insights": insights, "summary": summary, "schema": schema}), 200
+        except Exception as se:
+            current_app.logger.exception("Sync fallback failed for insights: %s", se)
+            return jsonify({"error": f"Insights failed: {se}"}), 500
+
+    existing = db_first("jobs", {"upload_id": upload_id, "type": "insights", "status": "started"})
+    if existing:
+        return jsonify({"task_id": existing["id"], "queued": False}), 200
 
     try:
         (task_run_insights, *_) = _tasks()

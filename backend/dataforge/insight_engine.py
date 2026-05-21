@@ -106,7 +106,8 @@ class InsightEngine:
         DATE_HINTS = {"date", "time", "timestamp", "created", "updated",
                       "day", "month", "week", "year", "period", "dt", "at"}
         ID_HINTS   = {"id", "_id", "uid", "uuid", "index", "key", "code", "zip",
-                      "phone", "postal"}
+                      "phone", "postal", "roll", "batch", "no", "num", "number",
+                      "year", "reg", "serial"}
 
         for col in df.columns:
             col_lower = col.lower()
