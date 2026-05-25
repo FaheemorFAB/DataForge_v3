@@ -87,5 +87,10 @@ def api_upload_sheets():
     _save(upload_id, "df_raw", df)
     _save(upload_id, "profile", profile)
     _persist(upload_id, "df_raw", df)
+    try:
+        from dataforge.db import db_update
+        db_update("uploads", upload_id, {"storage_path": json.dumps(source_config)})
+    except Exception:
+        pass
 
     return jsonify({"ok": True, "profile": profile, "upload_id": upload_id})

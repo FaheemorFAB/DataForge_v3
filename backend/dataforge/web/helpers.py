@@ -139,7 +139,9 @@ def _persist(upload_id: int, key: str, obj):
 
             if key == "df_raw":
                 try:
-                    db_update("uploads", upload_id, {"storage_path": path})
+                    up = db_get("uploads", upload_id) or {}
+                    if (up.get("source_type") or "csv") != "sheets":
+                        db_update("uploads", upload_id, {"storage_path": path})
                 except Exception:
                     pass
         except Exception as _exc:

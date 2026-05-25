@@ -135,7 +135,7 @@ const ThemeManager = {
         const edaFrame = document.getElementById('eda-frame');
         if (edaFrame && edaFrame.src && edaFrame.src.includes('/api/eda/report')) {
             const url = new URL(edaFrame.src);
-            url.searchParams.set('theme', mappedTheme);
+            url.searchParams.set('theme', themeId);
             url.searchParams.set('t', Date.now());
             edaFrame.src = url.toString();
         }

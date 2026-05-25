@@ -4,6 +4,11 @@ Handles workspace page, state, preview, clean, EDA, AI query, and transform.
 """
 import io
 import json
+import re
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
 from flask import Blueprint, render_template, request, jsonify, Response
 from flask_login import login_required, current_user
 
@@ -20,6 +25,211 @@ def _clamp_int(value, default, minimum, maximum):
 
 def _quote_ident(name: str) -> str:
     return '"' + str(name).replace('"', '""') + '"'
+
+
+def _inject_eda_view_theme(html: str, theme: str = "dark", print_mode: bool = False) -> str:
+    """Apply final DataForge theming over ydata/pandas EDA HTML."""
+    light_themes = {"light", "cupcake", "retro"}
+    theme = (theme or "dark").lower()
+    if print_mode:
+        theme = "cupcake"
+    bs_theme = "light" if theme in light_themes else "dark"
+
+    palettes = {
+        "dark": {
+            "bg": "#050505", "surface": "#0a0a0b", "surface2": "#111113",
+            "text": "#e5e7eb", "muted": "#9ca3af", "border": "#27272a", "accent": "#2E5BFF",
+        },
+        "dracula": {
+            "bg": "#282a36", "surface": "#1e1f29", "surface2": "#343746",
+            "text": "#f8f8f2", "muted": "#c7c7bd", "border": "#44475a", "accent": "#bd93f9",
+        },
+        "slate": {
+            "bg": "#1e222b", "surface": "#252a34", "surface2": "#303643",
+            "text": "#f1f5f9", "muted": "#b6c2d2", "border": "#3b4352", "accent": "#38bdf8",
+        },
+        "emerald": {
+            "bg": "#141e1b", "surface": "#1b2824", "surface2": "#24372f",
+            "text": "#e6f4f1", "muted": "#a7c5bb", "border": "#2f493f", "accent": "#10b981",
+        },
+        "nord": {
+            "bg": "#2e3440", "surface": "#3b4252", "surface2": "#434c5e",
+            "text": "#eceff4", "muted": "#c4ceda", "border": "#4c566a", "accent": "#88c0d0",
+        },
+        "luxury": {
+            "bg": "#09090b", "surface": "#18181b", "surface2": "#27272a",
+            "text": "#f4f4f5", "muted": "#b7b7bf", "border": "#3f3f46", "accent": "#d4af37",
+        },
+        "light": {
+            "bg": "#f4f5f7", "surface": "#ffffff", "surface2": "#eef1f5",
+            "text": "#111827", "muted": "#4b5563", "border": "#d8dee8", "accent": "#2E5BFF",
+        },
+        "cupcake": {
+            "bg": "#faf7f5", "surface": "#ffffff", "surface2": "#efeae6",
+            "text": "#291334", "muted": "#6f5f6b", "border": "#d3c5ba", "accent": "#65c3c8",
+        },
+        "retro": {
+            "bg": "#ece3ca", "surface": "#fff8e8", "surface2": "#e4d8b4",
+            "text": "#282425", "muted": "#6f675b", "border": "#c8b98d", "accent": "#ef9995",
+        },
+    }
+    p = palettes.get(theme, palettes["dark"])
+    print_css = """
+@page { size: A4; margin: 14mm; }
+body { padding: 0 !important; }
+.navbar, nav, .offcanvas, .modal, .btn, button { display: none !important; }
+.container, .container-fluid { max-width: none !important; width: 100% !important; padding: 0 !important; }
+.card, section, article, table, pre { break-inside: avoid; page-break-inside: avoid; }
+a[href]::after { content: ""; }
+""" if print_mode else ""
+
+    css = f"""
+<style id="df-eda-view-theme">
+html {{
+  color-scheme: {bs_theme};
+  background: {p["bg"]} !important;
+}}
+html, body {{
+  min-height: 100%;
+  background: {p["bg"]} !important;
+  color: {p["text"]} !important;
+}}
+:root, [data-bs-theme] {{
+  --bs-body-bg: {p["bg"]};
+  --bs-body-color: {p["text"]};
+  --bs-emphasis-color: {p["text"]};
+  --bs-secondary-color: {p["muted"]};
+  --bs-tertiary-color: {p["muted"]};
+  --bs-border-color: {p["border"]};
+  --bs-card-bg: {p["surface"]};
+  --bs-card-border-color: {p["border"]};
+  --bs-secondary-bg: {p["surface2"]};
+  --bs-tertiary-bg: {p["surface2"]};
+  --bs-link-color: {p["accent"]};
+  --bs-link-hover-color: {p["accent"]};
+}}
+body, .page, .wrapper, .content, main, section, article,
+.container, .container-fluid, .row, .col, [class*="container"] {{
+  background-color: {p["bg"]} !important;
+  color: {p["text"]} !important;
+}}
+.card, .card-body, .card-header, .card-footer, .list-group-item,
+.accordion-item, .accordion-button, .dropdown-menu, .modal-content,
+.tab-content, .tab-pane, .report-section, .section, .well, .panel {{
+  background-color: {p["surface"]} !important;
+  color: {p["text"]} !important;
+  border-color: {p["border"]} !important;
+}}
+.card-header, thead, th, .accordion-button:not(.collapsed) {{
+  background-color: {p["surface2"]} !important;
+}}
+.navbar, .navbar-light, .navbar-dark, header, nav[class*="navbar"] {{
+  background-color: {p["surface"]} !important;
+  border-color: {p["border"]} !important;
+}}
+h1,h2,h3,h4,h5,h6, .navbar-brand, .nav-link, label, strong {{
+  color: {p["text"]} !important;
+}}
+p, span, small, .text-muted, .text-secondary, .form-text, figcaption {{
+  color: {p["muted"]} !important;
+}}
+a, a.nav-link, .btn-link {{
+  color: {p["accent"]} !important;
+}}
+table, .table {{
+  background-color: {p["surface"]} !important;
+  color: {p["text"]} !important;
+  border-color: {p["border"]} !important;
+}}
+td, th, .table>:not(caption)>*>* {{
+  background-color: transparent !important;
+  color: {p["text"]} !important;
+  border-color: {p["border"]} !important;
+  vertical-align: middle !important;
+}}
+tbody tr:hover td {{
+  background-color: {p["surface2"]} !important;
+}}
+pre, code, kbd, samp {{
+  background-color: {p["surface2"]} !important;
+  color: {p["text"]} !important;
+  border-color: {p["border"]} !important;
+}}
+input, select, textarea, .form-control, .form-select {{
+  background-color: {p["surface"]} !important;
+  color: {p["text"]} !important;
+  border-color: {p["border"]} !important;
+}}
+.alert, .badge, .progress, .progress-bar {{
+  border-color: {p["border"]} !important;
+}}
+svg text, svg tspan {{
+  fill: {p["muted"]} !important;
+}}
+svg, canvas, img {{
+  max-width: 100% !important;
+}}
+.table-responsive {{
+  overflow-x: auto !important;
+}}
+{print_css}
+</style>
+"""
+    if re.search(r"<html\b", html, flags=re.IGNORECASE):
+        def _html_open(match):
+            attrs = re.sub(r'\sdata-(?:bs-)?theme="[^"]*"', "", match.group(1), flags=re.IGNORECASE)
+            return f'<html{attrs} data-theme="{theme}" data-bs-theme="{bs_theme}">'
+
+        html = re.sub(r"<html\b([^>]*)>", _html_open, html, count=1, flags=re.IGNORECASE)
+    if "</head>" in html:
+        return html.replace("</head>", css + "\n</head>", 1)
+    return css + html
+
+
+def _render_pdf_with_browser(html: str) -> bytes | None:
+    """Render HTML to PDF using local Chromium/Edge when available."""
+    browser = (
+        shutil.which("chrome")
+        or shutil.which("msedge")
+        or shutil.which("chromium")
+        or next(
+            (
+                p for p in [
+                    r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+                ]
+                if Path(p).exists()
+            ),
+            None,
+        )
+    )
+    if not browser:
+        return None
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        html_path = tmp_path / "eda_report.html"
+        pdf_path = tmp_path / "eda_report.pdf"
+        user_data = tmp_path / "browser-profile"
+        html_path.write_text(html, encoding="utf-8")
+        cmd = [
+            browser,
+            "--headless",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--disable-extensions",
+            f"--user-data-dir={user_data}",
+            f"--print-to-pdf={pdf_path}",
+            str(html_path),
+        ]
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+        except Exception:
+            return None
+        if pdf_path.exists() and pdf_path.stat().st_size > 0:
+            return pdf_path.read_bytes()
+    return None
 
 
 @workspace_bp.route("/workspace")
@@ -189,17 +399,27 @@ def api_workspace_sync_sheets():
     if src_type != "sheets":
         return jsonify({"error": "This project was not loaded from Google Sheets"}), 400
 
-    storage_path = up_row.get("storage_path")
+    storage_path = up_row.get("storage_path") or ""
     if not storage_path:
-        return jsonify({"error": "Google Sheets configuration not found for this project"}), 400
+        return jsonify({"error": "Google Sheets configuration not found for this project. Re-connect the sheet once, then sync will work normally."}), 400
 
     try:
         src_cfg = json.loads(storage_path)
-        sheet_id = src_cfg.get("sheet_id", "")
-        if not sheet_id:
-            return jsonify({"error": "Sheet ID not found in configuration"}), 400
-    except Exception as e:
-        return jsonify({"error": f"Invalid Google Sheets configuration: {e}"}), 400
+    except Exception:
+        return jsonify({
+            "error": (
+                "This sheet was saved with an older storage format and its Google Sheets URL is no longer available. "
+                "Re-connect the Google Sheet once; future syncs will preserve the sheet configuration."
+            )
+        }), 400
+
+    sheet_id = (src_cfg.get("sheet_id") or "").strip()
+    if not sheet_id and src_cfg.get("url"):
+        m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", src_cfg.get("url", ""))
+        if m:
+            sheet_id = m.group(1)
+    if not sheet_id:
+        return jsonify({"error": "Sheet ID not found in Google Sheets configuration. Re-connect the sheet once, then sync will work normally."}), 400
 
     try:
         from dataforge.sheets_connector import SheetsConnector
@@ -221,9 +441,17 @@ def api_workspace_sync_sheets():
                 except Exception:
                     pass
 
-    _save(upload_id, "df_raw", df)
-    _save(upload_id, "profile", profile)
-    _persist(upload_id, "df_raw", df)
+    try:
+        _save(upload_id, "df_raw", df)
+        _save(upload_id, "profile", profile)
+        _persist(upload_id, "df_raw", df)
+    except Exception as e:
+        return jsonify({"error": f"Synced from Google Sheets, but failed to save the refreshed dataset: {e}"}), 500
+
+    try:
+        db_update("uploads", upload_id, {"storage_path": json.dumps(src_cfg)})
+    except Exception:
+        pass
 
     try:
         db_update("uploads", upload_id, {
@@ -408,60 +636,37 @@ def api_eda_report():
     html = _load(upload_id, "eda_html")
     if not html:
         return Response("No EDA report generated yet.", status=404)
-    theme = request.args.get("theme", "dark")
-    if theme == "dark":
-        dark_css = """<style>
-/* ── DataForge dark override ── */
-:root,
-[data-bs-theme],
-.offcanvas, .offcanvas-start, .offcanvas-end, .offcanvas-top, .offcanvas-bottom {
-  --bs-body-bg: #050505;
-  --bs-body-color: #e0e0e0;
-  --bs-border-color: #1a1a1c;
-  --bs-secondary-bg: #0a0a0b;
-  --bs-tertiary-bg: #111113;
-  --bs-emphasis-color: #ffffff;
-  --bs-card-bg: #0a0a0b;
-  --bs-card-border-color: #1a1a1c;
-}
-html, body { background:#050505 !important; color:#e0e0e0 !important; }
-.container,.container-fluid,section,article,main,.content,.wrapper,.page-content { background:#050505 !important; color:#e0e0e0 !important; }
-.navbar,.navbar-light,.navbar-dark,header,nav[class*="navbar"] { background:#0a0a0b !important; border-bottom:1px solid #1a1a1c !important; }
-.navbar-brand,.navbar-nav .nav-link,.nav-link { color:#e0e0e0 !important; }
-.card { background:#0a0a0b !important; border-color:#1a1a1c !important; color:#e0e0e0 !important; }
-.card-header { background:#111113 !important; border-color:#1a1a1c !important; color:#e0e0e0 !important; }
-.card-body   { background:#0a0a0b !important; color:#e0e0e0 !important; }
-.nav-tabs .nav-link { color:#888 !important; }
-.nav-tabs .nav-link.active { background:#111113 !important; color:#fff !important; }
-.tab-content,.tab-pane { background:#0a0a0b !important; color:#e0e0e0 !important; }
-table,.table { background:#0a0a0b !important; color:#cccccc !important; }
-th { background:#111113 !important; color:#888 !important; border-color:#1a1a1c !important; }
-td { border-color:#1a1a1c !important; color:#cccccc !important; }
-h1,h2,h3,h4,h5,h6 { color:#fff !important; }
-p,span,label,small,.text-muted { color:#aaa !important; }
-a { color:#4d79ff !important; }
-code,pre { background:#111113 !important; color:#1e9902 !important; }
-.alert-info { background:rgba(46,91,255,.1) !important; color:#8ba4ff !important; }
-.progress { background:#1a1a1c !important; }
-.progress-bar { background:#2E5BFF !important; }
-input,select,textarea,.form-control { background:#0d0d0f !important; color:#e0e0e0 !important; border-color:#1a1a1c !important; }
-.dropdown-menu { background:#0d0d0f !important; border-color:#1a1a1c !important; }
-svg text { fill:#aaa !important; }
-svg .bar { fill:#2E5BFF !important; }
-.bg-light,.bg-white { background:#0a0a0b !important; }
-hr { border-color:#1a1a1c !important; }
-.offcanvas { background-color:#0d0d0f !important; color:#e0e0e0 !important; }
-.btn-close { filter:invert(1) brightness(.7); }
-.accordion-item { background:#0a0a0b !important; border-color:#1a1a1c !important; }
-.accordion-button { background:#111113 !important; color:#e0e0e0 !important; }
-.list-group-item { background:#0a0a0b !important; border-color:#1a1a1c !important; color:#ccc !important; }
-.modal-content { background:#0d0d0f !important; border-color:#1a1a1c !important; color:#e0e0e0 !important; }
-</style>"""
-        if "</head>" in html:
-            html = html.replace("</head>", dark_css + "\n</head>", 1)
-        else:
-            html = dark_css + html
-    return Response(html, mimetype="text/html")
+    fmt = (request.args.get("format") or "html").lower()
+    force_download = request.args.get("download") in {"1", "true", "yes"}
+    wants_pdf = fmt == "pdf"
+    print_mode = force_download or wants_pdf
+    theme = request.args.get("theme") or ("cupcake" if print_mode else "dark")
+    html = _inject_eda_view_theme(html, theme=theme, print_mode=print_mode)
+
+    if wants_pdf:
+        try:
+            from weasyprint import HTML
+            pdf = HTML(string=html, base_url=request.url_root).write_pdf()
+            return Response(
+                pdf,
+                mimetype="application/pdf",
+                headers={"Content-Disposition": "attachment; filename=dataforge_eda_report_cupcake.pdf"},
+            )
+        except Exception:
+            pdf = _render_pdf_with_browser(html)
+            if pdf:
+                return Response(
+                    pdf,
+                    mimetype="application/pdf",
+                    headers={"Content-Disposition": "attachment; filename=dataforge_eda_report_cupcake.pdf"},
+                )
+            # Keep the download useful even when no PDF renderer is installed.
+            force_download = True
+
+    headers = {}
+    if force_download:
+        headers["Content-Disposition"] = "attachment; filename=dataforge_eda_report_cupcake.html"
+    return Response(html, mimetype="text/html", headers=headers)
 
 
 @workspace_bp.route("/api/query", methods=["POST"])
