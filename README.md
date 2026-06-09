@@ -2,24 +2,21 @@
 
 A Flask-based data analysis, insight generation, and automated machine learning app.
 
+> [!NOTE]
+> **Monolithic Architecture**: This project is built as a single Python monolith. The frontend consists of Jinja HTML templates (`frontend/templates`) and static assets (`frontend/static`) served directly by the Flask server. There is **no separate frontend build step or npm server** (e.g. no `package.json` at the root). Running the Flask backend runs the entire application.
+
+---
+
 ## Architecture
 
-The repo is organized into two top-level folders:
+The repository is organized as follows:
 
-- **`backend/`** contains the Python monolith: Flask routes, Celery tasks, analytics engines, storage/database helpers, connectors, schema, Dockerfile, and Python dependencies.
-- **`frontend/`** contains the server-rendered UI assets: Jinja templates and static files used by the Flask backend.
+- **`backend/`**: Contains the Python monolith (Flask routes, Celery tasks, analytics engines, database helpers, and Python dependencies).
+- **`frontend/`**: Contains the server-rendered templates and static assets served by the Flask app.
 
-Redis, Celery workers, Celery Beat, and Flower are still used at runtime, but they run the same backend codebase rather than separate application services.
+Redis, Celery workers, Celery Beat, and Flower run the same backend codebase to handle background jobs and monitoring.
 
-## Runtime Processes
-
-Docker Compose starts these cooperating processes:
-
-1. **`web`**: Runs the Flask app from `backend/app.py`.
-2. **`worker`**: Runs Celery tasks from `dataforge.web.tasks`.
-3. **`beat`**: Runs scheduled Celery jobs.
-4. **`redis`**: Provides broker, result backend, Socket.IO queue, and cache support.
-5. **`flower`**: Provides Celery monitoring on port `5555`.
+---
 
 ## Repository Layout
 
@@ -33,7 +30,7 @@ DataForge_v3/
 │   ├── database/
 │   │   └── schema.sql         # Supabase database schema
 │   └── dataforge/
-│       ├── web/               # Flask app, blueprints, Celery, storage, cache
+│       ├── web/               # Flask app, blueprints, Celery tasks, storage, cache
 │       │   ├── app.py
 │       │   ├── celery_app.py
 │       │   ├── tasks.py
@@ -46,8 +43,8 @@ DataForge_v3/
 │       ├── eda_report.py
 │       └── *_connector.py
 ├── frontend/
-│   ├── templates/             # Jinja HTML templates
-│   └── static/                # Static assets served by Flask
+│   ├── templates/             # Jinja HTML templates (UI)
+│   └── static/                # Static assets (CSS/JS) served by Flask
 ├── docker-compose.yml
 ├── DEPLOYMENT.md
 └── README.md
@@ -55,77 +52,103 @@ DataForge_v3/
 
 Local runtime artifacts default to `backend/instance/projects`. Override with `DATAFORGE_PROJECTS_DIR` when needed.
 
-## Running With Docker
+---
+
+## How to Start the App
+
+### Option A: Running with Docker (Recommended)
+
+Docker Compose automatically orchestrates all required processes (web app, Celery worker, Celery beat, Redis, Flower).
 
 1. Ensure Docker Desktop is running.
-2. Create `.env` in the project root and set at least `FLASK_SECRET_KEY`, `REDIS_URL`, `SUPABASE_URL`, and `SUPABASE_SERVICE_KEY`.
-3. Build and start:
-
+2. Create a `.env` file in the project root containing your Supabase, Redis, and Flask credentials.
+3. Build and start the containers:
    ```bash
    docker compose up --build
    ```
+4. Access the applications:
+   - **Main Web App (Frontend & Backend)**: http://localhost:5000
+   - **Flower (Celery Monitor)**: http://localhost:5555
 
-4. Open the app at http://localhost:5000.
-5. Open Flower at http://localhost:5555.
+---
 
-## Running Locally
+### Option B: Running Locally (Without Docker)
 
-1. Install Python 3.10+ and start Redis locally.
+To run the application on your host machine, you will need to start the Flask web server (which serves the frontend page and APIs) and optionally the Celery worker for handling background tasks.
+
+#### 1. Setup Environment & Dependencies
+1. Install Python 3.10+ and start a Redis server locally.
 2. Install dependencies:
-
    ```bash
    pip install -r backend/requirements.txt
    ```
+3. Create a `.env` file in the project root and configure the environment variables (see below).
+4. Apply the database schema in your Supabase SQL editor using `backend/database/schema.sql`.
 
-3. Create `.env` in the project root and set `REDIS_URL=redis://localhost:6379/0` plus your Supabase/Auth keys.
-4. Apply `backend/database/schema.sql` in your Supabase SQL editor.
-5. Run the web app:
+#### 2. Start the Web App (Frontend + Backend APIs)
+Run the web application server. This serves the Jinja templates on port `5000`:
+- **Windows (PowerShell)**:
+  ```powershell
+  $env:PYTHONPATH="backend"
+  python backend/app.py
+  ```
+- **macOS / Linux**:
+  ```bash
+  PYTHONPATH=backend python backend/app.py
+  ```
+The app is now available at http://localhost:5000.
 
-   ```bash
-   python backend/app.py
-   ```
+#### 3. Start the Celery Worker (For background tasks like AutoML & EDA)
+In another terminal, navigate to the `backend` directory and run the worker:
+- **Windows**:
+  ```powershell
+  cd backend
+  celery --app=dataforge.web.tasks:celery worker --pool=solo --loglevel=info
+  ```
+- **macOS / Linux**:
+  ```bash
+  cd backend
+  celery --app=dataforge.web.tasks:celery worker --loglevel=info
+  ```
 
-6. In another terminal, run the Celery worker from the backend folder:
+#### 4. Start the Beat Scheduler & Flower Monitor (Optional)
+If you require scheduled automated reports or task monitoring:
+- **Celery Beat**:
+  ```bash
+  cd backend
+  celery --app=dataforge.web.tasks:celery beat --loglevel=info
+  ```
+- **Flower Monitor**:
+  ```bash
+  cd backend
+  celery --app=dataforge.web.tasks:celery flower --port=5555
+  ```
 
-   ```bash
-   cd backend
-   celery --app=dataforge.web.tasks:celery worker --loglevel=info
-   ```
-
-   On Windows, use:
-
-   ```bash
-   cd backend
-   celery --app=dataforge.web.tasks:celery worker --pool=solo --loglevel=info
-   ```
-
-7. Optional scheduler and monitor:
-
-   ```bash
-   cd backend
-   celery --app=dataforge.web.tasks:celery beat --loglevel=info
-   celery --app=dataforge.web.tasks:celery flower --port=5555
-   ```
+---
 
 ## Environment Variables
 
+Configure these variables in your `.env` file at the root of the project:
+
 | Variable | Description | Requirement |
 |---|---|---|
-| `FLASK_SECRET_KEY` | Secret used for signing Flask sessions | Required |
-| `REDIS_URL` | Redis connection string | Required |
-| `SUPABASE_URL` | Supabase project URL/API base | Required |
-| `SUPABASE_SERVICE_KEY` | Supabase service role key | Required |
-| `DATAFORGE_PROJECTS_DIR` | Local project artifact directory | Optional |
+| `FLASK_SECRET_KEY` | Secret key used for signing Flask sessions | Required |
+| `REDIS_URL` | Redis connection string (e.g., `redis://localhost:6379/0`) | Required |
+| `SUPABASE_URL` | Supabase project URL / API base | Required |
+| `SUPABASE_SERVICE_KEY` | Supabase service role API key | Required |
+| `DATAFORGE_PROJECTS_DIR` | Local project artifacts directory | Optional |
 | `SUPABASE_BUCKET` | Supabase bucket for persisted artifacts | Optional |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID | Optional |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret | Optional |
-| `GEMINI_API_KEY` | Gemini key for LLM-assisted insights | Optional |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` / `GOOGLE_SA_JSON_CONTENT` | Private Google Sheets credentials | Optional |
+| `GEMINI_API_KEY` | Gemini API key for LLM-assisted insights | Optional |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` / `GOOGLE_SA_JSON_CONTENT` | Google service account credentials for Google Sheets | Optional |
+
+---
 
 ## Development Notes
 
-- Keep Python application code in `backend/dataforge`.
-- Keep Flask routes, Celery tasks, and backend web glue in `backend/dataforge/web`.
-- Keep Jinja templates in `frontend/templates`.
-- Keep static files in `frontend/static`.
-- Long-running work should remain in Celery tasks and return a task id for polling.
+- **Backend Logic**: Keep Python backend files in `backend/dataforge`.
+- **Routes & Blueprints**: Keep Flask route handlers and blueprints in `backend/dataforge/web/routes`.
+- **Frontend Templates**: Edit Jinja HTML/JS code inside `frontend/templates`.
+- **Static Assets**: Add stylesheets or javascript assets in `frontend/static`.
+- **Task Delegation**: Long-running requests (e.g. EDA, training) must be delegated to background Celery tasks. Use `_broker_available()` check and `SYNC_FALLBACK_ENABLED` pattern to implement synchronous fallback paths.

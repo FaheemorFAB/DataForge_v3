@@ -341,21 +341,71 @@ class InsightEngine:
         dataset_type: str = "general",
     ) -> str:
         """
-        Build a plain-English summary from a ranked list of insights.
-        Format: one line per insight as "N. Title — Description"
-        so that the workspace formatSummary() parser can split them correctly.
-        This is the fallback when Gemini is not available.
+        Build a local, structured, deterministic Executive Summary.
         """
         if not insights:
             return "No significant insights detected in this dataset."
 
-        lines = []
-        for i, ins in enumerate(insights, 1):
-            title = ins.get("title", "").strip()
-            desc  = ins.get("description", "").strip()
-            lines.append(f"{i}. {title} — {desc}")
+        # Data Quality
+        dq_ins = next((x for x in insights if x.get("type") == "data_quality"), None)
+        if dq_ins:
+            meta = dq_ins.get("meta") or {}
+            overall_pct = meta.get("overall_pct", 0.0)
+            score = 100.0 - overall_pct
+            if score >= 95:
+                label = "Excellent (Ready for Analysis)"
+            elif score >= 85:
+                label = "Good (Minimal Gaps)"
+            elif score >= 70:
+                label = "Fair (Some Gaps)"
+            else:
+                label = "Needs Attention (Significant Gaps)"
+            dq_text = f"Completeness Score: {score:.1f}% ({label})"
+        else:
+            dq_text = "Completeness Score: 100.0% (Excellent - Ready for Analysis)"
 
-        return "\n".join(lines)
+        # Performance (trend, change)
+        perf_lines = []
+        for ins in insights:
+            if ins.get("type") in ("trend", "change"):
+                perf_lines.append(ins.get("description"))
+        if not perf_lines:
+            perf_lines.append("No significant upward or downward trends detected.")
+
+        # Key Drivers (contribution, segment, categorical, ranking)
+        driver_lines = []
+        for ins in insights:
+            if ins.get("type") in ("contribution", "segment", "categorical", "ranking"):
+                driver_lines.append(ins.get("description"))
+        if not driver_lines:
+            driver_lines.append("No dominant categories or predictor columns identified.")
+
+        # Risks (anomaly, outlier_summary)
+        risk_lines = []
+        for ins in insights:
+            if ins.get("type") in ("anomaly", "outlier_summary"):
+                risk_lines.append(ins.get("description"))
+        if not risk_lines:
+            risk_lines.append("No statistical anomalies or outlier concentrations found.")
+
+        dq_line = f"- {dq_text}"
+        perf_bullets = "\n".join(f"- {line}" for line in perf_lines[:2])
+        driver_bullets = "\n".join(f"- {line}" for line in driver_lines[:2])
+        risk_bullets = "\n".join(f"- {line}" for line in risk_lines[:2])
+
+        summary = (
+            "Executive Summary\n"
+            "-----------------\n"
+            "Data Quality:\n"
+            f"{dq_line}\n\n"
+            "Performance:\n"
+            f"{perf_bullets}\n\n"
+            "Key Drivers:\n"
+            f"{driver_bullets}\n\n"
+            "Risks:\n"
+            f"{risk_bullets}"
+        )
+        return summary
 
     # ── Gemini summarisation ──────────────────────────────────────────────────
     def summarise_with_gemini(

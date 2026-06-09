@@ -43,12 +43,16 @@ class SegmentInsight(BaseInsight):
             labels = [str(i) for i in seg_means.index]
             values = [self._safe_float(v) for v in seg_means.values]
 
+            best_fmt = self._format_precise(metric, best_val)
+            worst_fmt = self._format_precise(metric, worst_val)
+            description = (
+                f"The '{best}' segment leads with an average '{metric}' of {best_fmt}, "
+                f"which is {ratio}× higher than the '{worst}' segment (average {worst_fmt})."
+            )
+
             return {
                 "title":       f"{metric} by {dim}",
-                "description": (
-                    f"{best} averages {round(best_val,2)} {metric}, "
-                    f"{ratio}× more than {worst} ({round(worst_val,2)})."
-                ),
+                "description": description,
                 "importance":  self._clamp(min(ratio / 10, 0.9)),
                 "type":        "segment",
                 "chart":       "bar",

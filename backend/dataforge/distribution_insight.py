@@ -37,36 +37,43 @@ class DistributionInsight(BaseInsight):
 
             # ── Skewness ──────────────────────────────────────────────────────
             skew = self._safe_float(s.skew())
+            # Skewness translation
             if abs(skew) < 0.3:
-                skew_label = "approximately symmetric"
+                skew_desc = "distributed relatively symmetrically around the average"
             elif 0.3 <= abs(skew) < 1.0:
-                skew_label = "slightly right-skewed" if skew > 0 else "slightly left-skewed"
+                skew_desc = "slightly concentrated towards the lower end with a tail of high values" if skew > 0 else "slightly concentrated towards the higher end with a tail of low values"
             else:
-                skew_label = "strongly right-skewed" if skew > 0 else "strongly left-skewed"
+                skew_desc = "strongly concentrated at lower levels with a long tail of very high values" if skew > 0 else "strongly concentrated at higher levels with a long tail of very low values"
 
-            # ── Kurtosis (excess / Fisher) ────────────────────────────────────
-            kurt = self._safe_float(s.kurtosis())   # excess kurtosis (normal = 0)
+            # Kurtosis translation
+            kurt = self._safe_float(s.kurtosis())
             if kurt > 1.0:
-                kurt_label = "heavy-tailed (leptokurtic) — extreme values are more common than normal"
+                kurt_desc = "exhibits a high frequency of extreme outlier values (heavy-tailed)"
             elif kurt < -1.0:
-                kurt_label = "light-tailed (platykurtic) — values cluster near the mean"
+                kurt_desc = "values are uniformly spread out with very low outlier risk (light-tailed)"
             else:
-                kurt_label = "normal-like tail behaviour (mesokurtic)"
+                kurt_desc = "exhibits moderate outlier behavior similar to a standard bell curve"
 
-            # ── Coefficient of Variation ──────────────────────────────────────
-            cv = round(abs(std / mean) * 100, 1) if mean != 0 else None
-            cv_desc = f" Relative spread (CV): {cv}%." if cv is not None else ""
+            # Format values
+            p10_fmt = self._format_precise(metric, p10)
+            p90_fmt = self._format_precise(metric, p90)
+            q1_fmt = self._format_precise(metric, q1)
+            q3_fmt = self._format_precise(metric, q3)
+            mean_fmt = self._format_precise(metric, mean)
+            std_fmt = self._format_precise(metric, std)
+
+            description = (
+                f"The central 80% of '{metric}' values fall within {p10_fmt} and {p90_fmt}, "
+                f"while the middle 50% range from {q1_fmt} to {q3_fmt} (averaging {mean_fmt} with a standard deviation of {std_fmt}). "
+                f"The distribution is {skew_desc}, and {kurt_desc}."
+            )
+            if cv is not None:
+                description += f" The volatility index (relative spread) is {cv}%."
 
             # ── Histogram data ────────────────────────────────────────────────
             hist, edges = np.histogram(s, bins=min(20, len(s) // 5 or 5))
             labels = [f"{round(float(e), 2)}" for e in edges[:-1]]
             values = [int(v) for v in hist]
-
-            description = (
-                f"{metric} values range from P10={round(p10,2)} to P90={round(p90,2)} "
-                f"(IQR {round(q1,2)}–{round(q3,2)}, mean {round(mean,2)}, std {round(std,2)}). "
-                f"Distribution is {skew_label}; {kurt_label}.{cv_desc}"
-            )
 
             return {
                 "title":       f"{metric} Distribution",

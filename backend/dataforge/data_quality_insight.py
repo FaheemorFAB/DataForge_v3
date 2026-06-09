@@ -30,19 +30,22 @@ class DataQualityInsight(BaseInsight):
             worst    = bad_cols.head(5).to_dict()
 
             if total_missing == 0:
+                completeness_score = 100.0
                 description = (
-                    f"This dataset is complete: {df.shape[0]:,} rows × {df.shape[1]} columns "
-                    f"with zero missing values. No imputation required."
+                    f"Excellent! The dataset has a Completeness Score of {completeness_score}%. "
+                    f"All {df.shape[0]:,} rows × {df.shape[1]} columns are fully populated with zero gaps, "
+                    f"providing a robust foundation for reporting and analytics."
                 )
                 importance = 0.3
             else:
+                completeness_score = round(100.0 - overall_pct, 1)
                 worst_col  = bad_cols.index[0] if len(bad_cols) else "unknown"
                 worst_pct  = round(bad_cols.iloc[0] / len(df) * 100, 1) if len(bad_cols) else 0
                 n_bad_cols = int((missing_per_col > 0).sum())
                 description = (
-                    f"{overall_pct}% of values are missing across {n_bad_cols} column(s). "
-                    f"Worst: '{worst_col}' is {worst_pct}% empty. "
-                    f"High missing rates can bias ML models and skew aggregate statistics."
+                    f"The dataset has a Completeness Score of {completeness_score}% (with {overall_pct}% gaps across {n_bad_cols} column(s)). "
+                    f"Specifically, '{worst_col}' is the least complete column (missing {worst_pct}% of values). "
+                    f"Missing fields can skew aggregate stats and lead to incomplete business analysis."
                 )
                 importance = min(0.9, overall_pct / 100 + 0.4)
 

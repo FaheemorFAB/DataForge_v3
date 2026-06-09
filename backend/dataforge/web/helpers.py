@@ -359,6 +359,9 @@ def _db_log_analysis(type_: str, summary: str = ""):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _df_profile(df: pd.DataFrame, filename: str = "") -> dict:
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            df[col] = df[col].apply(lambda x: str(x) if pd.notna(x) else None)
     missing     = int(df.isnull().sum().sum())
     numeric_cnt = int(len(df.select_dtypes(include=np.number).columns))
     total_cells = df.shape[0] * df.shape[1]

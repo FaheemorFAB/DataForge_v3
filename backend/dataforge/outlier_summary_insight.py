@@ -52,10 +52,10 @@ class OutlierSummaryInsight(BaseInsight):
 
             if not col_results:
                 # No outliers found — still a useful insight
+                cols_word = "column" if num_df.shape[1] == 1 else "columns"
                 description = (
-                    f"No statistical outliers detected across {num_df.shape[1]} "
-                    f"numeric columns using IQR fencing. The data distribution appears "
-                    f"clean and consistent."
+                    f"No unusual values falling outside normal expected operational bounds were detected across {num_df.shape[1]} "
+                    f"numeric {cols_word}. The data distribution appears clean and consistent."
                 )
                 return {
                     "title":       "Outlier Scan: No Anomalies Detected",
@@ -73,12 +73,15 @@ class OutlierSummaryInsight(BaseInsight):
             n_rows   = len(total_outlier_rows)
             row_pct  = round(n_rows / len(df) * 100, 1)
 
+            worst_col = worst['column']
+            worst_lo_fmt = self._format_precise(worst_col, worst['lo'])
+            worst_hi_fmt = self._format_precise(worst_col, worst['hi'])
             description = (
-                f"{n_rows:,} rows ({row_pct}%) contain at least one outlier across "
-                f"{n_cols} column(s). Worst: '{worst['column']}' has {worst['n_outliers']:,} "
-                f"outliers ({worst['pct']}%) outside the IQR fence "
-                f"[{worst['lo']:,.2f} – {worst['hi']:,.2f}]. "
-                f"Outliers can distort averages, inflate variance, and degrade model performance."
+                f"{n_rows:,} records ({row_pct}%) contain values falling outside normal expected operational bounds "
+                f"across {n_cols} analyzed column(s). The most significant variance is in '{worst_col}', which contains {worst['n_outliers']:,} "
+                f"unusual entries ({worst['pct']}%) falling outside the typical expected range of "
+                f"[{worst_lo_fmt} to {worst_hi_fmt}]. "
+                f"These extreme values can skew average results and inflate overall variance."
             )
 
             # Bar chart: outlier counts per column

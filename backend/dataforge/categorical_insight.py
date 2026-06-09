@@ -56,11 +56,10 @@ class CategoricalInsight(BaseInsight):
             frag_unique = int(df[most_fragmented].nunique())
 
             description = (
-                f"'{most_concentrated}' is the most concentrated category column: "
-                f"'{top_val}' accounts for {top_pct}% of all {len(df):,} rows "
-                f"({n_unique} unique values). "
-                f"'{most_fragmented}' is the most diverse with {frag_unique} unique values. "
-                f"High concentration can create model bias toward the dominant category."
+                f"We observed significant segment concentration in the '{most_concentrated}' category, "
+                f"where the dominant value '{top_val}' accounts for {top_pct}% of the dataset (out of {n_unique} distinct categories). "
+                f"This concentration presents a potential dependency risk or focus area. Conversely, the '{most_fragmented}' category "
+                f"exhibits high diversity with {frag_unique} unique values, offering broad coverage for detailed segment-level insights."
             )
 
             # Bar chart: top 10 values in the most concentrated column

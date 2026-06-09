@@ -25,16 +25,20 @@ def api_task_status(task_id):
 
     celery_status = job.get("status", "queued")
 
-    # Detect stale PENDING tasks: if still "queued"/"started" and > 15 s old,
-    # no worker is processing it — return failure so the UI stops polling.
-    STALE_THRESHOLD_S = 15
+    # Detect stale PENDING tasks: if still "queued" for more than 120s, or "started" for more than 600s,
+    # treat as stale. Long-running tasks like report generation can take >15s, so started tasks shouldn't fail early.
+    if celery_status == "queued":
+        stale_threshold = 120
+    else:
+        stale_threshold = 600
+
     if celery_status in ("queued", "started"):
         try:
             created_str = job.get("created_at")
             if created_str:
                 created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
                 age_s = (datetime.now(timezone.utc) - created_dt).total_seconds()
-                if age_s > STALE_THRESHOLD_S:
+                if age_s > stale_threshold:
                     celery_status = "failure"
         except Exception:
             pass

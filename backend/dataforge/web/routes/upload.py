@@ -18,6 +18,66 @@ def index():
     )
 
 
+@upload_bp.route("/api/upload/check-duplicate", methods=["POST"])
+def api_check_duplicate():
+    """Check if a file with the same name was already uploaded by this user."""
+    from dataforge.db import db_client
+    from ..storage import _load
+
+    if not current_user.is_authenticated:
+        return jsonify({"error": "login_required"}), 401
+
+    body = request.get_json(force=True) or {}
+    filename = (body.get("filename") or "").strip()
+    if not filename:
+        return jsonify({"duplicate": False}), 200
+
+    try:
+        # Find the most recent upload with this filename for this user
+        res = (db_client.table("uploads")
+               .select("*")
+               .eq("user_id", current_user.id)
+               .eq("filename", filename)
+               .order("uploaded_at", desc=True)
+               .limit(1)
+               .execute())
+        existing = res.data[0] if res and res.data else None
+        if not existing:
+            return jsonify({"duplicate": False}), 200
+
+        upload_id = existing.get("id")
+        # Load last saved profile for stats
+        profile = _load(upload_id, "profile") or {}
+
+        from datetime import datetime
+        def _time_ago(dt_str):
+            if not dt_str:
+                return ""
+            try:
+                dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+                diff = datetime.now(dt.tzinfo) - dt if dt.tzinfo else datetime.utcnow() - dt
+            except Exception:
+                return ""
+            s = int(diff.total_seconds())
+            if s < 60:    return "just now"
+            if s < 3600:  return f"{s//60}m ago"
+            if s < 86400: return f"{s//3600}h ago"
+            return f"{s//86400}d ago"
+
+        return jsonify({
+            "duplicate": True,
+            "upload_id": upload_id,
+            "filename": existing.get("filename"),
+            "rows": existing.get("rows", 0),
+            "cols": existing.get("cols", 0),
+            "missing_pct": existing.get("missing_pct", 0),
+            "time_ago": _time_ago(existing.get("uploaded_at")),
+            "has_clean": bool(profile.get("clean_cols") or existing.get("clean_meta_json")),
+        }), 200
+    except Exception as e:
+        return jsonify({"duplicate": False}), 200
+
+
 @upload_bp.route("/api/upload", methods=["POST"])
 def api_upload():
     import pandas as pd
@@ -41,8 +101,10 @@ def api_upload():
     except Exception as e:
         return jsonify({"error": f"Could not parse file: {e}"}), 400
 
+    ext = f.filename.split('.')[-1].lower() if '.' in f.filename else ''
+    source_type = "excel" if ext in ("xls", "xlsx") else "csv"
     profile = _df_profile(df, f.filename)
-    upload_id = _db_log_upload(profile)
+    upload_id = _db_log_upload(profile, source_type=source_type)
     if not upload_id:
         return jsonify({"error": "Failed to create upload record"}), 500
 

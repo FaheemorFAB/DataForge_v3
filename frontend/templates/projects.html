@@ -157,9 +157,9 @@
             </div>
             <div>
                 <p class="font-black text-lg">No projects yet</p>
-                <p class="text-sm mt-1" style="color:var(--txt-m)">Upload a CSV to start your first project</p>
+                <p class="text-sm mt-1" style="color:var(--txt-m)">Upload a CSV or Excel file to start your first project</p>
             </div>
-            <a href="/" class="bp">+ Upload CSV</a>
+            <a href="/" class="bp">+ Upload CSV/Excel</a>
         </div>
     </template>
 
@@ -181,9 +181,10 @@
                     <div class="flex items-center gap-4 px-5 py-4 cursor-pointer"
                          @click="expandedId = expandedId === p.id ? null : p.id">
 
-                        <!-- CSV badge -->
-                        <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-[10px] font-black flex-shrink-0"
-                             style="background:var(--accent)">CSV</div>
+                        <!-- Badge -->
+                        <div class="w-11 h-11 rounded-xl flex items-center justify-center text-white text-[10px] font-black flex-shrink-0 uppercase"
+                             style="background:var(--accent)"
+                             x-text="p.source_type"></div>
 
                         <!-- Info -->
                         <div class="flex-1 min-w-0">

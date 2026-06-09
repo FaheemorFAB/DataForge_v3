@@ -41,11 +41,13 @@ class NumericSummaryInsight(BaseInsight):
             range_val  = round(float(stats.loc[widest_range, "range"]), 2)
 
             n_cols = len(valid)
+            widest_range_fmt = self._format_precise(widest_range, range_val)
             description = (
-                f"Across {n_cols} numeric column(s): '{most_variable}' is the most "
-                f"volatile (CV={cv_val}%) — high spread relative to its mean. "
-                f"'{most_stable}' is the most consistent (CV={stable_cv}%). "
-                f"'{widest_range}' has the widest absolute range of {range_val:,.2f}."
+                f"Across {n_cols} numeric column(s): '{most_variable}' is the most volatile "
+                f"(volatility index of {cv_val}%), showing the highest relative spread. "
+                f"Conversely, '{most_stable}' is the most consistent (volatility index of {stable_cv}%), "
+                f"indicating steady, predictable values. '{widest_range}' has the widest absolute range "
+                f"of {widest_range_fmt} from minimum to maximum."
             )
 
             # Bar chart of CV values

@@ -53,7 +53,7 @@ def api_insights_run():
 
     body    = request.get_json(force=True) or {}
     top_n   = int(body.get("top_n", 6))
-    use_gem = bool(body.get("use_gemini", True))
+    use_gem = False  # Devoid of Gemini
 
     # Use sync execution when no Celery worker is alive (no-docker local mode)
     if not _broker_available():

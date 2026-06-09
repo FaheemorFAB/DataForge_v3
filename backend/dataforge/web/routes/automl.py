@@ -159,10 +159,28 @@ def api_clean_download():
     df = _load(upload_id, "df_clean")
     if df is None:
         return jsonify({"error": "No cleaned dataset. Run cleaning first."}), 404
+
+    fmt = request.args.get("format", "csv").lower()
+    if fmt == "xlsx":
+        buf = io.BytesIO()
+        df.to_excel(buf, index=False, engine="openpyxl")
+        buf.seek(0)
+        orig_fname = _get_filename(upload_id)
+        base_name = orig_fname.rsplit(".", 1)[0] if "." in orig_fname else orig_fname
+        fname = f"{base_name}_cleaned.xlsx"
+        return send_file(
+            buf,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=fname,
+        )
+
     buf = io.StringIO()
     df.to_csv(buf, index=False)
     buf.seek(0)
-    fname = _get_filename(upload_id).replace(".csv", "_cleaned.csv")
+    orig_fname = _get_filename(upload_id)
+    base_name = orig_fname.rsplit(".", 1)[0] if "." in orig_fname else orig_fname
+    fname = f"{base_name}_cleaned.csv"
     return send_file(
         io.BytesIO(buf.getvalue().encode()),
         mimetype="text/csv",

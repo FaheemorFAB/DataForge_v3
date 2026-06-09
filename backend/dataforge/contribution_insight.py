@@ -36,9 +36,16 @@ class ContributionInsight(BaseInsight):
             labels  = [str(i) for i in top_n.index]
             values  = [self._safe_float(v) for v in top_n.values]
 
+            top_val_abs = self._safe_float(grouped.iloc[0])
+            description = (
+                f"'{top_name}' is the primary performance driver for '{metric}', "
+                f"contributing {top_pct}% ({self._format_precise(metric, top_val_abs)}) "
+                f"of the total '{metric}' ({self._format_precise(metric, total)}) across all categories in '{dim}'."
+            )
+
             return {
                 "title":       f"{metric} Breakdown by {dim}",
-                "description": f"{top_name} accounts for {top_pct}% of total {metric}.",
+                "description": description,
                 "importance":  self._clamp(top_pct / 100),
                 "type":        "contribution",
                 "chart":       "bar",

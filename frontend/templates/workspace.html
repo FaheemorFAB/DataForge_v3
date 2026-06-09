@@ -167,6 +167,156 @@
         /* ── INSIGHT FALLBACK STAT CARDS ───────────────────────── */
         .ins-stat-wrap{border-radius:.75rem;overflow:hidden;background:rgba(46,91,255,.04);border:1px solid rgba(46,91,255,.12);min-height:84px;}
         .ins-stat-box{flex:1;border-radius:.5rem;padding:.6rem .75rem;text-align:center;}
+
+        /* ═══════════════════════════════════════════════════════════
+           AI CHAT — Premium Redesign
+        ═══════════════════════════════════════════════════════════ */
+        .chat-container{display:flex;width:100%;height:100%;overflow:hidden;position:relative;}
+
+        /* Sidebar */
+        .chat-sidebar{
+            width:230px;flex-shrink:0;display:flex;flex-direction:column;
+            border-right:1px solid var(--border);
+            background:var(--card);backdrop-filter:blur(16px);
+            transition:width .3s cubic-bezier(.4,0,.2,1),padding .3s ease,opacity .2s ease,border-color .3s ease;
+            z-index:40;height:100%;padding:.75rem;overflow-x:hidden;opacity:1;
+        }
+        @media(min-width:768px){
+            .chat-sidebar.collapsed-desktop{width:0!important;padding-left:0!important;padding-right:0!important;border-right-width:0!important;opacity:0!important;pointer-events:none;}
+        }
+        .chat-sidebar-label{font-size:.52rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--txt-m);padding:.4rem .5rem .6rem;opacity:.6;}
+        .chat-sidebar-btn{
+            display:flex;align-items:center;gap:.55rem;width:100%;padding:.55rem .85rem;
+            border-radius:.6rem;background:rgba(46,91,255,.07);border:1px dashed rgba(46,91,255,.28);
+            color:var(--accent);font-size:.68rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+            cursor:pointer;transition:all .2s;justify-content:center;margin-bottom:.5rem;
+        }
+        .chat-sidebar-btn:hover{background:rgba(46,91,255,.14);border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 12px rgba(46,91,255,.18);}
+        .chat-sessions-list{flex:1;overflow-y:auto;padding-right:.1rem;}
+        .chat-session-item{
+            display:flex;align-items:center;justify-content:space-between;width:100%;
+            padding:.5rem .65rem;border-radius:.55rem;color:var(--txt-m);font-size:.71rem;
+            cursor:pointer;transition:all .15s;margin-bottom:.2rem;border:1px solid transparent;position:relative;
+        }
+        .chat-session-item:hover{background:rgba(255,255,255,.04);color:var(--txt);border-color:rgba(255,255,255,.05);}
+        html.light .chat-session-item:hover{background:rgba(0,0,0,.025);}
+        .chat-session-item.active{
+            background:linear-gradient(135deg,rgba(46,91,255,.12),rgba(99,102,241,.08));
+            color:var(--accent);border-color:rgba(46,91,255,.22);font-weight:700;
+            box-shadow:inset 0 0 0 1px rgba(46,91,255,.08);
+        }
+        .chat-session-item.active .chat-session-title{color:var(--accent);}
+        .chat-session-title{text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:.72rem;}
+        .chat-session-date{font-size:.6rem;opacity:.38;margin-right:.25rem;flex-shrink:0;}
+        .chat-session-actions{display:none;align-items:center;gap:.2rem;flex-shrink:0;margin-left:.4rem;}
+        .chat-session-item:hover .chat-session-actions{display:flex;}
+        .chat-action-btn{background:transparent;border:none;cursor:pointer;color:var(--txt-m);padding:3px;border-radius:4px;transition:color .12s,background .12s;display:flex;align-items:center;justify-content:center;}
+        .chat-action-btn:hover{color:var(--txt);background:rgba(255,255,255,.08);}
+        .chat-action-btn.delete:hover{color:#ef4444;background:rgba(239,68,68,.1);}
+        .chat-rename-input{background:var(--inp-bg);border:1px solid var(--accent);color:var(--txt);font-size:.7rem;padding:.2rem .4rem;border-radius:.25rem;outline:none;width:100%;}
+
+        /* Main chat area */
+        .chat-main{flex:1;min-width:0;display:flex;flex-direction:column;height:100%;background:transparent;padding:.875rem;}
+        .chat-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:.75rem;margin-bottom:.5rem;border-bottom:1px solid var(--border);flex-shrink:0;}
+        #chat-thread{flex:1;overflow-y:auto;min-height:0;padding-right:.25rem;scroll-behavior:smooth;}
+        #chat-thread::-webkit-scrollbar{width:3px;}
+        #chat-thread::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px;}
+
+        /* Message bubbles */
+        .chat-msg-wrap{display:flex;flex-direction:column;gap:.15rem;margin-bottom:1.25rem;}
+        .chat-msg-wrap.user{align-items:flex-end;}
+        .chat-msg-wrap.assistant{align-items:flex-start;}
+
+        .chat-bubble-user{
+            max-width:72%;padding:.75rem 1rem;
+            background:linear-gradient(135deg,var(--accent),rgba(99,102,241,.9));
+            color:#fff;border-radius:1.1rem 1.1rem .25rem 1.1rem;
+            font-size:.82rem;line-height:1.55;box-shadow:0 4px 16px rgba(46,91,255,.25);
+            word-break:break-word;
+        }
+        .chat-bubble-ai{
+            max-width:88%;padding:.875rem 1.1rem;
+            background:var(--card);border:1px solid var(--border);
+            border-radius:.25rem 1.1rem 1.1rem 1.1rem;
+            font-size:.82rem;line-height:1.6;color:var(--txt);
+            box-shadow:0 2px 8px rgba(0,0,0,.12);word-break:break-word;
+        }
+        .chat-ai-header{display:flex;align-items:center;gap:.55rem;margin-bottom:.6rem;}
+        .chat-ai-avatar{
+            width:22px;height:22px;border-radius:50%;flex-shrink:0;
+            background:linear-gradient(135deg,var(--accent),rgba(99,102,241,.8));
+            display:flex;align-items:center;justify-content:center;
+            font-size:.55rem;font-weight:900;color:#fff;font-style:italic;
+            box-shadow:0 0 8px rgba(46,91,255,.35);
+        }
+        .chat-ai-name{font-size:.6rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-m);}
+        .chat-intent-chip{font-size:.56rem;font-weight:700;padding:.2rem .55rem;border-radius:999px;background:rgba(46,91,255,.1);color:var(--accent);letter-spacing:.06em;text-transform:uppercase;}
+        .chat-time{font-size:.56rem;opacity:.35;margin-top:.35rem;font-variant-numeric:tabular-nums;}
+
+        /* Typing shimmer */
+        .chat-typing{display:flex;align-items:center;gap:.5rem;margin-bottom:1.25rem;}
+        .chat-typing-avatar{width:22px;height:22px;border-radius:50%;flex-shrink:0;background:linear-gradient(135deg,var(--accent),rgba(99,102,241,.8));display:flex;align-items:center;justify-content:center;font-size:.55rem;font-weight:900;color:#fff;font-style:italic;}
+        .chat-typing-bubble{
+            padding:.65rem 1rem;background:var(--card);border:1px solid var(--border);
+            border-radius:.25rem 1rem 1rem 1rem;display:flex;align-items:center;gap:.35rem;
+        }
+        .chat-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);opacity:.5;animation:chatdot 1.4s ease-in-out infinite;}
+        .chat-dot:nth-child(2){animation-delay:.2s;}
+        .chat-dot:nth-child(3){animation-delay:.4s;}
+        @keyframes chatdot{0%,60%,100%{transform:translateY(0);opacity:.4;}30%{transform:translateY(-5px);opacity:1;}}
+
+        /* Code block inside message */
+        .chat-code-toggle{display:flex;align-items:center;gap:.4rem;font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--txt-m);cursor:pointer;background:none;border:none;padding:.3rem 0;transition:color .12s;}
+        .chat-code-toggle:hover{color:var(--accent);}
+        .chat-code-block{background:#0d1117;border-radius:.5rem;padding:.7rem 1rem;font-family:monospace;font-size:.7rem;color:#7ee787;overflow-x:auto;margin-top:.4rem;white-space:pre;}
+
+        /* Quick actions */
+        .chat-quick-wrap{display:flex;gap:.5rem;overflow-x:auto;padding:.5rem 0 .25rem;flex-shrink:0;}
+        .chat-quick-wrap::-webkit-scrollbar{height:0;}
+        .chat-quick-chip{
+            flex-shrink:0;padding:.4rem .85rem;border-radius:999px;font-size:.66rem;font-weight:700;
+            letter-spacing:.03em;border:1px solid var(--border);background:var(--card);color:var(--txt-m);
+            cursor:pointer;transition:all .15s;white-space:nowrap;
+        }
+        .chat-quick-chip:hover{border-color:var(--accent);color:var(--accent);background:rgba(46,91,255,.06);transform:translateY(-1px);}
+
+        /* Input pill */
+        .chat-input-wrap{
+            display:flex;align-items:flex-end;gap:.65rem;margin-top:.5rem;flex-shrink:0;
+            background:var(--card);border:1.5px solid var(--border);border-radius:1.25rem;
+            padding:.5rem .6rem .5rem .9rem;transition:border-color .2s,box-shadow .2s;
+        }
+        .chat-input-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(46,91,255,.12);}
+        .chat-textarea{
+            flex:1;background:transparent;resize:none;min-height:40px;max-height:120px;
+            font-family:inherit;font-size:.83rem;color:var(--txt);outline:none;
+            line-height:1.5;padding:.25rem 0;
+        }
+        .chat-textarea::placeholder{color:var(--txt-m);opacity:.6;}
+        .chat-send-btn{
+            flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;
+            background:linear-gradient(135deg,var(--accent),rgba(99,102,241,.9));
+            color:#fff;display:flex;align-items:center;justify-content:center;
+            transition:all .2s;box-shadow:0 2px 10px rgba(46,91,255,.3);
+        }
+        .chat-send-btn:hover:not(:disabled){transform:scale(1.08);box-shadow:0 4px 16px rgba(46,91,255,.4);}
+        .chat-send-btn:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+        .chat-input-hint{font-size:.56rem;color:var(--txt-m);opacity:.45;text-align:right;margin-top:.2rem;flex-shrink:0;}
+
+        /* Chart/table card inside message */
+        .chat-artifact{margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border);}
+        .chat-insight-quote{margin-top:.65rem;padding:.5rem .75rem;border-left:2px solid rgba(46,91,255,.4);background:rgba(46,91,255,.04);border-radius:0 .5rem .5rem 0;font-size:.74rem;font-style:italic;color:var(--txt-m);}
+
+        /* Mobile */
+        @media(max-width:767px){
+            .chat-sidebar{position:absolute;left:0;top:0;bottom:0;transform:translateX(-100%);box-shadow:8px 0 24px rgba(0,0,0,.3);background:var(--surface);width:220px;}
+            .chat-sidebar.open{transform:translateX(0);}
+            .chat-sidebar-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(1px);z-index:35;}
+            .chat-sidebar-overlay.open{display:block;}
+            .chat-main{padding:.6rem;}
+            .chat-bubble-user,.chat-bubble-ai{max-width:95%;}
+        }
+
     {% endraw %}
     </style>
 </head>
@@ -448,16 +598,16 @@
                 <div class="flex items-center gap-2">
                     <h2 class="text-2xl font-black uppercase tracking-tight" style="background:linear-gradient(135deg,var(--txt),var(--txt-m));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Live Explorer</h2>
                     <span class="font-mono text-[10px] px-2 py-0.5 rounded-full font-bold" style="background:rgba(46,91,255,.12);color:var(--accent)" x-text="filteredRows.length.toLocaleString() + ' filtered · ' + loadedRows.toLocaleString() + ' loaded · ' + totalRows.toLocaleString() + ' total'"></span>
-                    <template x-if="$parent.sourceType === 'sheets'">
+                    <template x-if="sourceType === 'sheets'">
                         <button @click="syncSheets()" 
-                                :disabled="$parent.isSyncingSheets"
+                                :disabled="isSyncingSheets"
                                 class="text-[10px] font-bold px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all"
                                 style="background:var(--glow);color:var(--accent);border:1px solid var(--border)"
-                                :class="$parent.isSyncingSheets ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-80'">
-                            <svg :class="$parent.isSyncingSheets ? 'animate-spin' : ''" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                :class="isSyncingSheets ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-80'">
+                            <svg :class="isSyncingSheets ? 'animate-spin' : ''" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
                             </svg>
-                            <span x-text="$parent.isSyncingSheets ? 'Syncing...' : 'Sync Sheet'"></span>
+                            <span x-text="isSyncingSheets ? 'Syncing...' : 'Sync Sheet'"></span>
                         </button>
                     </template>
                 </div>
@@ -488,19 +638,7 @@
                 </div>
             </div>
 
-            <div class="gc rounded-xl px-4 py-3 flex items-start justify-between gap-3 flex-wrap" style="background:rgba(46,91,255,.04)">
-                <div>
-                    <p class="text-xs font-bold uppercase tracking-[.18em]" style="color:var(--accent)">Full Dataset Status</p>
-                    <p class="text-xs mt-1" style="color:var(--txt-m)">
-                        Preview is showing <span class="font-bold" style="color:var(--txt)" x-text="loadedRows.toLocaleString()"></span>
-                        of <span class="font-bold" style="color:var(--txt)" x-text="totalRows.toLocaleString()"></span> rows.
-                        
-                    </p>
-                </div>
-                <template x-if="previewOnly">
-                    <span class="bwrn">Preview Sample Only</span>
-                </template>
-            </div>
+
 
             <div x-show="activeCol !== null" x-transition
                 class="gc rounded-xl p-4"
@@ -598,91 +736,274 @@
                         style="color:var(--accent)">Load More Rows +</button>
                 </div>
             </div>
+
+            <div class="gc rounded-xl px-4 py-3 flex items-start justify-between gap-3 flex-wrap" style="background:rgba(46,91,255,.04)">
+                <div>
+                    <p class="text-xs font-bold uppercase tracking-[.18em]" style="color:var(--accent)">Full Dataset Status</p>
+                    <p class="text-xs mt-1" style="color:var(--txt-m)">
+                        Preview is showing <span class="font-bold" style="color:var(--txt)" x-text="loadedRows.toLocaleString()"></span>
+                        of <span class="font-bold" style="color:var(--txt)" x-text="totalRows.toLocaleString()"></span> rows.
+                    </p>
+                </div>
+                <template x-if="previewOnly">
+                    <span class="bwrn">Preview Sample Only</span>
+                </template>
+            </div>
         </div>
 
     </div>
 
-    <!-- ── AI QUERY ──────────────────────────────────────── -->
-    <div x-show="activeTab === 'query'" id="chat-panel" class="tab-panel flex flex-col gap-3" style="padding-bottom:0">
+    <!-- ── AI QUERY ─────────────────────────────────────────── -->
+    <div x-show="activeTab === 'query'" id="chat-panel" class="tab-panel" style="padding:0;display:flex;flex-direction:column;">
+
+
+        <!-- API key warning -->
         <template x-if="!geminiOk">
-            <div class="p-4 rounded-xl" style="background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.2)">
-                <p class="text-amber-400 font-bold text-sm">⚠ Gemini API key not configured</p>
-                <p class="text-xs mt-1" style="color:var(--txt-m)">Set <code class="text-amber-300">GEMINI_API_KEY</code> in your <code>.env</code> and restart.</p>
+            <div class="p-4 m-4 rounded-xl" style="background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2)">
+                <p class="font-bold text-sm" style="color:#f59e0b">⚠ Gemini API key not configured</p>
+                <p class="text-xs mt-1" style="color:var(--txt-m)">Set <code style="color:#fbbf24">GEMINI_API_KEY</code> in your <code>.env</code> and restart.</p>
             </div>
         </template>
 
-        <!-- Main Chat Interface -->
         <template x-if="aiPermissionGranted">
-            <div class="flex flex-col gap-3 flex-1">
-                <div id="chat-thread" class="space-y-5">
-                    <template x-for="(msg, i) in messages" :key="i">
-                        <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
-                            <div :class="msg.role === 'user' ? 'max-w-[80%] cub p-4 rounded-2xl rounded-tr-none' : 'w-full max-w-4xl space-y-3'">
-                                <template x-if="msg.role === 'assistant'">
-                                    <div class="flex items-center gap-2 mb-1">
-                                        <div class="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black italic" style="background:var(--txt); color:var(--bg)">AI</div>
-                                        <span class="font-bold uppercase tracking-widest text-[10px]" style="color:var(--txt-m)">Analyst Pipeline</span>
-                                        <template x-if="msg.intent"><span class="text-[9px] font-mono px-2 py-0.5 rounded-full" style="color:var(--accent); background:rgba(46,91,255,.1)" x-text="msg.intent.type"></span></template>
-                                    </div>
+            <div class="chat-container">
+
+                <!-- ── Mobile overlay ── -->
+                <div class="chat-sidebar-overlay" :class="chatSidebarOpen ? 'open' : ''" @click="chatSidebarOpen = false"></div>
+
+                <!-- ══ SIDEBAR ══════════════════════════════════════════ -->
+                <div class="chat-sidebar" :class="{ 'open': chatSidebarOpen, 'collapsed-desktop': !chatSidebarOpen }">
+
+                    <!-- New Chat -->
+                    <button class="chat-sidebar-btn" @click="createChatSession()">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                        New Chat
+                    </button>
+
+                    <p class="chat-sidebar-label">History</p>
+
+                    <!-- Sessions List -->
+                    <div class="chat-sessions-list">
+                        <template x-for="s in chatSessions.filter(sess => (sess.messages && sess.messages.length > 0))" :key="s.id">
+                            <div class="chat-session-item"
+                                 :class="activeSessionId === s.id ? 'active' : ''"
+                                 @click="selectChatSession(s.id)">
+
+                                <!-- Rename mode -->
+                                <template x-if="editingSessionId === s.id">
+                                    <input type="text"
+                                           x-model="editingSessionName"
+                                           @keydown.enter.stop="renameChatSession(s.id)"
+                                           @keydown.escape.stop="editingSessionId = null"
+                                           @click.stop
+                                           @blur="renameChatSession(s.id)"
+                                           class="chat-rename-input"
+                                           :id="'rename-input-' + s.id">
                                 </template>
-                                <p class="text-sm leading-relaxed" x-text="msg.content"></p>
-                                <template x-if="msg.chartData">
-                                    <div class="mt-4 pt-4 border-t" style="border-color:var(--border)"><canvas :id="'chart-' + i" height="200"></canvas></div>
-                                </template>
-                                <template x-if="msg.tableData">
-                                    <div class="mt-4 overflow-x-auto" style="max-height:260px">
-                                        <table class="dt">
-                                            <thead><tr><template x-for="h in msg.tableData.headers" :key="h"><th x-text="h"></th></template></tr></thead>
-                                            <tbody>
-                                                <template x-for="(row, ri) in msg.tableData.rows.slice(0,50)" :key="ri">
-                                                    <tr><template x-for="(cell, ci) in row" :key="ci"><td x-text="cell === null ? '—' : cell"></td></template></tr>
-                                                </template>
-                                            </tbody>
-                                        </table>
-                                        <p class="text-[9px] mt-2 text-center" style="color:var(--txt-m)" x-text="msg.tableData.rows.length > 50 ? '(showing 50 of ' + msg.tableData.total + ' rows)' : ''"></p>
-                                    </div>
-                                </template>
-                                <template x-if="msg.insight">
-                                    <p class="text-xs italic leading-relaxed mt-2 pl-3 border-l" style="color:var(--txt-m); border-color:rgba(46,91,255,.3)" x-text="'💡 ' + msg.insight"></p>
-                                </template>
-                                <template x-if="msg.code">
-                                    <div x-data="{open:false}" class="mt-3">
-                                        <button @click="open=!open" class="flex items-center gap-1.5 text-[9px] font-bold hover:opacity-70 transition-opacity" style="color:var(--txt-m)">
-                                            <svg :class="open?'rotate-90':''" class="w-3 h-3 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></svg>
-                                            VIEW GENERATED PYTHON
-                                        </button>
-                                        <div x-show="open" x-transition class="code-blk mt-2" x-text="msg.code"></div>
+
+                                <!-- View mode -->
+                                <template x-if="editingSessionId !== s.id">
+                                    <div class="flex items-center w-full min-w-0 gap-1">
+                                        <!-- Chat icon -->
+                                        <!-- Chat icon or Loader -->
+                                        <template x-if="s.isAnalyzing">
+                                            <svg class="w-3 h-3 flex-shrink-0 animate-spin" style="color:var(--accent)" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </template>
+                                        <template x-if="!s.isAnalyzing">
+                                            <svg class="w-3 h-3 flex-shrink-0 opacity-40" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.5 48.172 48.172 0 003.423-.38c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
+                                        </template>
+                                        <span class="chat-session-title" x-text="s.name || 'Untitled Chat'"></span>
+                                        <span class="chat-session-date" x-text="new Date(s.updated_at || s.created_at).toLocaleDateString(undefined,{month:'short',day:'numeric'})"></span>
+                                        <div class="chat-session-actions" @click.stop>
+                                            <button class="chat-action-btn" title="Rename" @click="startRenameSession(s.id, s.name)">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"/></svg>
+                                            </button>
+                                            <button class="chat-action-btn delete" title="Delete" @click="deleteChatSession(s.id)">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                            </button>
+                                        </div>
                                     </div>
                                 </template>
                             </div>
-                        </div>
-                    </template>
-                    <template x-if="isAnalyzing">
-                        <div class="flex items-center gap-2.5">
-                            <div class="w-2 h-2 rounded-full bg-[#2E5BFF] animate-pulse"></div>
-                            <div class="w-2 h-2 rounded-full bg-[#2E5BFF] animate-pulse" style="animation-delay:.15s"></div>
-                            <div class="w-2 h-2 rounded-full bg-[#2E5BFF] animate-pulse" style="animation-delay:.3s"></div>
-                            <span class="font-bold uppercase tracking-[.3em] text-[10px]" style="color:var(--txt-m)">Processing…</span>
-                        </div>
-                    </template>
+                        </template>
+
+                        <!-- Empty state -->
+                        <template x-if="!chatSessions.filter(sess => (sess.messages && sess.messages.length > 0)).length">
+                            <div class="text-center py-8 opacity-40">
+                                <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.5 48.172 48.172 0 003.423-.38c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
+                                <p class="text-[10px] font-bold uppercase tracking-wider" style="color:var(--txt-m)">No chats yet</p>
+                            </div>
+                        </template>
+                    </div>
                 </div>
 
-                <div class="flex flex-wrap gap-1.5">
-                    <template x-for="action in quickActions" :key="action">
-                        <button @click="query = action; runQuery()" class="text-[10px] font-medium border rounded-full px-3 py-1.5 hover:border-[#2E5BFF] transition-all" style="border-color:var(--border); background:var(--card); color:var(--txt-m)" x-text="action" :disabled="isAnalyzing"></button>
-                    </template>
-                </div>
+                <!-- ══ MAIN ══════════════════════════════════════════════ -->
+                <div class="chat-main">
 
-                <div class="gc rounded-2xl p-2 pr-3 flex items-end gap-2">
-                    <textarea x-model="query" @keydown.enter.prevent="if(!$event.shiftKey) runQuery()" placeholder="Ask anything about your data… (Enter to send)" class="flex-1 bg-transparent text-sm py-2.5 px-3 resize-none min-h-[44px] max-h-32 font-light focus:outline-none" style="color:var(--txt)"></textarea>
-                    <button @click="runQuery()" :disabled="isAnalyzing || !query.trim()" class="bp flex-shrink-0">
-                        <template x-if="!isAnalyzing"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></template>
-                        <template x-if="isAnalyzing"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
-                    </button>
-                </div>
-            </div>
+                    <!-- Header -->
+                    <div class="chat-header">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <!-- Sidebar toggle -->
+                            <button @click="chatSidebarOpen = !chatSidebarOpen" class="ibt flex-shrink-0" title="Toggle sidebar">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <path d="M9 3v18"/>
+                                </svg>
+                            </button>
+                            <!-- Session title -->
+                            <div class="min-w-0">
+                                <h3 class="font-black text-sm uppercase tracking-tight truncate" style="color:var(--txt)"
+                                    x-text="chatSessions.find(s=>s.id===activeSessionId)?.name || 'AI Chat'"></h3>
+                                <p class="text-[9px] font-mono opacity-40 mt-0.5"
+                                   x-text="'Session · ' + new Date(chatSessions.find(s=>s.id===activeSessionId)?.created_at||new Date()).toLocaleDateString()"></p>
+                            </div>
+                        </div>
+                        <!-- Model chip -->
+                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                            <div class="w-1.5 h-1.5 rounded-full" style="background:#22c55e;box-shadow:0 0 5px #22c55e"></div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--txt-m)">Gemini</span>
+                        </div>
+                    </div>
+
+                    <!-- Messages Thread -->
+                    <div id="chat-thread">
+
+                        <!-- Welcome state when no messages -->
+                        <template x-if="!messages.length">
+                            <div class="flex flex-col items-center justify-center py-12 gap-4 text-center">
+                                <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black italic"
+                                     style="background:linear-gradient(135deg,var(--accent),rgba(99,102,241,.8));color:#fff;box-shadow:0 8px 24px rgba(46,91,255,.3)">AI</div>
+                                <div>
+                                    <p class="font-black text-base uppercase tracking-tight" style="color:var(--txt)">DataForge Analyst</p>
+                                    <p class="text-xs mt-1 max-w-xs" style="color:var(--txt-m)">Ask me anything about your dataset — trends, stats, correlations, or custom queries.</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2 justify-center max-w-sm">
+                                    <template x-for="action in quickActions.slice(0,4)" :key="action">
+                                        <button @click="query = action; runQuery()"
+                                                class="chat-quick-chip" :disabled="isAnalyzing" x-text="action"></button>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Messages -->
+                        <template x-for="(msg, i) in messages" :key="i">
+                            <div :class="'chat-msg-wrap ' + msg.role">
+
+                                <!-- AI message -->
+                                <template x-if="msg.role === 'assistant'">
+                                    <div>
+                                        <div class="chat-ai-header">
+                                            <div class="chat-ai-avatar">AI</div>
+                                            <span class="chat-ai-name">Analyst</span>
+                                            <template x-if="msg.intent">
+                                                <span class="chat-intent-chip" x-text="msg.intent.type"></span>
+                                            </template>
+                                        </div>
+                                        <div class="chat-bubble-ai">
+                                            <p x-text="msg.content"></p>
+                                            <!-- Chart -->
+                                            <template x-if="msg.chartData">
+                                                <div class="chat-artifact"><canvas :id="'chart-' + i" height="200"></canvas></div>
+                                            </template>
+                                            <!-- Table -->
+                                            <template x-if="msg.tableData">
+                                                <div class="chat-artifact overflow-x-auto" style="max-height:240px">
+                                                    <table class="dt">
+                                                        <thead><tr><template x-for="h in msg.tableData.headers" :key="h"><th x-text="h"></th></template></tr></thead>
+                                                        <tbody>
+                                                            <template x-for="(row,ri) in msg.tableData.rows.slice(0,50)" :key="ri">
+                                                                <tr><template x-for="(cell,ci) in row" :key="ci"><td x-text="cell===null?'—':cell"></td></template></tr>
+                                                            </template>
+                                                        </tbody>
+                                                    </table>
+                                                    <p class="text-[9px] mt-1.5 text-center" style="color:var(--txt-m)"
+                                                       x-text="msg.tableData.rows.length>50?'(showing 50 of '+msg.tableData.total+' rows)':''"></p>
+                                                </div>
+                                            </template>
+                                            <!-- Insight quote -->
+                                            <template x-if="msg.insight">
+                                                <div class="chat-insight-quote" x-text="'💡 ' + msg.insight"></div>
+                                            </template>
+                                            <!-- Code toggle -->
+                                            <template x-if="msg.code">
+                                                <div x-data="{open:false}" class="mt-2">
+                                                    <button @click="open=!open" class="chat-code-toggle">
+                                                        <svg :class="open?'rotate-90':''" class="w-3 h-3 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+                                                        View generated Python
+                                                    </button>
+                                                    <div x-show="open" x-transition class="chat-code-block" x-text="msg.code"></div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <span class="chat-time" x-text="msg.ts ? new Date(msg.ts).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}) : ''"></span>
+                                    </div>
+                                </template>
+
+                                <!-- User message -->
+                                <template x-if="msg.role === 'user'">
+                                    <div>
+                                        <div class="chat-bubble-user" x-text="msg.content"></div>
+                                        <span class="chat-time" style="text-align:right;display:block"
+                                              x-text="msg.ts ? new Date(msg.ts).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}) : ''"></span>
+                                    </div>
+                                </template>
+
+                            </div>
+                        </template>
+
+                        <!-- Typing indicator -->
+                        <template x-if="isAnalyzing">
+                            <div class="chat-typing">
+                                <div class="chat-typing-avatar">AI</div>
+                                <div class="chat-typing-bubble">
+                                    <div class="chat-dot"></div>
+                                    <div class="chat-dot"></div>
+                                    <div class="chat-dot"></div>
+                                    <span class="text-[10px] font-semibold ml-1" style="color:var(--txt-m)">Thinking…</span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Quick Actions (only when messages exist) -->
+                    <template x-if="messages.length">
+                        <div class="chat-quick-wrap">
+                            <template x-for="action in quickActions" :key="action">
+                                <button @click="query = action; runQuery()" class="chat-quick-chip"
+                                        :disabled="isAnalyzing" x-text="action"></button>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Input pill -->
+                    <div class="chat-input-wrap">
+                        <textarea x-model="query"
+                                  @keydown.enter.prevent="if(!$event.shiftKey) runQuery()"
+                                  placeholder="Ask anything about your data…"
+                                  class="chat-textarea"
+                                  rows="1"
+                                  @input="$el.style.height='auto';$el.style.height=Math.min($el.scrollHeight,120)+'px'"></textarea>
+                        <button @click="runQuery()" :disabled="isAnalyzing || !query.trim()" class="chat-send-btn">
+                            <template x-if="!isAnalyzing">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>
+                            </template>
+                            <template x-if="isAnalyzing">
+                                <svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                            </template>
+                        </button>
+                    </div>
+                    <p class="chat-input-hint">Shift+Enter for new line · Enter to send</p>
+
+                </div><!-- /chat-main -->
+            </div><!-- /chat-container -->
         </template>
     </div>
+
+
 
     <!-- ── CLEANING ───────────────────────────────────────── -->
     <div x-show="activeTab === 'cleaning'" class="tab-panel space-y-5">
@@ -693,6 +1014,7 @@
                     <span x-text="isCleaning ? 'CLEANING…' : (cleanResult ? '✓ CLEANED' : 'RUN PIPELINE')"></span>
                 </button>
                 <template x-if="cleanResult"><a :href="'/api/clean/download?upload_id=' + encodeURIComponent(uploadId)" class="bg">⬇ DOWNLOAD CSV</a></template>
+                <template x-if="cleanResult"><a :href="'/api/clean/download?format=xlsx&upload_id=' + encodeURIComponent(uploadId)" class="bg">⬇ DOWNLOAD EXCEL</a></template>
             </div>
         </div>
 
@@ -790,6 +1112,7 @@
                     <span x-text="isGeneratingEda ? 'PROFILING…' : 'GENERATE REPORT'"></span>
                 </button>
                 <template x-if="edaReady"><a :href="'/api/eda/report?format=pdf&theme=cupcake&upload_id=' + encodeURIComponent(uploadId)" target="_blank" class="bg">⬇ PDF</a></template>
+                <template x-if="edaReady"><a :href="'/api/reports/current?format=pdf&upload_id=' + encodeURIComponent(uploadId)" target="_blank" class="bp">⬇ Executive PDF Report</a></template>
             </div>
         </div>
 
@@ -966,41 +1289,257 @@
                 <template x-for="stat in dashStats" :key="stat.label">
                     <div class="sc p-4">
                         <p class="sl mb-1 truncate" x-text="stat.label"></p>
-                        <p class="text-3xl font-black tracking-tighter" style="color:var(--accent)" x-text="stat.value.toLocaleString()"></p>
-                        <p class="text-[10px] mt-1 truncate" style="color:var(--txt-m)" x-text="stat.sub"></p>
+                        <p class="text-3xl font-black tracking-tighter" :style="'color:' + (stat.color || 'var(--accent)')" x-text="stat.value.toLocaleString()"></p>
+                        <p class="text-[10px] mt-1 truncate font-semibold" :style="'color:' + (stat.color || 'var(--txt-m)')" x-text="stat.sub"></p>
                     </div>
                 </template>
             </div>
         </template>
 
-        <template x-if="dashCharts.length || dashIdStats">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                <!-- Column 1 -->
-                <div class="space-y-5">
-                    <template x-for="ch in dashCharts.filter(c => c.type === 'bar')" :key="ch.id">
-                        <div class="gc rounded-2xl p-5 border-l-4" style="border-left-color: rgba(46,91,255,0.5)">
-                            <p class="font-bold text-xs uppercase tracking-widest mb-4" style="color:var(--txt-m)" x-text="ch.title"></p>
-                            <div style="height:250px;position:relative"><canvas :id="'dash-chart-' + ch.id"></canvas></div>
+        <!-- ── CUSTOM CHART BUILDER ── -->
+        <template x-if="dashStats.length">
+            <div id="chart-builder-card" class="rounded-2xl overflow-hidden" style="background:linear-gradient(135deg,rgba(46,91,255,.06) 0%,rgba(99,102,241,.04) 100%);border:1px solid rgba(46,91,255,.2);box-shadow:0 8px 32px rgba(46,91,255,.08)">
+                <!-- Header -->
+                <div class="flex items-center justify-between px-5 py-4" style="background:linear-gradient(135deg,rgba(46,91,255,.12),rgba(99,102,241,.08));border-bottom:1px solid rgba(46,91,255,.15)">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,var(--accent),rgba(99,102,241,.9));box-shadow:0 4px 12px rgba(46,91,255,.3)">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
                         </div>
-                    </template>
-                    
-                    <template x-if="dashSummary">
-                        <div class="gc rounded-2xl p-5" style="border-left:3px solid var(--accent)">
-                            <p class="sl mb-2">AI Summary</p>
-                            <p class="text-xs leading-relaxed" style="color:var(--txt)" x-text="dashSummary"></p>
+                        <div>
+                            <h3 class="font-black text-sm tracking-tight" style="color:var(--txt)" x-text="isEditingChart ? '✏️ Edit Chart' : '🛠️ Custom Chart Builder'"></h3>
+                            <p class="text-[10px] mt-0.5 font-medium" style="color:var(--txt-m)">5 chart types · Any column · Saved to your dashboard</p>
                         </div>
+                    </div>
+                    <template x-if="isEditingChart">
+                        <button @click="isEditingChart = false; customChart = { id: null, chart_type: 'bar', x_col: '', y_col: '', agg_type: 'mean', title: '', is_area: false }" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                            Cancel
+                        </button>
                     </template>
                 </div>
 
-                <!-- Column 2 -->
+                <div class="p-5 space-y-5">
+                    <!-- Chart Type Tile Selector -->
+                    <div>
+                        <p class="sl mb-2.5">Chart Type</p>
+                        <div class="grid grid-cols-5 gap-2">
+                            <!-- Bar Chart -->
+                            <button @click="customChart.chart_type = 'bar'"
+                                :class="customChart.chart_type === 'bar' ? 'border-[var(--accent)] bg-[rgba(46,91,255,0.12)]' : 'border-[var(--border)] hover:border-[rgba(46,91,255,0.4)]'"
+                                class="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all group cursor-pointer" style="background:var(--card)">
+                                <svg class="w-6 h-6" :style="customChart.chart_type === 'bar' ? 'color:var(--accent)' : 'color:var(--txt-m)'" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="11" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/></svg>
+                                <span class="text-[9px] font-bold uppercase tracking-wider" :style="customChart.chart_type === 'bar' ? 'color:var(--accent)' : 'color:var(--txt-m)'">Bar</span>
+                            </button>
+                            <!-- Line Chart -->
+                            <button @click="customChart.chart_type = 'line'"
+                                :class="customChart.chart_type === 'line' ? 'border-[var(--accent)] bg-[rgba(46,91,255,0.12)]' : 'border-[var(--border)] hover:border-[rgba(46,91,255,0.4)]'"
+                                class="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all group cursor-pointer" style="background:var(--card)">
+                                <svg class="w-6 h-6" :style="customChart.chart_type === 'line' ? 'color:var(--accent)' : 'color:var(--txt-m)'" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="3 17 8 12 13 15 21 7"/><line x1="3" y1="20" x2="21" y2="20"/></svg>
+                                <span class="text-[9px] font-bold uppercase tracking-wider" :style="customChart.chart_type === 'line' ? 'color:var(--accent)' : 'color:var(--txt-m)'">Line</span>
+                            </button>
+                            <!-- Scatter Plot -->
+                            <button @click="customChart.chart_type = 'scatter'"
+                                :class="customChart.chart_type === 'scatter' ? 'border-[var(--accent)] bg-[rgba(46,91,255,0.12)]' : 'border-[var(--border)] hover:border-[rgba(46,91,255,0.4)]'"
+                                class="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all group cursor-pointer" style="background:var(--card)">
+                                <svg class="w-6 h-6" :style="customChart.chart_type === 'scatter' ? 'color:var(--accent)' : 'color:var(--txt-m)'" viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="16" r="2"/><circle cx="14" cy="8" r="2"/><circle cx="19" cy="13" r="2"/><circle cx="9" cy="11" r="1.5"/><circle cx="17" cy="5" r="1.5"/></svg>
+                                <span class="text-[9px] font-bold uppercase tracking-wider" :style="customChart.chart_type === 'scatter' ? 'color:var(--accent)' : 'color:var(--txt-m)'">Scatter</span>
+                            </button>
+                            <!-- Pie Chart -->
+                            <button @click="customChart.chart_type = 'pie'"
+                                :class="customChart.chart_type === 'pie' ? 'border-[var(--accent)] bg-[rgba(46,91,255,0.12)]' : 'border-[var(--border)] hover:border-[rgba(46,91,255,0.4)]'"
+                                class="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all group cursor-pointer" style="background:var(--card)">
+                                <svg class="w-6 h-6" :style="customChart.chart_type === 'pie' ? 'color:var(--accent)' : 'color:var(--txt-m)'" viewBox="0 0 24 24" fill="currentColor"><path d="M21.21 15.89A10 10 0 1 1 8 2.83" fill="none" stroke="currentColor" stroke-width="2"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                                <span class="text-[9px] font-bold uppercase tracking-wider" :style="customChart.chart_type === 'pie' ? 'color:var(--accent)' : 'color:var(--txt-m)'">Pie</span>
+                            </button>
+                            <!-- Box Plot -->
+                            <button @click="customChart.chart_type = 'boxplot'"
+                                :class="customChart.chart_type === 'boxplot' ? 'border-[var(--accent)] bg-[rgba(46,91,255,0.12)]' : 'border-[var(--border)] hover:border-[rgba(46,91,255,0.4)]'"
+                                class="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all group cursor-pointer" style="background:var(--card)">
+                                <svg class="w-6 h-6" :style="customChart.chart_type === 'boxplot' ? 'color:var(--accent)' : 'color:var(--txt-m)'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="9" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="15" y2="12"/></svg>
+                                <span class="text-[9px] font-bold uppercase tracking-wider" :style="customChart.chart_type === 'boxplot' ? 'color:var(--accent)' : 'color:var(--txt-m)'">Box Plot</span>
+                            </button>
+                        </div>
+
+                        <!-- Helper hint per chart type -->
+                        <div class="mt-2 px-3 py-2 rounded-lg text-[10px] font-medium flex items-center gap-2" style="background:rgba(46,91,255,.06);border:1px solid rgba(46,91,255,.1);color:var(--txt-m)">
+                            <svg class="w-3.5 h-3.5 flex-shrink-0" style="color:var(--accent)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                            <span x-text="{
+                                bar: 'Compare categories: select a category column for X and a numeric column for Y (or leave Y blank to count rows).',
+                                line: 'Show trends: select a time or sequential column for X and a numeric column for Y.',
+                                scatter: 'Plot correlations: both X and Y must be numeric columns.',
+                                pie: 'Show distribution: select a category column for X — top 10 slices are shown automatically.',
+                                boxplot: 'Show spread &amp; outliers: select any numeric column to visualize its quartiles and whiskers.'
+                            }[customChart.chart_type] || ''"></span>
+                        </div>
+                    </div>
+
+                    <!-- Column Config Row -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- X / Main Column -->
+                        <div class="space-y-1.5">
+                            <label class="sl" x-text="['histogram','boxplot'].includes(customChart.chart_type) ? '📊 Numeric Column' : (customChart.chart_type === 'scatter' ? '→ X Axis (numeric)' : '→ X Axis / Category')"></label>
+                            <div class="relative">
+                                <select x-model="customChart.x_col" class="inp py-2 px-3 text-xs w-full pr-8" style="background:var(--surface);border-color:rgba(46,91,255,.2);appearance:none">
+                                    <option value="">— Select Column —</option>
+                                    <template x-for="col in (['scatter','histogram','boxplot'].includes(customChart.chart_type) ? dashNumericCols : profileCols)" :key="col">
+                                        <option :value="col" x-text="col"></option>
+                                    </template>
+                                </select>
+                                <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style="color:var(--txt-m)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                            </div>
+                        </div>
+
+                        <!-- Y Axis Column (hidden for histogram/boxplot) -->
+                        <div class="space-y-1.5" x-show="!['histogram','boxplot'].includes(customChart.chart_type)">
+                            <label class="sl" x-text="customChart.chart_type === 'scatter' ? '↑ Y Axis (numeric)' : '↑ Y Axis (numeric, optional)'"></label>
+                            <div class="relative">
+                                <select x-model="customChart.y_col" class="inp py-2 px-3 text-xs w-full pr-8" style="background:var(--surface);border-color:rgba(46,91,255,.2);appearance:none">
+                                    <option value="" x-text="customChart.chart_type === 'scatter' ? '— Required —' : '— Count rows —'"></option>
+                                    <template x-for="col in dashNumericCols" :key="col">
+                                        <option :value="col" x-text="col"></option>
+                                    </template>
+                                </select>
+                                <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style="color:var(--txt-m)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                            </div>
+                        </div>
+
+                        <!-- Aggregation (hidden for histogram/boxplot/scatter) -->
+                        <div class="space-y-1.5" x-show="!['histogram','boxplot','scatter'].includes(customChart.chart_type)">
+                            <label class="sl">⚙ Aggregation</label>
+                            <div class="relative">
+                                <select x-model="customChart.agg_type" class="inp py-2 px-3 text-xs w-full pr-8" style="background:var(--surface);border-color:rgba(46,91,255,.2);appearance:none">
+                                    <option value="mean">Average (Mean)</option>
+                                    <option value="sum">Sum</option>
+                                    <option value="count">Count of Values</option>
+                                    <option value="none">None — Raw Rows</option>
+                                </select>
+                                <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style="color:var(--txt-m)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Title + Action Row -->
+                    <div class="flex gap-3 items-end">
+                        <div class="flex-1 space-y-1.5">
+                            <label class="sl">✏ Custom Title (optional)</label>
+                            <input type="text" x-model="customChart.title" placeholder="Auto-generated from columns if left blank" class="inp py-2 px-3 text-xs w-full" style="background:var(--surface);border-color:rgba(46,91,255,.2)">
+                        </div>
+                        <button @click="saveCustomChart()" :disabled="isGeneratingChart || !customChart.x_col"
+                            class="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-[11px] tracking-wider uppercase text-white transition-all"
+                            :style="(!customChart.x_col || isGeneratingChart) ? 'background:rgba(46,91,255,.3);cursor:not-allowed' : 'background:linear-gradient(135deg,var(--accent),rgba(99,102,241,.9));box-shadow:0 4px 14px rgba(46,91,255,.35);cursor:pointer'">
+                            <template x-if="isGeneratingChart">
+                                <svg class="w-3.5 h-3.5 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                            </template>
+                            <template x-if="!isGeneratingChart">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
+                            </template>
+                            <span x-text="isGeneratingChart ? 'Saving…' : (isEditingChart ? 'Update Chart' : 'Add to Dashboard')"></span>
+                        </button>
+                    </div>
+
+                    <!-- Error -->
+                    <template x-if="customChartError">
+                        <div class="flex items-start gap-2.5 p-3 rounded-xl text-xs" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171">
+                            <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                            <span x-text="customChartError"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+
+        <!-- ── CHART & INSIGHTS GRID ── -->
+        <template x-if="dashCharts.length || dashIdStats">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <!-- Column 1 + 2: Chart Area -->
+                <div class="lg:col-span-2 space-y-5">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <template x-for="ch in dashCharts" :key="ch.id">
+                            <div class="gc rounded-2xl p-5 border-l-4 flex flex-col justify-between"
+                                 :style="'border-left-color: ' + (ch.is_custom ? 'var(--accent)' : 'rgba(46,91,255,0.5)')">
+                                
+                                <div>
+                                    <div class="flex items-center justify-between mb-4 gap-2">
+                                        <div class="min-w-0">
+                                            <p class="font-bold text-xs uppercase tracking-widest truncate" style="color:var(--txt-m)" x-text="ch.title"></p>
+                                            <template x-if="ch.is_custom">
+                                                <span class="text-[8px] font-bold tracking-tight uppercase text-indigo-400 bg-indigo-950/30 px-1.5 py-0.5 rounded">Custom</span>
+                                            </template>
+                                        </div>
+                                        
+                                        <!-- Actions for Custom Chart -->
+                                        <template x-if="ch.is_custom">
+                                            <div class="flex items-center gap-2 flex-shrink-0">
+                                                <button @click="editCustomChart(ch)" class="text-[9px] uppercase font-bold tracking-tight text-indigo-400 hover:text-indigo-300" title="Edit chart configuration">Edit</button>
+                                                <button @click="duplicateCustomChart(ch)" class="text-[9px] uppercase font-bold tracking-tight text-green-400 hover:text-green-300" title="Duplicate chart">Dup</button>
+                                                <button @click="deleteCustomChart(ch.id)" class="text-[9px] uppercase font-bold tracking-tight text-red-400 hover:text-red-300" title="Delete chart">Del</button>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    
+                                    <!-- Box Plot Custom Rendering -->
+                                    <template x-if="ch.type === 'boxplot'">
+                                        <div class="space-y-4 py-2">
+                                            <div class="relative w-full h-10 flex items-center">
+                                                <!-- Min-Max Whisker line -->
+                                                <div class="absolute h-0.5 left-0 right-0 bg-gray-500 rounded"></div>
+                                                <!-- Min tick -->
+                                                <div class="absolute w-0.5 h-4 bg-gray-500 left-0"></div>
+                                                <!-- Max tick -->
+                                                <div class="absolute w-0.5 h-4 bg-gray-500 right-0"></div>
+                                                
+                                                <!-- IQR Box (Q1 to Q3) -->
+                                                <div class="absolute h-6 bg-indigo-600/30 border-2 border-indigo-500 rounded"
+                                                     :style="{
+                                                         left: `${((ch.values.q1 - ch.values.min) / (ch.values.max - ch.values.min || 1)) * 100}%`,
+                                                         right: `${100 - (((ch.values.q3 - ch.values.min) / (ch.values.max - ch.values.min || 1)) * 100)}%`
+                                                     }">
+                                                </div>
+                                                
+                                                <!-- Median Line -->
+                                                <div class="absolute w-1 h-6 bg-indigo-400"
+                                                     :style="{
+                                                         left: `${((ch.values.median - ch.values.min) / (ch.values.max - ch.values.min || 1)) * 100}%`,
+                                                         transform: 'translateX(-50%)'
+                                                     }">
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Stats labels grid -->
+                                            <div class="grid grid-cols-5 text-center text-[9px] font-mono font-bold text-gray-400 gap-1 leading-tight">
+                                                <div>Min<br><span class="text-white" x-text="ch.formatted_values.min"></span></div>
+                                                <div>Q1<br><span class="text-white" x-text="ch.formatted_values.q1"></span></div>
+                                                <div>Median<br><span class="text-white font-extrabold text-indigo-400" x-text="ch.formatted_values.median"></span></div>
+                                                <div>Q3<br><span class="text-white" x-text="ch.formatted_values.q3"></span></div>
+                                                <div>Max<br><span class="text-white" x-text="ch.formatted_values.max"></span></div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                    
+                                    <!-- Canvas for Chart.js -->
+                                    <template x-if="ch.type !== 'boxplot'">
+                                        <div style="height:220px; position:relative">
+                                            <canvas :id="'dash-chart-' + ch.id"></canvas>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Column 3: Insights Area -->
                 <div class="space-y-5">
-                    <template x-for="ch in dashCharts.filter(c => c.type === 'line')" :key="ch.id">
-                        <div class="gc rounded-2xl p-5 border-l-4" style="border-left-color: rgba(46,91,255,0.5)">
-                            <p class="font-bold text-xs uppercase tracking-widest mb-4" style="color:var(--txt-m)" x-text="ch.title"></p>
-                            <div style="height:150px;position:relative"><canvas :id="'dash-chart-' + ch.id"></canvas></div>
+                    <!-- Executive Summary -->
+                    <template x-if="dashSummary">
+                        <div class="gc rounded-2xl p-5" style="border-left:3px solid var(--accent)">
+                            <p class="sl mb-2">Executive Summary</p>
+                            <div class="text-xs leading-relaxed" style="color:var(--txt)" x-html="formatSummary(dashSummary)"></div>
                         </div>
                     </template>
                     
+                    <!-- ID Statistics -->
                     <template x-if="dashIdStats">
                         <div class="gc rounded-2xl p-5">
                             <p class="font-bold text-xs uppercase tracking-widest mb-4" style="color:var(--txt-m)">ID STATISTICS</p>
@@ -1012,6 +1551,7 @@
                         </div>
                     </template>
                     
+                    <!-- Recent Data Entries -->
                     <template x-if="dashRecent.length">
                         <div class="gc rounded-2xl p-5">
                             <div class="flex items-center justify-between mb-4">
@@ -1031,24 +1571,8 @@
                             </table>
                         </div>
                     </template>
-                </div>
 
-                <!-- Column 3 -->
-                <div class="space-y-5">
-                    <div class="gc rounded-2xl p-5 h-[160px] overflow-hidden">
-                        <p class="font-bold text-xs uppercase tracking-widest mb-3" style="color:var(--txt-m)">INSIGHTS & ALERTS</p>
-                        <div class="space-y-3">
-                            <template x-for="ins in dashboardInsights.slice(0,4)" :key="ins.title || ins.description">
-                                <div class="flex items-start gap-2">
-                                    <span class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" :style="'background:' + (ins.type === 'anomaly' ? '#f59e0b' : '#2dd4bf')"></span>
-                                    <p class="text-xs leading-tight line-clamp-2" style="color:var(--txt)" x-text="ins.description || ins.title"></p>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
 
-                </div>
-            </div>
         </template>
 
         <template x-if="!dashStats.length && !isDashLoading">
@@ -1066,12 +1590,8 @@
     <div x-show="activeTab === 'insights'" class="tab-panel space-y-5">
         <div class="sec-hd"><div><h2>Insight Engine</h2><p class="sec-sub">Auto-detect patterns · Trends · Anomalies · Correlations · Dataset type detection</p></div>
             <div class="flex gap-2 flex-wrap items-center">
-                <label class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" x-model="insightUseGemini" class="accent-[#2E5BFF]">
-                    <span class="font-bold uppercase tracking-widest text-[10px]" style="color:var(--txt-m)">Gemini Summary</span>
-                </label>
                 <select x-model="insightTopN" class="inp" style="width:auto;padding:.4rem .7rem;font-size:.75rem;font-weight:700">
-                    <option value="4">4 insights</option>
+                    <option value="3">3 insights</option>
                     <option value="6" selected>6 insights</option>
                     <option value="9">9 insights</option>
                 </select>
@@ -1221,66 +1741,6 @@
         </template>
     </div>
 
-
-    <!-- ── ALERTS ─────────────────────────────────────────── -->
-    <div x-show="activeTab === 'alerts'" class="tab-panel space-y-5">
-        <div class="sec-hd"><div><h2>Monitoring & Alerts</h2><p class="sec-sub">Detect metric drops · Spikes · Data quality issues · Row count changes</p></div>
-            <div class="flex gap-2 flex-wrap">
-                <button @click="checkAlerts()" :disabled="isCheckingAlerts" class="bp">
-                    <template x-if="isCheckingAlerts"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
-                    <span x-text="isCheckingAlerts ? 'CHECKING…' : '▶ RUN CHECKS'"></span>
-                </button>
-                <button @click="loadAlerts()" class="bg">↻ REFRESH</button>
-            </div>
-        </div>
-
-        <template x-if="alertCheckMsg">
-            <div class="p-4 rounded-xl text-sm font-bold" :style="alertCheckMsg.startsWith('✓') ? 'background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#1e9902' : 'background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:#f59e0b'" x-text="alertCheckMsg"></div>
-        </template>
-
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <template x-for="rule in alertRules" :key="rule.name">
-                <div class="gc rounded-xl p-3">
-                    <p class="text-[9px] font-bold uppercase tracking-wider mb-1" :style="'color:'+rule.color" x-text="rule.label"></p>
-                    <p class="text-xs" style="color:var(--txt-m)" x-text="rule.desc"></p>
-                </div>
-            </template>
-        </div>
-
-        <div>
-            <p class="sl mb-3">Active Alerts</p>
-            <template x-if="activeAlerts.length">
-                <div class="space-y-3">
-                    <template x-for="a in activeAlerts" :key="a.id">
-                        <div class="gc rounded-xl p-4 flex items-start justify-between gap-4">
-                            <div class="flex items-start gap-3 flex-1">
-                                <div class="w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0"
-                                    :style="'background:'+a.colour+';box-shadow:0 0 6px '+a.colour"></div>
-                                <div>
-                                    <p class="font-bold text-sm" style="color:var(--txt)" x-text="a.message"></p>
-                                    <p class="text-[10px] mt-1 font-mono" style="color:var(--txt-m)"
-                                        x-text="a.filename + ' · ' + a.severity.toUpperCase() + ' · ' + new Date(a.triggered_at).toLocaleString()"></p>
-                                </div>
-                            </div>
-                            <button @click="resolveAlert(a.id)"
-                                class="text-[10px] font-bold px-3 py-1.5 rounded-lg flex-shrink-0 transition-all"
-                                style="background:rgba(16,185,129,.1);color:#1e9902;border:1px solid rgba(16,185,129,.2)">
-                                Resolve ✓
-                            </button>
-                        </div>
-                    </template>
-                </div>
-            </template>
-            <template x-if="!activeAlerts.length">
-                <div class="gc rounded-xl py-12 text-center">
-                    <p class="text-3xl mb-3">✅</p>
-                    <p class="text-sm font-bold" style="color:var(--txt-m)">No active alerts</p>
-                    <p class="text-xs mt-1" style="color:var(--txt-m)">Run checks to monitor your dataset for anomalies</p>
-                </div>
-            </template>
-        </div>
-    </div>
-
 </main>
 
 <!-- ════════════════════ AI CONSENT MODAL (Full-page Overlay) ═══ -->
@@ -1322,7 +1782,7 @@
 </template>
 
 <footer id="app-footer">
-    <span class="footer-tech">FLAML · PyJanitor · ydata-profiling · Gemini 2.0</span>
+    <span class="footer-tech">FLAML · PyJanitor · ydata-profiling · Google Gemini</span>
     <span class="text-[#1e9902] font-bold text-[10px] uppercase tracking-tight">Open Source</span>
 </footer>
 
@@ -1346,13 +1806,12 @@ function workspaceApp() {
         activeTab: 'preview',
         tabs: [
             { id:'preview',   label:'Preview',   icon:'📊' },
+            { id:'cleaning',  label:'Cleaning',  icon:'🧹' },
             { id:'dashboard', label:'Dashboard', icon:'🗂️' },
             { id:'insights',  label:'Insights',  icon:'💡' },
             { id:'query',     label:'AI Query',  icon:'💬' },
-            { id:'cleaning',  label:'Cleaning',  icon:'🧹' },
-            { id:'eda',       label:'EDA',       icon:'📈' },
+            { id:'eda',       label:'Report',    icon:'📈' },
             { id:'automl',    label:'AutoML',    icon:'🤖' },
-            { id:'alerts',    label:'Alerts',    icon:'🔔' },
         ],
         profile:      {{ profile | tojson }},
         cleanProfile: null,
@@ -1373,7 +1832,32 @@ function workspaceApp() {
         previewData:  {headers:[], rows:[], loaded:0, total:0, preview_only:false},
         previewClean: false,
 
-        query: '', isAnalyzing: false, messages: [],
+        query: '',
+        get isAnalyzing() {
+            const active = this.chatSessions.find(s => s.id === this.activeSessionId);
+            return active ? !!active.isAnalyzing : false;
+        },
+        set isAnalyzing(val) {
+            const active = this.chatSessions.find(s => s.id === this.activeSessionId);
+            if (active) {
+                active.isAnalyzing = val;
+            }
+        },
+        get messages() {
+            const active = this.chatSessions.find(s => s.id === this.activeSessionId);
+            return active ? (active.messages || []) : [];
+        },
+        set messages(val) {
+            const active = this.chatSessions.find(s => s.id === this.activeSessionId);
+            if (active) {
+                active.messages = val;
+            }
+        },
+        chatSessions: [],
+        activeSessionId: 'default',
+        chatSidebarOpen: window.innerWidth >= 768,
+        editingSessionId: null,
+        editingSessionName: '',
         quickActions: ['Summarize this dataset','Distribution of numeric columns','Top 10 categories by count','Show correlation between numeric columns'],
 
         isCleaning: false, cleanResult: null, cleanError: '',
@@ -1389,13 +1873,7 @@ function workspaceApp() {
         uploadId: {{ upload_id | tojson }},
         isSyncingSheets: false,
         sourceType: 'csv',
-        aiPermissionGranted: (() => {
-            try {
-                return localStorage.getItem('dataforge_ai_consent') === 'true';
-            } catch (e) {
-                return false;
-            }
-        })(),
+        aiPermissionGranted: false,
 
         isTraining: false, automlResult: null, automlError: '',
         automlTarget: '', automlTask: 'auto-detect', automlTimeBudget: 120, automlTestSize: 20,
@@ -1466,7 +1944,7 @@ function workspaceApp() {
                     return;
                 }
 
-                if (st.profile  && st.profile.rows)  this.profile      = st.profile;
+                if (st.profile && Object.keys(st.profile).length > 0) this.profile = st.profile;
                 if (st.clean_profile)                 this.cleanProfile = st.clean_profile;
                 if (st.columns && st.columns.length)  this.profileCols  = this.columnNameList(st.columns);
 
@@ -1495,6 +1973,20 @@ function workspaceApp() {
                         } else {
                             this.automlTarget = '';
                         }
+                    }
+                }
+
+                if (st.chat_sessions) this.chatSessions = st.chat_sessions;
+                if (st.active_session_id) this.activeSessionId = st.active_session_id;
+                if (st.ai_consent) {
+                    this.aiPermissionGranted = true;
+                } else {
+                    const localConsent = localStorage.getItem('dataforge_ai_consent_' + this.uploadId) === 'true';
+                    if (localConsent) {
+                        this.aiPermissionGranted = true;
+                        this._fetch('/api/workspace/consent', { method: 'POST' }).catch(()=>{});
+                    } else {
+                        this.aiPermissionGranted = false;
                     }
                 }
 
@@ -1574,15 +2066,21 @@ function workspaceApp() {
         dashboardInsights: [],
         dashFilters: { chart_dim: '', chart_metric: '' },
         dashIdStats: null, dashRecent: [], dashDim: 'Category', dashMetric: 'Metric',
-        dashNumericCols: [], drillDownLoading: false, drillDownData: null,
+        dashNumericCols: [], dashCatCols: [], drillDownLoading: false, drillDownData: null,
+        customChart: { id: null, chart_type: 'bar', x_col: '', y_col: '', agg_type: 'mean', title: '', is_area: false },
+        isEditingChart: false,
+        isGeneratingChart: false,
+        customChartError: '',
 
         switchTab(id) {
             this.activeTab = id;
             if (id === 'dashboard' && !this.dashStats.length) this.loadDashboard();
-            if (id === 'alerts'    && !this.activeAlerts.length) this.loadAlerts();
         },
 
-        openAiChat() {
+        async openAiChat() {
+            try {
+                localStorage.setItem('dataforge_ai_consent_' + this.uploadId, 'true');
+            } catch (e) {}
             this.aiPermissionGranted = true;
             this.activeTab = 'query';
             this.drawerOpen = false;
@@ -1590,6 +2088,11 @@ function workspaceApp() {
                 const input = document.querySelector('#chat-panel textarea');
                 if (input) input.focus();
             });
+            try {
+                await this._fetch('/api/workspace/consent', { method: 'POST' });
+            } catch (e) {
+                console.warn('Failed to save consent to backend', e);
+            }
         },
 
         async doDrillDown(chart_id, x_label, col_name) {
@@ -1631,8 +2134,9 @@ function workspaceApp() {
                 this.dashDim     = d.dim || 'Category';
                 this.dashMetric  = d.metric || 'Metric';
                 this.dashNumericCols = d.numeric_cols || [];
+                this.dashCatCols = d.cat_cols || [];
                 this.dashboardInsights = d.insights || [];
-                if(d.cat_cols && !this.profileCols.length) {
+                if(d.cat_cols) {
                     this.profileCols = this.columnNameList((d.cat_cols || []).concat(d.numeric_cols || [])); 
                 }
 
@@ -1652,80 +2156,390 @@ function workspaceApp() {
             const ctx = canvas.getContext('2d');
             const c = '#2E5BFF';
 
-            // Catch onClick for drill-down
             const onclick = (evt, elements) => {
-                if (elements.length > 0) {
+                if (elements.length > 0 && ch.type !== 'scatter' && ch.type !== 'histogram') {
                     const idx = elements[0].index;
                     const x_label = ch.labels[idx];
-                    this.doDrillDown(ch.id, x_label, ch.x_label);
+                    this.doDrillDown(ch.id, x_label, ch.x_col);
                 }
             };
 
-            const isPie = ch.type === 'pie';
-            const pieColors = ['#2E5BFF', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
+            const isCircular = ch.type === 'pie' || ch.type === 'doughnut';
+            const isArea = ch.type === 'area' || ch.is_area;
+            const isHistogram = ch.type === 'histogram';
+            const isScatter = ch.type === 'scatter';
+            const chartType = isHistogram ? 'bar' : isScatter ? 'scatter' : (ch.type === 'area' ? 'line' : ch.type);
+            const pieColors = ['#2E5BFF', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6', '#f43f5e', '#06b6d4', '#eab308'];
+
+            let chartData;
+            if (isScatter) {
+                const pts = Array.isArray(ch.values) && ch.values.length > 0 && typeof ch.values[0] === 'object' && 'x' in ch.values[0]
+                    ? ch.values
+                    : (ch.labels || []).map((_, i) => ({ x: parseFloat(ch.labels[i]) || i, y: parseFloat((ch.values||[])[i]) || 0 }));
+                chartData = {
+                    datasets: [{ label: `${ch.x_label || ''} vs ${ch.y_label || ''}`, data: pts,
+                        backgroundColor: 'rgba(46,91,255,.55)', pointRadius: 3, pointHoverRadius: 5 }]
+                };
+            } else {
+                chartData = {
+                    labels: ch.labels,
+                    datasets: [{
+                        label: ch.y_label || ch.x_col,
+                        data: ch.values,
+                        backgroundColor: isCircular ? pieColors : (isArea ? c + '30' : isHistogram ? c + 'bb' : c + 'ee'),
+                        borderColor: isCircular ? pieColors.map(p => p + 'cc') : c,
+                        borderWidth: isCircular ? 1 : ((chartType === 'line' || isArea) ? 2 : 0),
+                        tension: 0.3,
+                        fill: isArea,
+                        pointRadius: chartType === 'line' ? 2 : 0,
+                        borderRadius: chartType === 'bar' ? 5 : 0,
+                        barPercentage: isHistogram ? 1.0 : 0.8,
+                        categoryPercentage: isHistogram ? 1.0 : 0.9,
+                    }]
+                };
+            }
 
             const chart = new Chart(ctx, {
-                type: isPie ? 'pie' : ch.type,
-                data: {
-                    labels: ch.labels,
-                    datasets: [{ 
-                        label: ch.y_label, 
-                        data: ch.values,
-                        backgroundColor: isPie ? pieColors : (ch.type === 'line' ? c + '20' : c + 'ee'),
-                        borderColor: isPie ? 'rgba(0,0,0,0.1)' : c, 
-                        borderWidth: isPie ? 1 : (ch.type === 'line' ? 2 : 0),
-                        tension: 0.3, fill: ch.type === 'line', pointRadius: 2,
-                        borderRadius: ch.type === 'bar' ? 4 : 0
-                    }]
-                },
+                type: chartType,
+                data: chartData,
                 options: {
                     onClick: onclick,
                     responsive: true, maintainAspectRatio: false,
-                    plugins: { 
-                        legend: { 
-                            display: isPie, position: isPie ? 'right' : 'top',
-                            labels: { color: tc, font: {size: 10}, boxWidth: 12, padding: 10 }
-                        } 
+                    plugins: {
+                        legend: {
+                            display: isCircular,
+                            position: 'bottom',
+                            labels: { color: tc, font: {size: 9}, boxWidth: 10, padding: 8 }
+                        }
                     },
-                    scales: isPie ? {} : {
-                        x: { ticks:{color:tc,font:{size:9},maxRotation:45}, grid:{color:gc, display:false} },
-                        y: { ticks:{color:tc,font:{size:9}}, grid:{color:gc}, beginAtZero:true }
+                    scales: isCircular ? {} : {
+                        x: {
+                            ticks: { color: tc, font: {size: 9}, maxRotation: 40, maxTicksLimit: 8 },
+                            grid: { color: gc, display: isScatter },
+                            type: isScatter ? 'linear' : undefined,
+                            position: isScatter ? 'bottom' : undefined,
+                        },
+                        y: {
+                            ticks: { color: tc, font: {size: 9}, maxTicksLimit: 6 },
+                            grid: { color: gc },
+                            beginAtZero: !isScatter,
+                        }
                     }
                 }
             });
             canvas._chart = chart;
         },
 
+        async saveCustomChart() {
+            this.customChartError = '';
+            this.isGeneratingChart = true;
+            try {
+                const url = '/api/dashboard/custom-chart' + (this.uploadId ? '?upload_id=' + encodeURIComponent(this.uploadId) : '');
+                const res = await this._fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.customChart)
+                });
+                if (!res) return;
+                const d = await res.json();
+                if (d.error) {
+                    this.customChartError = d.error;
+                } else {
+                    this.customChart = { id: null, chart_type: 'bar', x_col: '', y_col: '', agg_type: 'mean', title: '', is_area: false };
+                    this.isEditingChart = false;
+                    await this.loadDashboard();
+                }
+            } catch(e) {
+                console.error(e);
+                this.customChartError = 'Network error: ' + e.message;
+            } finally {
+                this.isGeneratingChart = false;
+            }
+        },
+
+        editCustomChart(ch) {
+            this.customChart = {
+                id: ch.id,
+                chart_type: ch.type,
+                x_col: ch.x_col,
+                y_col: ch.y_col || '',
+                agg_type: ch.agg_type || 'none',
+                title: ch.title,
+                is_area: ch.is_area || false
+            };
+            this.isEditingChart = true;
+            this.customChartError = '';
+            const el = document.getElementById('chart-builder-card');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+        },
+
+        async duplicateCustomChart(ch) {
+            try {
+                const url = '/api/dashboard/custom-chart' + (this.uploadId ? '?upload_id=' + encodeURIComponent(this.uploadId) : '');
+                const res = await this._fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ duplicate_from_id: ch.id })
+                });
+                if (!res) return;
+                const d = await res.json();
+                if (d.error) {
+                    alert(d.error);
+                } else {
+                    await this.loadDashboard();
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        },
+
+        async deleteCustomChart(chartId) {
+            if (!confirm('Are you sure you want to delete this custom chart?')) return;
+            try {
+                const url = '/api/dashboard/custom-chart/delete' + (this.uploadId ? '?upload_id=' + encodeURIComponent(this.uploadId) : '');
+                const res = await this._fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chart_id: chartId })
+                });
+                if (!res) return;
+                const d = await res.json();
+                if (d.error) {
+                    alert(d.error);
+                } else {
+                    await this.loadDashboard();
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        },
+
         // ── QUERY ─────────────────────────────────────────────────────────────
         async runQuery() {
             const q = this.query.trim();
-            if (!q || this.isAnalyzing) return;
-            this.messages.push({role:'user', content: q});
-            this.query = ''; this.isAnalyzing = true;
-            this.$nextTick(() => this.scrollChat());
+            const querySessionId = this.activeSessionId; // Capture the session ID when the query started
+            
+            // Check if this specific session is already analyzing
+            const querySess = this.chatSessions.find(s => s.id === querySessionId);
+            if (!q || (querySess && querySess.isAnalyzing)) return;
+            
+            if (querySess) {
+                if (!querySess.messages) querySess.messages = [];
+                querySess.messages.push({role:'user', content: q});
+                querySess.isAnalyzing = true;
+            }
+            this.query = '';
+            this.$nextTick(() => {
+                if (this.activeSessionId === querySessionId) {
+                    this.scrollChat();
+                }
+            });
+            
             try {
                 const res  = await this._fetch('/api/query', {
                     method:'POST',
                     headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({upload_id: this.uploadId, query: q})
+                    body: JSON.stringify({upload_id: this.uploadId, query: q, session_id: querySessionId})
                 });
                 if (!res) return;
                 const data = await res.json();
-                if (data.error) { this.messages.push({role:'assistant', content:'⚠ Error: ' + data.error}); }
-                else {
-                    const r = data.result;
-                    let msg = {role:'assistant', content:'', insight:data.insight, code:data.code, intent:data.intent};
-                    if (r.type === 'metric')        msg.content = `Result: ${r.value}`;
-                    else if (r.type === 'summary')  msg.content = r.text;
-                    else if (r.type === 'table')    { msg.content = `Found ${r.total} rows:`; msg.tableData = r; }
-                    else if (['bar_chart','line_chart','histogram'].includes(r.type)) { msg.content = `${r.x_label} vs ${r.y_label}`; msg.chartData = r; }
-                    else if (r.type === 'scatter_chart') { msg.content = `${r.x_label} vs ${r.y_label} (${r.points.length} points)`; msg.chartData = r; }
-                    else msg.content = JSON.stringify(r).substring(0, 200);
-                    this.messages.push(msg);
-                    if (msg.chartData) { const idx = this.messages.length - 1; this.$nextTick(() => this.renderChart(idx, msg.chartData)); }
+                
+                // Retrieve the updated messages from the server response for the queried session
+                let completedMessages = [];
+                if (data.chat_sessions) {
+                    const serverSess = data.chat_sessions.find(s => s.id === querySessionId);
+                    if (serverSess && serverSess.messages) {
+                        completedMessages = serverSess.messages;
+                    }
                 }
-            } catch(e) { this.messages.push({role:'assistant', content:'Network error: ' + e.message}); }
-            finally { this.isAnalyzing = false; this.$nextTick(() => this.scrollChat()); }
+                
+                // Update names and dates of all sessions from the server, preserving local loading states
+                if (data.chat_sessions) {
+                    data.chat_sessions.forEach(incoming => {
+                        const existing = this.chatSessions.find(s => s.id === incoming.id);
+                        if (existing) {
+                            existing.name = incoming.name;
+                            existing.updated_at = incoming.updated_at;
+                            // Only overwrite messages of non-analyzing sessions or the one that just completed
+                            if (!existing.isAnalyzing || incoming.id === querySessionId) {
+                                existing.messages = incoming.messages || [];
+                            }
+                        } else {
+                            this.chatSessions.push(incoming);
+                        }
+                    });
+                }
+                
+                // If it succeeded and we have the completed messages, use them. Otherwise parse result.
+                let targetSess = this.chatSessions.find(s => s.id === querySessionId);
+                if (targetSess) {
+                    targetSess.isAnalyzing = false;
+                    if (completedMessages && completedMessages.length) {
+                        targetSess.messages = completedMessages.map(m => {
+                            const msg = {role: m.role, content: m.content || ''};
+                            if (m.chartData)  msg.chartData  = m.chartData;
+                            if (m.tableData)  msg.tableData  = m.tableData;
+                            if (m.insight)    msg.insight    = m.insight;
+                            if (m.code)       msg.code       = m.code;
+                            return msg;
+                        });
+                    } else if (data.error) {
+                        targetSess.messages.push({role:'assistant', content:'⚠ Error: ' + data.error});
+                    } else {
+                        const r = data.result;
+                        let msg = {role:'assistant', content:'', insight:data.insight, code:data.code, intent:data.intent};
+                        if (r.type === 'metric')        msg.content = `Result: ${r.value}`;
+                        else if (r.type === 'summary')  msg.content = r.text;
+                        else if (r.type === 'table')    { msg.content = `Found ${r.total} rows:`; msg.tableData = r; }
+                        else if (['bar_chart','line_chart','histogram'].includes(r.type)) { msg.content = `${r.x_label} vs ${r.y_label}`; msg.chartData = r; }
+                        else if (r.type === 'scatter_chart') { msg.content = `${r.x_label} vs ${r.y_label} (${r.points.length} points)`; msg.chartData = r; }
+                        else msg.content = JSON.stringify(r).substring(0, 200);
+                        targetSess.messages.push(msg);
+                    }
+                    
+                    // If we are STILL viewing the session that just finished, trigger renderChart and scroll
+                    if (this.activeSessionId === querySessionId) {
+                        this.$nextTick(() => {
+                            targetSess.messages.forEach((msg, idx) => {
+                                if (msg.chartData) this.renderChart(idx, msg.chartData);
+                            });
+                            this.scrollChat();
+                        });
+                    }
+                }
+            } catch(e) {
+                console.error(e);
+                let targetSess = this.chatSessions.find(s => s.id === querySessionId);
+                if (targetSess) {
+                    targetSess.isAnalyzing = false;
+                    if (!targetSess.messages) targetSess.messages = [];
+                    targetSess.messages.push({role:'assistant', content:'Network error: ' + e.message});
+                }
+            } finally {
+                this.$nextTick(() => {
+                    if (this.activeSessionId === querySessionId) {
+                        this.scrollChat();
+                    }
+                });
+            }
+        },
+
+        async createChatSession() {
+            try {
+                const res = await this._fetch('/api/workspace/chat/session/new?upload_id=' + encodeURIComponent(this.uploadId), {
+                    method: 'POST'
+                });
+                if (!res) return;
+                const data = await res.json();
+                if (data.chat_sessions) this.chatSessions = data.chat_sessions;
+                if (data.active_session_id) {
+                    this.activeSessionId = data.active_session_id;
+                    this.messages = [];
+                }
+                this.chatSidebarOpen = false;
+            } catch (e) {
+                console.error('Failed to create new chat session', e);
+            }
+        },
+
+        async selectChatSession(id) {
+            if (this.activeSessionId === id) {
+                this.chatSidebarOpen = false;
+                return;
+            }
+            try {
+                const res = await this._fetch('/api/workspace/chat/session/select?upload_id=' + encodeURIComponent(this.uploadId), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({session_id: id})
+                });
+                if (!res) return;
+                const data = await res.json();
+                if (data.chat_sessions) this.chatSessions = data.chat_sessions;
+                if (data.active_session_id) this.activeSessionId = data.active_session_id;
+                
+                this.messages = (data.chat_history || []).map(m => {
+                    const msg = {role: m.role, content: m.content || ''};
+                    if (m.chartData)  msg.chartData  = m.chartData;
+                    if (m.tableData)  msg.tableData  = m.tableData;
+                    if (m.insight)    msg.insight    = m.insight;
+                    if (m.code)       msg.code       = m.code;
+                    return msg;
+                });
+                
+                this.$nextTick(() => {
+                    this.messages.forEach((m, idx) => {
+                        if (m.chartData) this.renderChart(idx, m.chartData);
+                    });
+                    this.scrollChat();
+                });
+                this.chatSidebarOpen = false;
+            } catch (e) {
+                console.error('Failed to select session', e);
+            }
+        },
+
+        startRenameSession(id, currentName) {
+            this.editingSessionId = id;
+            this.editingSessionName = currentName;
+            this.$nextTick(() => {
+                const input = document.getElementById('rename-input-' + id);
+                if (input) input.focus();
+            });
+        },
+
+        async renameChatSession(id) {
+            const name = this.editingSessionName.trim();
+            if (!name) {
+                this.editingSessionId = null;
+                return;
+            }
+            try {
+                const res = await this._fetch('/api/workspace/chat/session/rename?upload_id=' + encodeURIComponent(this.uploadId), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({session_id: id, name: name})
+                });
+                if (!res) return;
+                const data = await res.json();
+                if (data.chat_sessions) this.chatSessions = data.chat_sessions;
+                this.editingSessionId = null;
+            } catch (e) {
+                console.error('Failed to rename session', e);
+            }
+        },
+
+        async deleteChatSession(id) {
+            if (!confirm('Are you sure you want to delete this chat session?')) return;
+            try {
+                const res = await this._fetch('/api/workspace/chat/session/delete?upload_id=' + encodeURIComponent(this.uploadId), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({session_id: id})
+                });
+                if (!res) return;
+                const data = await res.json();
+                if (data.chat_sessions) this.chatSessions = data.chat_sessions;
+                if (data.active_session_id) this.activeSessionId = data.active_session_id;
+                
+                this.messages = (data.chat_history || []).map(m => {
+                    const msg = {role: m.role, content: m.content || ''};
+                    if (m.chartData)  msg.chartData  = m.chartData;
+                    if (m.tableData)  msg.tableData  = m.tableData;
+                    if (m.insight)    msg.insight    = m.insight;
+                    if (m.code)       msg.code       = m.code;
+                    return msg;
+                });
+                
+                this.$nextTick(() => {
+                    this.messages.forEach((m, idx) => {
+                        if (m.chartData) this.renderChart(idx, m.chartData);
+                    });
+                    this.scrollChat();
+                });
+            } catch (e) {
+                console.error('Failed to delete session', e);
+            }
         },
 
         scrollChat() { const el = document.getElementById('chat-thread'); if (el) el.scrollTop = el.scrollHeight; },
@@ -1785,12 +2599,26 @@ function workspaceApp() {
                     return;
                 }
 
-                if (!data.ok) {
-                    this.edaError = data.warning || 'EDA report could not be generated.';
+                if (data.error) {
+                    this.edaError = data.error;
                     return;
                 }
 
-                this.edaReady = true;
+                if (data.task_id) {
+                    const poll = await this.pollTask(data.task_id, 'EDA');
+                    if (poll.ok) {
+                        this.edaReady = true;
+                    } else {
+                        this.edaError = poll.error || 'EDA report could not be generated.';
+                        return;
+                    }
+                } else {
+                    if (!data.ok) {
+                        this.edaError = data.warning || 'EDA report could not be generated.';
+                        return;
+                    }
+                    this.edaReady = true;
+                }
 
                 if (data.warning) {
                     this.edaWarning = data.warning;
@@ -1850,6 +2678,7 @@ function workspaceApp() {
                 const res = await this._fetch(stateUrl);
                 if (!res) return;
                 const st = await res.json();
+                this.sourceType = st.source_type || 'csv';
                 if (st.automl_meta) {
                     this.automlResult = {
                         metrics: {},
@@ -1860,7 +2689,7 @@ function workspaceApp() {
                     };
                     if (st.automl_meta.target_col) this.automlTarget = st.automl_meta.target_col;
                 }
-                if (st.profile && st.profile.rows) this.profile = st.profile;
+                if (st.profile && Object.keys(st.profile).length > 0) this.profile = st.profile;
                 if (st.clean_profile)              this.cleanProfile = st.clean_profile;
             } catch(e) { console.warn('fetchWorkspaceState error:', e); }
         },
@@ -1919,6 +2748,62 @@ function workspaceApp() {
                 .replace(/={5,}/g, '')
                 .replace(/^\s*\n/gm, '')
                 .trim();
+
+            if (text.includes("Executive Summary") || text.includes("Data Quality:") || text.includes("Performance:") || text.includes("Key Drivers:") || text.includes("Risks:")) {
+                const lines = text.split("\n");
+                let html = "";
+                let inList = false;
+
+                for (let line of lines) {
+                    let trimmed = line.trim();
+                    if (!trimmed) {
+                        if (inList) {
+                            html += "</ul>";
+                            inList = false;
+                        }
+                        continue;
+                    }
+
+                    if (trimmed === "Executive Summary") {
+                        html += `<h3 class="text-xs font-black tracking-tight border-b pb-1.5 mb-2 uppercase" style="color:var(--accent); border-color:var(--border)">${trimmed}</h3>`;
+                        continue;
+                    }
+                    if (trimmed.startsWith("---") || trimmed.startsWith("___") || (trimmed.startsWith("-") && trimmed.replace(/-/g, "").length === 0)) {
+                        continue;
+                    }
+
+                    if (trimmed.endsWith(":") && !trimmed.startsWith("-")) {
+                        if (inList) {
+                            html += "</ul>";
+                            inList = false;
+                        }
+                        const headerText = trimmed.replace(/:$/, "");
+                        html += `<h4 class="text-[10px] font-bold mt-3 mb-1 uppercase tracking-wider" style="color:var(--accent)">${headerText}</h4>`;
+                        continue;
+                    }
+
+                    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+                        if (!inList) {
+                            html += `<ul class="list-disc pl-4 space-y-1 mb-2 text-xs" style="color:var(--txt)">`;
+                            inList = true;
+                        }
+                        const bulletContent = trimmed.substring(2);
+                        html += `<li>${bulletContent}</li>`;
+                        continue;
+                    }
+
+                    if (inList) {
+                        html += "</ul>";
+                        inList = false;
+                    }
+                    html += `<p class="text-xs leading-relaxed mb-2" style="color:var(--txt)">${trimmed}</p>`;
+                }
+
+                if (inList) {
+                    html += "</ul>";
+                }
+                return html;
+            }
 
             const lines = text.split('\n');
             const blocks = [];
@@ -2199,7 +3084,12 @@ function workspaceApp() {
                     return;
                 }
 
-                window.location.reload();
+                await this.fetchWorkspaceState();
+                await Promise.all([
+                    this.loadAlerts ? this.loadAlerts() : null,
+                    this.loadSchedules ? this.loadSchedules() : null,
+                    this.loadDashboard ? this.loadDashboard() : null
+                ]);
             } catch (e) {
                 alert('Network error during sync: ' + e.message);
             } finally {
@@ -2222,7 +3112,17 @@ function dfExplorer() {
         async init() {
             const ws = document.querySelector('[x-data="workspaceApp()"]')?._x_dataStack?.[0];
             if (ws?.previewDefaultLimit) this.rowLimit = ws.previewDefaultLimit();
-            await this.reload();
+            
+            this.$watch('profile', async (newVal) => {
+                if (newVal && Object.keys(newVal).length > 0) {
+                    await this.reload();
+                }
+            });
+
+            if (ws?.profile && Object.keys(ws.profile).length > 0) {
+                await this.reload();
+            }
+            
             this.$watch('currentPage', () => this.updatePage());
             this.$watch('pageSize', () => { this.currentPage = 0; this.updatePage(); });
         },

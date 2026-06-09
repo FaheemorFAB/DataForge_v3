@@ -260,13 +260,13 @@
                         Turn Chaos<br/>into<br/><span style="-webkit-text-fill-color:var(--txt)">Clarity.</span>
                     </h1>
                 </div>
-                <p class="text-sm leading-relaxed font-light max-w-md" style="color:var(--txt-m)">Upload your CSV and let us handle the architecture. Cleaning, Profiling, and AutoML in one unified pipeline.</p>
+                <p class="text-sm leading-relaxed font-light max-w-md" style="color:var(--txt-m)">Upload your CSV or Excel file and let us handle the architecture. Cleaning, Profiling, and AutoML in one unified pipeline.</p>
                 <div class="flex items-center gap-4">
                     <div class="flex -space-x-2.5">
                         <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-[10px] font-bold" style="border-color:var(--bg); background:#374151">G</div>
                         <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-[10px] font-bold" style="border-color:var(--bg); background:#1f2937">F</div>
                     </div>
-                    <span class="text-[10px] font-medium uppercase tracking-widest" style="color:var(--txt-m)">Powered by Gemini & FLAML</span>
+                    <span class="text-[10px] font-medium uppercase tracking-widest" style="color:var(--txt-m)">Powered by Google Gemini & FLAML</span>
                 </div>
             </div>
 
@@ -330,7 +330,7 @@
                                     </div>
                                     <div class="space-y-2">
                                         <h3 class="text-xl font-bold tracking-tight" style="color:var(--txt)">Drop the Chaos</h3>
-                                        <p class="text-sm" style="color:var(--txt-m)">Drag your CSV here or <span class="underline cursor-pointer" style="color:var(--accent)" @click="$refs.fileInput.click()">browse files</span></p>
+                                        <p class="text-sm" style="color:var(--txt-m)">Drag your CSV or Excel here or <span class="underline cursor-pointer" style="color:var(--accent)" @click="$refs.fileInput.click()">browse files</span></p>
                                         <p class="text-xs mt-1" style="color:var(--txt-m); opacity:.5">Max 200 MB · CSV & Excel</p>
                                     </div>
                                     <div class="flex items-center justify-center gap-5 pt-3 border-t" style="border-color:var(--border)">
@@ -437,14 +437,36 @@
                                     </div>
                                 </template>
 
+                                <!-- Duplicate / Resume banner -->
+                                <template x-if="isDuplicate && duplicateInfo">
+                                    <div class="rounded-xl p-4 flex items-start gap-3" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22)">
+                                        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:rgba(245,158,11,.18)">
+                                            <svg class="w-4 h-4" style="color:#fbbf24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-xs font-bold" style="color:#fbbf24">Project already exists</p>
+                                            <p class="text-[10px] mt-0.5" style="color:var(--txt-m)">Last saved <span x-text="duplicateInfo.time_ago"></span> &mdash; resume to keep all previous work.</p>
+                                        </div>
+                                    </div>
+                                </template>
+
                                 <!-- CTAs -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <button @click="goToWorkspace(currentUploadId)" class="btn-mag flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-white tracking-tight" style="background:var(--accent)">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                        LAUNCH WORKSPACE
-                                    </button>
+                                    <!-- Resume (duplicate) or Launch (fresh) -->
+                                    <template x-if="isDuplicate">
+                                        <button @click="goToWorkspace(currentUploadId)" class="btn-mag flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-white tracking-tight" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                            RESUME PROJECT
+                                        </button>
+                                    </template>
+                                    <template x-if="!isDuplicate">
+                                        <button @click="goToWorkspace(currentUploadId)" class="btn-mag flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-white tracking-tight" style="background:var(--accent)">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                            LAUNCH WORKSPACE
+                                        </button>
+                                    </template>
                                     <button @click="reset()" class="btn-mag border py-3.5 rounded-xl font-bold tracking-tight" style="border-color:var(--border); background:var(--surface); color:var(--txt)">
-                                        CHANGE FILE
+                                        <span x-text="isDuplicate ? 'UPLOAD NEW' : 'CHANGE FILE'"></span>
                                     </button>
                                 </div>
                             </div>
@@ -484,7 +506,7 @@
                     <p class="text-[9px] uppercase" style="color:var(--txt-m)">OAuth-secured uploads</p>
                 </div>
             </div>
-            <span class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--txt-m)">DataForge · Gemini 2.0 · FLAML AutoML</span>
+            <span class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--txt-m)">DataForge · Google Gemini · FLAML AutoML</span>
         </div>
     </footer>
 
@@ -494,6 +516,8 @@
             isDragging:     false,
             fileUploaded:   false,
             isUploading:    false,
+            isDuplicate:    false,
+            duplicateInfo:  null,
             fileName:       '',
             profile:        null,
             errorMsg:       '',
@@ -553,7 +577,37 @@
             },
             async uploadFile(file) {
                 if (!file.name.match(/\.(csv|xlsx?)$/i)) { this.errorMsg = 'Only CSV and Excel files are supported.'; return; }
-                this.errorMsg = ''; this.isUploading = true; this.fileName = file.name;
+                this.errorMsg = '';
+                this.fileName = file.name;
+
+                // ── Duplicate check: if same filename exists, offer to resume ──
+                if (this.isLoggedIn) {
+                    try {
+                        const chk = await fetch('/api/upload/check-duplicate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ filename: file.name }),
+                        });
+                        if (chk.ok) {
+                            const chkData = await chk.json();
+                            if (chkData.duplicate) {
+                                this.isDuplicate    = true;
+                                this.duplicateInfo  = chkData;
+                                this.currentUploadId = chkData.upload_id;
+                                this.profile = {
+                                    filename:    chkData.filename,
+                                    rows:        chkData.rows,
+                                    cols:        chkData.cols,
+                                    missing_pct: chkData.missing_pct,
+                                };
+                                this.fileUploaded = true;
+                                return;
+                            }
+                        }
+                    } catch(_) { /* ignore, proceed with normal upload */ }
+                }
+
+                this.isUploading = true;
                 const fd = new FormData(); fd.append('file', file);
                 try {
                     const res  = await fetch('/api/upload', {method:'POST', body:fd});
@@ -562,10 +616,10 @@
                         this.showLoginModal = true; this.isUploading = false; return;
                     }
                     if (!res.ok || data.error) { this.errorMsg = data.error || 'Upload failed.'; return; }
-                    this.profile = data.profile;
+                    this.profile         = data.profile;
                     this.currentUploadId = data.upload_id;
-                    this.fileUploaded = true;
-                    // Removed: auto-redirect. User now clicks 'Launch Workspace' manually.
+                    this.isDuplicate     = false;
+                    this.fileUploaded    = true;
                 } catch(err) { this.errorMsg = 'Network error: ' + err.message; }
                 finally { this.isUploading = false; }
             },
@@ -576,6 +630,7 @@
             reset() {
                 this.fileUploaded = false; this.fileName = ''; this.profile = null;
                 this.errorMsg = ''; this.sheetsUrl = ''; this.sheetsError = '';
+                this.isDuplicate = false; this.duplicateInfo = null;
             },
 
             async loadSheets() {

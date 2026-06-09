@@ -126,9 +126,20 @@ from flask.json.provider import DefaultJSONProvider
 class _SafeJSON(DefaultJSONProvider):
     def dumps(self, obj, **kw):
         def _fix(o):
-            if isinstance(o, float) and (math.isnan(o) or math.isinf(o)): return None
-            if isinstance(o, dict):  return {k: _fix(v) for k, v in o.items()}
-            if isinstance(o, list):  return [_fix(v) for v in o]
+            if isinstance(o, (float, np.floating)):
+                if math.isnan(o) or math.isinf(o) or np.isnan(o) or np.isinf(o):
+                    return None
+                return float(o)
+            if isinstance(o, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+                return int(o)
+            if isinstance(o, (np.bool_, bool)):
+                return bool(o)
+            if isinstance(o, np.ndarray):
+                return [_fix(x) for x in o.tolist()]
+            if isinstance(o, dict):
+                return {str(k): _fix(v) for k, v in o.items()}
+            if isinstance(o, (list, tuple, set)):
+                return [_fix(v) for v in o]
             return o
         return super().dumps(_fix(obj), **kw)
 app.json_provider_class = _SafeJSON

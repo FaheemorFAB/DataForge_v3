@@ -47,3 +47,45 @@ class BaseInsight(ABC):
     @staticmethod
     def _clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
         return max(lo, min(hi, v))
+
+    @staticmethod
+    def _is_financial(metric: str) -> bool:
+        if not metric:
+            return False
+        m_lower = str(metric).lower()
+        return any(kw in m_lower for kw in ["price", "revenue", "cost", "sales", "spend", "profit"])
+
+    @classmethod
+    def _format_value(cls, metric: str, val: float) -> str:
+        """Format value cleanly with currency or commas based on metric name."""
+        val = cls._safe_float(val)
+        is_fin = cls._is_financial(metric)
+        prefix = "$" if is_fin else ""
+        abs_val = abs(val)
+        if abs_val >= 1_000_000:
+            formatted = f"{val / 1_000_000:.1f}M"
+        elif abs_val >= 1_000:
+            formatted = f"{val / 1_000:.1f}K"
+        else:
+            if is_fin:
+                formatted = f"{val:.2f}"
+            else:
+                formatted = f"{val:g}"
+        if formatted.endswith(".0K"):
+            formatted = formatted[:-3] + "K"
+        elif formatted.endswith(".0M"):
+            formatted = formatted[:-3] + "M"
+        return f"{prefix}{formatted}"
+
+    @classmethod
+    def _format_precise(cls, metric: str, val: float) -> str:
+        """Format value with thousands separators, and optionally currency symbol."""
+        val = cls._safe_float(val)
+        is_fin = cls._is_financial(metric)
+        prefix = "$" if is_fin else ""
+        if is_fin:
+            return f"{prefix}{val:,.2f}"
+        else:
+            if val.is_integer():
+                return f"{val:,.0f}"
+            return f"{val:,.2f}"

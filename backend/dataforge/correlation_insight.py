@@ -79,15 +79,21 @@ class CorrelationInsight(BaseInsight):
             scatter_x = [self._safe_float(v) for v in pair_df[col_a].head(300).tolist()]
             scatter_y = [self._safe_float(v) for v in pair_df[col_b].head(300).tolist()]
 
+            alignment_pct = round(abs(best_r) * 100, 1)
+            likelihood_str = "highly likely" if abs(best_r) >= 0.65 else "somewhat likely"
+            direction_str = "positive" if best_r > 0 else "negative"
+            strength_str = "strong" if abs(best_r) >= 0.85 else "moderate" if abs(best_r) >= 0.65 else "weak"
+            total_sig_pairs = sum(1 for i, a in enumerate(cols) for b in cols[i+1:] if abs(corr_matrix.loc[a, b]) >= self.THRESHOLD_WEAK)
+            
+            description = (
+                f"A {strength_str} {direction_str} relationship was detected between '{col_a}' and '{col_b}' "
+                f"({alignment_pct}% alignment). Changes in one are {likelihood_str} to align with changes in the other. "
+                f"A scan of {len(cols)} numeric columns identified {total_sig_pairs} significant relationships."
+            )
+
             return {
                 "title":       f"Correlation: {col_a} ↔ {col_b}",
-                "description": (
-                    f"{col_a} is {strength} {direction} correlated with "
-                    f"{col_b} (r = {round(best_r, 3)}). "
-                    f"Scanned {len(cols)} numeric columns — "
-                    f"{sum(1 for i, a in enumerate(cols) for b in cols[i+1:] if abs(corr_matrix.loc[a, b]) >= self.THRESHOLD_WEAK)} "
-                    f"significant pairs found."
-                ),
+                "description": description,
                 "importance":  self._clamp(abs(best_r)),
                 "type":        "correlation",
                 "chart":       "scatter",

@@ -81,11 +81,12 @@ class AnomalyInsight(BaseInsight):
             n_both = int((iqr_mask & z_mask).sum())
             n_total = int(combined_mask.sum())
 
+            worst_val_fmt = self._format_precise(metric, worst_val)
+            variation_times = round(abs(worst_z), 1)
             description = (
-                f"Unusual {kind} detected in {metric}{date_str}. "
-                f"Value was {round(worst_val, 2)} ({round(abs(worst_z), 1)}σ from mean). "
-                f"{n_total} anomalies found — {n_iqr} by IQR fence, "
-                f"{n_z} by z-score, {n_both} flagged by both methods."
+                f"A significant unusual {kind} was detected in '{metric}'{date_str}. "
+                f"The value reached {worst_val_fmt}, representing a variation {variation_times} times larger than the average. "
+                f"A total of {n_total} unusual values were identified across the timeline, which may warrant further investigation."
             )
 
             return {

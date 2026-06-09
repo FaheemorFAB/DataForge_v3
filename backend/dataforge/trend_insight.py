@@ -39,16 +39,22 @@ class TrendInsight(BaseInsight):
             if abs(trend) < 0.005:          # < 0.5% — not worth surfacing
                 return None
 
-            direction = "increased" if trend > 0 else "decreased"
+            direction_str = "upward" if trend > 0 else "downward"
+            movement_str = "increasing" if trend > 0 else "decreasing"
             pct       = round(abs(trend) * 100, 1)
 
             # Build chart data — daily aggregated values
             chart_labels = [str(p) for p in agg.index]
             chart_values = [self._safe_float(v) for v in agg.values]
 
+            description = (
+                f"We observed a steady {direction_str} trend in '{metric}', "
+                f"with values {movement_str} by an average of {pct}% per period over the timeline."
+            )
+
             return {
                 "title":       f"{metric} Trend",
-                "description": f"{metric} {direction} {pct}% on average per period.",
+                "description": description,
                 "importance":  self._clamp(abs(trend) * 2),
                 "type":        "trend",
                 "chart":       "line",

@@ -103,6 +103,15 @@ def _lock_path(path: Path) -> Path:
     return path.with_suffix(path.suffix + ".lock")
 
 
+def _safe_df_for_parquet(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure all object columns have homogeneous types (strings) for PyArrow serialization."""
+    df_copy = df.copy()
+    for col in df_copy.columns:
+        if df_copy[col].dtype == 'object':
+            df_copy[col] = df_copy[col].apply(lambda x: str(x) if pd.notna(x) else None)
+    return df_copy
+
+
 def _save(upload_id: int, key: str, obj):
     """Atomically write an object to disk (DataFrame → Parquet, bytes → joblib, else → JSON)."""
     path = _upath(upload_id, key)
@@ -112,7 +121,11 @@ def _save(upload_id: int, key: str, obj):
             if len(obj) > 2_000_000:
                 raise ValueError("Dataset too large (exceeds 2M rows limit)")
             tmp = path.with_suffix(".parquet.tmp")
-            obj.to_parquet(tmp, index=False, compression="snappy")
+            try:
+                obj.to_parquet(tmp, index=False, compression="snappy")
+            except Exception:
+                safe_df = _safe_df_for_parquet(obj)
+                safe_df.to_parquet(tmp, index=False, compression="snappy")
             tmp.replace(path.with_suffix(".parquet"))
         elif isinstance(obj, bytes):
             tmp = path.with_suffix(".joblib.tmp")
@@ -123,6 +136,27 @@ def _save(upload_id: int, key: str, obj):
             path_final = path.with_suffix(".json")
             tmp.write_text(json.dumps(obj, default=str), encoding="utf-8")
             tmp.replace(path_final)
+
+    # Best-effort sync to Supabase Storage when configured (write-through)
+    try:
+        from dataforge.db import db_get
+        from dataforge.supabase_storage import get_store, STORAGE_OK
+        if STORAGE_OK:
+            up = db_get("uploads", upload_id)
+            user_id = up.get("user_id") if up else None
+            if user_id is not None:
+                store = get_store()
+                if isinstance(obj, pd.DataFrame):
+                    csv_key = "raw" if key == "df_raw" else "clean"
+                    store.upload_dataframe(user_id, upload_id, obj, csv_key)
+                elif isinstance(obj, bytes):
+                    store.upload_joblib(user_id, upload_id, key, obj)
+                elif key == "eda_html" and isinstance(obj, str):
+                    store.upload_html(user_id, upload_id, key, obj)
+                else:
+                    store.upload_json(user_id, upload_id, key, obj)
+    except Exception:
+        pass
 
 
 def _load(upload_id: int, key: str):

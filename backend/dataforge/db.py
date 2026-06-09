@@ -1,9 +1,12 @@
 import os
+import logging
 from datetime import datetime
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 import supabase
 from supabase import create_client, Client
+
+logger = logging.getLogger(__name__)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GLOBAL CLIENT INSTANCE
@@ -26,47 +29,77 @@ except RuntimeError:
 
 def db_get(table: str, id_val: Any) -> Optional[dict]:
     if not db_client: return None
-    res = db_client.table(table).select("*").eq("id", id_val).execute()
-    return res.data[0] if res.data else None
+    try:
+        res = db_client.table(table).select("*").eq("id", id_val).execute()
+        return res.data[0] if res.data else None
+    except Exception as exc:
+        logger.error("Supabase db_get failed (table=%s, id=%s): %s", table, id_val, exc)
+        return None
 
 def db_first(table: str, match: dict) -> Optional[dict]:
     if not db_client: return None
-    q = db_client.table(table).select("*")
-    for k, v in match.items(): q = q.eq(k, v)
-    res = q.limit(1).execute()
-    return res.data[0] if res.data else None
+    try:
+        q = db_client.table(table).select("*")
+        for k, v in match.items(): q = q.eq(k, v)
+        res = q.limit(1).execute()
+        return res.data[0] if res.data else None
+    except Exception as exc:
+        logger.error("Supabase db_first failed (table=%s, match=%s): %s", table, match, exc)
+        return None
 
 def db_all(table: str, match: dict = None, order_by: str = None, desc: bool = True, limit: int = None) -> list[dict]:
     if not db_client: return []
-    q = db_client.table(table).select("*")
-    if match:
-        for k, v in match.items(): q = q.eq(k, v)
-    if order_by:
-        q = q.order(order_by, desc=desc)
-    if limit:
-        q = q.limit(limit)
-    return q.execute().data
+    try:
+        q = db_client.table(table).select("*")
+        if match:
+            for k, v in match.items(): q = q.eq(k, v)
+        if order_by:
+            q = q.order(order_by, desc=desc)
+        if limit:
+            q = q.limit(limit)
+        return q.execute().data
+    except Exception as exc:
+        logger.error("Supabase db_all failed (table=%s, match=%s): %s", table, match, exc)
+        return []
 
 def db_insert(table: str, data: dict) -> dict:
     if not db_client: return {}
-    return db_client.table(table).insert(data).execute().data[0]
+    try:
+        res = db_client.table(table).insert(data).execute()
+        return res.data[0] if res.data else {}
+    except Exception as exc:
+        logger.error("Supabase db_insert failed (table=%s): %s", table, exc)
+        return {}
 
 def db_update(table: str, id_val: Any, data: dict) -> dict:
     if not db_client: return {}
-    return db_client.table(table).update(data).eq("id", id_val).execute().data[0]
+    try:
+        res = db_client.table(table).update(data).eq("id", id_val).execute()
+        return res.data[0] if res.data else {}
+    except Exception as exc:
+        logger.error("Supabase db_update failed (table=%s, id=%s): %s", table, id_val, exc)
+        return {}
 
 def db_delete(table: str, id_val: Any) -> bool:
     if not db_client: return False
-    db_client.table(table).delete().eq("id", id_val).execute()
-    return True
+    try:
+        db_client.table(table).delete().eq("id", id_val).execute()
+        return True
+    except Exception as exc:
+        logger.error("Supabase db_delete failed (table=%s, id=%s): %s", table, id_val, exc)
+        return False
 
 def db_count(table: str, match: dict = None) -> int:
     if not db_client: return 0
-    q = db_client.table(table).select("*", count="exact")
-    if match:
-        for k, v in match.items(): q = q.eq(k, v)
-    res = q.limit(0).execute()
-    return res.count if res.count is not None else 0
+    try:
+        q = db_client.table(table).select("*", count="exact")
+        if match:
+            for k, v in match.items(): q = q.eq(k, v)
+        res = q.limit(0).execute()
+        return res.count if res.count is not None else 0
+    except Exception as exc:
+        logger.error("Supabase db_count failed (table=%s, match=%s): %s", table, match, exc)
+        return 0
 
 # ══════════════════════════════════════════════════════════════════════════════
 # DATACLASSES / PYDANTIC MODELS (Replacing SQLAlchemy Models)

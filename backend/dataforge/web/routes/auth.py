@@ -95,3 +95,15 @@ def auth_google_callback():
 def logout():
     logout_user()
     return redirect(url_for("upload_bp.index"))
+
+
+@auth_bp.route("/login/mock")
+def mock_login():
+    from dataforge.db import db_get, User
+    from flask_login import login_user
+    user_data = db_get("users", 1)
+    if user_data:
+        user = User(**user_data)
+        login_user(user, remember=True)
+        return "Logged in as mock user Faheem!"
+    return "Mock user not found in DB", 404

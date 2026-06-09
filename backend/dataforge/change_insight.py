@@ -47,13 +47,18 @@ class ChangeInsight(BaseInsight):
             direction = "up" if change_pct > 0 else "down"
             emoji     = "📈" if change_pct > 0 else "📉"
 
+            recent_mean_fmt = self._format_precise(metric, recent_mean)
+            prev_mean_fmt = self._format_precise(metric, prev_mean)
+            period_str = "recent period compared to the previous period" if date_col and date_col in df.columns else "second half of the dataset compared to the first half"
+            
+            description = (
+                f"{emoji} {metric} experienced a {round(abs(change_pct), 1)}% {'increase' if change_pct > 0 else 'decrease'} "
+                f"in the {period_str}, shifting from an average of {prev_mean_fmt} to {recent_mean_fmt}."
+            )
+
             return {
                 "title":       f"{metric} Period Change",
-                "description": (
-                    f"{emoji} {metric} is {direction} {round(abs(change_pct), 1)}% "
-                    f"in the recent period vs the previous period "
-                    f"({round(recent_mean,2)} vs {round(prev_mean,2)})."
-                ),
+                "description": description,
                 "importance":  self._clamp(abs(change_pct) / 100),
                 "type":        "change",
                 "chart":       None,

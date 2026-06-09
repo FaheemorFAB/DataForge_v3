@@ -38,9 +38,16 @@ class TopPerformerInsight(BaseInsight):
             labels = [str(i) for i in top_n.index]
             values = [self._safe_float(v) for v in top_n.values]
 
+            top_val_fmt = self._format_precise(metric, top_val)
+            total_val_fmt = self._format_precise(metric, total_val)
+            description = (
+                f"The top performing category in '{dim}' is '{top_name}', which generates "
+                f"{pct}% ({top_val_fmt}) of the total '{metric}' ({total_val_fmt})."
+            )
+
             return {
                 "title":       f"Top {dim}",
-                "description": f"{top_name} leads {metric} with {pct}% of total.",
+                "description": description,
                 "importance":  self._clamp(pct / 100 * 1.5),
                 "type":        "ranking",
                 "chart":       "bar",

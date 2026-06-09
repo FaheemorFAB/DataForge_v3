@@ -55,7 +55,8 @@ from dotenv import load_dotenv
 
 from .settings import ROOT_DIR, PROJECTS_DIR
 
-load_dotenv(override=True, dotenv_path=ROOT_DIR.parent / ".env")
+_env_path = ROOT_DIR / ".env" if (ROOT_DIR / ".env").exists() else ROOT_DIR.parent / ".env"
+load_dotenv(override=True, dotenv_path=_env_path)
 log = logging.getLogger(__name__)
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")

@@ -105,13 +105,7 @@
         <span class="hidden sm:inline">Workspace</span>
     </a>
     <div class="flex-1"></div>
-    <!-- WS indicator -->
-    <div class="hidden md:flex items-center gap-1.5 mr-3">
-        <div class="ld" :class="wsConnected ? '' : 'offline'"></div>
-        <span class="text-[10px] font-bold uppercase tracking-tight"
-              :style="wsConnected ? 'color:#10b981' : 'color:var(--txt-m)'"
-              x-text="wsConnected ? 'Live' : 'Offline'"></span>
-    </div>
+
     <!-- Alert bell -->
     <button @click="activeTab='alerts'" class="relative ibt mr-1" title="Alerts">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
@@ -171,20 +165,29 @@
     <div class="relative" x-data="{open:false}">
         <button @click="open=!open" class="flex items-center gap-2 pl-2 pr-1 py-1 rounded-lg border transition-colors"
                 style="border-color:var(--border)" :style="open?'border-color:var(--accent)':''">
-            {% if user.avatar %}<img src="{{ user.avatar }}" class="w-6 h-6 rounded-full" alt="">
-            {% else %}<div class="w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px]" style="background:var(--accent);color:#fff">{{ (user.name or 'U')[0].upper() }}</div>{% endif %}
-            <span class="hidden sm:block font-bold text-[11px]" style="color:var(--txt)">{{ user.name or user.email or 'User' }}</span>
+            <template x-if="acct.avatarDataUri">
+                <img :src="acct.avatarDataUri" class="w-6 h-6 rounded-full object-cover" alt="">
+            </template>
+            <template x-if="!acct.avatarDataUri">
+                {% if user.avatar %}<img src="{{ user.avatar }}" class="w-6 h-6 rounded-full" alt="">
+                {% else %}<div class="w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px]" style="background:var(--accent);color:#fff">{{ (user.name or 'U')[0].upper() }}</div>{% endif %}
+            </template>
+            <span class="hidden sm:block font-bold text-[11px]" style="color:var(--txt)" x-text="acct.name || {{ (user.name or user.email or 'User') | tojson }}"></span>
             <svg class="w-3 h-3 transition-transform" :class="open?'rotate-180':''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--txt-m)"><path d="M6 9l6 6 6-6"/></svg>
         </button>
-        <div x-show="open" @click.outside="open=false" x-transition class="absolute right-0 mt-2 w-44 rounded-xl py-1 z-50 shadow-xl" style="background:var(--surface);border:1px solid var(--border)">
+        <div x-show="open" @click.outside="open=false" x-transition class="absolute right-0 mt-2 w-48 rounded-xl py-1 z-50 shadow-xl" style="background:var(--surface);border:1px solid var(--border)">
             <div class="px-4 py-3 border-b" style="border-color:var(--border)">
-                <p class="font-bold text-xs truncate" style="color:var(--txt)">{{ user.name or 'User' }}</p>
+                <p class="font-bold text-xs truncate" style="color:var(--txt)" x-text="acct.name || {{ (user.name or 'User') | tojson }}"></p>
                 <p class="text-[10px] truncate mt-0.5" style="color:var(--txt-m)">{{ user.email or '' }}</p>
             </div>
             <a href="/" class="flex items-center gap-2 px-4 py-2 text-xs font-medium hover:opacity-80 transition-opacity" style="color:var(--txt-m);text-decoration:none">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 New Analysis
             </a>
+            <button @click="open=false; activeTab='account'" class="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium hover:opacity-80 transition-opacity text-left" style="color:var(--txt-m);background:none;border:none;cursor:pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                My Account
+            </button>
             <a href="/logout" class="flex items-center gap-2 px-4 py-2 text-xs font-medium hover:opacity-80 transition-opacity" style="color:#ef4444;text-decoration:none">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 Sign Out
@@ -206,17 +209,8 @@
                 <p class="text-xs mt-0.5" style="color:var(--txt-m)">{{ user.email }}</p>
             </div>
         </div>
-        <div class="flex items-center gap-2">
-            <button @click="activeTab='reports';generateReport()" class="btn-s">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                Generate Report
-            </button>
-            <a href="/" class="btn-p">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                New Analysis
-            </a>
-        </div>
     </div>
+
 
     <!-- Stats -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
@@ -347,6 +341,217 @@
         </div>
     </div>
 
+    <!-- ══ TAB: ASSETS ══ -->
+    <div x-show="activeTab==='assets'" class="space-y-5">
+
+        <template x-if="assetsLoading">
+            <div class="flex items-center justify-center py-20">
+                <svg class="w-7 h-7 animate-spin" style="color:var(--accent)" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            </div>
+        </template>
+
+        <template x-if="!assetsLoading">
+            <div class="space-y-5">
+
+                <!-- Cleaned Datasets -->
+                <div class="gc rounded-2xl overflow-hidden">
+                    <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color:var(--border)">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(16,185,129,.12)">
+                                <svg class="w-3.5 h-3.5" style="color:#10b981" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                            </div>
+                            <div>
+                                <p class="font-bold text-sm" style="color:var(--txt)">Cleaned Datasets</p>
+                                <p class="sl mt-0.5">Previously cleaned &amp; downloaded CSV files</p>
+                            </div>
+                        </div>
+                        <span class="badge" style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.25)" x-text="assets.datasets.length + ' files'"></span>
+                    </div>
+                    <template x-if="assets.datasets.length > 0">
+                        <div class="overflow-x-auto">
+                            <table class="dt">
+                                <thead><tr><th>Name</th><th>Rows</th><th>Cols</th><th>Uploaded</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                    <template x-for="d in assets.datasets" :key="d.id">
+                                        <tr>
+                                            <td>
+                                                <template x-if="!assetsRenaming[d.id]">
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="w-6 h-6 rounded flex items-center justify-center text-[8px] font-black flex-shrink-0" style="background:#10b981;color:#fff">CSV</div>
+                                                        <span class="font-medium truncate" style="color:var(--txt);max-width:200px" x-text="d.label || d.filename"></span>
+                                                    </div>
+                                                </template>
+                                                <template x-if="assetsRenaming[d.id]">
+                                                    <input :value="assetsEditName[d.id]"
+                                                           @input="assetsEditName[d.id]=$event.target.value"
+                                                           @keydown.enter="commitRename('dataset',d)"
+                                                           @keydown.escape="assetsRenaming[d.id]=false"
+                                                           class="px-2 py-1 rounded-lg text-xs outline-none w-48"
+                                                           style="background:var(--surface);border:1px solid var(--accent);color:var(--txt)"
+                                                           x-ref="ri" x-init="$nextTick(()=>$el.focus())">
+                                                </template>
+                                            </td>
+                                            <td class="font-mono" x-text="d.rows.toLocaleString()"></td>
+                                            <td class="font-mono" x-text="d.cols"></td>
+                                            <td style="color:var(--txt-m)" x-text="d.time_ago"></td>
+                                            <td>
+                                                <div class="flex items-center gap-1.5">
+                                                    <template x-if="!assetsRenaming[d.id]">
+                                                        <button @click="startRename('dataset',d)" class="badge" style="background:rgba(46,91,255,.08);color:var(--accent);border:1px solid rgba(46,91,255,.2);cursor:pointer">Rename</button>
+                                                    </template>
+                                                    <template x-if="assetsRenaming[d.id]">
+                                                        <button @click="commitRename('dataset',d)" class="badge" style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.25);cursor:pointer">Save</button>
+                                                    </template>
+                                                    <a :href="'/workspace?upload_id='+d.id" class="badge" style="background:rgba(255,255,255,.04);color:var(--txt-m);border:1px solid var(--border);text-decoration:none">Open</a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    <template x-if="assets.datasets.length === 0">
+                        <div class="flex flex-col items-center justify-center py-12 text-center">
+                            <p class="text-xs font-bold mb-1" style="color:var(--txt)">No cleaned datasets yet</p>
+                            <p class="text-xs" style="color:var(--txt-m)">Clean a dataset in the workspace first</p>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- ML Models -->
+                <div class="gc rounded-2xl overflow-hidden">
+                    <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color:var(--border)">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(139,92,246,.12)">
+                                <svg class="w-3.5 h-3.5" style="color:#a78bfa" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                            </div>
+                            <div>
+                                <p class="font-bold text-sm" style="color:var(--txt)">ML Models</p>
+                                <p class="sl mt-0.5">Trained models saved from AutoML runs</p>
+                            </div>
+                        </div>
+                        <span class="badge" style="background:rgba(139,92,246,.1);color:#a78bfa;border:1px solid rgba(139,92,246,.25)" x-text="assets.models.length + ' models'"></span>
+                    </div>
+                    <template x-if="assets.models.length > 0">
+                        <div class="overflow-x-auto">
+                            <table class="dt">
+                                <thead><tr><th>Name</th><th>Dataset</th><th>Task</th><th>Score</th><th>Saved</th><th>Actions</th></tr></thead>
+                                <tbody>
+                                    <template x-for="m in assets.models" :key="m.id">
+                                        <tr>
+                                            <td>
+                                                <template x-if="!assetsRenaming['m_'+m.id]">
+                                                    <div class="flex items-center gap-2">
+                                                        <div class="w-6 h-6 rounded flex items-center justify-center text-[8px] font-black flex-shrink-0" style="background:rgba(139,92,246,.2);color:#a78bfa">ML</div>
+                                                        <span class="font-medium truncate" style="color:var(--txt);max-width:200px" x-text="m.label || m.model_name || 'Model'"></span>
+                                                    </div>
+                                                </template>
+                                                <template x-if="assetsRenaming['m_'+m.id]">
+                                                    <input :value="assetsEditName['m_'+m.id]"
+                                                           @input="assetsEditName['m_'+m.id]=$event.target.value"
+                                                           @keydown.enter="commitRename('model',m)"
+                                                           @keydown.escape="assetsRenaming['m_'+m.id]=false"
+                                                           class="px-2 py-1 rounded-lg text-xs outline-none w-48"
+                                                           style="background:var(--surface);border:1px solid var(--accent);color:var(--txt)"
+                                                           x-init="$nextTick(()=>$el.focus())">
+                                                </template>
+                                            </td>
+                                            <td style="color:var(--txt-m)" x-text="m.filename||'—'"></td>
+                                            <td><span class="badge badge-automl" x-text="m.task_type||'—'"></span></td>
+                                            <td class="font-mono" style="color:#10b981" x-text="m.best_score!=null ? (m.best_score*100).toFixed(1)+'%' : '—'"></td>
+                                            <td style="color:var(--txt-m)" x-text="m.time_ago"></td>
+                                            <td>
+                                                <div class="flex items-center gap-1.5">
+                                                    <template x-if="!assetsRenaming['m_'+m.id]">
+                                                        <button @click="startRename('model',m)" class="badge" style="background:rgba(46,91,255,.08);color:var(--accent);border:1px solid rgba(46,91,255,.2);cursor:pointer">Rename</button>
+                                                    </template>
+                                                    <template x-if="assetsRenaming['m_'+m.id]">
+                                                        <button @click="commitRename('model',m)" class="badge" style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.25);cursor:pointer">Save</button>
+                                                    </template>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                    <template x-if="assets.models.length === 0">
+                        <div class="flex flex-col items-center justify-center py-12 text-center">
+                            <p class="text-xs font-bold mb-1" style="color:var(--txt)">No models saved yet</p>
+                            <p class="text-xs" style="color:var(--txt-m)">Run AutoML in the workspace to train models</p>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- EDA Reports -->
+                <div class="gc rounded-2xl overflow-hidden">
+                    <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color:var(--border)">
+                        <div class="flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:rgba(20,184,166,.12)">
+                                <svg class="w-3.5 h-3.5" style="color:#2dd4bf" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                            </div>
+                            <div>
+                                <p class="font-bold text-sm" style="color:var(--txt)">EDA Reports</p>
+                                <p class="sl mt-0.5">Exploratory analysis reports you've generated</p>
+                            </div>
+                        </div>
+                        <span class="badge" style="background:rgba(20,184,166,.1);color:#2dd4bf;border:1px solid rgba(20,184,166,.25)" x-text="assets.reports.length + ' reports'"></span>
+                    </div>
+                    <template x-if="assets.reports.length > 0">
+                        <table class="dt">
+                            <thead><tr><th>Name</th><th>Dataset</th><th>Generated</th><th>Actions</th></tr></thead>
+                            <tbody>
+                                <template x-for="r in assets.reports" :key="r.id">
+                                    <tr>
+                                        <td>
+                                            <template x-if="!assetsRenaming['r_'+r.id]">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-6 h-6 rounded flex items-center justify-center text-[8px] font-black flex-shrink-0" style="background:rgba(20,184,166,.2);color:#2dd4bf">EDA</div>
+                                                    <span class="font-medium truncate" style="color:var(--txt);max-width:200px" x-text="r.label || r.filename || 'EDA Report'"></span>
+                                                </div>
+                                            </template>
+                                            <template x-if="assetsRenaming['r_'+r.id]">
+                                                <input :value="assetsEditName['r_'+r.id]"
+                                                       @input="assetsEditName['r_'+r.id]=$event.target.value"
+                                                       @keydown.enter="commitRename('report',r)"
+                                                       @keydown.escape="assetsRenaming['r_'+r.id]=false"
+                                                       class="px-2 py-1 rounded-lg text-xs outline-none w-48"
+                                                       style="background:var(--surface);border:1px solid var(--accent);color:var(--txt)"
+                                                       x-init="$nextTick(()=>$el.focus())">
+                                            </template>
+                                        </td>
+                                        <td style="color:var(--txt-m)" x-text="r.filename||'—'"></td>
+                                        <td style="color:var(--txt-m)" x-text="r.time_ago"></td>
+                                        <td>
+                                            <div class="flex items-center gap-1.5">
+                                                <template x-if="!assetsRenaming['r_'+r.id]">
+                                                    <button @click="startRename('report',r)" class="badge" style="background:rgba(46,91,255,.08);color:var(--accent);border:1px solid rgba(46,91,255,.2);cursor:pointer">Rename</button>
+                                                </template>
+                                                <template x-if="assetsRenaming['r_'+r.id]">
+                                                    <button @click="commitRename('report',r)" class="badge" style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.25);cursor:pointer">Save</button>
+                                                </template>
+                                                <a :href="'/workspace?upload_id='+r.upload_id+'#eda'" class="badge" style="background:rgba(255,255,255,.04);color:var(--txt-m);border:1px solid var(--border);text-decoration:none">View</a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+                    <template x-if="assets.reports.length === 0">
+                        <div class="flex flex-col items-center justify-center py-12 text-center">
+                            <p class="text-xs font-bold mb-1" style="color:var(--txt)">No EDA reports yet</p>
+                            <p class="text-xs" style="color:var(--txt-m)">Run EDA in the workspace to generate reports</p>
+                        </div>
+                    </template>
+                </div>
+
+            </div>
+        </template>
+    </div>
+
     <!-- ══ TAB: INSIGHTS ══ -->
     <div x-show="activeTab==='insights'" class="space-y-5">
         <div class="flex items-center justify-between">
@@ -363,7 +568,7 @@
                     <svg class="w-4 h-4" style="color:#818cf8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
                     <p class="font-bold text-xs" style="color:#818cf8">AI Executive Summary</p>
                 </div>
-                <p class="text-sm leading-relaxed" style="color:var(--txt)" x-text="insightSummary"></p>
+                <div class="text-sm leading-relaxed" style="color:var(--txt)" x-html="formatSummary(insightSummary)"></div>
             </div>
         </template>
         <template x-if="insightError">
@@ -413,10 +618,15 @@
             <div class="gc rounded-2xl overflow-hidden">
                 <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color:var(--border)">
                     <p class="font-bold text-sm" style="color:var(--txt)">Report Preview</p>
-                    <a :href="'/api/reports/'+previewReportId" target="_blank" class="btn-s text-[10px] py-1.5 px-3">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                        Open Full
-                    </a>
+                    <div class="flex gap-2">
+                        <a :href="'/api/reports/'+previewReportId" target="_blank" class="btn-s text-[10px] py-1.5 px-3">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                            Open Full
+                        </a>
+                        <a :href="'/api/reports/'+previewReportId+'?format=pdf'" target="_blank" class="btn-p text-[10px] py-1.5 px-3">
+                            📄 Download PDF
+                        </a>
+                    </div>
                 </div>
                 <iframe :src="'/api/reports/'+previewReportId" class="w-full rounded-b-2xl" style="height:480px;border:0;background:#050505"></iframe>
             </div>
@@ -552,6 +762,188 @@
         </template>
     </div>
 
+    <!-- ══ TAB: ACCOUNT ══ -->
+    <div x-show="activeTab==='account'" class="space-y-6">
+
+        <!-- Profile edit card -->
+        <div class="gc rounded-2xl p-6">
+            <div class="flex items-center gap-3 mb-5">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:rgba(46,91,255,.1)">
+                    <svg class="w-5 h-5" style="color:var(--accent)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                </div>
+                <div>
+                    <p class="font-bold text-sm" style="color:var(--txt)">My Account</p>
+                    <p class="sl mt-0.5">Edit your profile name and avatar style</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-start gap-6">
+                <!-- Avatar preview -->
+                <div class="flex flex-col items-center gap-3 flex-shrink-0">
+                    <div class="w-24 h-24 rounded-2xl overflow-hidden flex items-center justify-center relative" style="border:2px solid var(--border);background:var(--surface)">
+                        <template x-if="acct.avatarDataUri">
+                            <img :src="acct.avatarDataUri" class="w-full h-full object-cover" alt="Generated avatar">
+                        </template>
+                        <template x-if="!acct.avatarDataUri && !avatarGenerating">
+                            <div class="w-full h-full flex items-center justify-center text-3xl font-black" style="background:var(--accent);color:#fff" x-text="(acct.name||'U')[0].toUpperCase()"></div>
+                        </template>
+                        <template x-if="avatarGenerating">
+                            <div class="w-full h-full flex items-center justify-center" style="background:var(--surface)">
+                                <svg class="w-6 h-6 animate-spin" style="color:var(--accent)" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            </div>
+                        </template>
+                    </div>
+                    <button @click="rerollAvatar()" :disabled="avatarGenerating"
+                            class="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 transition-opacity hover:opacity-70"
+                            style="color:var(--accent);background:none;border:none;cursor:pointer;padding:0">
+                        <svg class="w-3 h-3" :class="avatarGenerating?'animate-spin':''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Re-roll
+                    </button>
+                    <p class="text-[9px] font-bold uppercase tracking-widest" style="color:var(--txt-m)">Avatar Preview</p>
+                </div>
+
+                <!-- Fields -->
+                <div class="flex-1 space-y-5 w-full">
+                    <!-- Name -->
+                    <div class="space-y-1.5">
+                        <label class="sl">Display Name</label>
+                        <input x-model="acct.name"
+                               @change="generateAvatar()"
+                               type="text" placeholder="Your name"
+                               class="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
+                               style="background:var(--surface);border:1px solid var(--border);color:var(--txt)"
+                               onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 2px var(--glow)'"
+                               onblur="this.style.borderColor='';this.style.boxShadow=''">
+                    </div>
+
+                    <!-- Style picker -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <label class="sl">Avatar Style</label>
+                            <span class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--accent)" x-text="acct.avatarStyle"></span>
+                        </div>
+                        <div class="grid grid-cols-5 sm:grid-cols-8 gap-1.5">
+                            <template x-for="s in avatarStyles" :key="s.id">
+                                <button @click="selectStyle(s.id)"
+                                        class="flex flex-col items-center gap-1 p-1.5 rounded-xl border transition-all"
+                                        :class="acct.avatarStyle===s.id ? 'border-[var(--accent)] bg-[rgba(46,91,255,0.1)]' : 'border-transparent hover:border-[var(--border)]'"
+                                        :title="s.label">
+                                    <div class="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0" style="background:var(--surface)">
+                                        <template x-if="s.preview">
+                                            <img :src="s.preview" class="w-full h-full object-cover" alt="">
+                                        </template>
+                                        <template x-if="!s.preview">
+                                            <div class="w-full h-full flex items-center justify-center text-[8px] font-bold" style="color:var(--txt-m)" x-text="s.label[0]"></div>
+                                        </template>
+                                    </div>
+                                    <span class="text-[7px] font-bold truncate w-full text-center" style="color:var(--txt-m)" x-text="s.label"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button @click="saveAccount()" :disabled="acctSaving" class="btn-p">
+                            <svg x-show="acctSaving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <svg x-show="!acctSaving" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            <span x-text="acctSaving ? 'Saving...' : 'Save Changes'"></span>
+                        </button>
+                        <p x-show="acctMsg" x-text="acctMsg" class="text-xs font-bold" :style="acctMsgOk ? 'color:#10b981' : 'color:#ef4444'"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Cleaned Datasets -->
+        <div class="gc rounded-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b flex items-center justify-between" style="border-color:var(--border)">
+                <div>
+                    <p class="font-bold text-sm" style="color:var(--txt)">Cleaned Datasets</p>
+                    <p class="sl mt-0.5">All datasets that have a cleaned version available</p>
+                </div>
+                <span class="badge" style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.25)" x-text="cleanedDatasets.filter(d=>d.has_clean).length + ' cleaned'"></span>
+            </div>
+            <template x-if="acctDatasetsLoading">
+                <div class="flex items-center justify-center py-10">
+                    <svg class="w-6 h-6 animate-spin" style="color:var(--accent)" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                </div>
+            </template>
+            <template x-if="!acctDatasetsLoading && cleanedDatasets.length > 0">
+                <div class="overflow-x-auto">
+                    <table class="dt">
+                        <thead><tr><th>File</th><th>Src</th><th>Rows</th><th>Cols</th><th>Missing</th><th>Status</th><th>Uploaded</th><th>Action</th></tr></thead>
+                        <tbody>
+                            <template x-for="d in cleanedDatasets" :key="d.id">
+                                <tr>
+                                    <td><div class="flex items-center gap-2">
+                                        <div class="w-6 h-6 rounded flex items-center justify-center text-[8px] font-black flex-shrink-0" :style="d.has_clean ? 'background:#10b981;color:#fff' : 'background:var(--accent);color:#fff'" x-text="d.source_type==='sheets'?'GS':(d.filename.match(/\.xlsx?$/i)?'XLS':'CSV')"></div>
+                                        <span class="font-medium truncate" style="color:var(--txt);max-width:160px" x-text="d.filename"></span>
+                                    </div></td>
+                                    <td><span class="badge" style="background:rgba(46,91,255,.07);color:var(--txt-m);border:1px solid var(--border)" x-text="d.source_type||'csv'"></span></td>
+                                    <td class="font-mono" x-text="d.rows.toLocaleString()"></td>
+                                    <td class="font-mono" x-text="d.cols"></td>
+                                    <td class="font-mono" :style="d.missing_pct>10?'color:#ef4444':d.missing_pct>2?'color:#fbbf24':'color:#10b981'" x-text="d.missing_pct+'%'"></td>
+                                    <td>
+                                        <span x-show="d.has_clean" class="badge" style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.25)">✓ Cleaned</span>
+                                        <span x-show="!d.has_clean" class="badge" style="background:rgba(255,255,255,.05);color:var(--txt-m);border:1px solid var(--border)">Raw only</span>
+                                    </td>
+                                    <td style="color:var(--txt-m)" x-text="d.time_ago"></td>
+                                    <td>
+                                        <a :href="'/workspace?upload_id='+d.id" class="badge" style="background:rgba(46,91,255,.1);color:var(--accent);border:1px solid rgba(46,91,255,.2);cursor:pointer;text-decoration:none">Open</a>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+            <template x-if="!acctDatasetsLoading && cleanedDatasets.length === 0">
+                <div class="flex flex-col items-center justify-center py-12 text-center">
+                    <p class="text-xs font-bold mb-1" style="color:var(--txt)">No datasets yet</p>
+                    <a href="/" class="btn-p text-xs mt-2">Upload CSV</a>
+                </div>
+            </template>
+        </div>
+
+        <!-- EDA Reports -->
+        <div class="gc rounded-2xl overflow-hidden">
+            <div class="px-5 py-4 border-b" style="border-color:var(--border)">
+                <p class="font-bold text-sm" style="color:var(--txt)">EDA Reports</p>
+                <p class="sl mt-0.5">Exploratory data analysis reports generated from your datasets</p>
+            </div>
+            <template x-if="acctEdaLoading">
+                <div class="flex items-center justify-center py-10">
+                    <svg class="w-6 h-6 animate-spin" style="color:var(--accent)" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                </div>
+            </template>
+            <template x-if="!acctEdaLoading && edaReports.length > 0">
+                <table class="dt">
+                    <thead><tr><th>Dataset</th><th>Summary</th><th>Generated</th><th>Action</th></tr></thead>
+                    <tbody>
+                        <template x-for="r in edaReports" :key="r.id">
+                            <tr>
+                                <td class="font-medium" style="color:var(--txt)" x-text="r.filename||'Dataset'"></td>
+                                <td style="color:var(--txt-m);max-width:220px" x-text="r.summary||'EDA complete'"></td>
+                                <td style="color:var(--txt-m)" x-text="r.time_ago"></td>
+                                <td>
+                                    <a :href="'/workspace?upload_id='+r.upload_id+'#eda'" class="badge" style="background:rgba(139,92,246,.1);color:#a78bfa;border:1px solid rgba(139,92,246,.2);cursor:pointer;text-decoration:none">View EDA</a>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </template>
+            <template x-if="!acctEdaLoading && edaReports.length === 0">
+                <div class="flex flex-col items-center justify-center py-12 text-center">
+                    <p class="text-xs font-bold mb-1" style="color:var(--txt)">No EDA reports yet</p>
+                    <p class="text-xs" style="color:var(--txt-m)">Run EDA from the workspace to generate reports</p>
+                </div>
+            </template>
+        </div>
+
+    </div>
+
     <!-- Footer -->
     <div class="flex items-center justify-between py-4 px-5 rounded-xl" style="background:var(--card);border:1px solid var(--border)">
         <div class="flex items-center gap-3">
@@ -671,6 +1063,30 @@ function dashApp() {
         toasts:   [],
         _toastCtr: 0,
 
+        // ── Account ─────────────────────────────────────────────────────────
+        acct: {
+            name:          {{ user.name | tojson }},
+            avatar:        {{ (user.avatar or '') | tojson }},
+            avatarDataUri: {{ (user.avatar or '') | tojson }},
+            avatarStyle:   'lorelei',
+            avatarRollSeed: 0,
+        },
+        acctSaving: false,
+        acctMsg: '',
+        acctMsgOk: true,
+        avatarGenerating: false,
+        avatarStyles: [],
+        cleanedDatasets:    [],
+        edaReports:         [],
+        acctDatasetsLoading: false,
+        acctEdaLoading:     false,
+
+        // ── Assets ─────────────────────────────────────────────────────────
+        assets: { datasets: [], models: [], reports: [] },
+        assetsLoading: false,
+        assetsRenaming: {},   // { id: true } map of items being renamed
+        assetsEditName: {},   // { id: 'new name' } map
+
         // ── Init ────────────────────────────────────────────────────────────
         async init() {
             if (window.ThemeManager) {
@@ -685,6 +1101,18 @@ function dashApp() {
                 this.loadReports(),
                 this.loadSchedules(),
             ]);
+            // Lazy-load data when tabs are first opened
+            this.$watch('activeTab', (tab) => {
+                if (tab === 'account') {
+                    this.loadAccountDatasets();
+                    this.loadEdaReports();
+                    if (!this.acct.avatarDataUri) this.generateAvatar();
+                    if (this.avatarStyles.length === 0) this.loadAvatarStyles();
+                }
+                if (tab === 'assets' && !this.assetsLoading && this.assets.datasets.length === 0 && this.assets.models.length === 0 && this.assets.reports.length === 0) {
+                    this.loadAssets();
+                }
+            });
         },
 
         setTheme(themeId) {
@@ -793,6 +1221,112 @@ function dashApp() {
             this.insightSummary = data.summary  || '';
         },
 
+        formatSummary(raw) {
+            if (!raw) return '';
+            let text = raw
+                .replace(/Automated Insight Report[^\n]*/g, '')
+                .replace(/={5,}/g, '')
+                .replace(/^\s*\n/gm, '')
+                .trim();
+
+            if (text.includes("Executive Summary") || text.includes("Data Quality:") || text.includes("Performance:") || text.includes("Key Drivers:") || text.includes("Risks:")) {
+                const lines = text.split("\n");
+                let html = "";
+                let inList = false;
+
+                for (let line of lines) {
+                    let trimmed = line.trim();
+                    if (!trimmed) {
+                        if (inList) {
+                            html += "</ul>";
+                            inList = false;
+                        }
+                        continue;
+                    }
+
+                    if (trimmed === "Executive Summary") {
+                        html += `<h3 class="text-xs font-black tracking-tight border-b pb-1.5 mb-2 uppercase" style="color:var(--accent); border-color:var(--border)">${trimmed}</h3>`;
+                        continue;
+                    }
+                    if (trimmed.startsWith("---") || trimmed.startsWith("___") || (trimmed.startsWith("-") && trimmed.replace(/-/g, "").length === 0)) {
+                        continue;
+                    }
+
+                    if (trimmed.endsWith(":") && !trimmed.startsWith("-")) {
+                        if (inList) {
+                            html += "</ul>";
+                            inList = false;
+                        }
+                        const headerText = trimmed.replace(/:$/, "");
+                        html += `<h4 class="text-[10px] font-bold mt-3 mb-1 uppercase tracking-wider" style="color:var(--accent)">${headerText}</h4>`;
+                        continue;
+                    }
+
+                    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+                        if (!inList) {
+                            html += `<ul class="list-disc pl-4 space-y-1 mb-2 text-xs" style="color:var(--txt)">`;
+                            inList = true;
+                        }
+                        const bulletContent = trimmed.substring(2);
+                        html += `<li>${bulletContent}</li>`;
+                        continue;
+                    }
+
+                    if (inList) {
+                        html += "</ul>";
+                        inList = false;
+                    }
+                    html += `<p class="text-xs leading-relaxed mb-2" style="color:var(--txt)">${trimmed}</p>`;
+                }
+
+                if (inList) {
+                    html += "</ul>";
+                }
+                return html;
+            }
+
+            const lines = text.split('\n');
+            const blocks = [];
+            let cur = '';
+            for (const line of lines) {
+                if (/^\d+[.)]\s/.test(line.trim())) {
+                    if (cur.trim()) blocks.push(cur.trim());
+                    cur = line.trim();
+                } else {
+                    cur += ' ' + line.trim();
+                }
+            }
+            if (cur.trim()) blocks.push(cur.trim());
+
+            if (blocks.length <= 1) {
+                return '<p>' + text.replace(/\n/g, '<br>') + '</p>';
+            }
+
+            return blocks.map(part => {
+                const m = part.match(/^(\d+)[.)]\s+([\s\S]+)$/);
+                if (!m) return '<p class="text-xs opacity-60">' + part + '</p>';
+                const num = m[1];
+                const body = m[2].trim();
+                let title = body, desc = '';
+                const dashIdx = body.indexOf(' — ');
+                if (dashIdx > -1) {
+                    title = body.substring(0, dashIdx);
+                    desc  = body.substring(dashIdx + 3);
+                } else {
+                    const dotIdx = body.indexOf('. ');
+                    if (dotIdx > -1 && dotIdx < 80) {
+                        title = body.substring(0, dotIdx);
+                        desc  = body.substring(dotIdx + 2);
+                    }
+                }
+                return '<div class="flex gap-3 items-start py-2" style="border-bottom:1px solid var(--border)">'
+                    + '<span style="flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;margin-top:1px">' + num + '</span>'
+                    + '<div><span style="font-weight:700;font-size:.72rem;color:var(--txt)">' + title + (title.endsWith('.') ? '' : '.') + '</span>'
+                    + (desc ? ' <span style="font-size:.72rem;color:var(--txt-m)">' + desc + '</span>' : '')
+                    + '</div></div>';
+            }).join('');
+        },
+
         // ── Reports ─────────────────────────────────────────────────────────
         async loadReports() {
             const { ok, data } = await apiFetch('/api/reports');
@@ -898,14 +1432,139 @@ function dashApp() {
             if (ok) this.schedules = this.schedules.filter(s => s.id !== id);
         },
 
+        // ── Account ─────────────────────────────────────────────────────────
+        async generateAvatar() {
+            this.avatarGenerating = true;
+            const seed = (this.acct.avatarRollSeed > 0)
+                ? `${this.acct.name || 'user'}-${this.acct.avatarRollSeed}`
+                : (this.acct.name || 'user');
+            const { ok, data, error } = await apiFetch('/api/account/avatar/generate', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ seed, style: this.acct.avatarStyle }),
+            });
+            this.avatarGenerating = false;
+            if (ok && data.data_uri) {
+                this.acct.avatarDataUri = data.data_uri;
+            }
+        },
+        async selectStyle(styleId) {
+            this.acct.avatarStyle = styleId;
+            await this.generateAvatar();
+        },
+        async rerollAvatar() {
+            this.acct.avatarRollSeed = (this.acct.avatarRollSeed || 0) + 1;
+            await this.generateAvatar();
+        },
+        async loadAvatarStyles() {
+            const STYLE_LABELS = {
+                'lorelei':     'Lorelei',   'avataaars':  'Avataaars', 'bottts':     'Bottts',
+                'thumbs':      'Thumbs',    'notionists': 'Notion',    'adventurer': 'Adventurer',
+                'fun-emoji':   'Emoji',     'pixel-art':  'Pixel',     'micah':      'Micah',
+                'personas':    'Personas',  'open-peeps': 'Peeps',     'shapes':     'Shapes',
+                'identicon':   'Identicon', 'rings':      'Rings',     'croodles':   'Croodles',
+            };
+            const seed = this.acct.name || 'user';
+            const ids  = ['lorelei','avataaars','bottts','thumbs','notionists','adventurer',
+                          'fun-emoji','pixel-art','micah','personas','open-peeps',
+                          'shapes','identicon','rings','croodles'];
+            // Build all in parallel
+            const previews = await Promise.all(ids.map(async id => {
+                try {
+                    const r = await apiFetch('/api/account/avatar/generate', {
+                        method:  'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body:    JSON.stringify({ seed, style: id }),
+                    });
+                    return { id, label: STYLE_LABELS[id] || id, preview: r.ok ? r.data.data_uri : null };
+                } catch { return { id, label: STYLE_LABELS[id] || id, preview: null }; }
+            }));
+            this.avatarStyles = previews;
+        },
+        async saveAccount() {
+            this.acctSaving = true;
+            this.acctMsg    = '';
+            const { ok, data, error } = await apiFetch('/api/account/update', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({
+                    name:   this.acct.name,
+                    avatar: this.acct.avatarDataUri || this.acct.avatar,
+                }),
+            });
+            this.acctSaving = false;
+            if (!ok) {
+                this.acctMsg   = error || 'Update failed';
+                this.acctMsgOk = false;
+            } else {
+                if (data.name)   this.acct.name   = data.name;
+                this.acctMsg   = 'Profile updated!';
+                this.acctMsgOk = true;
+                this.pushToast({ type: 'info', icon: '✅', title: 'Profile updated', body: 'Your name and avatar have been saved.' });
+            }
+            setTimeout(() => { this.acctMsg = ''; }, 3500);
+        },
+        async loadAccountDatasets() {
+            if (this.cleanedDatasets.length > 0) return; // already loaded
+            this.acctDatasetsLoading = true;
+            const { ok, data } = await apiFetch('/api/account/datasets');
+            this.acctDatasetsLoading = false;
+            if (ok && Array.isArray(data)) this.cleanedDatasets = data;
+        },
+        async loadEdaReports() {
+            if (this.edaReports.length > 0) return; // already loaded
+            this.acctEdaLoading = true;
+            const { ok, data } = await apiFetch('/api/account/eda-reports');
+            this.acctEdaLoading = false;
+            if (ok && Array.isArray(data)) this.edaReports = data;
+        },
+
+        // ── Assets ──────────────────────────────────────────────────────────
+        async loadAssets() {
+            this.assetsLoading = true;
+            const { ok, data } = await apiFetch('/api/assets');
+            this.assetsLoading = false;
+            if (ok && data) {
+                this.assets.datasets = data.datasets || [];
+                this.assets.models   = data.models   || [];
+                this.assets.reports  = data.reports  || [];
+            }
+        },
+        startRename(type, item) {
+            const key = type === 'dataset' ? item.id : (type === 'model' ? 'm_'+item.id : 'r_'+item.id);
+            this.assetsEditName  = { ...this.assetsEditName,  [key]: item.label || item.filename || item.model_name || '' };
+            this.assetsRenaming  = { ...this.assetsRenaming,  [key]: true };
+        },
+        async commitRename(type, item) {
+            const key     = type === 'dataset' ? item.id : (type === 'model' ? 'm_'+item.id : 'r_'+item.id);
+            const newName = (this.assetsEditName[key] || '').trim();
+            if (!newName) { this.assetsRenaming[key] = false; return; }
+            const { ok } = await apiFetch('/api/assets/rename', {
+                method:  'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ type, id: item.id, label: newName }),
+            });
+            if (ok) {
+                if (type === 'dataset') {
+                    const d = this.assets.datasets.find(d => d.id === item.id);
+                    if (d) d.label = newName;
+                } else if (type === 'model') {
+                    const m = this.assets.models.find(m => m.id === item.id);
+                    if (m) m.label = newName;
+                } else {
+                    const r = this.assets.reports.find(r => r.id === item.id);
+                    if (r) r.label = newName;
+                }
+                this.pushToast({ type: 'info', icon: '✏️', title: 'Renamed', body: newName });
+            }
+            this.assetsRenaming[key] = false;
+        },
+
         // ── Utils ────────────────────────────────────────────────────────────
         get tabs() {
             return [
-                { id:'overview',  label:'Overview'  },
-                { id:'insights',  label:'Insights'  },
-                { id:'reports',   label:'Reports'   },
-                { id:'alerts',    label:'Alerts'    },
-                { id:'schedules', label:'Schedules' },
+                { id:'overview', label:'Overview' },
+                { id:'assets',   label:'Assets'   },
             ];
         },
         timeAgo(iso) {

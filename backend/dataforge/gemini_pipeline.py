@@ -2,94 +2,92 @@
 DataForge — Gemini Query Pipeline  [NEW SINGLE-CALL VERSION — NO LANGCHAIN]
 Replace: dataforge/gemini_pipeline.py
 """
-import os, re, json, time, logging
+import os, re, json, time, logging, ast
 import pandas as pd
 import numpy as np
 from dotenv import load_dotenv
 
 from .settings import ROOT_DIR
 
-load_dotenv(override=True, dotenv_path=ROOT_DIR.parent / ".env")
+_env_path = ROOT_DIR / ".env" if (ROOT_DIR / ".env").exists() else ROOT_DIR.parent / ".env"
+load_dotenv(override=True, dotenv_path=_env_path)
 logger = logging.getLogger(__name__)
-
 # Startup confirmation — visible in Flask console
-print("[gemini_pipeline] NEW single-call pipeline loaded (no LangChain)", flush=True)
+print("[gemini_pipeline] NEW single-call pipeline loaded (no LangChain, using Google Gemini)", flush=True)
 
-_MODEL_FALLBACKS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-]
-_GEMINI_API_KEY  = os.getenv("GEMINI_API_KEY", "")
-_MOCK_GEMINI     = os.getenv("MOCK_GEMINI", "0") == "1"
-GEMINI_OK        = bool(_GEMINI_API_KEY)
 MAX_CODE_RETRIES = 2
 SAMPLE_ROWS      = 6
-
+GEMINI_OK        = True
 
 def is_available() -> bool:
-    return GEMINI_OK and not _MOCK_GEMINI
-
-
-# ── Direct REST call to Gemini — no LangChain ────────────────────────────────
-
-def _gemini_call(prompt: str, model: str, temperature: float = 0.1, timeout: int = 10) -> str:
-    import urllib.request, urllib.error
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"{model}:generateContent?key={_GEMINI_API_KEY}")
-    payload = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": temperature, "maxOutputTokens": 2048},
-    }).encode()
-    req = urllib.request.Request(
-        url, data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST"
-    )
-    # Bypass any system proxy for this request — on Windows a misconfigured
-    # or non-running proxy causes WinError 10061 (connection refused).
-    no_proxy_opener = urllib.request.build_opener(
-        urllib.request.ProxyHandler({})   # empty dict = no proxies
-    )
-    try:
-        with no_proxy_opener.open(req, timeout=timeout) as resp:
-            data = json.loads(resp.read())
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")
-        raise RuntimeError(f"HTTP {e.code} from Gemini ({model}): {body[:300]}") from e
-    except urllib.error.URLError as e:
-        raise RuntimeError(f"Network error reaching Gemini ({model}): {e.reason}") from e
-
+    import os
+    return bool(os.getenv("GEMINI_API_KEY"))
 
 def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 10) -> str:
-    """Try each model in fallback order, log errors clearly."""
-    if _MOCK_GEMINI:
-        raise RuntimeError("MOCK_GEMINI is enabled; using deterministic fallback instead of synthetic LLM output.")
+    import requests
+    import os
     
-    last_err = None
-    for model in _MODEL_FALLBACKS:
-        try:
-            result = _gemini_call(prompt, model=model, temperature=temperature, timeout=timeout)
-            logger.info("[gemini_pipeline] success with model=%s", model)
-            return result
-        except Exception as exc:
-            last_err = exc
-            logger.warning("[gemini_pipeline] model %s failed: %s", model, exc)
-            if any(err_code in str(exc) for err_code in ["HTTP 400", "HTTP 401", "HTTP 403"]):
-                break
-            if "429" in str(exc) or "quota" in str(exc).lower():
-                time.sleep(1) # Reduced sleep for testing
-    raise RuntimeError(f"All Gemini models failed. Last error: {last_err}")
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY is not configured in .env file.")
+        
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key
+    }
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": 2048
+        }
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        if response.status_code != 200:
+            logger.error(f"Gemini API returned error {response.status_code}: {response.text}")
+            raise RuntimeError(f"Gemini API error: {response.text}")
+            
+        data = response.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            return ""
+            
+        parts = candidates[0].get("content", {}).get("parts", [])
+        if not parts:
+            return ""
+            
+        return parts[0].get("text", "")
+    except Exception as e:
+        logger.error(f"Gemini API call failed: {e}")
+        raise
 
-
+def _gemini_call(prompt: str, model: str = "", temperature: float = 0.1, timeout: int = 10) -> str:
+    return _gemini(prompt, temperature=temperature, timeout=timeout)
 # ── Schema summary for prompt ─────────────────────────────────────────────────
 
 def _schema(df: pd.DataFrame) -> str:
     rows = []
     for col in df.columns:
-        pct    = round(df[col].isnull().mean() * 100, 1)
-        sample = df[col].dropna().head(3).tolist()
-        rows.append(f"  {col!r}: {df[col].dtype}, {pct}% null, sample={sample}")
+        pct = round(df[col].isnull().mean() * 100, 1)
+        dtype_str = str(df[col].dtype)
+        
+        try:
+            non_nulls = df[col].dropna()
+            nunique = non_nulls.nunique()
+            if nunique <= 10:
+                unique_vals = sorted(non_nulls.unique().tolist())
+                meta_str = f"unique_values={unique_vals}"
+            elif np.issubdtype(df[col].dtype, np.number):
+                meta_str = f"range=[{non_nulls.min()}, {non_nulls.max()}]"
+            else:
+                meta_str = f"sample={non_nulls.head(3).tolist()}"
+        except Exception:
+            meta_str = f"sample={df[col].dropna().head(3).tolist()}"
+            
+        rows.append(f"  {col!r}: {dtype_str}, {pct}% null, {meta_str}")
     return "\n".join(rows)
 
 
@@ -146,9 +144,55 @@ Available columns: {col_list}"""
 
 # ── Execute pandas code ───────────────────────────────────────────────────────
 
+class SecurityError(Exception):
+    pass
+
+class SecureASTValidator(ast.NodeVisitor):
+    def __init__(self):
+        self.allowed_nodes = {
+            ast.Module, ast.Assign, ast.Name, ast.Store, ast.Load,
+            ast.Constant, ast.BinOp, ast.UnaryOp, ast.Subscript, ast.Slice,
+            ast.Attribute, ast.Call, ast.List, ast.Dict, ast.Tuple, ast.Compare,
+            ast.BoolOp, ast.And, ast.Or, ast.Not, ast.Eq, ast.NotEq, ast.Lt, ast.LtE,
+            ast.Gt, ast.GtE, ast.Is, ast.IsNot, ast.In, ast.NotIn, ast.Add, ast.Sub,
+            ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow, ast.USub, ast.UAdd,
+            ast.keyword, ast.Lambda, ast.ListComp, ast.DictComp, ast.SetComp,
+            ast.GeneratorExp, ast.comprehension
+        }
+        self.allowed_builtins = {"len", "round", "range", "float", "int", "str", "bool", "list", "dict", "set", "sum", "max", "min", "abs"}
+
+    def visit(self, node):
+        node_type = type(node)
+        if node_type not in self.allowed_nodes:
+            raise SecurityError(f"Unauthorized code node type: {node_type.__name__}")
+        if isinstance(node, ast.Name):
+            if node.id in __builtins__ and node.id not in self.allowed_builtins:
+                raise SecurityError(f"Access to unauthorized builtin: {node.id}")
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name):
+                if func.id in __builtins__ and func.id not in self.allowed_builtins:
+                    raise SecurityError(f"Call to unauthorized builtin function: {func.id}")
+            elif isinstance(func, ast.Attribute):
+                if func.attr.startswith("__"):
+                    raise SecurityError(f"Dunder attribute access prohibited: {func.attr}")
+        if isinstance(node, ast.Attribute):
+            if node.attr.startswith("__"):
+                raise SecurityError(f"Dunder attribute access prohibited: {node.attr}")
+        self.generic_visit(node)
+
 def _run_code(code: str, df: pd.DataFrame):
+    import ast
+    cleaned = _clean_code(code)
+    try:
+        tree = ast.parse(cleaned)
+        SecureASTValidator().visit(tree)
+    except Exception as e:
+        logger.warning("[gemini_pipeline] AST security validation failed: %s", e)
+        raise SecurityError(f"AST security validation failed: {e}") from e
+
     ns = {"df": df.copy(), "pd": pd, "np": np, "result": None}
-    exec(_clean_code(code), {}, ns)  # noqa: S102
+    exec(cleaned, {}, ns)  # noqa: S102
     return ns.get("result")
 
 
