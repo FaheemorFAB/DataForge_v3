@@ -11,60 +11,57 @@ from .settings import ROOT_DIR
 
 _env_path = ROOT_DIR / ".env" if (ROOT_DIR / ".env").exists() else ROOT_DIR.parent / ".env"
 load_dotenv(override=True, dotenv_path=_env_path)
+# Also load backend/.env overrides
+_backend_env = ROOT_DIR / "backend" / ".env"
+if _backend_env.exists():
+    load_dotenv(override=True, dotenv_path=_backend_env)
+
 logger = logging.getLogger(__name__)
-# Startup confirmation — visible in Flask console
-print("[gemini_pipeline] NEW single-call pipeline loaded (no LangChain, using Google Gemini)", flush=True)
+print("[gemini_pipeline] Pipeline loaded — using Google Gemini API Key", flush=True)
 
 MAX_CODE_RETRIES = 2
 SAMPLE_ROWS      = 6
 GEMINI_OK        = True
 
-def is_available() -> bool:
-    import os
-    return bool(os.getenv("GEMINI_API_KEY"))
+# ── Identity intercept — questions about what model / who you are ─────────────
+_IDENTITY_PATTERNS = re.compile(
+    r"(who\s+are\s+you|what\s+are\s+you|your\s+name|what.*model|are\s+you\s+(an?\s+)?(ai|bot|chatbot|gpt|gemini|claude|llm)|tell\s+me\s+about\s+yourself|introduce\s+yourself)",
+    re.IGNORECASE
+)
 
-def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 10) -> str:
+def is_available() -> bool:
+    api_key = (os.getenv("GEMINI_API_KEY") or "").strip("'\"")
+    return bool(api_key)
+
+def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 60) -> str:
     import requests
-    import os
-    
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = (os.getenv("GEMINI_API_KEY") or "").strip("'\"")
     if not api_key:
-        raise ValueError("GEMINI_API_KEY is not configured in .env file.")
-        
+        raise ValueError("GEMINI_API_KEY is not configured. Add it to backend/.env.")
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     headers = {
         "Content-Type": "application/json",
-        "x-goog-api-key": api_key
+        "x-goog-api-key": api_key,
     }
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": temperature,
-            "maxOutputTokens": 2048
+            "maxOutputTokens": 8192,
         }
     }
-    
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=timeout)
-        if response.status_code != 200:
-            logger.error(f"Gemini API returned error {response.status_code}: {response.text}")
-            raise RuntimeError(f"Gemini API error: {response.text}")
-            
-        data = response.json()
-        candidates = data.get("candidates", [])
-        if not candidates:
-            return ""
-            
-        parts = candidates[0].get("content", {}).get("parts", [])
-        if not parts:
-            return ""
-            
-        return parts[0].get("text", "")
-    except Exception as e:
-        logger.error(f"Gemini API call failed: {e}")
-        raise
+    response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if response.status_code != 200:
+        logger.error("Gemini API error %s: %s", response.status_code, response.text[:300])
+        raise RuntimeError(f"Gemini API error {response.status_code}: {response.text[:300]}")
+    data = response.json()
+    candidates = data.get("candidates", [])
+    if not candidates:
+        return ""
+    parts = candidates[0].get("content", {}).get("parts", [])
+    return parts[0].get("text", "") if parts else ""
 
-def _gemini_call(prompt: str, model: str = "", temperature: float = 0.1, timeout: int = 10) -> str:
+def _gemini_call(prompt: str, model: str = "", temperature: float = 0.1, timeout: int = 30) -> str:
     return _gemini(prompt, temperature=temperature, timeout=timeout)
 # ── Schema summary for prompt ─────────────────────────────────────────────────
 
@@ -130,7 +127,7 @@ JSON FORMAT:
 
 Available columns: {col_list}"""
 
-    raw  = _gemini(prompt, temperature=0.1, timeout=10)
+    raw  = _gemini(prompt, temperature=0.1, timeout=30)
     text = raw.strip()
     # Strip markdown fences if present
     text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
@@ -261,6 +258,17 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "") -
     (e.g. "revenue = price * units") injected into the Gemini prompt.
     """
 
+    # ── Identity intercept ───────────────────────────────────────────────────
+    if _IDENTITY_PATTERNS.search(query):
+        return {
+            "error":   None,
+            "answer":  "I'm Dataforge Assistant, your AI-powered data analyst. I can help you explore, analyse, and visualise your dataset. Ask me anything about your data!",
+            "result":  {"type": "summary", "text": "I'm Dataforge Assistant, your AI-powered data analyst. I can help you explore, analyse, and visualise your dataset. Ask me anything about your data!"},
+            "insight": "",
+            "intent":  {"type": "summary"},
+            "engine":  "identity",
+        }
+
     if GEMINI_OK:
         try:
             gd     = _ask_gemini(query, df, metric_context=metric_context)
@@ -283,7 +291,7 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "") -
                             fix = _gemini(
                                 f"Fix this pandas code:\n```python\n{code}\n```\n"
                                 f"Error: {err}\nColumns available: {list(df.columns)}\n"
-                                "Return ONLY corrected Python code, no explanation.", timeout=10)
+                                "Return ONLY corrected Python code, no explanation.", timeout=20)
                             code = _clean_code(fix)
                         else:
                             logger.warning("[gemini_pipeline] code exec failed after retries: %s", err)
@@ -322,7 +330,7 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "") -
     except Exception as e:
         logger.error("[gemini_pipeline] deterministic failed: %s", e)
 
-    return {"error": "Query failed. Check GEMINI_API_KEY in your .env file."}
+    return {"error": "Query failed. Check GEMINI_API_KEY in backend/.env."}
 
 
 # ── Deterministic engine loader ───────────────────────────────────────────────

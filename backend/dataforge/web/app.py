@@ -34,6 +34,8 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 os.environ.setdefault("DATAFORGE_ROOT", str(ROOT_DIR))
 
 load_dotenv(override=True, dotenv_path=PROJECT_ROOT / ".env")
+if (ROOT_DIR / ".env").exists():
+    load_dotenv(override=True, dotenv_path=ROOT_DIR / ".env")
 
 from dataforge.settings import PROJECTS_DIR
 

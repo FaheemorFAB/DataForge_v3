@@ -733,8 +733,1048 @@ def api_eda_report():
 
     headers = {}
     if force_download:
-        headers["Content-Disposition"] = "attachment; filename=dataforge_eda_report_cupcake.html"
+        headers["Content-Disposition"] = "attachment; filename=dataforge_eda_report.html"
     return Response(html, mimetype="text/html", headers=headers)
+# ── DATA REPORT (Gemini Business Analyst Report) ──────────────────────────────
+
+def _build_data_report_html(filename: str, narrative: str, stats: dict, charts: list, insights: list, df_preview_html: str) -> str:
+    """Wrap Gemini narrative + stats + graphs + insights into a premium visually interactive HTML report."""
+    import re as _re
+    from datetime import datetime
+    import math
+
+    def _md_to_html(md: str) -> str:
+        md = _re.sub(r"^#{1}\s+(.+)$", r"<h1>\1</h1>", md, flags=_re.MULTILINE)
+        md = _re.sub(r"^#{2}\s+(.+)$", r"<h2>\1</h2>", md, flags=_re.MULTILINE)
+        md = _re.sub(r"^#{3}\s+(.+)$", r"<h3>\1</h3>", md, flags=_re.MULTILINE)
+        md = _re.sub(r"^#{4,6}\s+(.+)$", r"<h4>\1</h4>", md, flags=_re.MULTILINE)
+        md = _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", md)
+        md = _re.sub(r"\*(.+?)\*", r"<em>\1</em>", md)
+        md = _re.sub(r"`([^`]+)`", r"<code>\1</code>", md)
+        md = _re.sub(r"^[\*\-]\s+(.+)$", r"<li>\1</li>", md, flags=_re.MULTILINE)
+        md = _re.sub(r"(<li>.*?</li>\n?)+", lambda m: f"<ul>{m.group(0)}</ul>", md, flags=_re.DOTALL)
+        md = _re.sub(r"^\d+\.\s+(.+)$", r"<li>\1</li>", md, flags=_re.MULTILINE)
+        md = _re.sub(r"\n\n+", "</p><p>", md)
+        return f"<p>{md}</p>"
+
+    html_narrative = _md_to_html(narrative)
+
+    # ── SVG Chart Renderer inside the report ──────────────────────────────
+    def _format_val_short(val: float) -> str:
+        try:
+            val = float(val)
+        except (TypeError, ValueError):
+            return str(val)
+        abs_val = abs(val)
+        if abs_val >= 1_000_000:
+            return f"{val/1_000_000:.1f}M"
+        elif abs_val >= 1_000:
+            return f"{val/1_000:.1f}K"
+        elif val == int(val):
+            return str(int(val))
+        else:
+            return f"{val:.2f}"
+
+    def _render_chart_as_svg(chart: dict) -> str:
+        chart_type = chart.get("type", "bar")
+        title = chart.get("title", "")
+        labels = chart.get("labels", [])
+        values = chart.get("values", [])
+        x_label = chart.get("x_label", "")
+        y_label = chart.get("y_label", "")
+        
+        # SVG dimensions
+        width = 600
+        height = 320
+        padding_left = 65
+        padding_right = 30
+        padding_top = 40
+        padding_bottom = 50
+        
+        plot_width = width - padding_left - padding_right
+        plot_height = height - padding_top - padding_bottom
+        
+        svg = f'<svg viewBox="0 0 {width} {height}" class="report-svg-chart" style="width:100%; height:auto; background:#18181b; border-radius:12px; margin: 0; border: 1px solid #27272a;" xmlns="http://www.w3.org/2000/svg">'
+        
+        # Title
+        svg += f'<text x="20" y="24" fill="#f4f4f5" font-family="-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif" font-size="12" font-weight="700">{title}</text>'
+        
+        if chart_type in ("bar", "line", "area", "histogram"):
+            if not values or not isinstance(values, list):
+                svg += f'<text x="{width/2}" y="{height/2}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" text-anchor="middle">No data available</text></svg>'
+                return svg
+            
+            try:
+                numeric_vals = [float(v) for v in values]
+            except Exception:
+                numeric_vals = []
+                
+            if not numeric_vals:
+                svg += f'<text x="{width/2}" y="{height/2}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" text-anchor="middle">No numeric data</text></svg>'
+                return svg
+                
+            max_val = max(numeric_vals) if numeric_vals else 1.0
+            
+            if max_val <= 0:
+                max_val = 1.0
+                
+            magnitude = 10 ** math.floor(math.log10(max_val)) if max_val > 0 else 1
+            if magnitude == 0:
+                magnitude = 1
+            nice_max = math.ceil(max_val / (magnitude / 2)) * (magnitude / 2)
+            if nice_max == 0:
+                nice_max = 1.0
+                
+            y_ticks = 4
+            for i in range(y_ticks + 1):
+                tick_val = nice_max * (i / y_ticks)
+                y_pos = padding_top + plot_height * (1 - (i / y_ticks))
+                svg += f'<line x1="{padding_left}" y1="{y_pos}" x2="{width - padding_right}" y2="{y_pos}" stroke="#27272a" stroke-dasharray="3,3" />'
+                lbl = _format_val_short(tick_val)
+                svg += f'<text x="{padding_left - 10}" y="{y_pos + 3}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8" text-anchor="end">{lbl}</text>'
+                
+            svg += f'<line x1="{padding_left}" y1="{padding_top + plot_height}" x2="{width - padding_right}" y2="{padding_top + plot_height}" stroke="#3f3f46" />'
+            
+            num_items = len(values)
+            col_width = plot_width / max(1, num_items)
+            
+            if chart_type in ("bar", "histogram"):
+                bar_gap = max(2, min(12, int(col_width * 0.2)))
+                for idx, val in enumerate(values):
+                    val_f = float(val)
+                    bar_h = (val_f / nice_max) * plot_height
+                    x_pos = padding_left + idx * col_width + bar_gap
+                    y_pos = padding_top + plot_height - bar_h
+                    w = col_width - 2 * bar_gap
+                    h = max(2, bar_h)
+                    
+                    svg += f'<rect x="{x_pos}" y="{y_pos}" width="{w}" height="{h}" fill="#2E5BFF" rx="3" opacity="0.85" />'
+                    
+                    if num_items <= 12 and h > 15:
+                        svg += f'<text x="{x_pos + w/2}" y="{y_pos - 4}" fill="#a1a1aa" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8" text-anchor="middle">{_format_val_short(val_f)}</text>'
+                        
+                    if num_items <= 15 or idx % (num_items // 8 or 1) == 0:
+                        lbl_text = str(labels[idx]) if idx < len(labels) else ""
+                        if len(lbl_text) > 10:
+                            lbl_text = lbl_text[:8] + ".."
+                        svg += f'<text x="{x_pos + w/2}" y="{padding_top + plot_height + 14}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8" text-anchor="middle" transform="rotate(-15, {x_pos + w/2}, {padding_top + plot_height + 14})">{lbl_text}</text>'
+                        
+            elif chart_type in ("line", "area"):
+                points = []
+                for idx, val in enumerate(values):
+                    val_f = float(val)
+                    x_pos = padding_left + idx * col_width + col_width/2
+                    y_pos = padding_top + plot_height - (val_f / nice_max) * plot_height
+                    points.append((x_pos, y_pos))
+                    
+                    if num_items <= 15 or idx % (num_items // 8 or 1) == 0:
+                        lbl_text = str(labels[idx]) if idx < len(labels) else ""
+                        if len(lbl_text) > 10:
+                            lbl_text = lbl_text[:8] + ".."
+                        svg += f'<text x="{x_pos}" y="{padding_top + plot_height + 14}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8" text-anchor="middle" transform="rotate(-15, {x_pos}, {padding_top + plot_height + 14})">{lbl_text}</text>'
+                        
+                if points:
+                    line_d = "M " + " L ".join(f"{pt[0]},{pt[1]}" for pt in points)
+                    if chart_type == "area":
+                        area_d = line_d + f" L {points[-1][0]},{padding_top + plot_height} L {points[0][0]},{padding_top + plot_height} Z"
+                        svg += f'<path d="{area_d}" fill="url(#areaGrad)" opacity="0.15" />'
+                    svg += f'<path d="{line_d}" fill="none" stroke="#2E5BFF" stroke-width="2" />'
+                    
+                    if num_items <= 30:
+                        for pt in points:
+                            svg += f'<circle cx="{pt[0]}" cy="{pt[1]}" r="3" fill="#09090b" stroke="#2E5BFF" stroke-width="1.5" />'
+                            
+                svg += """
+                <defs>
+                  <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#2E5BFF" />
+                    <stop offset="100%" stop-color="#2E5BFF" stop-opacity="0" />
+                  </linearGradient>
+                </defs>
+                """
+                
+        elif chart_type in ("pie", "doughnut"):
+            if not values:
+                svg += f'<text x="{width/2}" y="{height/2}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" text-anchor="middle">No data</text></svg>'
+                return svg
+                
+            total = sum([float(v) for v in values])
+            if total == 0:
+                total = 1.0
+                
+            center_x = width * 0.38
+            center_y = height * 0.52
+            radius = min(width, height) * 0.34
+            
+            colors = ["#2E5BFF", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#3B82F6", "#F97316", "#06B6D4", "#14B8A6"]
+            current_angle = -math.pi / 2
+            
+            legend_y = padding_top + 10
+            legend_x = width * 0.70
+            
+            for idx, val in enumerate(values):
+                val_f = float(val)
+                pct = val_f / total
+                angle = pct * 2 * math.pi
+                
+                x1 = center_x + radius * math.cos(current_angle)
+                y1 = center_y + radius * math.sin(current_angle)
+                x2 = center_x + radius * math.cos(current_angle + angle)
+                y2 = center_y + radius * math.sin(current_angle + angle)
+                
+                large_arc = 1 if angle > math.pi else 0
+                color = colors[idx % len(colors)]
+                
+                if pct < 0.999:
+                    if chart_type == "doughnut":
+                        inner_radius = radius * 0.55
+                        ix1 = center_x + inner_radius * math.cos(current_angle)
+                        iy1 = center_y + inner_radius * math.sin(current_angle)
+                        ix2 = center_x + inner_radius * math.cos(current_angle + angle)
+                        iy2 = center_y + inner_radius * math.sin(current_angle + angle)
+                        d = f"M {x1} {y1} A {radius} {radius} 0 {large_arc} 1 {x2} {y2} L {ix2} {iy2} A {inner_radius} {inner_radius} 0 {large_arc} 0 {ix1} {iy1} Z"
+                    else:
+                        d = f"M {center_x} {center_y} L {x1} {y1} A {radius} {radius} 0 {large_arc} 1 {x2} {y2} Z"
+                    svg += f'<path d="{d}" fill="{color}" stroke="#18181b" stroke-width="1.5" opacity="0.85" />'
+                else:
+                    if chart_type == "doughnut":
+                        svg += f'<circle cx="{center_x}" cy="{center_y}" r="{radius}" fill="none" stroke="{color}" stroke-width="{radius * 0.45}" opacity="0.85" />'
+                    else:
+                        svg += f'<circle cx="{center_x}" cy="{center_y}" r="{radius}" fill="{color}" opacity="0.85" />'
+                
+                current_angle += angle
+                
+                if idx < 8:
+                    lbl = str(labels[idx]) if idx < len(labels) else ""
+                    if len(lbl) > 14:
+                        lbl = lbl[:12] + ".."
+                    svg += f'<rect x="{legend_x}" y="{legend_y}" width="10" height="10" fill="{color}" rx="2" />'
+                    svg += f'<text x="{legend_x + 16}" y="{legend_y + 9}" fill="#a1a1aa" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8.5" text-anchor="start">{lbl} ({pct*100:.1f}%)</text>'
+                    legend_y += 18
+                    
+            if len(values) > 8:
+                svg += f'<text x="{legend_x}" y="{legend_y + 9}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8.5">And {len(values) - 8} more...</text>'
+                
+        elif chart_type == "scatter":
+            if not values or not isinstance(values, list):
+                svg += f'<text x="{width/2}" y="{height/2}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" text-anchor="middle">No data</text></svg>'
+                return svg
+                
+            x_vals = [float(pt.get("x", 0)) for pt in values if pt.get("x") is not None]
+            y_vals = [float(pt.get("y", 0)) for pt in values if pt.get("y") is not None]
+            
+            if not x_vals or not y_vals:
+                svg += f'<text x="{width/2}" y="{height/2}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="12" text-anchor="middle">No scatter points</text></svg>'
+                return svg
+                
+            min_x, max_x = min(x_vals), max(x_vals)
+            min_y, max_y = min(y_vals), max(y_vals)
+            
+            range_x = (max_x - min_x) if max_x != min_x else 1.0
+            range_y = (max_y - min_y) if max_y != min_y else 1.0
+            
+            min_x -= range_x * 0.05
+            max_x += range_x * 0.05
+            min_y -= range_y * 0.05
+            max_y += range_y * 0.05
+            range_x = max_x - min_x
+            range_y = max_y - min_y
+            
+            for i in range(5):
+                grid_x_val = min_x + range_x * (i / 4)
+                grid_x_pos = padding_left + plot_width * (i / 4)
+                svg += f'<line x1="{grid_x_pos}" y1="{padding_top}" x2="{grid_x_pos}" y2="{padding_top + plot_height}" stroke="#27272a" stroke-dasharray="2,2" />'
+                svg += f'<text x="{grid_x_pos}" y="{padding_top + plot_height + 12}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="7.5" text-anchor="middle">{_format_val_short(grid_x_val)}</text>'
+                
+                grid_y_val = min_y + range_y * (i / 4)
+                grid_y_pos = padding_top + plot_height * (1 - (i / 4))
+                svg += f'<line x1="{padding_left}" y1="{grid_y_pos}" x2="{width - padding_right}" y2="{grid_y_pos}" stroke="#27272a" stroke-dasharray="2,2" />'
+                svg += f'<text x="{padding_left - 10}" y="{grid_y_pos + 3}" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="7.5" text-anchor="end">{_format_val_short(grid_y_val)}</text>'
+                
+            svg += f'<line x1="{padding_left}" y1="{padding_top + plot_height}" x2="{width - padding_right}" y2="{padding_top + plot_height}" stroke="#3f3f46" />'
+            svg += f'<line x1="{padding_left}" y1="{padding_top}" x2="{padding_left}" y2="{padding_top + plot_height}" stroke="#3f3f46" />'
+            
+            svg += f'<text x="{width/2}" y="{height - 6}" fill="#a1a1aa" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8.5" text-anchor="middle">{x_label}</text>'
+            svg += f'<text x="12" y="{height/2}" fill="#a1a1aa" font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="8.5" text-anchor="middle" transform="rotate(-90, 12, {height/2})">{y_label}</text>'
+            
+            for pt in values:
+                cx = padding_left + ((float(pt.get("x", 0)) - min_x) / range_x) * plot_width
+                cy = padding_top + plot_height - ((float(pt.get("y", 0)) - min_y) / range_y) * plot_height
+                svg += f'<circle cx="{cx}" cy="{cy}" r="2.5" fill="#2E5BFF" opacity="0.6" />'
+                
+        svg += "</svg>"
+        return svg
+
+    # Generate charts HTML grid
+    charts_html = ""
+    if charts:
+        charts_html += '<div class="charts-grid">'
+        for idx, ch in enumerate(charts):
+            title = ch.get("title", f"Analysis Chart {idx+1}")
+            svg_content = _render_chart_as_svg(ch)
+            charts_html += f"""
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <span class="chart-card-icon">📈</span>
+                <span class="chart-card-title">{title}</span>
+              </div>
+              <div class="chart-card-body">
+                {svg_content}
+              </div>
+            </div>"""
+        charts_html += '</div>'
+    else:
+        charts_html = '<div class="empty-state"><p>No visual dashboard graphs compiled. Ensure the dataset contains columns suitable for visualization.</p></div>'
+
+    # Generate insights HTML grid
+    insights_html = ""
+    if insights:
+        insights_html += '<div class="insights-grid">'
+        for idx, ins in enumerate(insights):
+            title = ins.get("title", f"Insight {idx+1}")
+            desc = ins.get("description", "")
+            importance = ins.get("importance", 0.5)
+            metric_col = ins.get("metric", "")
+            chart_type = ins.get("chart_type", "")
+            
+            if importance > 0.7:
+                badge_lbl = "Critical Attention"
+                badge_cls = "badge-danger"
+            elif importance > 0.4:
+                badge_lbl = "Important Insight"
+                badge_cls = "badge-warning"
+            else:
+                badge_lbl = "Standard Observation"
+                badge_cls = "badge-info"
+                
+            insights_html += f"""
+            <div class="insight-card">
+              <div class="insight-card-top">
+                <span class="insight-number">#0{idx+1}</span>
+                <span class="insight-badge {badge_cls}">{badge_lbl}</span>
+              </div>
+              <h3 class="insight-title">{title}</h3>
+              <p class="insight-desc">{desc}</p>
+              <div class="insight-meta">
+                {f'<span class="meta-tag">🎯 Metric: <strong>{metric_col}</strong></span>' if metric_col else ''}
+                {f'<span class="meta-tag">📊 Visual: <strong>{chart_type}</strong></span>' if chart_type else ''}
+              </div>
+            </div>"""
+        insights_html += '</div>'
+    else:
+        insights_html = """
+        <div class="empty-state">
+          <p>No algorithmic insights run yet.</p>
+          <p class="small">Click "Run Insights Analysis" on the Insights dashboard page to generate advanced statistical indicators, which will populate this section in future reports.</p>
+        </div>"""
+
+    # Generate stats table rows
+    stat_rows = ""
+    for k, v in stats.items():
+        stat_rows += f"<tr><td>{k}</td><td><strong>{v}</strong></td></tr>"
+
+    date_str = datetime.now().strftime("%B %d, %Y")
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dataforge Business Intelligence Report: {filename}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+  *{{box-sizing:border-box;margin:0;padding:0;}}
+  body{{font-family:'Outfit',-apple-system,BlinkMacSystemFont,sans-serif;background:#09090b;color:#e4e4e7;line-height:1.6;font-size:15px;padding-bottom:60px;}}
+  
+  /* Layout */
+  .page{{max-width:1100px;margin:0 auto;padding:40px 24px;}}
+  
+  /* Header Cover Card */
+  .report-header{{
+    background:linear-gradient(135deg, #18181b 0%, #09090b 100%);
+    border:1px solid #27272a;
+    border-radius:16px;
+    padding:40px;
+    margin-bottom:30px;
+    position:relative;
+    overflow:hidden;
+  }}
+  .report-header::after{{
+    content:"";
+    position:absolute;
+    top:-50%;
+    right:-20%;
+    width:350px;
+    height:350px;
+    background:radial-gradient(circle, rgba(46,91,255,0.15) 0%, rgba(0,0,0,0) 70%);
+    border-radius:50%;
+    pointer-events:none;
+  }}
+  .header-tag{{
+    display:inline-block;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:#2E5BFF;
+    margin-bottom:12px;
+    background:rgba(46,91,255,0.08);
+    padding:4px 10px;
+    border-radius:100px;
+    border:1px solid rgba(46,91,255,0.15);
+  }}
+  .report-header h1{{font-size:2.2rem;font-weight:900;color:#f4f4f5;line-height:1.2;letter-spacing:-0.02em;margin-bottom:12px;}}
+  .report-meta{{display:flex;flex-wrap:wrap;gap:20px;font-size:0.85rem;color:#a1a1aa;margin-top:10px;}}
+  .report-meta span{{display:flex;align-items:center;gap:6px;}}
+  
+  /* Tabs Navigation Styles */
+  .tabs-container{{margin-top:20px;}}
+  .tab-radio{{display:none;}}
+  
+  .tab-labels-row{{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:24px;
+    border-bottom:1px solid #27272a;
+    padding-bottom:12px;
+  }}
+  .tab-label{{
+    padding:10px 20px;
+    border-radius:8px;
+    font-size:0.88rem;
+    font-weight:600;
+    color:#a1a1aa;
+    cursor:pointer;
+    border:1px solid transparent;
+    transition:all 0.25s ease;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }}
+  .tab-label:hover{{
+    background:#18181b;
+    color:#f4f4f5;
+  }}
+  
+  /* Active Tab Indicator */
+  #tab-nav-narrative:checked ~ .tab-labels-row .label-narrative,
+  #tab-nav-visuals:checked ~ .tab-labels-row .label-visuals,
+  #tab-nav-insights:checked ~ .tab-labels-row .label-insights,
+  #tab-nav-profile:checked ~ .tab-labels-row .label-profile{{
+    background:rgba(46,91,255,0.12);
+    color:#f4f4f5;
+    border-color:rgba(46,91,255,0.3);
+    box-shadow:0 4px 12px rgba(0,0,0,0.1);
+  }}
+  
+  /* Panel Toggle visibility */
+  .tab-panel{{display:none;animation:fadeIn 0.3s ease-in-out;}}
+  #tab-nav-narrative:checked ~ .tab-panels .panel-narrative{{display:block;}}
+  #tab-nav-visuals:checked ~ .tab-panels .panel-visuals{{display:block;}}
+  #tab-nav-insights:checked ~ .tab-panels .panel-insights{{display:block;}}
+  #tab-nav-profile:checked ~ .tab-panels .panel-profile{{display:block;}}
+  
+  @keyframes fadeIn{{
+    from{{opacity:0;transform:translateY(4px);}}
+    to{{opacity:1;transform:translateY(0);}}
+  }}
+  
+  /* Executive Narrative Panel */
+  .narrative-card{{
+    background:#18181b;
+    border:1px solid #27272a;
+    border-radius:16px;
+    padding:40px;
+  }}
+  .narrative h2{{
+    font-size:1.35rem;
+    font-weight:700;
+    color:#f4f4f5;
+    margin:36px 0 16px;
+    border-left:4px solid #2E5BFF;
+    padding-left:14px;
+    letter-spacing:-0.01em;
+  }}
+  .narrative h2:first-child{{margin-top:0;}}
+  .narrative h3{{font-size:1.05rem;font-weight:600;color:#f4f4f5;margin:24px 0 10px;}}
+  .narrative p{{font-size:0.92rem;color:#d4d4d8;margin-bottom:18px;line-height:1.75;}}
+  .narrative ul,.narrative ol{{padding-left:24px;margin-bottom:18px;}}
+  .narrative li{{font-size:0.92rem;color:#d4d4d8;margin-bottom:8px;line-height:1.7;}}
+  .narrative strong{{color:#ffffff;font-weight:600;}}
+  .narrative code{{background:#27272a;color:#a5b4fc;padding:2px 6px;border-radius:4px;font-size:0.85rem;}}
+  
+  /* Visual Dashboard Grid */
+  .charts-grid{{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(480px, 1fr));
+    gap:24px;
+  }}
+  .chart-card{{
+    background:#18181b;
+    border:1px solid #27272a;
+    border-radius:14px;
+    padding:24px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    transition:transform 0.2s ease;
+  }}
+  .chart-card:hover{{
+    transform:translateY(-2px);
+  }}
+  .chart-card-header{{display:flex;align-items:center;gap:8px;font-weight:600;font-size:0.95rem;color:#f4f4f5;}}
+  .chart-card-icon{{color:#2E5BFF;}}
+  .chart-card-body{{width:100%;display:flex;justify-content:center;}}
+  
+  /* Insights Dashboard Grid */
+  .insights-grid{{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+    gap:20px;
+  }}
+  .insight-card{{
+    background:#18181b;
+    border:1px solid #27272a;
+    border-radius:14px;
+    padding:24px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    position:relative;
+  }}
+  .insight-card-top{{display:flex;justify-content:space-between;align-items:center;}}
+  .insight-number{{font-size:0.8rem;font-weight:800;color:#2E5BFF;opacity:0.6;}}
+  .insight-badge{{
+    font-size:8px;
+    font-weight:800;
+    text-transform:uppercase;
+    padding:3px 8px;
+    border-radius:100px;
+    letter-spacing:0.06em;
+  }}
+  .badge-danger{{background:rgba(239,68,68,0.12);color:#EF4444;border:1px solid rgba(239,68,68,0.2);}}
+  .badge-warning{{background:rgba(245,158,11,0.12);color:#F59E0B;border:1px solid rgba(245,158,11,0.2);}}
+  .badge-info{{background:rgba(59,130,246,0.12);color:#3B82F6;border:1px solid rgba(59,130,246,0.2);}}
+  
+  .insight-title{{font-size:1.05rem;font-weight:700;color:#f4f4f5;letter-spacing:-0.01em;}}
+  .insight-desc{{font-size:0.88rem;color:#a1a1aa;line-height:1.6;flex-grow:1;}}
+  .insight-meta{{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    font-size:0.75rem;
+    color:#71717a;
+    border-top:1px solid #27272a;
+    padding-top:10px;
+    margin-top:6px;
+  }}
+  .meta-tag strong{{color:#e4e4e7;}}
+  
+  /* Structural Profile Panel */
+  .profile-grid{{
+    display:grid;
+    grid-template-columns:1fr 2fr;
+    gap:24px;
+    align-items:start;
+  }}
+  .profile-card{{
+    background:#18181b;
+    border:1px solid #27272a;
+    border-radius:14px;
+    padding:24px;
+  }}
+  .profile-card h3{{font-size:1.1rem;font-weight:700;color:#f4f4f5;margin-bottom:16px;}}
+  .stats-table{{width:100%;border-collapse:collapse;margin-top:8px;}}
+  .stats-table td{{
+    padding:12px 14px;
+    border-top:1px solid #27272a;
+    font-size:0.88rem;
+    color:#a1a1aa;
+  }}
+  .stats-table tr:first-child td{{border-top:none;}}
+  .stats-table td strong{{color:#f4f4f5;}}
+  
+  /* Dataset Preview Table */
+  .preview-card{{grid-column:span 2;width:100%;}}
+  .preview-container{{
+    width:100%;
+    overflow-x:auto;
+    border:1px solid #27272a;
+    border-radius:8px;
+    margin-top:12px;
+  }}
+  .preview-table{{width:100%;border-collapse:collapse;text-align:left;font-size:0.78rem;}}
+  .preview-table th{{
+    background:#27272a;
+    color:#a1a1aa;
+    font-weight:700;
+    padding:10px 14px;
+    text-transform:uppercase;
+    font-size:0.68rem;
+    letter-spacing:0.06em;
+  }}
+  .preview-table td{{
+    padding:10px 14px;
+    border-top:1px solid #27272a;
+    color:#d4d4d8;
+    white-space:nowrap;
+  }}
+  .preview-table tr:hover td{{background:rgba(255,255,255,0.02);}}
+  
+  /* Empty state */
+  .empty-state{{
+    background:#18181b;
+    border:1px dashed #3f3f46;
+    border-radius:14px;
+    padding:48px;
+    text-align:center;
+    color:#a1a1aa;
+  }}
+  .empty-state p.small{{font-size:0.8rem;margin-top:8px;color:#71717a;}}
+  
+  /* Footer */
+  .report-footer{{
+    margin-top:50px;
+    padding-top:20px;
+    border-top:1px solid #27272a;
+    display:flex;
+    justify-content:space-between;
+    font-size:0.75rem;
+    color:#71717a;
+  }}
+  
+  /* Print Stylesheet Overrides */
+  @media print{{
+    body{{background:#ffffff!important;color:#111827!important;font-size:13px;padding-bottom:0;}}
+    .page{{padding:0!important;max-width:100%!important;}}
+    
+    .tab-labels-row, .tab-radio{{display:none!important;}}
+    
+    .tab-panel{{
+      display:block!important;
+      opacity:1!important;
+      transform:none!important;
+      margin-bottom:40px;
+      page-break-after:always;
+    }}
+    
+    .report-header, .narrative-card, .chart-card, .insight-card, .profile-card, .preview-container{{
+      background:#ffffff!important;
+      color:#111827!important;
+      border:1px solid #d1d5db!important;
+      box-shadow:none!important;
+      transform:none!important;
+      padding:24px!important;
+      margin-bottom:24px!important;
+    }}
+    .report-header h1, .narrative h2, .narrative h3, .insight-title, .profile-card h3{{
+      color:#111827!important;
+    }}
+    .narrative p, .narrative li, .insight-desc, .stats-table td, .preview-table td{{
+      color:#374151!important;
+    }}
+    .stats-table td strong, .preview-table th{{
+      color:#111827!important;
+    }}
+    .narrative h2{{border-left-color:#1d4ed8!important;}}
+    .preview-table th, .stats-table tr{{background:#f3f4f6!important;border-color:#d1d5db!important;}}
+    .preview-table td, .stats-table td{{border-color:#e5e7eb!important;}}
+    
+    .report-svg-chart{{
+      background:#ffffff!important;
+      border:1px solid #d1d5db!important;
+    }}
+    .report-svg-chart text{{fill:#374151!important;}}
+    .report-svg-chart line{{stroke:#e5e7eb!important;}}
+    .report-svg-chart line[stroke="#3f3f46"]{{stroke:#9ca3af!important;}}
+    .report-svg-chart rect[fill="#2E5BFF"], 
+    .report-svg-chart path[stroke="#2E5BFF"], 
+    .report-svg-chart circle[fill="#2E5BFF"]{{
+      fill:#1d4ed8!important;
+      stroke:#1d4ed8!important;
+    }}
+  }}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="report-header">
+    <div class="header-tag">Executive Business Intelligence Report</div>
+    <h1>{filename}</h1>
+    <div class="report-meta">
+      <span>📅 Generated: <strong>{date_str}</strong></span>
+      <span>🤖 Analyst: <strong>Dataforge Assistant</strong></span>
+      <span>📊 Dimensions: <strong>{stats.get("Categorical columns", "0")} cols</strong></span>
+      <span>📈 Metrics: <strong>{stats.get("Numeric columns", "0")} cols</strong></span>
+    </div>
+  </div>
+
+  <div class="tabs-container">
+    <input type="radio" id="tab-nav-narrative" name="report-tabs" class="tab-radio" checked>
+    <input type="radio" id="tab-nav-visuals" name="report-tabs" class="tab-radio">
+    <input type="radio" id="tab-nav-insights" name="report-tabs" class="tab-radio">
+    <input type="radio" id="tab-nav-profile" name="report-tabs" class="tab-radio">
+
+    <div class="tab-labels-row">
+      <label for="tab-nav-narrative" class="tab-label label-narrative">📄 Executive Narrative</label>
+      <label for="tab-nav-visuals" class="tab-label label-visuals">📊 Visual Dashboard</label>
+      <label for="tab-nav-insights" class="tab-label label-insights">💡 Algorithmic Insights</label>
+      <label for="tab-nav-profile" class="tab-label label-profile">🔬 Structural Profile</label>
+    </div>
+
+    <div class="tab-panels">
+      <div class="tab-panel panel-narrative">
+        <div class="narrative-card">
+          <div class="narrative">
+            {html_narrative}
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-panel panel-visuals">
+        {charts_html}
+      </div>
+
+      <div class="tab-panel panel-insights">
+        {insights_html}
+      </div>
+
+      <div class="tab-panel panel-profile">
+        <div class="profile-grid">
+          <div class="profile-card">
+            <h3>Key Stats</h3>
+            <table class="stats-table">
+              <tbody>{stat_rows}</tbody>
+            </table>
+          </div>
+          
+          <div class="profile-card preview-card">
+            <h3>Dataset Preview (Top 15 Rows)</h3>
+            <div class="preview-container">
+              {df_preview_html}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="report-footer">
+    <span>Dataforge Consulting Intelligence Report</span>
+    <span>{date_str} &nbsp;·&nbsp; Confidential</span>
+  </div>
+</div>
+</body>
+</html>"""
+
+
+@workspace_bp.route("/api/data-report", methods=["POST"])
+@login_required
+def api_data_report_generate():
+    """Generate a Gemini-powered Business Analyst Data Report and cache it."""
+    import numpy as np
+    import pandas as pd
+    from ..storage import _save, _load
+    from ..helpers import _get_upload_id, _get_upload_or_403, _get_filename
+    from .dashboard import _compute_chart_data, _is_id_like_col, _format_stat_val
+
+    upload_id = _get_upload_id()
+    if not upload_id:
+        return jsonify({"error": "upload_id required"}), 400
+    _, err = _get_upload_or_403(upload_id)
+    if err:
+        return err
+
+    df_clean = _load(upload_id, "df_clean")
+    df_raw   = _load(upload_id, "df_raw")
+    df = df_clean if df_clean is not None else df_raw
+    if df is None:
+        return jsonify({"error": "No dataset loaded. Upload a CSV first."}), 400
+
+    filename = _get_filename(upload_id) or "Dataset"
+    rows, cols = df.shape
+
+    # ── Build structured stats ──────────────────────────────────────────────
+    missing_cells = int(df.isnull().sum().sum())
+    total_cells = rows * cols
+    miss_pct = round(missing_cells / total_cells * 100, 2) if total_cells else 0.0
+    num_cols = df.select_dtypes(include="number").columns.tolist()
+    cat_cols = df.select_dtypes(include="object").columns.tolist()
+    dt_cols  = df.select_dtypes(include="datetime").columns.tolist()
+
+    stats = {
+        "Dataset":           filename,
+        "Rows":              f"{rows:,}",
+        "Columns":           str(cols),
+        "Missing cells":     f"{missing_cells:,} ({miss_pct}%)",
+        "Numeric columns":   str(len(num_cols)),
+        "Categorical columns": str(len(cat_cols)),
+        "Datetime columns":  str(len(dt_cols)),
+    }
+
+    # Numeric descriptive stats block for prompt
+    num_block = ""
+    for c in num_cols[:12]:
+        try:
+            s = df[c].dropna()
+            if len(s):
+                num_block += (
+                    f"  - {c}: mean={s.mean():.4g}, median={s.median():.4g}, "
+                    f"std={s.std():.4g}, min={s.min():.4g}, max={s.max():.4g}\n"
+                )
+        except Exception:
+            pass
+
+    cat_block = ""
+    for c in cat_cols[:8]:
+        try:
+            top = df[c].value_counts().head(5)
+            cat_block += f"  - {c}: top values → " + ", ".join(f"{k} ({v})" for k, v in top.items()) + "\n"
+        except Exception:
+            pass
+
+    corr_block = ""
+    if len(num_cols) >= 2:
+        try:
+            corr = df[num_cols].corr().abs()
+            pairs = (
+                corr.where(~np.eye(len(corr), dtype=bool))
+                .stack()
+                .sort_values(ascending=False)
+                .head(6)
+            )
+            corr_block = "\nTop correlations:\n"
+            for (c1, c2), v in pairs.items():
+                corr_block += f"  - {c1} ↔ {c2}: r={v:.3f}\n"
+        except Exception:
+            pass
+
+    prompt = f"""You are a senior business analyst and data strategist at a top-tier consulting firm.
+You have been given a dataset to analyse. Write a comprehensive, insightful business intelligence report.
+
+DATASET: {filename}
+SHAPE: {rows:,} rows × {cols} columns
+MISSING: {miss_pct}% missing data across {missing_cells:,} cells
+
+NUMERIC COLUMNS ({len(num_cols)}):
+{num_block or '  (none)'}
+
+CATEGORICAL COLUMNS ({len(cat_cols)}):
+{cat_block or '  (none)'}
+{corr_block}
+ALL COLUMN NAMES: {', '.join(df.columns.tolist()[:40])}
+
+SAMPLE DATA (first 5 rows):
+{df.head(5).to_string(index=False, max_cols=20)}
+
+TASK: Write a comprehensive business analyst report with the following sections:
+
+## Executive Summary
+A 3-4 sentence C-suite ready summary of the dataset's business significance and key takeaways.
+
+## Dataset Overview
+Describe the dataset's structure, completeness, and what business domain it likely represents.
+
+## Key Metrics & Statistics
+Highlight the most important numeric findings with business context. Quantify everything.
+
+## Data Quality Assessment
+Assess missing data, anomalies, and structural issues. Provide a data quality score (0-10) with reasoning.
+
+## Pattern & Trend Analysis
+Identify the most significant patterns, trends, or relationships in the data. Use specific numbers.
+
+## Business Insights & Opportunities
+3-5 concrete, actionable business insights derived from the data. Be specific and quantitative.
+
+## Risk Factors & Watchouts
+Highlight any data red flags, biases, or business risks to be aware of.
+
+## Strategic Recommendations
+3-5 prioritised, specific, actionable recommendations for stakeholders, with expected impact.
+
+## Conclusion
+Brief closing summary tying everything together.
+
+RULES:
+- Use ## for section headers
+- Be specific with numbers and percentages from the actual data
+- Write in professional business language — clear, concise, decisive
+- NO vague statements — every claim must be backed by the data
+- Total length: 800-1200 words
+"""
+
+    try:
+        from dataforge.gemini_pipeline import _gemini
+        narrative = _gemini(prompt, temperature=0.3, timeout=60)
+    except Exception as e:
+        return jsonify({"error": f"Gemini API failed: {e}"}), 500
+
+    # ── Compile standard and custom charts for the Visual tab ──
+    charts = []
+    
+    id_like_cols = [c for c in num_cols if _is_id_like_col(c, df[c])]
+    true_metrics  = [c for c in num_cols if c not in id_like_cols and not c.lower().endswith("id") and c.lower() != "id"]
+    if not true_metrics and num_cols:
+        true_metrics = [c for c in num_cols if c not in id_like_cols] or num_cols
+        
+    valid_dims = cat_cols + id_like_cols + [c for c in num_cols if c.lower().endswith("id") or c.lower() == "id"]
+    
+    metric = true_metrics[0] if true_metrics else None
+    dim = valid_dims[0] if valid_dims else (cat_cols[0] if cat_cols else None)
+    
+    schema = _load(upload_id, "last_schema")
+    
+    # 1. Trend chart
+    if schema and schema.get("date") and true_metrics:
+        try:
+            date_col = schema["date"]
+            ts_metric = true_metrics[0]
+            ts = df[[date_col, ts_metric]].copy()
+            ts[date_col] = pd.to_datetime(ts[date_col], errors="coerce")
+            ts = ts.dropna().sort_values(date_col)
+            if _is_id_like_col(ts_metric, ts[ts_metric]):
+                agg = ts.groupby(ts[date_col].dt.to_period("M"))[ts_metric].count()
+                y_lbl = f"Count of {ts_metric}"
+            else:
+                agg = ts.groupby(ts[date_col].dt.to_period("M"))[ts_metric].sum()
+                y_lbl = ts_metric
+            charts.append({
+                "type": "line",
+                "title": f"{y_lbl} over time",
+                "labels": [str(p) for p in agg.index[-24:]],
+                "values": [round(float(v), 2) for v in agg.values[-24:]],
+                "x_label": date_col, "y_label": y_lbl,
+            })
+        except Exception:
+            pass
+            
+    # 2. Bar chart
+    if dim and metric:
+        try:
+            if _is_id_like_col(metric, df[metric]):
+                grp = df.groupby(dim)[metric].count().sort_values(ascending=False).head(10)
+                y_lbl = f"Count of {metric}"
+            else:
+                grp = df.groupby(dim)[metric].mean().sort_values(ascending=False).head(10)
+                y_lbl = metric
+            charts.append({
+                "type": "bar",
+                "title": f"Top {dim} by Avg {y_lbl}",
+                "labels": [str(i) for i in grp.index],
+                "values": [round(float(v), 2) for v in grp.values],
+                "x_label": dim, "y_label": y_lbl,
+            })
+        except Exception:
+            pass
+            
+    # 3. Pie/doughnut
+    if metric:
+        try:
+            col = metric
+            s = df[col].dropna()
+            if len(s) > 0:
+                if s.nunique() <= 1:
+                    labels = [f"Constant ({_format_stat_val(col, s.iloc[0])})"]
+                    values = [len(s)]
+                else:
+                    buckets = pd.cut(s, bins=4, precision=1)
+                    vc = buckets.value_counts(sort=False)
+                    names = ["Low Range", "Lower-Mid Range", "Upper-Mid Range", "High Range"]
+                    labels = []
+                    for idx, b in enumerate(vc.index):
+                        left_fmt = _format_stat_val(col, b.left)
+                        right_fmt = _format_stat_val(col, b.right)
+                        labels.append(f"{names[idx]} ({left_fmt}-{right_fmt})")
+                    values = [int(v) for v in vc.values]
+                charts.append({
+                    "type": "doughnut",
+                    "title": f"{col} Distribution",
+                    "labels": labels,
+                    "values": values,
+                    "x_label": col, "y_label": "count",
+                })
+        except Exception:
+            pass
+
+    # Custom charts
+    try:
+        custom_configs = _load(upload_id, "custom_charts") or []
+        for config in custom_configs:
+            computed = _compute_chart_data(df, config)
+            if computed:
+                charts.append({
+                    "type": computed.get("type", "bar"),
+                    "title": computed.get("title", ""),
+                    "labels": computed.get("labels", []),
+                    "values": computed.get("values", []),
+                    "x_label": computed.get("x_col", ""),
+                    "y_label": computed.get("y_col", "") or "count"
+                })
+    except Exception:
+        pass
+
+    # ── Fetch Algorithmic Insights ──
+    insights = _load(upload_id, "last_insights") or []
+
+    # ── Generate Dataset Preview Table ──
+    df_preview_html = ""
+    try:
+        preview_df = df.head(15)
+        df_preview_html = preview_df.to_html(classes="preview-table", index=False, border=0)
+    except Exception:
+        pass
+
+    # Build the final interactive HTML report
+    html = _build_data_report_html(filename, narrative, stats, charts, insights, df_preview_html)
+    _save(upload_id, "data_report_html", html)
+
+
+@workspace_bp.route("/api/data-report/download")
+@login_required
+def api_data_report_download():
+    """Serve the cached Data Report as HTML download or PDF."""
+    from ..storage import _load
+    from ..helpers import _get_upload_id, _get_filename
+
+    upload_id = _get_upload_id()
+    if not upload_id:
+        return Response("upload_id required", status=400)
+
+    html = _load(upload_id, "data_report_html")
+    if not html:
+        return Response("No data report generated yet. Click 'Generate Analysis' first.", status=404)
+
+    fmt = (request.args.get("format") or "html").lower()
+    filename_base = (_get_filename(upload_id) or "dataset").replace(" ", "_").replace(".csv", "")
+
+    if fmt == "pdf":
+        # Try weasyprint first, then headless browser
+        try:
+            from weasyprint import HTML as WP_HTML
+            pdf = WP_HTML(string=html).write_pdf()
+            return Response(
+                pdf,
+                mimetype="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=dataforge_report_{filename_base}.pdf"},
+            )
+        except Exception:
+            pass
+        # Headless browser fallback
+        pdf = _render_pdf_with_browser(html)
+        if pdf:
+            return Response(
+                pdf,
+                mimetype="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename=dataforge_report_{filename_base}.pdf"},
+            )
+        # If PDF fails, fall through to HTML download with a note
+    return Response(
+        html,
+        mimetype="text/html",
+        headers={"Content-Disposition": f"attachment; filename=dataforge_report_{filename_base}.html"},
+    )
 
 
 @workspace_bp.route("/api/query", methods=["POST"])

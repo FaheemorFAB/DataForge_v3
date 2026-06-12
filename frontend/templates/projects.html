@@ -206,16 +206,16 @@
                             <!-- capability badges -->
                             <div class="flex items-center gap-1.5 mt-2 flex-wrap">
                                 <template x-if="p.has_clean">
-                                    <span class="badge" style="background:rgba(16,185,129,.08);color:#1e9902;border:1px solid rgba(16,185,129,.2)">✓ Cleaned</span>
+                                    <span class="badge" style="background:rgba(16,185,129,.08);color:#1e9902;border:1px solid rgba(16,185,129,.2)">Cleaned</span>
                                 </template>
                                 <template x-if="p.has_eda">
-                                    <span class="badge" style="background:rgba(46,91,255,.08);color:var(--accent);border:1px solid rgba(46,91,255,.2)">✓ EDA Report</span>
+                                    <span class="badge" style="background:rgba(46,91,255,.08);color:var(--accent);border:1px solid rgba(46,91,255,.2)">EDA Report</span>
                                 </template>
                                 <template x-if="p.has_model">
-                                    <span class="badge" style="background:rgba(245,158,11,.08);color:#f59e0b;border:1px solid rgba(245,158,11,.2)">✓ ML Model</span>
+                                    <span class="badge" style="background:rgba(245,158,11,.08);color:#f59e0b;border:1px solid rgba(245,158,11,.2)">ML Model</span>
                                 </template>
                                 <template x-if="p.has_chat">
-                                    <span class="badge" style="background:rgba(139,92,246,.08);color:#8b5cf6;border:1px solid rgba(139,92,246,.2)">✓ AI Chat</span>
+                                    <span class="badge" style="background:rgba(139,92,246,.08);color:#8b5cf6;border:1px solid rgba(139,92,246,.2)">AI Chat</span>
                                 </template>
                                 <template x-if="!p.has_clean && !p.has_eda && !p.has_model && !p.has_chat">
                                     <span class="text-[10px]" style="color:var(--txt-m)">No analyses yet</span>

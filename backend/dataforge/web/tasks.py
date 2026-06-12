@@ -28,6 +28,8 @@ PROJECT_ROOT = ROOT_DIR.parent
 # Import order matters: create the Flask app shell first, then Celery.
 from dotenv import load_dotenv
 load_dotenv(override=True, dotenv_path=PROJECT_ROOT / ".env")
+if (ROOT_DIR / ".env").exists():
+    load_dotenv(override=True, dotenv_path=ROOT_DIR / ".env")
 
 from flask import Flask
 from flask_socketio import SocketIO
