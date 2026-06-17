@@ -7,13 +7,16 @@ const ThemeManager = {
     // List of available themes with metadata for customization panels
     themes: [
         { id: 'dark', name: 'Dark Default', isDark: true, preview: ['#050505', '#0A0A0B', '#2E5BFF'] },
-        { id: 'light', name: 'Light Default', isDark: false, preview: ['#c8c8cd', '#d1caca', '#08227e'] },
+        { id: 'light', name: 'Light Default', isDark: false, preview: ['#f8fafc', '#ffffff', '#4f46e5'] },
         { id: 'dracula', name: 'Dracula', isDark: true, preview: ['#282a36', '#1e1f29', '#bd93f9'] },
         { id: 'slate', name: 'Slate Blue', isDark: true, preview: ['#1e222b', '#252a34', '#38bdf8'] },
         { id: 'emerald', name: 'Emerald Sage', isDark: true, preview: ['#141e1b', '#1b2824', '#10b981'] },
         { id: 'nord', name: 'Nord', isDark: true, preview: ['#2e3440', '#3b4252', '#88c0d0'] },
         { id: 'luxury', name: 'Luxury', isDark: true, preview: ['#09090b', '#18181b', '#d4af37'] },
-        { id: 'cupcake', name: 'Cupcake', isDark: false, preview: ['#faf7f5', '#efeae6', '#65c3c8'] }
+        { id: 'cupcake', name: 'Cupcake', isDark: false, preview: ['#fafaf9', '#ffffff', '#ec4899'] },
+        { id: 'solarized', name: 'Solarized Light', isDark: false, preview: ['#fdf6e3', '#eee8d5', '#2aa198'] },
+        { id: 'lavender', name: 'Lavender Mint', isDark: false, preview: ['#f5f3ff', '#ffffff', '#7c3aed'] },
+        { id: 'matcha', name: 'Mint Matcha', isDark: false, preview: ['#f4f8f5', '#ffffff', '#15803d'] }
     ],
 
     // List of fonts
@@ -34,6 +37,9 @@ const ThemeManager = {
         dracula: 'roboto-mono',
         nord: 'outfit',
         cupcake: 'poppins',
+        solarized: 'inter',
+        lavender: 'poppins',
+        matcha: 'outfit',
         dark: 'inter',
         light: 'inter'
     },

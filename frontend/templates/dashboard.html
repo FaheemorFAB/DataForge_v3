@@ -32,7 +32,7 @@
         .dt { width:100%;border-collapse:collapse;font-size:.72rem; }
         .dt th { padding:10px 14px;text-align:left;font-weight:700;font-size:.6rem;text-transform:uppercase;letter-spacing:.12em;color:var(--txt-m);border-bottom:1px solid var(--border);white-space:nowrap; }
         .dt td { padding:9px 14px;border-bottom:1px solid var(--border);color:var(--txt-m);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis; }
-        .dt tbody tr:hover td { background:rgba(46,91,255,.04);color:var(--txt); }
+        .dt tbody tr:hover td { background:var(--row-h);color:var(--txt); }
         .tab-btn { padding:.5rem 1.1rem;font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:.6rem;border:none;cursor:pointer;transition:all .15s;color:var(--txt-m);background:transparent; }
         .tab-btn.active { background:var(--accent);color:#fff; }
         .tab-btn:not(.active):hover { color:var(--txt); }
@@ -64,8 +64,8 @@
         .btn-s { background:transparent;color:var(--txt-m);font-weight:700;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;padding:.6rem 1.2rem;border-radius:.6rem;cursor:pointer;display:inline-flex;align-items:center;gap:.45rem;border:1px solid var(--border);text-decoration:none;transition:border-color .15s,color .15s; }
         .btn-s:hover { border-color:var(--accent);color:var(--txt); }
         .grad-txt { background:linear-gradient(135deg,var(--txt) 0%,var(--txt-m) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent; }
-        .imp-bar { height:4px;border-radius:999px;background:rgba(46,91,255,.12);overflow:hidden; }
-        .imp-fill { height:100%;border-radius:999px;background:linear-gradient(90deg,#6366f1,#2E5BFF); }
+        .imp-bar { height:4px;border-radius:999px;background:var(--border);overflow:hidden; }
+        .imp-fill { height:100%;border-radius:999px;background:linear-gradient(90deg,#6366f1,var(--accent)); }
     </style>
 </head>
 
@@ -216,11 +216,11 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <div class="stat-card">
             <div class="flex items-center justify-between mb-3"><p class="sl">Uploads</p>
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:rgba(46,91,255,.12)">
-                    <svg class="w-4 h-4" style="color:#2E5BFF" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:var(--glow)">
+                    <svg class="w-4 h-4" style="color:var(--accent)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
                 </div>
             </div>
-            <p class="stat-num" style="color:#2E5BFF" x-text="stats.uploads"></p>
+            <p class="stat-num" style="color:var(--accent)" x-text="stats.uploads"></p>
         </div>
         <div class="stat-card">
             <div class="flex items-center justify-between mb-3"><p class="sl">Analyses</p>
@@ -315,12 +315,12 @@
             <div class="overflow-y-auto flex-1 p-3 space-y-1" style="max-height:430px" id="feed-scroll">
                 <template x-for="item in feedItems" :key="item.id">
                     <div class="feed-item flex items-start gap-3 p-3 rounded-xl transition-all"
-                         :style="item.isNew ? 'background:rgba(46,91,255,.06);box-shadow:inset 0 0 0 1px rgba(46,91,255,.2)' : 'background:rgba(255,255,255,.02)'">
+                         :style="item.isNew ? 'background:var(--glow);box-shadow:inset 0 0 0 1px var(--border)' : 'background:rgba(255,255,255,.02)'">
                         <span class="text-base leading-none mt-0.5 flex-shrink-0" x-text="item.icon"></span>
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2 mb-0.5 flex-wrap">
                                 <span class="badge" :class="'badge-'+item.type" x-text="item.label"></span>
-                                <span x-show="item.isNew" class="badge" style="background:rgba(46,91,255,.15);color:#2E5BFF;border:1px solid rgba(46,91,255,.3);font-size:.55rem">NEW</span>
+                                <span x-show="item.isNew" class="badge" style="background:var(--glow);color:var(--accent);border:1px solid var(--border);font-size:.55rem">NEW</span>
                             </div>
                             <p x-show="item.filename" class="text-[10px] font-medium truncate" style="color:var(--txt)" x-text="item.filename"></p>
                             <p x-show="item.summary" class="text-[10px] truncate mt-0.5" style="color:var(--txt-m)" x-text="item.summary"></p>
@@ -330,7 +330,7 @@
                 </template>
                 <template x-if="feedItems.length===0">
                     <div class="flex flex-col items-center justify-center py-12 text-center">
-                        <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style="background:rgba(46,91,255,.08)">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style="background:var(--glow)">
                             <svg class="w-5 h-5" style="color:var(--accent)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                         </div>
                         <p class="text-xs font-bold mb-1" style="color:var(--txt)">Waiting for events</p>
@@ -1019,8 +1019,8 @@ function dashApp() {
         themes:        window.ThemeManager ? window.ThemeManager.themes : [],
         fonts:         window.ThemeManager ? window.ThemeManager.fonts : [],
         get darkMode() {
-            const lightThemes = ['light', 'cupcake', 'retro'];
-            return !lightThemes.includes(this.currentTheme);
+            const t = this.themes.find(x => x.id === this.currentTheme);
+            return t ? t.isDark : true;
         },
         activeTab:     'overview',
         wsConnected:   false,
@@ -1233,6 +1233,7 @@ function dashApp() {
                 const lines = text.split("\n");
                 let html = "";
                 let inList = false;
+                let inSection = false;
 
                 for (let line of lines) {
                     let trimmed = line.trim();
@@ -1245,26 +1246,30 @@ function dashApp() {
                     }
 
                     if (trimmed === "Executive Summary") {
-                        html += `<h3 class="text-xs font-black tracking-tight border-b pb-1.5 mb-2 uppercase" style="color:var(--accent); border-color:var(--border)">${trimmed}</h3>`;
                         continue;
                     }
                     if (trimmed.startsWith("---") || trimmed.startsWith("___") || (trimmed.startsWith("-") && trimmed.replace(/-/g, "").length === 0)) {
                         continue;
                     }
 
-                    if (trimmed.endsWith(":") && !trimmed.startsWith("-")) {
+                    if (trimmed.endsWith(":") && !trimmed.startsWith("-") && !trimmed.startsWith("*")) {
                         if (inList) {
                             html += "</ul>";
                             inList = false;
                         }
+                        if (inSection) {
+                            html += "</div>";
+                        }
                         const headerText = trimmed.replace(/:$/, "");
-                        html += `<h4 class="text-[10px] font-bold mt-3 mb-1 uppercase tracking-wider" style="color:var(--accent)">${headerText}</h4>`;
+                        html += `<div class="py-3.5 first:pt-0 last:pb-0 border-b last:border-0" style="border-color:var(--border)">`;
+                        html += `<h4 class="text-[10px] font-black uppercase tracking-wider mb-2" style="color:var(--accent)">${headerText}</h4>`;
+                        inSection = true;
                         continue;
                     }
 
                     if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
                         if (!inList) {
-                            html += `<ul class="list-disc pl-4 space-y-1 mb-2 text-xs" style="color:var(--txt)">`;
+                            html += `<ul class="list-disc pl-4 space-y-1.5 text-xs" style="color:var(--txt)">`;
                             inList = true;
                         }
                         const bulletContent = trimmed.substring(2);
@@ -1281,6 +1286,9 @@ function dashApp() {
 
                 if (inList) {
                     html += "</ul>";
+                }
+                if (inSection) {
+                    html += "</div>";
                 }
                 return html;
             }

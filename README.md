@@ -1,10 +1,177 @@
-# DataForge v3 — Feature Data Flow Diagrams
+# 🛠️ DataForge v3
 
-This document contains the minimal, portrait-optimized Data Flow Diagrams (DFDs) for each primary feature of the DataForge application, organized individually to fit cleanly in portrait PDF reports.
+DataForge is a premium, enterprise-grade automated data engineering, analytical profiling, and machine learning platform. It empowers organizations to seamlessly ingest raw datasets, execute rule-based data cleaning pipelines, run advanced statistical scans, generate AI-driven narrative business insights, query datasets using conversational natural language, train predictive models automatically, and distribute publication-quality reports.
 
 ---
 
-## 🔍 Level 0: Context Level Diagram
+## 🎨 System Architecture Overview
+
+This diagram displays the flow of data and asynchronous requests through the DataForge backend services and third-party integration layers:
+
+```mermaid
+graph TD
+    %% Styling
+    classDef client fill:#E8F0FE,stroke:#4285F4,stroke-width:2px;
+    classDef api fill:#F1F3F4,stroke:#3C4043,stroke-width:2px;
+    classDef worker fill:#FCE8E6,stroke:#D93025,stroke-width:2px;
+    classDef external fill:#FFE8D6,stroke:#DDBEA9,stroke-width:2px;
+    classDef storage fill:#E6F4EA,stroke:#34A853,stroke-width:2px;
+
+    %% Nodes
+    User[Client Browser / SPA]:::client
+    GAuth[Google OAuth 2.0]:::external
+    Gemini[Google Gemini 2.5 Flash]:::external
+    Flask[Flask Web API Server]:::api
+    Redis[Redis Message Broker & Cache]:::worker
+    Celery[Celery Async Task Workers]:::worker
+    Supa[Supabase PostgreSQL & S3 Storage]:::storage
+
+    %% Flows
+    User -->|HTTPS Requests / WebSockets| Flask
+    Flask <-->|OAuth Code Exchange| GAuth
+    Flask <-->|Metadata & File Store| Supa
+    Flask -->|Enqueue Async Jobs| Redis
+    Redis -->|Dispatch Tasks| Celery
+    Celery <-->|Dataset Reads & Writes| Supa
+    Celery <-->|Context & Prompts / Narrative Slides| Gemini
+    Flask <-->|Session Cache & Live Alerts| Redis
+    Celery -->|WebSocket Broadcasts| User
+```
+
+---
+
+## 📸 Platform Showcase
+
+Explore the end-to-end user journey within the DataForge ecosystem, showcasing the workflow from secure entry to machine learning deployment.
+
+### 🔐 1. Secure Authentication Portal
+A secure, role-based gateway featuring native local credentials verification alongside Google OAuth 2.0 single sign-on (SSO).
+![Secure Authentication Portal](assets/auth.jpg)
+
+### 📥 2. Intelligent Data Ingestion
+Drag-and-drop CSV/Excel file uploads or live streaming via public Google Sheets connections, with automatic initial dimension profiling.
+![Intelligent Data Ingestion](assets/uplid.jpg)
+
+### 🔍 3. Interactive Data Preview & Profiling
+High-fidelity tabular preview of ingested data highlighting missing cell percentages, data type detection, completeness metrics, and summary stats.
+![Interactive Data Preview](assets/previwe.jpg)
+
+### 🧹 4. Workspace & Data Cleaning Pipeline
+Apply rule-based transformations—such as filters, group-bys, column derivations, and missing value interpolations—with visual pipeline state validation and parquet-optimized storage.
+![Data Cleaning Pipeline](assets/cleaning.jpg)
+
+### 📊 5. Executive Dashboard
+An interactive central cockpit showing dataset metrics, key statistics, column distributions, and live Celery/WebSocket event activity logs.
+![Executive Dashboard](assets/dash_brd.jpg)
+
+### 💡 6. AI-Powered Insight Engine
+Automated scans for statistical anomalies, category distributions, trends, and correlations, paired with executive summaries compiled by Google Gemini API.
+![AI-Powered Insight Engine](assets/insght.jpg)
+
+### 💬 7. Conversational AI Analyst Chatbot
+Interact with datasets in plain English. The sandboxed AI Analyst generates, validates, and runs Python code to create charts and tables on the fly.
+![Conversational AI Analyst Chatbot](assets/aiQry.jpg)
+
+### 🤖 8. Automated Machine Learning (AutoML)
+Automatically detect classification/regression tasks, search for optimal models (XGBoost, LightGBM, Random Forest) via hyperparameter optimization, and export trained model assets.
+![AutoML Model Training](assets/AutoML.jpg)
+
+---
+
+## 🚀 Core Features
+
+* **Quality & Completeness Scans**: Live quality bars, column-level completeness, and missingness metrics.
+* **Rule-Based Data Transformation**: In-place filtering, column renaming, drop/imputation of null values, and custom expressions saved to Parquet.
+* **Statistical Insights Engine**: Automatic trend detection, segment analysis, outlier detection, and correlation matrices.
+* **AI Summary Generator**: McKinsey-style executive commentary and narrative bullet points powered by `gemini-2.5-flash`.
+* **Visual Sandbox Chatbot**: Secure AST validation of generated Python scripts before execution to prevent system calls or arbitrary file edits.
+* **AutoML Leaderboard**: Hyperparameter tuning, F1/ROC-AUC scoring, and downloadable pickled model objects.
+* **WebSocket Alert Broadcasting**: Instantaneous warnings and live job updates sent to connected browser clients.
+
+---
+
+## 🛠️ Architecture & Technology Stack
+
+| Component | Technology | Description |
+| :--- | :--- | :--- |
+| **Backend Framework** | Flask (Python 3.10+) | Monolithic web server and API routes handler |
+| **Async Task Queue** | Celery + Redis | Handles async AutoML training, slides compiling, and alert evaluation |
+| **AI Orchestration** | Gemini API (`gemini-2.5-flash`) | Narrative report synthesis and conversational NLP code generation |
+| **Database & Storage** | Supabase (PostgreSQL + S3 Bucket) | User credentials storage, workspace state tables, and Parquet data store |
+| **Machine Learning** | FLAML (AutoML) + scikit-learn | Fast hyperparameter optimization and model search |
+| **Frontend** | Vanilla JS (Alpine.js), CSS (Themes), HTML5 | Clean, responsive UI supporting custom themes (dark & light) |
+
+---
+
+## ⚙️ How to Run Locally
+
+### Environment Setup
+Create a `.env` file in the root folder of the project. A reference template is shown below:
+```env
+# Gemini API Key
+GEMINI_API_KEY="your-gemini-api-key"
+
+# Flask Secret Key
+FLASK_SECRET_KEY="your-flask-secret-key"
+
+# Google OAuth Setup (Optional)
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+
+# Supabase Database and Storage Bucket Setup
+SUPABASE_URL="https://your-supabase-url.supabase.co"
+SUPABASE_KEY="your-supabase-service-key"
+SUPABASE_BUCKET="your-bucket-name"
+
+# Redis Server URL
+REDIS_URL="redis://localhost:6379/0"
+```
+
+### Option 1: Run with Docker Compose (Recommended)
+With Docker and Docker Compose installed:
+```bash
+# Build and run the service containers (Flask Web, Celery Worker, Redis)
+docker compose up --build
+```
+* **Web UI**: Open `http://localhost:5000`
+* **Celery Flower Dashboard**: Open `http://localhost:5555`
+
+### Option 2: Run Manually (Local Setup)
+
+1. **Start Redis**:
+   Verify that your Redis server is running locally on port `6379`.
+
+2. **Backend Setup**:
+   ```bash
+   cd backend
+   python -m venv venv
+   source venv/bin/activate  # Or venv\Scripts\activate on Windows
+   pip install -r requirements.txt
+   ```
+
+3. **Start Flask Server**:
+   ```bash
+   python app.py
+   ```
+
+4. **Start Celery Worker**:
+   ```bash
+   # On Windows:
+   celery --app=dataforge.web.tasks:celery worker --loglevel=info --pool=solo
+   
+   # On Linux/macOS:
+   celery --app=dataforge.web.tasks:celery worker --loglevel=info --pool=prefork
+   ```
+
+---
+
+## 📐 Data Flow Diagrams (DFDs)
+
+For full architectural transparency, here are the System Data Flow Diagrams:
+
+<details>
+<summary>🔍 Level 0: Context Level Diagram</summary>
+
 Shows system boundaries and data exchange between external entities and the core system.
 
 ```mermaid
@@ -30,10 +197,10 @@ graph TD
     DF <-->|Metadata & Files| Supa
     DF <-->|Context & Prompts / Business Slides| Gemini
 ```
+</details>
 
----
-
-## ⚙️ Level 1: Feature-Specific DFDs
+<details>
+<summary>⚙️ Level 1: Feature-Specific DFDs</summary>
 
 ### 1. Authentication & Session Management
 Manages user logins, credentials validation, and Google OAuth flow.
@@ -54,8 +221,6 @@ flowchart TD
     P1 <-->|Read / Write User Session| DB
     P1 -->|Session Cookie & Login Status| User
 ```
-
----
 
 ### 2. Data Ingestion & Import
 Handles file uploads (CSV/Excel) and public Google Sheet connections.
@@ -80,8 +245,6 @@ flowchart TD
     P2 -->|Dataset Stats Profile| User
 ```
 
----
-
 ### 3. Workspace & Transformation Pipeline
 Executes dynamic, rule-based data cleaning, filtering, groupings, and derived column calculations.
 
@@ -103,8 +266,6 @@ flowchart TD
     P3 -->|Update Clean Metadata JSON| DB
     P3 -->|Interactive Data Preview| User
 ```
-
----
 
 ### 4. Insights Engine
 Runs plugin scanning rules (Trends, Outliers, Correlations, segment analysis) and calls Gemini to build executive summaries.
@@ -133,8 +294,6 @@ flowchart TD
     P4 -->|Rendered Statistical Charts| User
 ```
 
----
-
 ### 5. AutoML Training
 Fits machine learning classifiers or regressors based on target selection, saving and evaluating the results.
 
@@ -158,8 +317,6 @@ flowchart TD
     P5 -->|Update Upload automl_meta_json| DB_Uploads
     P5 -->|Model Evaluation Metrics & Importance| User
 ```
-
----
 
 ### 6. Strategic Reporting & Alerting
 Generates presentation-ready HTML/PDF reports using McKinsey-formatted slide commentary, evaluates alert conditions, and broadcasts messages via WebSockets.
@@ -190,3 +347,4 @@ flowchart TD
     P6 -->|Save Report Reference| DB_Reports
     P6 -->|WebSocket Push & HTML Download| User
 ```
+</details>

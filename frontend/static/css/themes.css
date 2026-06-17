@@ -44,19 +44,19 @@ html[data-theme="dark"] {
 
 /* 2. Light Default */
 html[data-theme="light"] {
-    --bg: #c8c8cd;
-    --surface: #d1caca;
-    --border: #e2e2e6;
-    --accent: #08227e;
-    --glow: rgba(46, 91, 255, 0.08);
-    --txt: #0a0a0b;
-    --txt-m: #37373c;
-    --txt-f: #343438;
-    --card: #dbd2d2e6;
-    --nav: rgba(242, 242, 245, 0.96);
-    --inp-bg: #f8f8fb;
-    --row-h: rgba(0, 0, 0, 0.03);
-    --row-head: rgba(0, 0, 0, 0.015);
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --accent: #4f46e5;
+    --glow: rgba(79, 70, 229, 0.08);
+    --txt: #0f172a;
+    --txt-m: #475569;
+    --txt-f: #94a3b8;
+    --card: rgba(255, 255, 255, 0.85);
+    --nav: rgba(248, 250, 252, 0.92);
+    --inp-bg: #f1f5f9;
+    --row-h: rgba(15, 23, 42, 0.03);
+    --row-head: rgba(15, 23, 42, 0.015);
 }
 
 /* 3. Dracula */
@@ -146,19 +146,70 @@ html[data-theme="luxury"] {
 
 /* 8. Cupcake */
 html[data-theme="cupcake"] {
-    --bg: #faf7f5;
-    --surface: #efeae6;
-    --border: #d3c5ba;
-    --accent: #65c3c8;
-    --glow: rgba(101, 195, 200, 0.2);
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --border: #e7e5e4;
+    --accent: #ec4899;
+    --glow: rgba(236, 72, 153, 0.15);
     --txt: #291334;
     --txt-m: #8d779b;
-    --txt-f: #d3c5ba;
-    --card: rgba(239, 234, 230, 0.8);
+    --txt-f: #bfaec6;
+    --card: rgba(255, 255, 255, 0.8);
     --nav: rgba(250, 247, 245, 0.92);
-    --inp-bg: #efeae6;
-    --row-h: rgba(0, 0, 0, 0.03);
-    --row-head: rgba(0, 0, 0, 0.02);
+    --inp-bg: #f5f2f0;
+    --row-h: rgba(41, 19, 52, 0.03);
+    --row-head: rgba(41, 19, 52, 0.015);
+}
+
+/* 9. Solarized Light */
+html[data-theme="solarized"] {
+    --bg: #fdf6e3;
+    --surface: #eee8d5;
+    --border: #d5c4a1;
+    --accent: #2aa198;
+    --glow: rgba(42, 161, 152, 0.15);
+    --txt: #002b36;
+    --txt-m: #586e75;
+    --txt-f: #93a1a1;
+    --card: rgba(238, 232, 213, 0.8);
+    --nav: rgba(253, 246, 227, 0.92);
+    --inp-bg: #fdf6e3;
+    --row-h: rgba(0, 43, 54, 0.03);
+    --row-head: rgba(0, 43, 54, 0.015);
+}
+
+/* 10. Lavender Mint */
+html[data-theme="lavender"] {
+    --bg: #f5f3ff;
+    --surface: #ffffff;
+    --border: #e9d5ff;
+    --accent: #7c3aed;
+    --glow: rgba(124, 58, 237, 0.15);
+    --txt: #1e1b4b;
+    --txt-m: #5b21b6;
+    --txt-f: #a78bfa;
+    --card: rgba(255, 255, 255, 0.8);
+    --nav: rgba(245, 243, 255, 0.92);
+    --inp-bg: #faf5ff;
+    --row-h: rgba(30, 27, 75, 0.03);
+    --row-head: rgba(30, 27, 75, 0.015);
+}
+
+/* 11. Mint Matcha */
+html[data-theme="matcha"] {
+    --bg: #f4f8f5;
+    --surface: #ffffff;
+    --border: #d1e7dd;
+    --accent: #15803d;
+    --glow: rgba(21, 128, 61, 0.15);
+    --txt: #0f291b;
+    --txt-m: #2d6a4f;
+    --txt-f: #74a88e;
+    --card: rgba(255, 255, 255, 0.8);
+    --nav: rgba(244, 248, 245, 0.92);
+    --inp-bg: #f0f7f2;
+    --row-h: rgba(15, 41, 27, 0.03);
+    --row-head: rgba(15, 41, 27, 0.015);
 }
 
 /* ==========================================================================

@@ -70,6 +70,7 @@ def api_check_duplicate():
             "filename": existing.get("filename"),
             "rows": existing.get("rows", 0),
             "cols": existing.get("cols", 0),
+            "numeric": profile.get("numeric", 0),
             "missing_pct": existing.get("missing_pct", 0),
             "time_ago": _time_ago(existing.get("uploaded_at")),
             "has_clean": bool(profile.get("clean_cols") or existing.get("clean_meta_json")),

@@ -55,6 +55,34 @@ def _format_stat_val(col_name: str, val: float) -> str:
     return f"{prefix}{formatted}"
 
 
+# Keywords that indicate a numeric column is an ID/code/ordinal — not a true metric
+_ID_KEYWORDS = (
+    "id", "no", "num", "number", "code", "roll", "batch",
+    "year", "reg", "serial", "seq", "rank", "index", "ref",
+    "emp", "student", "class", "section", "grade",
+    "date", "time", "timestamp",
+)
+
+
+def _is_id_like_col(col_name: str, series: pd.Series) -> bool:
+    """Return True when a numeric column looks like a roll-no / batch / code."""
+    cl = col_name.lower().replace("_", " ").replace("-", " ")
+    # keyword match
+    if any(kw in cl.split() or cl.startswith(kw) or cl.endswith(kw)
+           for kw in _ID_KEYWORDS):
+        return True
+    # Structural check: integers with very low cardinality relative to rows,
+    # or integers that look like years (1900-2100)
+    if pd.api.types.is_integer_dtype(series):
+        unique_vals = series.dropna().unique()
+        if len(unique_vals) <= max(20, len(series) * 0.05):
+            return True  # low-cardinality integer
+        if all(1900 <= v <= 2100 for v in unique_vals[:50]):
+            return True  # looks like year
+    return False
+
+
+
 @dashboard_bp.route("/dashboard")
 @login_required
 def dashboard():
@@ -212,31 +240,6 @@ def api_dashboard_stats():
 
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     cat_cols = df.select_dtypes(include="object").columns.tolist()
-
-    # Keywords that indicate a numeric column is an ID/code/ordinal — not a true metric
-    _ID_KEYWORDS = (
-        "id", "no", "num", "number", "code", "roll", "batch",
-        "year", "reg", "serial", "seq", "rank", "index", "ref",
-        "emp", "student", "class", "section", "grade",
-        "date", "time", "timestamp",
-    )
-
-    def _is_id_like_col(col_name: str, series: pd.Series) -> bool:
-        """Return True when a numeric column looks like a roll-no / batch / code."""
-        cl = col_name.lower().replace("_", " ").replace("-", " ")
-        # keyword match
-        if any(kw in cl.split() or cl.startswith(kw) or cl.endswith(kw)
-               for kw in _ID_KEYWORDS):
-            return True
-        # Structural check: integers with very low cardinality relative to rows,
-        # or integers that look like years (1900-2100)
-        if pd.api.types.is_integer_dtype(series):
-            unique_vals = series.dropna().unique()
-            if len(unique_vals) <= max(20, len(series) * 0.05):
-                return True  # low-cardinality integer
-            if all(1900 <= v <= 2100 for v in unique_vals[:50]):
-                return True  # looks like year
-        return False
 
     # Separate true metrics from ID-like columns
     id_like_cols = [c for c in numeric_cols if _is_id_like_col(c, df[c])]

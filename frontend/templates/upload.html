@@ -263,8 +263,8 @@
                 <p class="text-sm leading-relaxed font-light max-w-md" style="color:var(--txt-m)">Upload your CSV or Excel file and let us handle the architecture. Cleaning, Profiling, and AutoML in one unified pipeline.</p>
                 <div class="flex items-center gap-4">
                     <div class="flex -space-x-2.5">
-                        <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-[10px] font-bold" style="border-color:var(--bg); background:#374151">G</div>
-                        <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-[10px] font-bold" style="border-color:var(--bg); background:#1f2937">F</div>
+                        <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-[10px] font-bold" style="border-color:var(--bg); background:#374151; color:#fff;">G</div>
+                        <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-[10px] font-bold" style="border-color:var(--bg); background:#1f2937; color:#fff;">F</div>
                     </div>
                     <span class="text-[10px] font-medium uppercase tracking-widest" style="color:var(--txt-m)">Powered by Google Gemini & FLAML</span>
                 </div>
@@ -597,6 +597,7 @@
                                     filename:    chkData.filename,
                                     rows:        chkData.rows,
                                     cols:        chkData.cols,
+                                    numeric:     chkData.numeric || 0,
                                     missing_pct: chkData.missing_pct,
                                 };
                                 this.fileUploaded = true;

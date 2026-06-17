@@ -48,9 +48,6 @@ def api_insights_run():
             "error": "Dataset for this upload is not readable right now. Try reopening the project or re-upload the original dataset."
         }), 400
 
-    if not _rate_limit(current_user.id, "insights"):
-        return jsonify({"error": "Rate limit: max 3 insight jobs per minute"}), 429
-
     body    = request.get_json(force=True) or {}
     top_n   = int(body.get("top_n", 6))
     use_gem = False  # Devoid of Gemini

@@ -29,7 +29,7 @@ def _quote_ident(name: str) -> str:
 
 def _inject_eda_view_theme(html: str, theme: str = "dark", print_mode: bool = False) -> str:
     """Apply final DataForge theming over ydata/pandas EDA HTML."""
-    light_themes = {"light", "cupcake", "retro"}
+    light_themes = {"light", "cupcake", "retro", "solarized", "lavender", "matcha"}
     theme = (theme or "dark").lower()
     if print_mode:
         theme = "cupcake"
@@ -61,12 +61,24 @@ def _inject_eda_view_theme(html: str, theme: str = "dark", print_mode: bool = Fa
             "text": "#f4f4f5", "muted": "#b7b7bf", "border": "#3f3f46", "accent": "#d4af37",
         },
         "light": {
-            "bg": "#f4f5f7", "surface": "#ffffff", "surface2": "#eef1f5",
-            "text": "#111827", "muted": "#4b5563", "border": "#d8dee8", "accent": "#2E5BFF",
+            "bg": "#f8fafc", "surface": "#ffffff", "surface2": "#f1f5f9",
+            "text": "#0f172a", "muted": "#475569", "border": "#e2e8f0", "accent": "#4f46e5",
         },
         "cupcake": {
-            "bg": "#faf7f5", "surface": "#ffffff", "surface2": "#efeae6",
-            "text": "#291334", "muted": "#6f5f6b", "border": "#d3c5ba", "accent": "#65c3c8",
+            "bg": "#fafaf9", "surface": "#ffffff", "surface2": "#f5f5f4",
+            "text": "#291334", "muted": "#8d779b", "border": "#e7e5e4", "accent": "#ec4899",
+        },
+        "solarized": {
+            "bg": "#fdf6e3", "surface": "#eee8d5", "surface2": "#decdaf",
+            "text": "#002b36", "muted": "#586e75", "border": "#d5c4a1", "accent": "#2aa198",
+        },
+        "lavender": {
+            "bg": "#f5f3ff", "surface": "#ffffff", "surface2": "#e9d5ff",
+            "text": "#1e1b4b", "muted": "#5b21b6", "border": "#a78bfa", "accent": "#7c3aed",
+        },
+        "matcha": {
+            "bg": "#f4f8f5", "surface": "#ffffff", "surface2": "#d1e7dd",
+            "text": "#0f291b", "muted": "#2d6a4f", "border": "#74a88e", "accent": "#15803d",
         },
         "retro": {
             "bg": "#ece3ca", "surface": "#fff8e8", "surface2": "#e4d8b4",
@@ -266,7 +278,7 @@ def api_workspace_state():
     from ..storage import _save, _load
     from ..helpers import (_get_upload_id, _get_upload_or_403, _df_profile,
                            _get_filename, _load_persisted, _persist, _upath,
-                           gemini_available)
+                           gemini_available, _exists)
     from dataforge.db import db_get
 
     upload_id = _get_upload_id()
@@ -406,6 +418,7 @@ def api_workspace_state():
         "has_df":            df_raw is not None,
         "has_clean":         df_clean is not None,
         "has_eda":           has_eda,
+        "has_biz_report":    _exists(upload_id, "data_report_html"),
         "profile":           profile,
         "clean_profile":     clean_profile,
         "columns":           profile.get("columns", []),
@@ -1729,6 +1742,7 @@ RULES:
     # Build the final interactive HTML report
     html = _build_data_report_html(filename, narrative, stats, charts, insights, df_preview_html)
     _save(upload_id, "data_report_html", html)
+    return jsonify({"ok": True}), 200
 
 
 @workspace_bp.route("/api/data-report/download")

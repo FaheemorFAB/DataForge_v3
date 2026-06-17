@@ -648,7 +648,7 @@
                     </div>
                     <template x-if="$store && cleanProfile || true">
                         <label class="flex items-center gap-1.5 cursor-pointer select-none">
-                            <input type="checkbox" x-model="showClean" @change="reload()" class="accent-[#2E5BFF]">
+                            <input type="checkbox" x-model="showClean" @change="reload()" style="accent-color:var(--accent)">
                             <span class="font-bold uppercase tracking-widest text-[10px]" style="color:var(--txt-m)">Cleaned</span>
                         </label>
                     </template>
@@ -1129,7 +1129,7 @@
         <div class="sec-hd"><div><h2>EDA Report</h2><p class="sec-sub">ydata-profiling · Distribution · Correlation · Alerts</p></div>
             <div class="sec-hd-actions">
                 <label class="flex items-center gap-2 cursor-pointer" :class="isGeneratingEda ? 'opacity-50 pointer-events-none' : ''">
-                    <input type="checkbox" x-model="edaMinimal" @change="runEda()" :disabled="isGeneratingEda" class="accent-[#2E5BFF]">
+                    <input type="checkbox" x-model="edaMinimal" @change="runEda()" :disabled="isGeneratingEda" style="accent-color:var(--accent)">
                     <span class="font-bold uppercase tracking-widest text-[10px]" style="color:var(--txt-m)">Minimal</span>
                 </label>
                 <select x-model="edaSampleN" @change="runEda()" :disabled="isGeneratingEda" class="inp" style="width:auto; padding:.4rem .7rem; font-size:.75rem; font-weight:700">
@@ -1184,29 +1184,7 @@
     </div>
 
     <!-- ── BUSINESS DATA REPORT ──────────────────────────────────────── -->
-    <div x-show="activeTab === 'eda'" class="tab-panel"
-         x-data="{
-           bizReportReady: false,
-           bizReportGenerating: false,
-           bizReportError: '',
-           async generateBizReport() {
-               this.bizReportGenerating = true;
-               this.bizReportError = '';
-               try {
-                   const res = await fetch('/api/data-report?upload_id=' + encodeURIComponent(uploadId), {
-                       method: 'POST',
-                       headers: { 'Content-Type': 'application/json' }
-                   });
-                   const data = await res.json();
-                   if (!res.ok || data.error) {
-                       this.bizReportError = data.error || 'Generation failed.';
-                   } else {
-                       this.bizReportReady = true;
-                   }
-               } catch(e) { this.bizReportError = String(e); }
-               this.bizReportGenerating = false;
-           }
-         }">
+    <div x-show="activeTab === 'eda'" class="tab-panel">
 
         <!-- Divider -->
         <div class="flex items-center gap-4 mt-6 mb-4">
@@ -1224,7 +1202,7 @@
             <div class="sec-hd-actions">
                 <button @click="generateBizReport()" :disabled="bizReportGenerating" class="bp" id="biz-report-generate-btn">
                     <template x-if="bizReportGenerating"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
-                    <span x-text="bizReportGenerating ? 'ANALYSING…' : (bizReportReady ? '↺ REGENERATE' : '▶ GENERATE ANALYSIS')"></span>
+                    <span x-text="bizReportGenerating ? 'ANALYSING…' : (bizReportReady ? '↺ REFRESH' : '▶ GENERATE ANALYSIS')"></span>
                 </button>
                 <template x-if="bizReportReady">
                     <div class="flex gap-2">
@@ -1310,14 +1288,14 @@
             </div>
             <div>
                 <label class="sl block mb-2">Time Budget: <span x-text="automlTimeBudget + 's'"></span></label>
-                <input type="range" x-model="automlTimeBudget" min="30" max="600" step="30" class="w-full accent-[#2E5BFF]">
+                <input type="range" x-model="automlTimeBudget" min="30" max="600" step="30" class="w-full" style="accent-color:var(--accent)">
             </div>
         </div>
 
         <div class="flex items-center gap-6 flex-wrap">
             <div class="flex items-center gap-3">
                 <label class="sl">Test Split: <span x-text="automlTestSize + '%'"></span></label>
-                <input type="range" x-model="automlTestSize" min="10" max="40" step="5" class="accent-[#2E5BFF] w-32">
+                <input type="range" x-model="automlTestSize" min="10" max="40" step="5" class="w-32" style="accent-color:var(--accent)">
             </div>
             <button @click="runAutoml()" :disabled="isTraining || !automlTarget" class="bp">
                 <template x-if="isTraining"><svg class="w-4 h-4 spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg></template>
@@ -1664,7 +1642,7 @@
                         <div class="gc rounded-2xl p-5">
                             <p class="font-bold text-xs uppercase tracking-widest mb-4" style="color:var(--txt-m)">ID STATISTICS</p>
                             <div class="flex items-center justify-between">
-                                <div><p class="sl mb-1" style="color:var(--txt)">Total IDs</p><p class="text-3xl font-black" style="color:#2E5BFF" x-text="dashIdStats.total"></p></div>
+                                <div><p class="sl mb-1" style="color:var(--txt)">Total IDs</p><p class="text-3xl font-black" style="color:var(--accent)" x-text="dashIdStats.total"></p></div>
                                 <div><p class="sl mb-1" style="color:var(--txt)">Minimum</p><p class="text-2xl font-black" x-text="dashIdStats.min"></p></div>
                                 <div><p class="sl mb-1" style="color:var(--txt)">Maximum</p><p class="text-2xl font-black" x-text="dashIdStats.max"></p></div>
                             </div>
@@ -1917,6 +1895,14 @@ function syncSheets() {
     if (app?.syncSheets) app.syncSheets();
 }
 
+function getThemeColors() {
+    const rootStyle = getComputedStyle(document.documentElement);
+    const accent = rootStyle.getPropertyValue('--accent').trim() || '#2E5BFF';
+    const txtM = rootStyle.getPropertyValue('--txt-m').trim() || '#666666';
+    const border = rootStyle.getPropertyValue('--border').trim() || 'rgba(255,255,255,.05)';
+    return { accent, txtM, border };
+}
+
 function workspaceApp() {
     return {
         activeTab: 'preview',
@@ -1937,8 +1923,8 @@ function workspaceApp() {
         themes:        window.ThemeManager ? window.ThemeManager.themes : [],
         fonts:         window.ThemeManager ? window.ThemeManager.fonts : [],
         get darkMode() {
-            const lightThemes = ['light', 'cupcake', 'retro'];
-            return !lightThemes.includes(this.currentTheme);
+            const t = this.themes.find(x => x.id === this.currentTheme);
+            return t ? t.isDark : true;
         },
         drawerOpen:   false,
 
@@ -1982,6 +1968,10 @@ function workspaceApp() {
         edaError: '',
         edaWarning: '',
         edaMinimal: true, edaSampleN: 5000,
+
+        bizReportReady: false,
+        bizReportGenerating: false,
+        bizReportError: '',
 
         profileCols: [],
         socket: null,
@@ -2158,6 +2148,10 @@ function workspaceApp() {
                     });
                 }
 
+                if (st.has_biz_report) {
+                    this.bizReportReady = true;
+                }
+
                 if (st.has_df) await this.loadPreview();
                 if (this.uploadId) await this.fetchInsights();
                 await Promise.all([this.loadAlerts(), this.loadSchedules()]);
@@ -2293,10 +2287,11 @@ function workspaceApp() {
             const canvas = document.getElementById('dash-chart-' + ch.id);
             if (!canvas) return;
             if (canvas._chart) { canvas._chart.destroy(); }
-            const gc = this.darkMode ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)';
-            const tc = this.darkMode ? '#666' : '#999';
+            const colors = getThemeColors();
+            const gc = colors.border;
+            const tc = colors.txtM;
             const ctx = canvas.getContext('2d');
-            const c = '#2E5BFF';
+            const c = colors.accent;
 
             const onclick = (evt, elements) => {
                 if (elements.length > 0 && ch.type !== 'scatter' && ch.type !== 'histogram') {
@@ -2311,7 +2306,7 @@ function workspaceApp() {
             const isHistogram = ch.type === 'histogram';
             const isScatter = ch.type === 'scatter';
             const chartType = isHistogram ? 'bar' : isScatter ? 'scatter' : (ch.type === 'area' ? 'line' : ch.type);
-            const pieColors = ['#2E5BFF', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6', '#f43f5e', '#06b6d4', '#eab308'];
+            const pieColors = [c, '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6', '#f43f5e', '#06b6d4', '#eab308'];
 
             let chartData;
             if (isScatter) {
@@ -2714,12 +2709,14 @@ function workspaceApp() {
         renderChart(idx, data) {
             const canvas = document.getElementById('chart-' + idx);
             if (!canvas) return;
-            const gc = this.darkMode ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)';
-            const tc = this.darkMode ? '#666' : '#999';
+            const colors = getThemeColors();
+            const gc = colors.border;
+            const tc = colors.txtM;
+            const c = colors.accent;
             const ctx = canvas.getContext('2d');
             const opts = { plugins:{legend:{labels:{color:tc,font:{size:10}}}}, scales:{x:{ticks:{color:tc,font:{size:10}},grid:{color:gc}},y:{ticks:{color:tc,font:{size:10}},grid:{color:gc}}} };
-            if (data.type === 'scatter_chart') { new Chart(ctx, {type:'scatter', data:{datasets:[{data:data.points, backgroundColor:'rgba(46,91,255,.6)', pointRadius:4}]}, options:{...opts}}); }
-            else { const t = data.type === 'line_chart' ? 'line' : 'bar'; new Chart(ctx, {type:t, data:{labels:data.labels, datasets:[{label:data.y_label, data:data.values, backgroundColor:t==='bar'?'rgba(46,91,255,.7)':'rgba(46,91,255,.2)', borderColor:'#2E5BFF', borderWidth:t==='line'?2:0, tension:.3, fill:t==='line'}]}, options:{...opts}}); }
+            if (data.type === 'scatter_chart') { new Chart(ctx, {type:'scatter', data:{datasets:[{data:data.points, backgroundColor:c + '99', pointRadius:4}]}, options:{...opts}}); }
+            else { const t = data.type === 'line_chart' ? 'line' : 'bar'; new Chart(ctx, {type:t, data:{labels:data.labels, datasets:[{label:data.y_label, data:data.values, backgroundColor:t==='bar'?c + 'b3':c + '33', borderColor:c, borderWidth:t==='line'?2:0, tension:.3, fill:t==='line'}]}, options:{...opts}}); }
         },
 
         // ── CLEANING ─────────────────────────────────────────────────────────
@@ -2800,6 +2797,25 @@ function workspaceApp() {
                 });
             } catch(e) { this.edaError = 'Network error: ' + e.message; }
             finally { this.isGeneratingEda = false; }
+        },
+
+        async generateBizReport() {
+            this.bizReportGenerating = true;
+            this.bizReportError = '';
+            try {
+                const res = await this._fetch('/api/data-report?upload_id=' + encodeURIComponent(this.uploadId), {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                if (!res) return;
+                const data = await res.json();
+                if (data.error) {
+                    this.bizReportError = data.error;
+                } else {
+                    this.bizReportReady = true;
+                }
+            } catch(e) { this.bizReportError = String(e); }
+            finally { this.bizReportGenerating = false; }
         },
 
         async detectTask() {
@@ -2920,6 +2936,7 @@ function workspaceApp() {
                 const lines = text.split("\n");
                 let html = "";
                 let inList = false;
+                let inSection = false;
 
                 for (let line of lines) {
                     let trimmed = line.trim();
@@ -2932,26 +2949,30 @@ function workspaceApp() {
                     }
 
                     if (trimmed === "Executive Summary") {
-                        html += `<h3 class="text-xs font-black tracking-tight border-b pb-1.5 mb-2 uppercase" style="color:var(--accent); border-color:var(--border)">${trimmed}</h3>`;
                         continue;
                     }
                     if (trimmed.startsWith("---") || trimmed.startsWith("___") || (trimmed.startsWith("-") && trimmed.replace(/-/g, "").length === 0)) {
                         continue;
                     }
 
-                    if (trimmed.endsWith(":") && !trimmed.startsWith("-")) {
+                    if (trimmed.endsWith(":") && !trimmed.startsWith("-") && !trimmed.startsWith("*")) {
                         if (inList) {
                             html += "</ul>";
                             inList = false;
                         }
+                        if (inSection) {
+                            html += "</div>";
+                        }
                         const headerText = trimmed.replace(/:$/, "");
-                        html += `<h4 class="text-[10px] font-bold mt-3 mb-1 uppercase tracking-wider" style="color:var(--accent)">${headerText}</h4>`;
+                        html += `<div class="py-3.5 first:pt-0 last:pb-0 border-b last:border-0" style="border-color:var(--border)">`;
+                        html += `<h4 class="text-[10px] font-black uppercase tracking-wider mb-2" style="color:var(--accent)">${headerText}</h4>`;
+                        inSection = true;
                         continue;
                     }
 
                     if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
                         if (!inList) {
-                            html += `<ul class="list-disc pl-4 space-y-1 mb-2 text-xs" style="color:var(--txt)">`;
+                            html += `<ul class="list-disc pl-4 space-y-1.5 text-xs" style="color:var(--txt)">`;
                             inList = true;
                         }
                         const bulletContent = trimmed.substring(2);
@@ -2968,6 +2989,9 @@ function workspaceApp() {
 
                 if (inList) {
                     html += "</ul>";
+                }
+                if (inSection) {
+                    html += "</div>";
                 }
                 return html;
             }
@@ -3089,6 +3113,15 @@ function workspaceApp() {
             return map[type] || 'background:rgba(46,91,255,.1);color:var(--accent)';
         },
 
+        getThemeColors() {
+            const root = getComputedStyle(document.documentElement);
+            return {
+                accent: root.getPropertyValue('--accent').trim(),
+                border: root.getPropertyValue('--border').trim(),
+                txtM: root.getPropertyValue('--txt-m').trim()
+            };
+        },
+
         // ── NEW: Parse key stats from insight description text ───────────────
         parseInsightStats(ins) {
             const d = ins.description || '';
@@ -3128,8 +3161,10 @@ function workspaceApp() {
             const canvas = document.getElementById('ins-chart-' + i);
             if (!canvas || !ins.chart_data) return;
             const cd   = ins.chart_data;
-            const gc   = this.darkMode ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.05)';
-            const tc   = this.darkMode ? '#555' : '#999';
+            const colors = getThemeColors();
+            const gc   = colors.border;
+            const tc   = colors.txtM;
+            const c    = colors.accent;
             const ctx  = canvas.getContext('2d');
             const opts = {
                 responsive: true, maintainAspectRatio: false,
@@ -3139,12 +3174,12 @@ function workspaceApp() {
             };
             if (ins.chart === 'scatter') {
                 const pts = (cd.x||[]).map((x,j)=>({x,y:(cd.y||[])[j]}));
-                new Chart(ctx, {type:'scatter', data:{datasets:[{data:pts,backgroundColor:'rgba(46,91,255,.5)',pointRadius:3}]}, options:{...opts,scales:{x:{ticks:{color:tc,font:{size:9}}},y:{ticks:{color:tc,font:{size:9}}}}}});
+                new Chart(ctx, {type:'scatter', data:{datasets:[{data:pts,backgroundColor:c + '80',pointRadius:3}]}, options:{...opts,scales:{x:{ticks:{color:tc,font:{size:9}}},y:{ticks:{color:tc,font:{size:9}}}}}});
             } else {
                 const type = ins.chart === 'line' ? 'line' : 'bar';
                 new Chart(ctx, {type, data:{
                     labels: (cd.labels||[]).map(l=>String(l).slice(0,12)),
-                    datasets:[{data:cd.values||[], backgroundColor:type==='bar'?'rgba(46,91,255,.6)':'rgba(46,91,255,.2)', borderColor:'#2E5BFF', borderWidth:type==='line'?2:1, tension:.3, fill:type==='line'}]
+                    datasets:[{data:cd.values||[], backgroundColor:type==='bar'?c + '99':c + '33', borderColor:c, borderWidth:type==='line'?2:1, tension:.3, fill:type==='line'}]
                 }, options:opts});
             }
         },
