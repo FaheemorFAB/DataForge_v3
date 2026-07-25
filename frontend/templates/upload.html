@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="en" id="html-root">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataForge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
+    <script src="{{ url_for('static', filename='js/theme-switcher.js') }}"></script>
+    <style>
+        /* ─── DARK ── */
+        :root {
+            --bg: #050505;
+            --surface: #0A0A0B;
+            --border: #1A1A1C;
+            --accent: #FF4310;
+            --accent-ink: #7A1F09;
+            --glow: rgba(255, 67, 16, 0.15);
+            --txt: #c1b9b9;
+            --txt-m: #6f6565;
+            --card: rgba(10, 10, 11, 0.7);
+            --nav: rgba(5, 5, 5, 0.88);
+            --steel: #1C1B18;
+        }
+
+        /* ─── LIGHT (warm cream — default) ── */
+        html.light {
+            --bg: #FAF9F6;
+            /* warm cream background */
+            --surface: #FFFFFF;
+            /* cards / panels */
+            --border: #E7E3D6;
+            /* subtle warm separators */
+            --accent: #FF4310;
+            /* primary action — orange-red */
+            --accent-ink: #7A1F09;
+            --accent-soft: #FFE9DE;
+            --glow: rgba(255, 67, 16, 0.10);
+
+            --txt: #17150F;
+            /* primary text */
+            --txt-m: #63604F;
+            /* secondary text */
+            --txt-f: #9C9985;
+            /* faint text */
+
+            --card: rgba(255, 255, 255, 0.8);
+            --nav: rgba(255, 255, 255, 0.92);
+            --steel: #1C1B18;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--txt);
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .noise {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: .035;
+            z-index: 9999;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+
+        html.light .noise {
+            opacity: .012;
+        }
+
+        .mesh {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: radial-gradient(circle at 0% 0%, var(--glow) 0%, transparent 45%),
+                radial-gradient(circle at 100% 100%, rgba(20, 10, 50, .5) 0%, transparent 40%);
+        }
+
+        html.light .mesh {
+            background: radial-gradient(circle at 10% 10%, rgba(255, 67, 16, 0.06) 0%, transparent 50%),
+                radial-gradient(circle at 90% 90%, rgba(255, 67, 16, 0.04) 0%, transparent 40%);
+        }
+
+        .gc {
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            transition: all 0.35s cubic-bezier(.23, 1, .32, 1);
+        }
+
+        .gc:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 28px var(--glow);
+        }
+
+        /* dropzone rotating border */
+        .dz-wrap {
+            position: relative;
+            padding: 2px;
+            border-radius: 1.4rem;
+            background: var(--border);
+            overflow: hidden;
+        }
+
+        .dz-wrap::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(from 0deg, transparent, transparent, var(--accent), transparent, transparent);
+            animation: rot 6s linear infinite;
+            opacity: 0;
+            transition: opacity .5s;
+        }
+
+        .dz-wrap.dragging::before {
+            opacity: 1;
+        }
+
+        @keyframes rot {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* scrollbars */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 10px;
+        }
+
+        .btn-mag {
+            transition: transform .2s cubic-bezier(.175, .885, .32, 1.275);
+        }
+
+        .btn-mag:hover {
+            transform: scale(1.02) translateY(-2px);
+        }
+
+        .btn-mag:active {
+            transform: scale(0.98);
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #1e9902;
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, .4);
+            animation: pd 2s infinite;
+        }
+
+        @keyframes pd {
+            0% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, .7)
+            }
+
+            70% {
+                box-shadow: 0 0 0 8px rgba(16, 185, 129, 0)
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0)
+            }
+        }
+
+        [x-cloak] {
+            display: none !important;
+        }
+
+        .ibt {
+            width: 32px;
+            height: 32px;
+            border-radius: .45rem;
+            border: 1px solid var(--border);
+            background: transparent;
+            cursor: pointer;
+            color: var(--txt-m);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color .15s, color .15s;
+            flex-shrink: 0;
+        }
+
+        .ibt:hover {
+            border-color: var(--accent);
+            color: var(--txt);
+        }
+
+        /* stat grid in uploaded state */
+        .stat-box {
+            background: rgba(255, 255, 255, .05);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: .75rem;
+            padding: .75rem;
+            text-align: center;
+        }
+
+        html.light .stat-box {
+            background: rgba(0, 0, 0, .04);
+            border-color: rgba(0, 0, 0, .08);
+        }
+
+        /* ── Login modal ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, .55);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            animation: fadeIn .2s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0
+            }
+
+            to {
+                opacity: 1
+            }
+        }
+
+        .modal-card {
+            background: rgba(10, 10, 11, 0.92);
+            border: 1px solid var(--border);
+            border-radius: 1.5rem;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 400px;
+            position: relative;
+            backdrop-filter: blur(20px);
+            animation: slideUp .25s cubic-bezier(.23, 1, .32, 1);
+        }
+
+        html.light .modal-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: var(--border);
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1
+            }
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 32px;
+            height: 32px;
+            border-radius: .45rem;
+            border: 1px solid var(--border);
+            background: transparent;
+            cursor: pointer;
+            color: var(--txt-m);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: border-color .15s, color .15s;
+        }
+
+        .modal-close:hover {
+            border-color: var(--accent);
+            color: var(--txt);
+        }
+
+        .google-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .75rem;
+            width: 100%;
+            padding: .85rem 1.5rem;
+            background: #fff;
+            color: #1a1a1a;
+            font-weight: 700;
+            font-size: .8rem;
+            letter-spacing: .04em;
+            border: none;
+            border-radius: .75rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all .2s;
+        }
+
+        .google-btn:hover {
+            background: #f5f5f5;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, .3);
+        }
+
+        /* ── New: scroll sections ── */
+        .section {
+            position: relative;
+            padding: 7rem 0;
+            border-top: 1px solid var(--border);
+        }
+
+        .section-eyebrow {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        .feat-card {
+            border-radius: 1.1rem;
+            padding: 1.75rem;
+        }
+
+        .feat-ic {
+            width: 38px;
+            height: 38px;
+            border-radius: .65rem;
+            background: rgba(46, 91, 255, .1);
+            border: 1px solid rgba(46, 91, 255, .2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+            margin-bottom: 1.1rem;
+        }
+
+        .tech-pill {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: var(--txt-m);
+            border: 1px solid var(--border);
+            padding: .55rem 1rem;
+            border-radius: 100px;
+            background: var(--surface);
+        }
+
+        .stat-glow {
+            border-radius: 0;
+            padding: 3rem 2rem;
+            text-align: left;
+        }
+
+        .stat-glow .n {
+            font-size: 2.8rem;
+            font-weight: 900;
+            letter-spacing: -.03em;
+            color: #fff;
+            line-height: 1;
+        }
+
+        .stat-glow .n .accent-n {
+            color: var(--accent);
+        }
+
+        .stat-strip-inner {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        @media (max-width: 768px) {
+            .stat-strip-inner {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-glow+.stat-glow {
+            border-left: 1px solid #2E2C27;
+        }
+
+        @media (max-width: 768px) {
+            .stat-glow:nth-child(2n+1) {
+                border-left: none;
+            }
+
+            .stat-glow:nth-child(n+3) {
+                border-top: 1px solid #2E2C27;
+            }
+        }
+
+        .persona-line {
+            display: flex;
+            align-items: center;
+            gap: 1.1rem;
+            padding: 1.35rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .persona-line:last-child {
+            border-bottom: none;
+        }
+
+        .faq-item summary {
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .faq-item summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(22px);
+            transition: opacity .7s cubic-bezier(.23, 1, .32, 1), transform .7s cubic-bezier(.23, 1, .32, 1);
+        }
+
+        .reveal.in {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .sl {
+            font-size: .58rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .14em;
+            color: var(--txt-m);
+        }
+    </style>
+</head>
+
+<body x-data="uploadApp()" x-init="initTheme()" x-cloak>
+    <div class="noise"></div>
+    <div class="mesh"></div>
+
+    <!-- ═══════════ LOGIN MODAL ═══ -->
+    <div x-show="showLoginModal" class="modal-overlay" @keydown.escape.window="showLoginModal=false">
+        <div class="modal-card" @click.stop>
+            <!-- Close -->
+            <button @click="showLoginModal=false" class="modal-close" aria-label="Close">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="1" y1="1" x2="11" y2="11" />
+                    <line x1="11" y1="1" x2="1" y2="11" />
+                </svg>
+            </button>
+
+            <!-- Logo -->
+            <div class="flex items-center gap-3 mb-7">
+                <div class="w-7 h-7 flex items-center justify-center rounded-sm" style="background:var(--txt)">
+                    <div class="w-3.5 h-3.5 rotate-45" style="background:var(--bg)"></div>
+                </div>
+                <span class="font-black text-sm tracking-widest uppercase" style="color:var(--txt)">DataForge</span>
+            </div>
+
+            <h2 class="text-xl font-black tracking-tight mb-1" style="color:var(--txt)">Sign in to continue</h2>
+            <p class="text-sm mb-7" style="color:var(--txt-m)">Create an account or sign in to upload your dataset and
+                start analysing.</p>
+
+            <template x-if="googleEnabled">
+                <a href="/login/google?next=/workspace" class="google-btn">
+                    <svg width="18" height="18" viewBox="0 0 48 48">
+                        <path fill="#EA4335"
+                            d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+                        <path fill="#4285F4"
+                            d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+                        <path fill="#FBBC05"
+                            d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+                        <path fill="#34A853"
+                            d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+                    </svg>
+                    Continue with Google
+                </a>
+            </template>
+            <template x-if="!googleEnabled">
+                <div class="p-4 rounded-xl"
+                    style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2)">
+                    <p class="text-xs font-bold text-amber-400 mb-1">⚠ Google OAuth not configured</p>
+                    <p class="text-xs" style="color:var(--txt-m)">Add <code
+                            class="text-[10px] text-amber-300">GOOGLE_CLIENT_ID</code> and <code
+                            class="text-[10px] text-amber-300">GOOGLE_CLIENT_SECRET</code> to your <code
+                            class="text-[10px] text-amber-300">.env</code> and restart.</p>
+                </div>
+            </template>
+
+            <p class="text-center text-[10px] mt-5" style="color:var(--txt-m)">
+                Your data is processed locally and never stored externally.
+            </p>
+        </div>
+    </div>
+
+    <!-- ═══════════ HEADER ═══ -->
+    <header class="px-5 md:px-8 py-4 flex justify-between items-center border-b sticky top-0 z-50 backdrop-blur-md"
+        style="background:var(--nav); border-color:var(--border)">
+        <div class="flex items-center gap-3">
+            <div class="w-7 h-7 flex items-center justify-center rounded-sm flex-shrink-0"
+                style="background:var(--txt)">
+                <div class="w-3.5 h-3.5 rotate-45" style="background:var(--bg)"></div>
+            </div>
+            <span class="font-bold text-sm tracking-widest uppercase" style="color:var(--txt)">DataForge</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- Customize Theme Dropdown -->
+            <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                <button @click="open = !open" class="ibt mr-2" title="Customize Workspace Theme">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.32626 19.4754 5.99264 19.7423 6.66667 19.7423C7.03967 19.7423 7.39893 19.8659 7.69348 20.0954L8.13488 20.4393C8.94828 21.0719 9.94589 21.4925 11.0028 21.7857C11.3323 21.877 11.666 21.9489 12 22Z"
+                            stroke="currentColor" fill="none" />
+                        <circle cx="7.5" cy="10.5" r="1.2" fill="currentColor" stroke="none" />
+                        <circle cx="11.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
+                        <circle cx="16.5" cy="9.5" r="1.2" fill="currentColor" stroke="none" />
+                        <circle cx="14.5" cy="14.5" r="1.2" fill="currentColor" stroke="none" />
+                    </svg>
+                </button>
+                <div x-show="open" x-transition
+                    class="absolute right-0 mt-2 w-64 rounded-xl shadow-2xl p-4 border customizer-dropdown"
+                    style="background:var(--surface); border-color:var(--border); z-index:9999;">
+                    <h4 class="text-xs font-black uppercase tracking-wider mb-3 text-left" style="color:var(--txt)">
+                        Customize Workspace</h4>
+
+                    <!-- Themes -->
+                    <p class="sl mb-2 text-left">Color Palette</p>
+                    <div class="grid grid-cols-4 gap-2">
+                        <template x-for="t in themes" :key="t.id">
+                            <button @click="setTheme(t.id)"
+                                class="h-8 rounded-lg flex flex-col items-center justify-center border relative transition-all theme-option"
+                                :class="currentTheme === t.id ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]' : 'border-[var(--border)] hover:border-[var(--txt-m)]'"
+                                :title="t.name" style="background: transparent;">
+                                <!-- Color Swatches inside button -->
+                                <div class="flex gap-0.5 w-6 h-3 rounded overflow-hidden">
+                                    <div class="w-1/3 h-full" :style="'background:' + t.preview[0]"></div>
+                                    <div class="w-1/3 h-full" :style="'background:' + t.preview[1]"></div>
+                                    <div class="w-1/3 h-full" :style="'background:' + t.preview[2]"></div>
+                                </div>
+                                <span class="text-[7px] font-bold mt-1 truncate max-w-full px-0.5"
+                                    style="color:var(--txt-m)" x-text="t.name"></span>
+                            </button>
+                        </template>
+                        <!-- Fonts -->
+                        <p class="sl mt-4 mb-2 text-left">Typography</p>
+                        <div class="flex flex-col gap-1">
+                            <template x-for="f in fonts" :key="f.id">
+                                <button @click="setFont(f.id)"
+                                    class="w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between border"
+                                    :class="currentFont === f.id ? 'border-[var(--accent)] bg-[var(--glow)]' : 'border-transparent hover:bg-[rgba(255,255,255,0.03)]'"
+                                    style="color:var(--txt); background: transparent;">
+                                    <span x-text="f.name"></span>
+                                    <span class="text-[9px] font-mono opacity-50">Aa</span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Auth: show dashboard link if logged in, else sign-in button -->
+            {% if user and user.is_authenticated %}
+            <a href="/dashboard"
+                class="flex items-center gap-2 pl-2 pr-3 py-1 rounded-lg border transition-colors hover:border-[var(--accent)]"
+                style="border-color:var(--border);text-decoration:none;">
+                {% if user.avatar %}
+                <img src="{{ user.avatar }}" class="w-6 h-6 rounded-full" alt="">
+                {% else %}
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black"
+                    style="background:var(--accent);color:#fff">{{ (user.name or 'U')[0].upper() }}</div>
+                {% endif %}
+                <span class="hidden sm:block text-[11px] font-bold" style="color:var(--txt)">Dashboard</span>
+            </a>
+            {% else %}
+            <button @click="showLoginModal=true"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all hover:border-[var(--accent)]"
+                style="border-color:var(--border);color:var(--txt-m);">
+                <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                Sign In
+            </button>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- ═══════════ MAIN ═══ -->
+    <main class="flex-grow flex flex-col items-center justify-center px-5 py-4 md:py-6">
+        <div class="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
+
+            <!-- Left: Value prop -->
+            <div class="lg:col-span-5 space-y-4">
+                <div class="space-y-4">
+                    <span
+                        class="inline-block px-3 py-1 border text-[10px] font-bold tracking-[.2em] uppercase rounded-full"
+                        style="background:var(--surface); border-color:var(--border); color:var(--accent)">Intelligent
+                        Data Analysis Tool</span>
+                    <h1 class="font-black uppercase leading-[0.92] tracking-tight"
+                        style="font-size:clamp(2rem,5vw,3.8rem); background:linear-gradient(135deg,var(--txt) 0%,var(--txt-m) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent">
+                        Turn Chaos<br />into<br /><span style="-webkit-text-fill-color:var(--txt)">Clarity.</span>
+                    </h1>
+                </div>
+                <p class="text-sm leading-relaxed font-light max-w-md" style="color:var(--txt-m)">Upload your CSV and
+                    let us handle the architecture. Cleaning, Profiling, and AutoML in one unified pipeline.</p>
+            </div>
+
+            <!-- Right: Dropzone -->
+            <div class="lg:col-span-7">
+                <div class="dz-wrap" :class="isDragging ? 'dragging' : ''" @dragover.prevent="isDragging = true"
+                    @dragleave.prevent="isDragging = false" @drop.prevent="handleDrop($event)">
+
+                    <div class="gc rounded-[1.3rem] p-6 md:p-8 flex flex-col items-center justify-center text-center relative z-10"
+                        style="min-height:300px">
+
+                        <!-- Error -->
+                        <template x-if="errorMsg">
+                            <div class="absolute top-4 left-4 right-4 text-red-400 text-xs font-mono px-4 py-3 rounded-xl"
+                                style="background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.25)"
+                                x-text="errorMsg"></div>
+                        </template>
+
+                        <!-- Uploading -->
+                        <template x-if="isUploading">
+                            <div class="space-y-3">
+                                <div class="w-14 h-14 border-2 border-t-transparent rounded-full animate-spin mx-auto"
+                                    style="border-color:var(--accent); border-top-color:transparent"></div>
+                                <div>
+                                    <p class="font-bold text-lg" style="color:var(--txt)">Ingesting dataset…</p>
+                                    <p class="text-sm mt-1" style="color:var(--txt-m)" x-text="fileName"></p>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Idle drop zone -->
+                        <template x-if="!fileUploaded && !isUploading">
+                            <div class="space-y-4 w-full">
+                                <input type="file" accept=".csv" x-ref="fileInput" class="hidden"
+                                    @change="handleFileSelect($event)">
+
+                                <!-- Source tabs -->
+                                <div class="flex gap-1 p-1 rounded-xl w-full"
+                                    style="background:rgba(255,255,255,.04); border:1px solid var(--border)">
+                                    <button @click="sourceTab='csv'"
+                                        :class="sourceTab==='csv' ? 'text-white shadow' : 'text-[color:var(--txt-m)] hover:text-[color:var(--txt)]'"
+                                        :style="sourceTab==='csv' ? 'background:var(--accent)' : ''"
+                                        class="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        CSV File
+                                    </button>
+                                    <button @click="sourceTab='sheets'"
+                                        :class="sourceTab==='sheets' ? 'text-white shadow' : 'text-[color:var(--txt-m)] hover:text-[color:var(--txt)]'"
+                                        :style="sourceTab==='sheets' ? 'background:var(--accent)' : ''"
+                                        class="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200">
+                                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                                            <path
+                                                d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3h5v2h-5V6zm0 4h5v2h-5v-2zm0 4h5v2h-5v-2zM7 6h3v2H7V6zm0 4h3v2H7v-2zm0 4h3v2H7v-2z" />
+                                        </svg>
+                                        Google Sheets
+                                    </button>
+                                </div>
+
+                                <!-- CSV panel -->
+                                <div x-show="sourceTab==='csv'" class="space-y-4">
+                                    <div class="relative inline-block cursor-pointer" @click="$refs.fileInput.click()">
+                                        <div class="w-20 h-20 border rounded-2xl flex items-center justify-center transform -rotate-6 hover:rotate-0 transition-transform duration-500 mx-auto"
+                                            style="border-color:var(--border); background:var(--surface)">
+                                            <svg class="w-9 h-9" style="color:var(--accent)" fill="none"
+                                                stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                    d="M12 4v16m8-8H4"></path>
+                                            </svg>
+                                        </div>
+                                        <div class="absolute -bottom-2 -right-2 w-10 h-10 border rounded-xl flex items-center justify-center transform rotate-12"
+                                            style="border-color:var(--border); background:var(--bg)">
+                                            <svg class="w-4 h-4" style="color:var(--txt)" fill="none"
+                                                stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                                </path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <h3 class="text-xl font-bold tracking-tight" style="color:var(--txt)">Drop the
+                                            Chaos</h3>
+                                        <p class="text-sm" style="color:var(--txt-m)">Drag your CSV here or <span
+                                                class="underline cursor-pointer" style="color:var(--accent)"
+                                                @click="$refs.fileInput.click()">browse files</span></p>
+                                        <p class="text-xs mt-1" style="color:var(--txt-m); opacity:.5">Max 200 MB · CSV
+                                            only</p>
+                                    </div>
+                                    <div class="flex items-center justify-center gap-5 pt-3 border-t"
+                                        style="border-color:var(--border)">
+                                        <div class="flex items-center gap-1.5 opacity-50">
+                                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd"
+                                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                    clip-rule="evenodd"></path>
+                                            </svg>
+                                            <span
+                                                class="text-[10px] font-bold uppercase tracking-widest">Auto-Cleaning</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5 opacity-50">
+                                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd"
+                                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                    clip-rule="evenodd"></path>
+                                            </svg>
+                                            <span class="text-[10px] font-bold uppercase tracking-widest">AI
+                                                Profiling</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5 opacity-50">
+                                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd"
+                                                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                                    clip-rule="evenodd"></path>
+                                            </svg>
+                                            <span class="text-[10px] font-bold uppercase tracking-widest">AutoML</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Google Sheets panel -->
+                                <div x-show="sourceTab==='sheets'" class="space-y-4 text-left">
+                                    <div class="flex items-start gap-3 p-3 rounded-xl"
+                                        style="background:rgba(46,91,255,.07); border:1px solid rgba(46,91,255,.18)">
+                                        <svg class="w-4 h-4 mt-0.5 flex-shrink-0" style="color:var(--accent)"
+                                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <p class="text-[11px] leading-relaxed" style="color:var(--txt-m)">
+                                            Sheet must be shared as <span
+                                                style="color:var(--txt); font-weight:600">Anyone with the link can
+                                                view</span>.
+                                            In Sheets: <span style="color:var(--txt)">Share → Change to anyone with the
+                                                link.</span>
+                                        </p>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block text-[10px] font-bold uppercase tracking-widest"
+                                            style="color:var(--txt-m)">Google Sheets URL</label>
+                                        <div class="relative">
+                                            <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                                    stroke="currentColor" stroke-width="2" style="color:var(--txt-m)">
+                                                    <path
+                                                        d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                                                    <path
+                                                        d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+                                                </svg>
+                                            </div>
+                                            <input x-model="sheetsUrl" @keydown.enter="loadSheets()" type="text"
+                                                placeholder="https://docs.google.com/spreadsheets/d/..."
+                                                class="w-full pl-9 pr-4 py-3 rounded-xl text-xs font-mono outline-none transition-all"
+                                                style="background:rgba(255,255,255,.05); border:1px solid var(--border); color:var(--txt); caret-color:var(--accent)"
+                                                :style="sheetsError ? 'border-color:rgba(239,68,68,.5)' : ''"
+                                                onfocus="this.style.borderColor='var(--accent)'; this.style.boxShadow='0 0 0 3px var(--glow)'"
+                                                onblur="this.style.borderColor=''; this.style.boxShadow=''">
+                                        </div>
+                                        <p x-show="sheetsError" class="text-[11px] font-medium" style="color:#ef4444"
+                                            x-text="sheetsError"></p>
+                                    </div>
+                                    <button @click="loadSheets()" :disabled="!sheetsUrl.trim() || isSheetsLoading"
+                                        class="btn-mag w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all"
+                                        :style="sheetsUrl.trim() && !isSheetsLoading
+                                            ? 'background:var(--accent); color:#fff'
+                                            : 'background:rgba(255,255,255,.06); color:var(--txt-m); opacity:.55; cursor:not-allowed'">
+                                        <template x-if="isSheetsLoading">
+                                            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                                    stroke-width="4" />
+                                                <path class="opacity-75" fill="currentColor"
+                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                        </template>
+                                        <template x-if="!isSheetsLoading">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                            </svg>
+                                        </template>
+                                        <span x-text="isSheetsLoading ? 'Importing...' : 'Import Sheet'"></span>
+                                    </button>
+                                </div>
+
+                            </div>
+                        </template>
+
+                        <!-- Uploaded ✓ -->
+                        <template x-if="fileUploaded && !isUploading">
+                            <div class="w-full space-y-6">
+                                <!-- File row -->
+                                <div class="flex items-center justify-between w-full p-5 rounded-2xl"
+                                    style="background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1)">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-11 h-11 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
+                                            style="background:var(--accent)"
+                                            x-text="sourceTab==='sheets' ? 'GS' : 'CSV'"></div>
+                                        <div class="text-left min-w-0">
+                                            <p class="font-bold truncate max-w-[180px]" style="color:var(--txt)"
+                                                x-text="fileName"></p>
+                                            <p class="text-[10px] font-bold uppercase tracking-widest"
+                                                style="color:var(--txt-m)"
+                                                x-text="profile ? profile.rows.toLocaleString() + ' rows · ' + profile.cols + ' cols' : 'Ready for analysis'">
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button @click="reset()" style="color:var(--txt-m)"
+                                        class="hover:opacity-70 transition-opacity flex-shrink-0 ml-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <!-- Stats -->
+                                <template x-if="profile">
+                                    <div class="grid grid-cols-4 gap-2">
+                                        <div class="stat-box">
+                                            <p class="text-[8px] font-bold uppercase tracking-widest"
+                                                style="color:var(--txt-m)">Rows</p>
+                                            <p class="text-lg font-black tracking-tighter mt-0.5"
+                                                style="color:var(--txt)" x-text="profile.rows.toLocaleString()"></p>
+                                        </div>
+                                        <div class="stat-box">
+                                            <p class="text-[8px] font-bold uppercase tracking-widest"
+                                                style="color:var(--txt-m)">Cols</p>
+                                            <p class="text-lg font-black tracking-tighter mt-0.5"
+                                                style="color:var(--txt)" x-text="profile.cols"></p>
+                                        </div>
+                                        <div class="stat-box">
+                                            <p class="text-[8px] font-bold uppercase tracking-widest"
+                                                style="color:var(--txt-m)">Numeric</p>
+                                            <p class="text-lg font-black tracking-tighter mt-0.5"
+                                                style="color:var(--txt)" x-text="profile.numeric"></p>
+                                        </div>
+                                        <div class="stat-box">
+                                            <p class="text-[8px] font-bold uppercase tracking-widest"
+                                                style="color:var(--txt-m)">Missing</p>
+                                            <p class="text-lg font-black tracking-tighter mt-0.5"
+                                                style="color:var(--txt)" x-text="profile.missing_pct + '%'"></p>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- CTAs -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <button @click="goToWorkspace(currentUploadId)"
+                                        class="btn-mag flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-white tracking-tight"
+                                        style="background:var(--accent)">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                        </svg>
+                                        LAUNCH WORKSPACE
+                                    </button>
+                                    <button @click="reset()"
+                                        class="btn-mag border py-3.5 rounded-xl font-bold tracking-tight"
+                                        style="border-color:var(--border); background:var(--surface); color:var(--txt)">
+                                        CHANGE FILE
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+
+                    </div>
+                </div>
+
+                <!-- Previous Projects link — only shown when logged in -->
+                <template x-if="isLoggedIn">
+                    <a href="/projects"
+                        class="mt-4 flex items-center justify-between w-full px-4 py-3 rounded-xl border transition-all group"
+                        style="border-color:var(--border);background:var(--surface);text-decoration:none">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                                style="background:rgba(46,91,255,.1)">
+                                <svg class="w-4 h-4" style="color:var(--accent)" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold" style="color:var(--txt)">Previous Projects</p>
+                                <p class="text-[10px]" style="color:var(--txt-m)">Resume a past analysis with full
+                                    context</p>
+                            </div>
+                        </div>
+                        <svg class="w-4 h-4 transition-transform group-hover:translate-x-0.5" style="color:var(--txt-m)"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </a>
+                </template>
+            </div>
+        </div>
+
+        <!-- Process Stepper -->
+        <div class="max-w-5xl w-full mt-24 mb-4 hidden md:block">
+            <p class="text-[10px] font-bold uppercase tracking-widest mb-8" style="color:var(--txt-m)">What happens
+                after you upload</p>
+
+            <div class="relative flex items-center justify-between w-full px-1">
+                <!-- Background line -->
+                <div class="absolute top-[19px] left-0 w-full h-[2px]" style="background:var(--border); z-index:0;">
+                </div>
+
+                <!-- Active line -->
+                <!-- 6 steps = 5 gaps. 2 gaps colored = 40% -->
+                <div class="absolute top-[19px] left-0 h-[2px] bg-[#ff4f33]" style="width: 40%; z-index:1;"></div>
+
+                <!-- Step 1 — Ingest (done) -->
+                <div class="relative z-10 flex flex-col items-start">
+                    <div class="w-10 h-10 rounded-full border-[2px] border-[#ff4f33] flex items-center justify-center"
+                        style="background:var(--surface)">
+                        <div class="w-full h-full rounded-full flex items-center justify-center"
+                            style="background:rgba(255,79,51,0.12)">
+                            <svg class="w-4 h-4" style="color:#ff4f33" fill="none" stroke="currentColor"
+                                stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="absolute top-14 left-0 min-w-max">
+                        <p class="text-sm font-bold leading-none" style="color:var(--txt)">Ingest</p>
+                        <p class="text-[10px] mt-1.5 font-mono" style="color:var(--txt-m)">01</p>
+                    </div>
+                </div>
+
+                <!-- Step 2 — Clean (done) -->
+                <div class="relative z-10 flex flex-col items-start">
+                    <div class="w-10 h-10 rounded-full border-[2px] border-[#ff4f33] flex items-center justify-center"
+                        style="background:var(--surface)">
+                        <div class="w-full h-full rounded-full flex items-center justify-center"
+                            style="background:rgba(255,79,51,0.12)">
+                            <svg class="w-4 h-4" style="color:#ff4f33" fill="none" stroke="currentColor"
+                                stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="absolute top-14 left-0 min-w-max">
+                        <p class="text-sm font-bold leading-none" style="color:var(--txt)">Clean</p>
+                        <p class="text-[10px] mt-1.5 font-mono" style="color:var(--txt-m)">02</p>
+                    </div>
+                </div>
+
+                <!-- Step 3 — Analyse (current) -->
+                <div class="relative z-10 flex flex-col items-start">
+                    <div class="w-10 h-10 rounded-full border-[2px] flex items-center justify-center"
+                        style="border-color:var(--txt);background:var(--surface)">
+                        <svg class="w-4 h-4" style="color:var(--txt)" fill="none" stroke="currentColor" stroke-width="2"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                        </svg>
+                    </div>
+                    <div class="absolute top-14 left-0 min-w-max">
+                        <p class="text-sm font-bold leading-none" style="color:var(--txt)">Analyse</p>
+                        <p class="text-[10px] mt-1.5 font-mono" style="color:var(--txt-m)">03</p>
+                    </div>
+                </div>
+
+                <!-- Step 4 — Ask (inactive) -->
+                <div class="relative z-10 flex flex-col items-start">
+                    <div class="w-10 h-10 rounded-full border-[2px] flex items-center justify-center"
+                        style="border-color:var(--border);background:var(--surface)">
+                        <svg class="w-4 h-4" style="color:var(--txt-m)" fill="none" stroke="currentColor"
+                            stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                        </svg>
+                    </div>
+                    <div class="absolute top-14 left-0 min-w-max">
+                        <p class="text-sm font-bold leading-none" style="color:var(--txt)">Ask</p>
+                        <p class="text-[10px] mt-1.5 font-mono" style="color:var(--txt-m)">04</p>
+                    </div>
+                </div>
+
+                <!-- Step 5 — Model (inactive) -->
+                <div class="relative z-10 flex flex-col items-start">
+                    <div class="w-10 h-10 rounded-full border-[2px] flex items-center justify-center"
+                        style="border-color:var(--border);background:var(--surface)">
+                        <svg class="w-4 h-4" style="color:var(--txt-m)" fill="none" stroke="currentColor"
+                            stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                        </svg>
+                    </div>
+                    <div class="absolute top-14 left-0 min-w-max">
+                        <p class="text-sm font-bold leading-none" style="color:var(--txt)">Model</p>
+                        <p class="text-[10px] mt-1.5 font-mono" style="color:var(--txt-m)">05</p>
+                    </div>
+                </div>
+
+                <!-- Step 6 — Report (inactive) -->
+                <div class="relative z-10 flex flex-col items-start">
+                    <div class="w-10 h-10 rounded-full border-[2px] flex items-center justify-center"
+                        style="border-color:var(--border);background:var(--surface)">
+                        <svg class="w-4 h-4" style="color:var(--txt-m)" fill="none" stroke="currentColor"
+                            stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
+                    </div>
+                    <div class="absolute top-14 left-0 min-w-max">
+                        <p class="text-sm font-bold leading-none" style="color:var(--txt)">Report</p>
+                        <p class="text-[10px] mt-1.5 font-mono" style="color:var(--txt-m)">06</p>
+                    </div>
+                </div>
+            </div>
+            <div class="h-16 w-full"></div> <!-- spacer for the absolute text -->
+        </div>
+
+    </main>
+
+    <!-- ═══════════════════════════ NEW: SCROLLABLE SECTIONS ═══════════════════════════ -->
+
+    <!-- ── Feature grid ── -->
+    <section class="section">
+        <div class="max-w-5xl mx-auto px-5 md:px-8">
+            <div class="reveal max-w-lg mb-14">
+                <p class="section-eyebrow mb-3">The workspace</p>
+                <h2 class="text-3xl md:text-4xl font-black tracking-tight" style="color:var(--txt)">Seven tools.<br>One
+                    pipeline.</h2>
+                <p class="text-sm mt-4" style="color:var(--txt-m)">Every stage of the analysis lives behind one upload —
+                    no switching between notebooks, spreadsheets, and BI tools.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="gc feat-card reveal" style="position:relative;overflow:hidden;">
+                    <div class="feat-ic"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                        </svg></div>
+                    <h3 class="text-sm font-bold mb-1.5" style="color:var(--txt)">Preview</h3>
+                    <p class="text-xs leading-relaxed" style="color:var(--txt-m)">Every row, searchable and sortable,
+                        the moment your file finishes ingesting.</p>
+                    <div
+                        style="position:absolute;bottom:0;left:0;right:0;height:60px;background:linear-gradient(to top, rgba(46,91,255,0.07), transparent);pointer-events:none;">
+                    </div>
+                </div>
+                <div class="gc feat-card reveal" style="position:relative;overflow:hidden;">
+                    <div class="feat-ic"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+                        </svg></div>
+                    <h3 class="text-sm font-bold mb-1.5" style="color:var(--txt)">Cleaning</h3>
+                    <p class="text-xs leading-relaxed" style="color:var(--txt-m)">Missing values, whitespace, and column
+                        naming fixed automatically, with a before/after diff.</p>
+                    <div
+                        style="position:absolute;bottom:0;left:0;right:0;height:60px;background:linear-gradient(to top, rgba(255,79,51,0.07), transparent);pointer-events:none;">
+                    </div>
+                </div>
+                <div class="gc feat-card reveal" style="position:relative;overflow:hidden;">
+                    <div class="feat-ic"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                        </svg></div>
+                    <h3 class="text-sm font-bold mb-1.5" style="color:var(--txt)">Dashboard</h3>
+                    <p class="text-xs leading-relaxed" style="color:var(--txt-m)">Build bar, line, scatter, pie, and box
+                        plots on any column and pin them for later.</p>
+                    <div
+                        style="position:absolute;bottom:0;left:0;right:0;height:60px;background:linear-gradient(to top, rgba(46,91,255,0.07), transparent);pointer-events:none;">
+                    </div>
+                </div>
+                <div class="gc feat-card reveal" style="position:relative;overflow:hidden;">
+                    <div class="feat-ic"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 18v-5.25m0 0a6.01 6.01 0 001.5-.189m-1.5.189a6.01 6.01 0 01-1.5-.189m3.75 7.478a12.06 12.06 0 01-4.5 0m3.75 2.383a14.406 14.406 0 01-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 10-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
+                        </svg></div>
+                    <h3 class="text-sm font-bold mb-1.5" style="color:var(--txt)">Insights</h3>
+                    <p class="text-xs leading-relaxed" style="color:var(--txt-m)">Anomalies, key drivers, and risks
+                        surfaced automatically — no query required.</p>
+                    <div
+                        style="position:absolute;bottom:0;left:0;right:0;height:60px;background:linear-gradient(to top, rgba(30,153,2,0.07), transparent);pointer-events:none;">
+                    </div>
+                </div>
+                <div class="gc feat-card reveal" style="position:relative;overflow:hidden;">
+                    <div class="feat-ic"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                        </svg></div>
+                    <h3 class="text-sm font-bold mb-1.5" style="color:var(--txt)">AI Query</h3>
+                    <p class="text-xs leading-relaxed" style="color:var(--txt-m)">Ask your dataset a question in plain
+                        English and get an answer grounded in the actual rows, via Gemini.</p>
+                    <div
+                        style="position:absolute;bottom:0;left:0;right:0;height:60px;background:linear-gradient(to top, rgba(46,91,255,0.07), transparent);pointer-events:none;">
+                    </div>
+                </div>
+                <div class="gc feat-card reveal" style="position:relative;overflow:hidden;">
+                    <div class="feat-ic"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                        </svg></div>
+                    <h3 class="text-sm font-bold mb-1.5" style="color:var(--txt)">AutoML</h3>
+                    <p class="text-xs leading-relaxed" style="color:var(--txt-m)">FLAML picks and tunes a model for your
+                        target column, then hands you a leaderboard and a downloadable .pkl.</p>
+                    <div
+                        style="position:absolute;bottom:0;left:0;right:0;height:60px;background:linear-gradient(to top, rgba(255,79,51,0.07), transparent);pointer-events:none;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Stats strip (dark steel) ── -->
+    <section style="border-top:1px solid var(--border); background:#1C1B18; padding:0;">
+        <div class="max-w-5xl mx-auto px-5 md:px-8">
+            <div class="stat-strip-inner reveal">
+                <div class="stat-glow">
+                    <div class="n">4.2<span class="accent-n">M</span></div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest mt-3"
+                        style="color:#8A8778;letter-spacing:.12em;">Rows processed</p>
+                </div>
+                <div class="stat-glow">
+                    <div class="n">96<span class="accent-n">%</span></div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest mt-3"
+                        style="color:#8A8778;letter-spacing:.12em;">Avg. data quality score</p>
+                </div>
+                <div class="stat-glow">
+                    <div class="n">&lt;3<span class="accent-n">s</span></div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest mt-3"
+                        style="color:#8A8778;letter-spacing:.12em;">Time to first insight</p>
+                </div>
+                <div class="stat-glow">
+                    <div class="n" style="color:#fff;">0</div>
+                    <p class="text-[10px] font-bold uppercase tracking-widest mt-3"
+                        style="color:#8A8778;letter-spacing:.12em;">Lines of code required</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Built for ── -->
+    <section class="section">
+        <div class="max-w-5xl mx-auto px-5 md:px-8">
+            <div class="reveal max-w-lg mb-10">
+                <p class="section-eyebrow mb-3">Built for</p>
+                <h2 class="text-3xl md:text-4xl font-black tracking-tight" style="color:var(--txt)">Whoever's holding
+                    the dataset.</h2>
+            </div>
+            <div class="reveal space-y-4">
+                <!-- Row 1 -->
+                <div class="flex items-center justify-between py-4 border-b" style="border-color:var(--border)">
+                    <div class="flex items-center gap-6 flex-1">
+                        <div class="feat-ic flex-shrink-0"
+                            style="margin-bottom:0; background:rgba(46,91,255,0.08); border-color:rgba(46,91,255,0.15)">
+                            <svg class="w-4 h-4" style="color:var(--accent)" fill="none" stroke="currentColor"
+                                stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                            </svg>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-2 flex-1 items-center">
+                            <span class="text-sm font-bold md:col-span-3" style="color:var(--txt)">Business
+                                analysts</span>
+                            <span class="text-xs md:col-span-9" style="color:var(--txt-m)">Sales, revenue, and KPI
+                                analysis without writing Python.</span>
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-mono pl-4" style="color:var(--txt-m)">01</span>
+                </div>
+                <!-- Row 2 -->
+                <div class="flex items-center justify-between py-4 border-b" style="border-color:var(--border)">
+                    <div class="flex items-center gap-6 flex-1">
+                        <div class="feat-ic flex-shrink-0"
+                            style="margin-bottom:0; background:rgba(46,91,255,0.08); border-color:rgba(46,91,255,0.15)">
+                            <svg class="w-4 h-4" style="color:var(--accent)" fill="none" stroke="currentColor"
+                                stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                            </svg>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-2 flex-1 items-center">
+                            <span class="text-sm font-bold md:col-span-3" style="color:var(--txt)">Academic
+                                researchers</span>
+                            <span class="text-xs md:col-span-9" style="color:var(--txt-m)">Exploratory analysis and
+                                model prototyping for thesis work.</span>
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-mono pl-4" style="color:var(--txt-m)">02</span>
+                </div>
+                <!-- Row 3 -->
+                <div class="flex items-center justify-between py-4 border-b" style="border-color:var(--border)">
+                    <div class="flex items-center gap-6 flex-1">
+                        <div class="feat-ic flex-shrink-0"
+                            style="margin-bottom:0; background:rgba(46,91,255,0.08); border-color:rgba(46,91,255,0.15)">
+                            <svg class="w-4 h-4" style="color:var(--accent)" fill="none" stroke="currentColor"
+                                stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
+                            </svg>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-2 flex-1 items-center">
+                            <span class="text-sm font-bold md:col-span-3" style="color:var(--txt)">Product
+                                managers</span>
+                            <span class="text-xs md:col-span-9" style="color:var(--txt-m)">User behaviour and funnel
+                                analysis straight from exported CSVs.</span>
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-mono pl-4" style="color:var(--txt-m)">03</span>
+                </div>
+                <!-- Row 4 -->
+                <div class="flex items-center justify-between py-4 border-b" style="border-color:var(--border)">
+                    <div class="flex items-center gap-6 flex-1">
+                        <div class="feat-ic flex-shrink-0"
+                            style="margin-bottom:0; background:rgba(46,91,255,0.08); border-color:rgba(46,91,255,0.15)">
+                            <svg class="w-4 h-4" style="color:var(--accent)" fill="none" stroke="currentColor"
+                                stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342" />
+                            </svg>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-2 flex-1 items-center">
+                            <span class="text-sm font-bold md:col-span-3" style="color:var(--txt)">Students</span>
+                            <span class="text-xs md:col-span-9" style="color:var(--txt-m)">Learning data science
+                                concepts through a working, automated pipeline.</span>
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-mono pl-4" style="color:var(--txt-m)">04</span>
+                </div>
+                <!-- Row 5 -->
+                <div class="flex items-center justify-between py-4" style="border-color:var(--border)">
+                    <div class="flex items-center gap-6 flex-1">
+                        <div class="feat-ic flex-shrink-0"
+                            style="margin-bottom:0; background:rgba(46,91,255,0.08); border-color:rgba(46,91,255,0.15)">
+                            <svg class="w-4 h-4" style="color:var(--accent)" fill="none" stroke="currentColor"
+                                stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21" />
+                            </svg>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-2 flex-1 items-center">
+                            <span class="text-sm font-bold md:col-span-3" style="color:var(--txt)">SME decision
+                                makers</span>
+                            <span class="text-xs md:col-span-9" style="color:var(--txt-m)">Reporting on business metrics
+                                without hiring a data team.</span>
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-mono pl-4" style="color:var(--txt-m)">05</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+
+
+    <!-- ── FAQ ── -->
+    <section class="section">
+        <div class="max-w-3xl mx-auto px-5 md:px-8">
+            <p class="section-eyebrow mb-3 reveal">Questions</p>
+            <h2 class="text-3xl md:text-4xl font-black tracking-tight mb-10 reveal" style="color:var(--txt)">Before you
+                upload.</h2>
+            <div class="space-y-3 reveal">
+                <details class="gc faq-item rounded-xl px-5 py-4" x-data="{}">
+                    <summary class="flex items-center justify-between">
+                        <span class="text-sm font-bold" style="color:var(--txt)">Where does my data go?</span>
+                        <svg class="w-4 h-4 flex-shrink-0" style="color:var(--txt-m)" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </summary>
+                    <p class="text-xs mt-3 leading-relaxed" style="color:var(--txt-m)">Your file is processed for the
+                        session and never shared externally. Sign-in is required only so you can resume a project later.
+                    </p>
+                </details>
+                <details class="gc faq-item rounded-xl px-5 py-4" x-data="{}">
+                    <summary class="flex items-center justify-between">
+                        <span class="text-sm font-bold" style="color:var(--txt)">What file formats are supported?</span>
+                        <svg class="w-4 h-4 flex-shrink-0" style="color:var(--txt-m)" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </summary>
+                    <p class="text-xs mt-3 leading-relaxed" style="color:var(--txt-m)">CSV up to 200MB, or a Google
+                        Sheet shared as "Anyone with the link can view."</p>
+                </details>
+                <details class="gc faq-item rounded-xl px-5 py-4" x-data="{}">
+                    <summary class="flex items-center justify-between">
+                        <span class="text-sm font-bold" style="color:var(--txt)">Do I need to know Python or SQL?</span>
+                        <svg class="w-4 h-4 flex-shrink-0" style="color:var(--txt-m)" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </summary>
+                    <p class="text-xs mt-3 leading-relaxed" style="color:var(--txt-m)">No. Cleaning, EDA, and modelling
+                        run automatically. The AI Query tab lets you ask follow-up questions in plain English.</p>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Closing CTA (orange banner) ── -->
+    <section style="border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:4rem 0;">
+        <div class="max-w-5xl mx-auto px-5 md:px-8">
+            <div class="reveal rounded-[1.4rem] p-10 md:p-14 flex flex-col md:flex-row items-center justify-between gap-6"
+                style="background:#FF4310; border-radius:1.25rem;">
+                <div>
+                    <h2 class="text-2xl md:text-3xl font-black tracking-tight" style="color:#fff;">Bring your own
+                        dataset.<br>See it forged in minutes.</h2>
+                    <p class="text-sm mt-3" style="color:rgba(255,255,255,0.75);">No setup, no credit card, no code.</p>
+                </div>
+                <button onclick="window.scrollTo({top:0,behavior:'smooth'})"
+                    class="btn-mag flex items-center justify-center gap-2 py-4 px-8 rounded-xl font-bold tracking-tight flex-shrink-0"
+                    style="background:#fff; color:#7A1F09; min-width:160px;">
+                    Upload a dataset
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════ FOOTER ═══ -->
+    <footer class="px-5 md:px-8 pt-16 pb-8 border-t mt-auto" style="border-color:var(--border); background:var(--bg)">
+        <div class="max-w-5xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-8 mb-12">
+                <!-- Brand Info -->
+                <div class="md:col-span-5 flex flex-col gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0"
+                            style="background:var(--txt)">
+                            <div class="w-3.5 h-3.5 rotate-45" style="background:var(--bg)"></div>
+                        </div>
+                        <span class="font-bold text-sm tracking-widest uppercase"
+                            style="color:var(--txt)">DataForge</span>
+                    </div>
+                    <p class="text-xs leading-relaxed max-w-sm" style="color:var(--txt-m)">
+                        An automated analytics platform that takes raw datasets from upload to insight, without the
+                        setup.
+                    </p>
+                    <p class="text-[11px]" style="color:var(--txt-m)">
+                        Built with ❤️ by DataForge Team.
+                    </p>
+                </div>
+
+                <!-- Product Links -->
+                <div class="md:col-span-2 flex flex-col gap-3">
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--txt-f)">Product</h4>
+                    <ul class="flex flex-col gap-2 text-xs" style="color:var(--txt-m)">
+                        <li>Ingestion</li>
+                        <li>Cleaning</li>
+                        <li>AutoML</li>
+                        <li>Reports</li>
+                    </ul>
+                </div>
+
+                <!-- Resources Links -->
+                <div class="md:col-span-2 flex flex-col gap-3">
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--txt-f)">Resources
+                    </h4>
+                    <ul class="flex flex-col gap-2 text-xs" style="color:var(--txt-m)">
+                        <li>Documentation</li>
+                        <li>Changelog</li>
+                        <li>Status</li>
+                    </ul>
+                </div>
+
+                <!-- Team Links -->
+                <div class="md:col-span-3 flex flex-col gap-3">
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--txt-f)">Team</h4>
+                    <ul class="flex flex-col gap-2 text-xs" style="color:var(--txt-m)">
+                        <li>GCET, Ganderbal</li>
+                        <li>Contact</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Footer Bottom -->
+            <div class="pt-8 border-t flex flex-col sm:flex-row justify-between items-center gap-4"
+                style="border-color:var(--border)">
+                <span class="text-[10px] font-mono tracking-wider uppercase" style="color:var(--txt-m)">
+                    © 2026 DATAFORGE
+                </span>
+                <span class="text-[10px] font-mono tracking-wider uppercase" style="color:var(--txt-m)">
+                    PRIVACY FIRST · OAUTH-SECURED UPLOADS
+                </span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function uploadApp() {
+            return {
+                isDragging: false,
+                fileUploaded: false,
+                isUploading: false,
+                fileName: '',
+                profile: null,
+                errorMsg: '',
+                darkMode: false,
+                showLoginModal: false,
+                googleEnabled: '{{ "true" if google_enabled else "false" }}' === 'true',
+                isLoggedIn: '{{ "true" if user and user.is_authenticated else "false" }}' === 'true',
+                currentUploadId: null,
+                sourceTab: 'csv',
+                sheetsUrl: '',
+                sheetsError: '',
+                isSheetsLoading: false,
+
+
+                currentTheme: '',
+                currentFont: '',
+                themes: window.ThemeManager ? window.ThemeManager.themes : [],
+                fonts: window.ThemeManager ? window.ThemeManager.fonts : [],
+
+                initTheme() {
+                    if (window.ThemeManager) {
+                        this.currentTheme = window.ThemeManager.getTheme();
+                        this.currentFont = window.ThemeManager.getFont();
+                        window.ThemeManager.apply(this.currentTheme, this.currentFont);
+                        this.darkMode = window.ThemeManager.themes.find(t => t.id === this.currentTheme)?.isDark ?? false;
+                    } else {
+                        const saved = localStorage.getItem('analyst-theme');
+                        this.darkMode = saved === 'dark';
+                        document.getElementById('html-root').classList.toggle('light', !this.darkMode);
+                    }
+                    // Auto-open login modal if redirected here with ?login=1
+                    if (new URLSearchParams(window.location.search).get('login') === '1') {
+                        this.showLoginModal = true;
+                        window.history.replaceState({}, '', '/');
+                    }
+                },
+                setTheme(themeId) {
+                    this.currentTheme = themeId;
+                    if (window.ThemeManager) {
+                        window.ThemeManager.setTheme(themeId);
+                        this.currentFont = window.ThemeManager.getFont();
+                        this.darkMode = window.ThemeManager.themes.find(t => t.id === themeId)?.isDark ?? false;
+                    } else {
+                        this.darkMode = themeId === 'dark';
+                        document.getElementById('html-root').classList.toggle('light', !this.darkMode);
+                        localStorage.setItem('analyst-theme', themeId);
+                    }
+                },
+                setFont(fontId) {
+                    this.currentFont = fontId;
+                    if (window.ThemeManager) {
+                        window.ThemeManager.setFont(fontId);
+                    }
+                },
+
+                async handleDrop(e) {
+                    this.isDragging = false;
+                    const file = e.dataTransfer.files[0];
+                    if (!file) return;
+                    // If not logged in, show modal immediately — don't even try upload
+                    if (!this.isLoggedIn) { this.showLoginModal = true; return; }
+                    await this.uploadFile(file);
+                },
+                async handleFileSelect(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    if (!this.isLoggedIn) { this.showLoginModal = true; return; }
+                    await this.uploadFile(file);
+                },
+                async uploadFile(file) {
+                    if (!file.name.endsWith('.csv')) { this.errorMsg = 'Only CSV files are supported.'; return; }
+                    this.errorMsg = ''; this.isUploading = true; this.fileName = file.name;
+                    const fd = new FormData(); fd.append('file', file);
+                    try {
+                        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                        const data = await res.json();
+                        if (res.status === 401 || data.error === 'login_required') {
+                            this.showLoginModal = true; this.isUploading = false; return;
+                        }
+                        if (!res.ok || data.error) { this.errorMsg = data.error || 'Upload failed.'; return; }
+                        this.profile = data.profile;
+                        this.currentUploadId = data.upload_id;
+                        this.fileUploaded = true;
+                        // Removed: auto-redirect. User now clicks 'Launch Workspace' manually.
+                    } catch (err) { this.errorMsg = 'Network error: ' + err.message; }
+                    finally { this.isUploading = false; }
+                },
+                goToWorkspace(uploadId = null) {
+                    // workspace.html calls /api/workspace/state and expects upload_id.
+                    window.location.href = uploadId ? ('/workspace?upload_id=' + encodeURIComponent(uploadId)) : '/workspace';
+                },
+                reset() {
+                    this.fileUploaded = false; this.fileName = ''; this.profile = null;
+                    this.errorMsg = ''; this.sheetsUrl = ''; this.sheetsError = '';
+                },
+
+                async loadSheets() {
+                    if (!this.sheetsUrl.trim()) return;
+                    if (!this.isLoggedIn) { this.showLoginModal = true; return; }
+                    this.sheetsError = '';
+                    this.isSheetsLoading = true;
+                    try {
+                        const res = await fetch('/api/upload/sheets', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: this.sheetsUrl.trim() }),
+                        });
+                        const data = await res.json();
+                        if (res.status === 401 || data.error === 'login_required') {
+                            this.showLoginModal = true; return;
+                        }
+                        if (!res.ok || data.error) {
+                            this.sheetsError = data.error || 'Import failed.'; return;
+                        }
+                        this.profile = data.profile;
+                        this.fileName = data.profile.filename || 'Google Sheet';
+                        this.fileUploaded = true;
+                        // After a successful upload, jump straight to the workspace.
+                        this.goToWorkspace(data.upload_id);
+                    } catch (err) {
+                        this.sheetsError = 'Network error: ' + err.message;
+                    } finally {
+                        this.isSheetsLoading = false;
+                    }
+                },
+            }
+        }
+
+        // Scroll-reveal for the new marketing sections — independent of the
+        // uploadApp Alpine component so it can't interfere with upload state.
+        document.addEventListener('DOMContentLoaded', function () {
+            const items = document.querySelectorAll('.reveal');
+            const io = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('in');
+                        io.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.15 });
+            items.forEach((el) => io.observe(el));
+        });
+    </script>
+</body>
+
+</html>
