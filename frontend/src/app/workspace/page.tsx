@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { WorkspaceProvider, useWorkspace } from "./components/WorkspaceProvider";
 import { ExplorerTab } from "./components/ExplorerTab";
 import { CleanerTab } from "./components/CleanerTab";
@@ -12,6 +13,7 @@ import { DashboardTab } from "./components/DashboardTab";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 import { useAuth } from "@/lib/auth";
 import Logo from "../components/Logo";
+import ErrorState from "../components/ErrorState";
 import { Table, Wand2, LayoutDashboard, Lightbulb, MessageSquare, FileText, Bot } from 'lucide-react';
 
 function WorkspaceContent() {
@@ -19,7 +21,8 @@ function WorkspaceContent() {
     activeTab, setActiveTab, 
     drawerOpen, setDrawerOpen, 
     profile, cleanProfile,
-    sourceType, isSyncingSheets, syncSheets
+    sourceType, isSyncingSheets, syncSheets,
+    apiError
   } = useWorkspace();
   const { user } = useAuth();
   
@@ -36,42 +39,38 @@ function WorkspaceContent() {
     { id: 'automl',    label: 'AutoML',    icon: <Bot size={14} /> },
   ];
 
+  if (apiError) {
+    return (
+      <div className="flex flex-col h-screen" style={{ background: "var(--bg)" }}>
+        <nav className="flex items-center px-5 h-[60px] border-b" style={{ background: "var(--nav)", borderColor: "var(--border)" }}>
+           <Link href="/" className="no-underline"><Logo size={24} textSize={16} /></Link>
+        </nav>
+        <div className="flex-grow flex items-center justify-center">
+           <ErrorState code={apiError.code} message={apiError.message} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: "var(--bg)", color: "var(--txt)" }}>
       <div className="noise"></div>
       
       {/* NAV */}
       <nav id="topnav" className="sticky top-0 z-30 flex items-center shrink-0 px-3 h-[52px]" style={{ background: "var(--nav)", borderBottom: "1px solid var(--border)", backdropFilter: "blur(16px)" }}>
-        <a href="/" className="flex items-center gap-2.5 shrink-0 no-underline">
+        <Link href="/" className="flex items-center gap-2.5 shrink-0 no-underline">
             <Logo size={24} textSize={16} />
-        </a>
+        </Link>
 
         <div className="w-px h-5 mx-3 shrink-0" style={{ background: "var(--border)" }}></div>
 
         <div className="hidden md:flex items-center gap-[1px] flex-1 min-w-0 tab-strip">
-          {tabs.slice(0, 6).map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`ntab ${activeTab === tab.id ? 'na' : ''}`}>
+          {tabs.map((tab) => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`ntab flex items-center gap-1.5 ${activeTab === tab.id ? 'na' : ''}`}>
+              {tab.icon}
               {tab.label}
             </button>
           ))}
-          {tabs.length > 6 && (
-            <div className="more-dropdown shrink-0 relative">
-              <button onClick={() => setMoreOpen(!moreOpen)} className={`ntab flex items-center gap-1 ${tabs.slice(6).some(t => t.id === activeTab) ? 'na' : ''}`}>
-                <span>{tabs.slice(6).find(t => t.id === activeTab)?.label || 'More'}</span>
-                <svg className={`w-3 h-3 transition-transform ${moreOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
-              </button>
-              {moreOpen && (
-                <div className="more-menu absolute top-[calc(100%+6px)] left-0 min-w-[160px] p-1 rounded-[0.65rem] shadow-2xl z-[9999]" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-                  {tabs.slice(6).map((tab) => (
-                    <button key={tab.id} onClick={() => { setActiveTab(tab.id); setMoreOpen(false); }} className={activeTab === tab.id ? 'na' : ''}>
-                      <span>{tab.icon}</span>
-                      <span>{tab.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <div className="flex-1"></div>
@@ -100,18 +99,13 @@ function WorkspaceContent() {
                   </button>
               )}
 
-              <span className="shrink-0" style={{ color: "var(--txt-f)" }}>·</span>
-              <span>{((cleanProfile || profile).rows || 0).toLocaleString()} rows</span>
-              <span style={{ color: "var(--txt-f)" }}>·</span>
-              <span>{((cleanProfile || profile).cols || 0)} cols</span>
+              <span className="shrink-0 hidden sm:inline" style={{ color: "var(--txt-f)" }}>·</span>
+              <span className="hidden sm:inline">{((cleanProfile || profile).rows || 0).toLocaleString()} rows</span>
+              <span className="hidden sm:inline" style={{ color: "var(--txt-f)" }}>·</span>
+              <span className="hidden sm:inline">{((cleanProfile || profile).cols || 0)} cols</span>
           </div>
         )}
 
-        <button onClick={() => setDrawerOpen(true)} className="ibt !hidden max-md:!flex" aria-label="Menu">
-            <svg width="15" height="12" viewBox="0 0 15 12" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <line x1="0" y1="1" x2="15" y2="1"/><line x1="0" y1="6" x2="15" y2="6"/><line x1="0" y1="11" x2="15" y2="11"/>
-            </svg>
-        </button>
 
         <div className="relative ml-2 shrink-0 flex items-center gap-1">
           <ThemeSwitcher />
@@ -144,6 +138,16 @@ function WorkspaceContent() {
           )}
         </div>
       </nav>
+
+      {/* MOBILE TABS SUB-NAV */}
+      <div className="md:hidden flex items-center overflow-x-auto no-scrollbar w-full px-2" style={{ background: "var(--nav)", borderBottom: "1px solid var(--border)", minHeight: "42px" }}>
+          {tabs.map((tab) => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`shrink-0 flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-bold border-b-2 transition-colors ${activeTab === tab.id ? 'border-[var(--accent)]' : 'border-transparent'}`} style={{ color: activeTab === tab.id ? "var(--txt)" : "var(--txt-m)" }}>
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+      </div>
 
       <main id="main-content" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         <div style={{ display: activeTab === 'preview' ? 'block' : 'none', height: '100%' }}><ExplorerTab /></div>

@@ -27,6 +27,9 @@ interface WorkspaceContextType {
   // Cleanup
   cleanResult: any;
   setCleanResult: (result: any) => void;
+  // Error state
+  apiError: { code: number; message: string } | null;
+  setApiError: (err: { code: number; message: string } | null) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -44,6 +47,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [chatSessions, setChatSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [cleanResult, setCleanResult] = useState<any>(null);
+  const [apiError, setApiError] = useState<{ code: number; message: string } | null>(null);
 
   useEffect(() => {
     let uid = "";
@@ -62,6 +66,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         const data = await res.json();
         setProfile(data.profile);
         setGeminiOk(data.gemini_ok);
+      } else if (res.status === 401) {
+        if (typeof window !== "undefined") {
+          window.location.href = "/?login=1";
+        }
+      } else if (res.status === 400 || res.status === 403 || res.status === 404) {
+        const data = await res.json().catch(() => ({ detail: "An error occurred" }));
+        setApiError({ code: res.status, message: data.detail || "An error occurred" });
+      } else {
+        setApiError({ code: res.status, message: "Unexpected server error" });
       }
     });
   }, []);
@@ -85,6 +98,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     chatSessions, setChatSessions,
     activeSessionId, setActiveSessionId,
     cleanResult, setCleanResult,
+    apiError, setApiError,
   };
 
   // (upload_id is now handled in the main useEffect)

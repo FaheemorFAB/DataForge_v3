@@ -54,9 +54,21 @@ export function EDATab() {
       }
 
       if (data.warning) setEdaWarning(data.warning);
-      if (data.status === "processing") {
-        // Handled via websockets originally, but we can assume it finishes eventually
-        // For simplicity, we just say it's ready, or we could poll.
+      if (data.task_id) {
+        const pollTask = async (taskId: string) => {
+          while (true) {
+            await new Promise(r => setTimeout(r, 2000));
+            const pRes = await apiFetch(`/tasks/status/${taskId}`);
+            if (!pRes.ok) throw new Error("Task check failed");
+            const pData = await pRes.json();
+            if (pData.status === "success" || pData.status === "completed") return true;
+            if (pData.status === "failure" || pData.status === "failed") throw new Error(pData.error || "Task failed");
+          }
+        };
+        await pollTask(data.task_id);
+        setEdaReady(true);
+      } else if (data.status === "processing") {
+        // Handled via websockets originally
       } else {
         setEdaReady(true);
       }
@@ -88,9 +100,22 @@ export function EDATab() {
       const data = await res.json();
       if (data.error) {
         setBizReportError(data.error);
-      } else {
-        setBizReportReady(true);
+        return;
       }
+      if (data.task_id) {
+        const pollTask = async (taskId: string) => {
+          while (true) {
+            await new Promise(r => setTimeout(r, 2000));
+            const pRes = await apiFetch(`/tasks/status/${taskId}`);
+            if (!pRes.ok) throw new Error("Task check failed");
+            const pData = await pRes.json();
+            if (pData.status === "success" || pData.status === "completed") return true;
+            if (pData.status === "failure" || pData.status === "failed") throw new Error(pData.error || "Task failed");
+          }
+        };
+        await pollTask(data.task_id);
+      }
+      setBizReportReady(true);
     } catch (e: any) {
       setBizReportError(String(e));
     } finally {
@@ -126,7 +151,7 @@ export function EDATab() {
               <span>{isGeneratingEda ? 'PROFILING...' : (edaReady ? 'UPDATE REPORT' : 'GENERATE REPORT')}</span>
             </button>
             {edaReady && (
-              <a href="/api/eda/report?format=pdf&theme=cupcake" target="_blank" rel="noopener noreferrer" className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> EDA PDF</a>
+              <a href={`/api/eda/report?format=pdf&theme=cupcake&upload_id=${uploadId}`} target="_blank" rel="noopener noreferrer" className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> EDA PDF</a>
             )}
           </div>
         </div>
@@ -157,7 +182,7 @@ export function EDATab() {
 
         {edaReady && !isGeneratingEda && (
           <div className="gc rounded-2xl overflow-hidden p-0" style={{ border: "1px solid var(--border)" }}>
-            <iframe id="eda-frame" src="/api/eda/report" className="w-full bg-[var(--bg)] border-none block" style={{ borderRadius: ".75rem", height: "clamp(420px, calc(100dvh - 180px), 1000px)" }}></iframe>
+            <iframe id="eda-frame" src={`/api/eda/report?upload_id=${uploadId}`} className="w-full bg-[var(--bg)] border-none block" style={{ borderRadius: ".75rem", height: "clamp(420px, calc(100dvh - 180px), 1000px)" }}></iframe>
           </div>
         )}
       </div>
@@ -185,7 +210,7 @@ export function EDATab() {
               <span className="flex items-center gap-1.5">{bizReportGenerating ? 'ANALYSING...' : (bizReportReady ? <><RefreshCw size={14}/> UPDATE ANALYSIS</> : <><Sparkles size={14}/> GENERATE ANALYSIS</>)}</span>
             </button>
             {bizReportReady && (
-              <a href="/api/data-report/download" className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> DOWNLOAD PDF</a>
+              <a href={`/api/data-report/download?upload_id=${uploadId}`} className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> DOWNLOAD PDF</a>
             )}
           </div>
         </div>
@@ -202,7 +227,7 @@ export function EDATab() {
 
         {bizReportReady && !bizReportGenerating && (
           <div className="gc rounded-2xl overflow-hidden mt-4" style={{ border: "1px solid var(--border)", height: 600 }}>
-            <iframe src="/api/reports/latest" className="w-full h-full bg-white border-none"></iframe>
+            <iframe src={`/api/reports/latest?upload_id=${uploadId}`} className="w-full h-full bg-white border-none"></iframe>
           </div>
         )}
 

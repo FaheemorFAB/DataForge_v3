@@ -88,10 +88,10 @@ export function InsightsTab() {
           const pRes = await apiFetch(`/tasks/status/${taskId}`);
           if (!pRes.ok) throw new Error("Task check failed");
           const pData = await pRes.json();
-          if (pData.status === "completed") {
+          if (pData.status === "success" || pData.status === "completed") {
             return true;
           }
-          if (pData.status === "failed") {
+          if (pData.status === "failure" || pData.status === "failed") {
             throw new Error(pData.error || "Insight generation failed");
           }
         }
@@ -99,7 +99,7 @@ export function InsightsTab() {
 
       await pollTask(data.task_id);
       
-      const cRes = await apiFetch("/insights/current");
+      const cRes = await apiFetch(`/insights/current?upload_id=${uploadId}`);
       if (cRes.ok) {
         const cData = await cRes.json();
         setInsightCards(cData.insights || []);

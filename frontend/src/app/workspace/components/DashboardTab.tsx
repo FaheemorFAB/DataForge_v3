@@ -31,6 +31,58 @@ ChartJS.register(
   Legend
 );
 
+const BoxPlotVisualizer = ({ data, formatted }: { data: any, formatted: any }) => {
+    if (!data || typeof data.min !== 'number') return <p className="text-gray-500 text-xs text-center py-10">Invalid Data</p>;
+    const range = data.max - data.min;
+    const pad = range === 0 ? 1 : range * 0.1;
+    const minX = data.min - pad;
+    const maxX = data.max + pad;
+    const total = maxX - minX;
+
+    const toPct = (val: number) => `${Math.max(0, Math.min(100, ((val - minX) / total) * 100))}%`;
+
+    return (
+        <div className="w-full h-full flex flex-col justify-center px-4 text-gray-300 relative">
+            <div className="relative w-full h-16 flex items-center mb-6 mt-4">
+                {/* Horizontal line for whiskers */}
+                <div className="absolute h-[2px] bg-gray-600 rounded" style={{ left: toPct(data.min), right: `${100 - parseFloat(toPct(data.max))}%` }} />
+                
+                {/* Min whisker */}
+                <div className="absolute w-[3px] h-6 bg-gray-400 rounded" style={{ left: toPct(data.min), top: '50%', transform: 'translate(-50%, -50%)' }} />
+                
+                {/* Max whisker */}
+                <div className="absolute w-[3px] h-6 bg-gray-400 rounded" style={{ left: toPct(data.max), top: '50%', transform: 'translate(-50%, -50%)' }} />
+                
+                {/* IQR Box */}
+                <div className="absolute h-10 rounded-sm" style={{ left: toPct(data.q1), width: `${((data.q3 - data.q1) / total) * 100}%`, background: 'rgba(46,91,255,0.25)', border: '2px solid #2e5bff', top: '50%', transform: 'translateY(-50%)', boxShadow: '0 0 10px rgba(46,91,255,0.1)' }} />
+                
+                {/* Median Line */}
+                <div className="absolute w-[3px] h-10 rounded" style={{ left: toPct(data.median), top: '50%', transform: 'translate(-50%, -50%)', background: '#f59e0b', zIndex: 10 }} />
+                
+                {/* Tooltips or Labels */}
+                <div className="absolute text-[10px] font-mono text-gray-400 -bottom-6" style={{ left: toPct(data.min), transform: 'translateX(-50%)' }}>{formatted?.min}</div>
+                <div className="absolute text-[10px] font-mono text-gray-400 -bottom-6" style={{ left: toPct(data.max), transform: 'translateX(-50%)' }}>{formatted?.max}</div>
+                <div className="absolute text-[11px] font-mono font-bold text-[#f59e0b] -top-7" style={{ left: toPct(data.median), transform: 'translateX(-50%)' }}>{formatted?.median}</div>
+            </div>
+            
+            <div className="flex justify-between items-center w-full mt-auto pt-4 border-t border-gray-800">
+                <div className="text-center w-1/3">
+                    <p className="text-[9px] text-gray-500 uppercase tracking-wider">Q1</p>
+                    <p className="font-mono text-xs text-gray-300">{formatted?.q1}</p>
+                </div>
+                <div className="text-center w-1/3 border-l border-r border-gray-800">
+                    <p className="text-[9px] text-gray-500 uppercase tracking-wider">Median</p>
+                    <p className="font-mono text-sm font-bold text-[#f59e0b]">{formatted?.median}</p>
+                </div>
+                <div className="text-center w-1/3">
+                    <p className="text-[9px] text-gray-500 uppercase tracking-wider">Q3</p>
+                    <p className="font-mono text-xs text-gray-300">{formatted?.q3}</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export function DashboardTab() {
   const { uploadId, profile } = useWorkspace();
   const [isDashLoading, setIsDashLoading] = useState(false);
@@ -44,15 +96,7 @@ export function DashboardTab() {
   const [dashNumericCols, setDashNumericCols] = useState<string[]>([]);
   const [profileCols, setProfileCols] = useState<string[]>([]);
 
-  const [customChart, setCustomChart] = useState({
-    id: null,
-    chart_type: 'bar',
-    x_col: '',
-    y_col: '',
-    agg_type: 'mean',
-    title: '',
-    is_area: false
-  });
+  const [customChart, setCustomChart] = useState({ id: null as any, chart_type: 'bar', x_col: '', y_col: '', agg_type: 'mean', title: '', is_area: false, top_n: 10 });
   const [isGeneratingChart, setIsGeneratingChart] = useState(false);
   const [customChartError, setCustomChartError] = useState("");
 
@@ -113,7 +157,7 @@ export function DashboardTab() {
       if (d.error) {
         setCustomChartError(d.error);
       } else {
-        setCustomChart({ id: null, chart_type: 'bar', x_col: '', y_col: '', agg_type: 'mean', title: '', is_area: false });
+        setCustomChart({ id: null, chart_type: 'bar', x_col: '', y_col: '', agg_type: 'mean', title: '', is_area: false, top_n: 10 });
         await loadDashboard();
       }
     } catch (e: any) {
@@ -124,8 +168,21 @@ export function DashboardTab() {
   };
 
   const removeChart = async (ch: any) => {
-    setDashCharts(prev => prev.filter(c => c.id !== ch.id));
-    // In actual implementation we might notify backend to hide this chart.
+    if (!ch.is_custom) return; // Currently only supporting deleting custom charts
+    try {
+      const res = await apiFetch("/dashboard/custom-chart/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upload_id: uploadId, chart_id: ch.id })
+      });
+      if (res.ok) {
+        setDashCharts(prev => prev.filter(c => c.id !== ch.id));
+      } else {
+        console.error("Failed to delete chart on backend");
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const renderChartData = (ch: any) => {
@@ -150,7 +207,10 @@ export function DashboardTab() {
     };
 
     if (ch.type === 'scatter') {
-      const pts = ch.values.map((v: any, i: number) => ({ x: ch.labels[i], y: v }));
+      const pts = (ch.values && ch.values.length > 0 && typeof ch.values[0] === 'object' && ch.values[0].x !== undefined)
+        ? ch.values // Backend already returned [{x, y}, ...]
+        : ch.values.map((v: any, i: number) => ({ x: ch.labels[i], y: v }));
+      
       return <Scatter data={{ datasets: [{ data: pts, backgroundColor: 'rgba(46,91,255,0.5)', pointRadius: 3 }] }} options={commonOptions} />;
     } else if (ch.type === 'line') {
       return <Line data={{ labels: ch.labels, datasets: [{ data: ch.values, borderColor: '#2e5bff', backgroundColor: 'rgba(46,91,255,0.1)', borderWidth: 2, fill: true, tension: 0.2, pointRadius: 2 }] }} options={commonOptions} />;
@@ -248,9 +308,9 @@ export function DashboardTab() {
                   <button onClick={() => setCustomChart({...customChart, chart_type: 'pie'})} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider ${customChart.chart_type === 'pie' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Pie</button>
                   <button onClick={() => setCustomChart({...customChart, chart_type: 'boxplot'})} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider ${customChart.chart_type === 'boxplot' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400'}`}>Box Plot</button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5">
-                      <label className="sl">X Axis / Category</label>
+                      <label className="sl">{customChart.chart_type === 'pie' ? 'Category' : 'X Axis / Category'}</label>
                       <select value={customChart.x_col} onChange={e => setCustomChart({...customChart, x_col: e.target.value})} className="inp w-full" style={{ padding: ".5rem", borderRadius: ".5rem", background: "var(--surface)", border: "1px solid rgba(46,91,255,.2)" }}>
                           <option value="">- Select -</option>
                           {profileCols.map(c => <option key={c} value={c}>{c}</option>)}
@@ -258,7 +318,7 @@ export function DashboardTab() {
                   </div>
                   {!['histogram','boxplot'].includes(customChart.chart_type) && (
                       <div className="space-y-1.5">
-                          <label className="sl">Y Axis (Numeric)</label>
+                          <label className="sl">{customChart.chart_type === 'pie' ? 'Value (Numeric)' : 'Y Axis (Numeric)'}</label>
                           <select value={customChart.y_col} onChange={e => setCustomChart({...customChart, y_col: e.target.value})} className="inp w-full" style={{ padding: ".5rem", borderRadius: ".5rem", background: "var(--surface)", border: "1px solid rgba(46,91,255,.2)" }}>
                               <option value="">- Count Rows -</option>
                               {dashNumericCols.map(c => <option key={c} value={c}>{c}</option>)}
@@ -273,6 +333,17 @@ export function DashboardTab() {
                               <option value="sum">Sum</option>
                               <option value="count">Count of Values</option>
                               <option value="none">None - Raw Rows</option>
+                          </select>
+                      </div>
+                  )}
+                  {customChart.chart_type === 'pie' && (
+                      <div className="space-y-1.5">
+                          <label className="sl">Top N Slices</label>
+                          <select value={customChart.top_n} onChange={e => setCustomChart({...customChart, top_n: parseInt(e.target.value)})} className="inp w-full" style={{ padding: ".5rem", borderRadius: ".5rem", background: "var(--surface)", border: "1px solid rgba(46,91,255,.2)" }}>
+                              <option value={5}>Top 5</option>
+                              <option value={10}>Top 10</option>
+                              <option value={20}>Top 20</option>
+                              <option value={500}>All (Limit 500)</option>
                           </select>
                       </div>
                   )}
@@ -293,48 +364,39 @@ export function DashboardTab() {
 
       {/* Grid */}
       {(dashCharts.length > 0 || dashIdStats) && (
-        <div className={`grid grid-cols-1 ${dashSummary || dashIdStats ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-6`}>
-          <div className={`${dashSummary || dashIdStats ? 'lg:col-span-2' : 'w-full'} space-y-6`}>
-              <div className={`grid grid-cols-1 md:grid-cols-2 ${(!dashSummary && !dashIdStats) ? 'xl:grid-cols-3' : ''} gap-5`}>
-                  {dashCharts.map(ch => (
-                      <div key={ch.id} className="rounded-2xl p-5 border-l-4 flex flex-col justify-between shadow-lg" style={{ background: "var(--surface)", border: "1px solid rgba(255,255,255,0.08)", borderLeftColor: ch.is_custom ? 'var(--accent)' : '#2e5bff' }}>
-                          <div className="flex items-center justify-between mb-4">
-                              <p className="font-extrabold text-xs uppercase tracking-wider truncate">{ch.title}</p>
-                              <button onClick={() => removeChart(ch)} className="text-gray-400 hover:text-red-500"><X size={14} /></button>
-                          </div>
-                          {ch.type === 'boxplot' ? (
-                              <div className="text-center py-4">
-                                  <p className="text-xs text-gray-400">BoxPlot rendered</p>
-                                  <p className="font-mono text-sm mt-2">Min: {ch.formatted_values?.min}, Max: {ch.formatted_values?.max}</p>
-                                  <p className="font-mono text-sm">Median: {ch.formatted_values?.median}</p>
-                              </div>
-                          ) : (
-                              <div style={{ height: "220px", position: "relative" }}>
-                                  {renderChartData(ch)}
-                              </div>
-                          )}
-                      </div>
-                  ))}
+        <div className="space-y-6">
+          {dashIdStats && (
+              <div className="gc rounded-2xl p-5">
+                  <p className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--txt-m)" }}>ID STATISTICS</p>
+                  <div className="flex items-center justify-start gap-12">
+                      <div><p className="sl mb-1">Total</p><p className="text-2xl font-black text-indigo-400">{dashIdStats.total}</p></div>
+                      <div><p className="sl mb-1">Min</p><p className="text-lg font-black">{dashIdStats.min}</p></div>
+                      <div><p className="sl mb-1">Max</p><p className="text-lg font-black">{dashIdStats.max}</p></div>
+                  </div>
               </div>
-          </div>
-          <div className="space-y-5">
-              {dashSummary && (
-                  <div className="gc rounded-2xl p-5" style={{ borderLeft: "3px solid var(--accent)" }}>
-                      <p className="sl mb-2">Executive Summary</p>
-                      <div className="text-xs leading-relaxed" style={{ color: "var(--txt)" }} dangerouslySetInnerHTML={{ __html: dashSummary }}></div>
-                  </div>
-              )}
-              {dashIdStats && (
-                  <div className="gc rounded-2xl p-5">
-                      <p className="font-bold text-xs uppercase tracking-widest mb-4" style={{ color: "var(--txt-m)" }}>ID STATISTICS</p>
-                      <div className="flex items-center justify-between">
-                          <div><p className="sl mb-1">Total</p><p className="text-2xl font-black text-indigo-400">{dashIdStats.total}</p></div>
-                          <div><p className="sl mb-1">Min</p><p className="text-lg font-black">{dashIdStats.min}</p></div>
-                          <div><p className="sl mb-1">Max</p><p className="text-lg font-black">{dashIdStats.max}</p></div>
-                      </div>
-                  </div>
-              )}
-          </div>
+          )}
+
+          {dashCharts.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                {dashCharts.map(ch => (
+                    <div key={ch.id} className="rounded-2xl p-5 border-l-4 flex flex-col justify-between shadow-lg" style={{ background: "var(--surface)", border: "1px solid rgba(255,255,255,0.08)", borderLeftColor: ch.is_custom ? 'var(--accent)' : '#2e5bff' }}>
+                        <div className="flex items-center justify-between mb-4">
+                            <p className="font-extrabold text-xs uppercase tracking-wider truncate">{ch.title}</p>
+                            <button onClick={() => removeChart(ch)} className="text-gray-400 hover:text-red-500"><X size={14} /></button>
+                        </div>
+                        {ch.type === 'boxplot' ? (
+                            <div style={{ height: "220px", position: "relative" }}>
+                                <BoxPlotVisualizer data={ch.values} formatted={ch.formatted_values} />
+                            </div>
+                        ) : (
+                            <div style={{ height: "220px", position: "relative" }}>
+                                {renderChartData(ch)}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
 export function AutoMLTab() {
   const { profile, activeTab, uploadId } = useWorkspace();
   const [automlTarget, setAutomlTarget] = useState("");
-  const [automlTask, setAutomlTask] = useState("auto");
+  const [automlTask, setAutomlTask] = useState("auto-detect");
   const [automlTimeBudget, setAutomlTimeBudget] = useState("60");
   const [automlTestSize, setAutomlTestSize] = useState("20");
 
@@ -109,10 +109,18 @@ export function AutoMLTab() {
           const pRes = await apiFetch(`/tasks/status/${taskId}`);
           if (!pRes.ok) throw new Error("Task check failed");
           const pData = await pRes.json();
-          if (pData.status === "completed") {
+          if (pData.status === "completed" || pData.status === "success") {
+            // result_ref contains {"key": "automl_meta"} — fetch actual data
+            if (pData.result?.key === "automl_meta" && uploadId) {
+              const metaRes = await apiFetch(`/workspace/state?upload_id=${uploadId}`);
+              if (metaRes.ok) {
+                const state = await metaRes.json();
+                if (state.automl_meta) return state.automl_meta;
+              }
+            }
             return pData.result;
           }
-          if (pData.status === "failed") {
+          if (pData.status === "failure" || pData.status === "failed") {
             throw new Error(pData.error || "Training failed");
           }
         }
@@ -141,7 +149,7 @@ export function AutoMLTab() {
           </p>
         </div>
         {automlResult && (
-          <a href="/api/automl/download" className="bg" style={{ textDecoration: "none" }}>↓ DOWNLOAD MODEL (.pkl)</a>
+          <a href={`/api/automl/download?upload_id=${uploadId}`} className="bg" style={{ textDecoration: "none" }}>↓ DOWNLOAD MODEL (.pkl)</a>
         )}
       </div>
 
@@ -163,7 +171,7 @@ export function AutoMLTab() {
         <div>
           <label className="sl block mb-2">Task Override</label>
           <select value={automlTask} onChange={e => setAutomlTask(e.target.value)} className="inp w-full" style={{ padding: ".5rem .8rem", borderRadius: ".5rem", background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
-            <option value="auto">Auto (from Target)</option>
+            <option value="auto-detect">Auto (from Target)</option>
             <option value="classification">Classification</option>
             <option value="regression">Regression</option>
           </select>

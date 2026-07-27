@@ -72,8 +72,8 @@ export function CleanerTab() {
           )}
           {cleanResult && (
             <>
-              <a href="/api/clean/download" className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> DOWNLOAD CSV</a>
-              <a href="/api/clean/download?format=xlsx" className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> DOWNLOAD EXCEL</a>
+              <a href={`/api/clean/download?upload_id=${uploadId}`} className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> DOWNLOAD CSV</a>
+              <a href={`/api/clean/download?format=xlsx&upload_id=${uploadId}`} className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> DOWNLOAD EXCEL</a>
             </>
           )}
         </div>
