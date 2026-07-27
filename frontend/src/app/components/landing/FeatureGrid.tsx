@@ -13,7 +13,7 @@ export default function FeatureGrid() {
       });
     }, { threshold: 0.15 });
     items.forEach((el) => io.observe(el));
-    
+
     return () => io.disconnect();
   }, []);
 
@@ -22,8 +22,8 @@ export default function FeatureGrid() {
       <div className="max-w-6xl mx-auto px-5 md:px-8">
         <div className="reveal in max-w-lg mb-14">
           <p className="section-eyebrow mb-3">The workspace</p>
-          <h2 className="text-3xl md:text-4xl font-black tracking-tight" style={{ color: "var(--txt)" }}>Seven tools.<br />One pipeline.</h2>
-          <p className="text-sm mt-4" style={{ color: "var(--txt-m)" }}>Every stage of the analysis lives behind one upload — no switching between notebooks, spreadsheets, and BI tools.</p>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tight" style={{ color: "var(--txt)" }}>Six tools.<br />One pipeline.</h2>
+          <p className="text-xs mt-4" style={{ color: "var(--txt-m)" }}>Every stage of the analysis lives behind one upload — no switching between notebooks, spreadsheets, and BI tools.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="gc feat-card reveal" style={{ position: "relative", overflow: "hidden" }}>

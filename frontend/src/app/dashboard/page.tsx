@@ -6,6 +6,7 @@ import styles from "./dashboard.module.css";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ThemeSwitcher from "../components/ThemeSwitcher";
+import Logo from "../components/Logo";
 
 // ── Validation Helpers ──
 const V = {
@@ -393,10 +394,7 @@ export default function DashboardPage() {
       {/* NAV */}
       <nav className="sticky top-0 z-30 flex items-center gap-2 px-3 md:px-5 border-b backdrop-blur-md" style={{ background: "var(--nav)", borderColor: "var(--border)", height: "52px" }}>
         <Link href="/" className="flex items-center gap-2 flex-shrink-0 no-underline">
-          <div className="w-7 h-7 flex items-center justify-center rounded-sm" style={{ background: "var(--txt)" }}>
-            <div className="w-3.5 h-3.5 rotate-45" style={{ background: "var(--bg)" }}></div>
-          </div>
-          <span className="font-black text-[11px] tracking-widest uppercase hidden sm:block" style={{ color: "var(--txt)" }}>DataForge</span>
+          <Logo size={24} textSize={16} />
         </Link>
         <div className="w-px h-5 flex-shrink-0" style={{ background: "var(--border)" }}></div>
         <Link href="/workspace" className={`${styles.btnP} text-[10px] py-1.5 px-2.5`}>

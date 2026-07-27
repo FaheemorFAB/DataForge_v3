@@ -29,6 +29,37 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  React.useEffect(() => {
+    if (isLoggedIn && !fileUploaded) {
+      // Check if we have an upload in localStorage first to avoid flash
+      const lastUpload = localStorage.getItem('df_last_upload');
+      
+      apiFetch('/projects')
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            const latest = data[0];
+            setFileName(latest.filename || 'Existing Dataset');
+            setCurrentUploadId(latest.id);
+            localStorage.setItem('df_last_upload', latest.id);
+            
+            // Reconstruct a mock profile for the UI from the project list stats
+            setProfile({
+              rows: latest.rows,
+              cols: latest.cols,
+              numeric: latest.numeric || 0,
+              missing_pct: latest.missing_pct || 0
+            });
+            
+            setFileUploaded(true);
+          } else {
+             localStorage.removeItem('df_last_upload');
+          }
+        })
+        .catch(err => console.error("Failed to fetch projects:", err));
+    }
+  }, [isLoggedIn, fileUploaded]);
+
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
@@ -58,6 +89,7 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
       if (!res.ok || data.error) { setErrorMsg(data.error || 'Upload failed.'); return; }
       setProfile(data.profile);
       setCurrentUploadId(data.upload_id);
+      localStorage.setItem('df_last_upload', data.upload_id);
       setFileUploaded(true);
     } catch (err: any) {
       setErrorMsg('Network error: ' + err.message);
@@ -77,6 +109,8 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
   const reset = () => {
     setFileUploaded(false); setFileName(''); setProfile(null);
     setErrorMsg(''); setSheetsUrl(''); setSheetsError('');
+    setCurrentUploadId(null);
+    localStorage.removeItem('df_last_upload');
   };
 
   const loadSheets = async () => {
@@ -98,6 +132,8 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
       }
       setProfile(data.profile);
       setFileName(data.profile.filename || 'Google Sheet');
+      setCurrentUploadId(data.upload_id);
+      localStorage.setItem('df_last_upload', data.upload_id);
       setFileUploaded(true);
       goToWorkspace(data.upload_id);
     } catch (err: any) {
@@ -112,9 +148,6 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
       {/* Left Value prop */}
       <div className="lg:col-span-5 space-y-4">
         <div className="space-y-4">
-          <span className="inline-block px-3 py-1 border text-[10px] font-bold tracking-[.2em] uppercase rounded-full" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--accent)" }}>
-            Intelligent Data Analysis Tool
-          </span>
           <h1 className="font-black uppercase leading-[0.92] tracking-tight" style={{ fontSize: "clamp(2rem,5vw,3.8rem)", background: "linear-gradient(135deg,var(--txt) 0%,var(--txt-m) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             Turn Chaos<br />into<br /><span style={{ WebkitTextFillColor: "var(--txt)" }}>Clarity.</span>
           </h1>
