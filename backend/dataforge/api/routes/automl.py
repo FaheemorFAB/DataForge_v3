@@ -11,7 +11,7 @@ from pathlib import Path
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from dataforge.api.deps import CurrentUser, get_job_manager_dep, require_upload_with_data
@@ -24,6 +24,22 @@ from dataforge.settings import PROJECTS_DIR
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["automl"])
+
+
+def _resolve_column(col_name: str, df_columns) -> str:
+    """Case-insensitive column name resolution.
+    Returns the actual DataFrame column name matching `col_name`,
+    or raises HTTPException(400) if not found.
+    """
+    col_name = col_name.strip()
+    if col_name in df_columns:
+        return col_name
+    # Case-insensitive fallback
+    col_lower = col_name.lower()
+    for real_col in df_columns:
+        if real_col.lower() == col_lower:
+            return real_col
+    raise HTTPException(400, f"Column '{col_name}' not found. Available: {list(df_columns)}")
 
 
 @router.post("/automl/detect-task", summary="Auto-detect ML task type for a target column")
@@ -42,9 +58,7 @@ async def api_automl_detect_task(
     if df is None:
         raise HTTPException(400, "No dataset loaded")
 
-    target = body.target_col.strip()
-    if not target or target not in df.columns:
-        raise HTTPException(400, f"Column '{target}' not found")
+    target = _resolve_column(body.target_col, df.columns)
 
     try:
         def _detect():
@@ -64,11 +78,13 @@ async def api_automl_detect_task(
 async def api_automl_train(
     body: AutoMLTrainRequest,
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
     job_manager: JobManager = Depends(get_job_manager_dep),
     upload_id: Optional[int] = Query(default=None),
 ):
     target_upload_id = body.upload_id or upload_id
     if not target_upload_id:
+        print("DEBUG: automl 400 - upload_id required")
         raise HTTPException(400, "upload_id required")
     await require_upload_with_data(target_upload_id, current_user)
 
@@ -76,13 +92,13 @@ async def api_automl_train(
     df_clean = load(target_upload_id, "df_clean")
     df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
     if df is None:
+        print("DEBUG: automl 400 - No dataset loaded (df is None)")
         raise HTTPException(400, "No dataset loaded")
-    if body.target_col not in df.columns:
-        raise HTTPException(400, f"Column '{body.target_col}' not found")
+    resolved_col = _resolve_column(body.target_col, df.columns)
 
     job_id = await job_manager.dispatch_automl(
-        target_upload_id, current_user.id,
-        target_col=body.target_col,
+        background_tasks, target_upload_id, current_user.id,
+        target_col=resolved_col,
         task_choice=body.task_choice,
         time_budget=body.time_budget,
         test_size=body.test_size / 100.0,

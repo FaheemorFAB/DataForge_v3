@@ -13,7 +13,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from dataforge.api.deps import CurrentUser, get_job_manager_dep, require_upload_with_data
@@ -354,6 +354,7 @@ async def api_drilldown(
 async def api_report_generate(
     body: ReportGenerateRequest,
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
     job_manager: JobManager = Depends(get_job_manager_dep),
 ):
     upload_id = body.upload_id
@@ -361,7 +362,7 @@ async def api_report_generate(
         raise HTTPException(400, "upload_id required")
     await require_upload_with_data(upload_id, current_user)
 
-    job_id = await job_manager.dispatch_report(upload_id, current_user.id)
+    job_id = await job_manager.dispatch_report(background_tasks, upload_id, current_user.id)
     return {"task_id": job_id, "queued": True}
 
 
@@ -451,6 +452,7 @@ async def api_alerts_list(current_user: CurrentUser):
 async def api_alerts_check(
     body: AlertsCheckRequest,
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
     job_manager: JobManager = Depends(get_job_manager_dep),
 ):
     upload_id = body.upload_id
@@ -463,7 +465,7 @@ async def api_alerts_check(
     if cached:
         return JSONResponse(content=safe_jsonable({"ok": True, "from_cache": True, **cached}))
 
-    job_id = await job_manager.dispatch_alerts(upload_id, current_user.id)
+    job_id = await job_manager.dispatch_alerts(background_tasks, upload_id, current_user.id)
     return {"task_id": job_id, "queued": True}
 
 
@@ -696,9 +698,15 @@ async def api_dashboard_custom_chart(
 ):
     from dataforge.api.routes.workspace import api_custom_chart
     from dataforge.api.schemas.workspace import CustomChartRequest
+    from pydantic import ValidationError
     if upload_id and "upload_id" not in body:
         body["upload_id"] = upload_id
-    return await api_custom_chart(CustomChartRequest(**body), current_user, upload_id=upload_id)
+    try:
+        req = CustomChartRequest(**body)
+    except ValidationError as e:
+        print(f"DEBUG: 400 - CustomChartRequest Validation Error: {e}")
+        raise HTTPException(400, str(e))
+    return await api_custom_chart(req, current_user, upload_id=upload_id)
 
 
 @router.post("/dashboard/custom-chart/delete", summary="Delete a custom dashboard chart")

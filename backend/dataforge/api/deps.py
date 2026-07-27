@@ -39,19 +39,12 @@ async def get_current_user(
     Extract and validate the JWT from the 'access_token' HTTP-only cookie.
     Raises 401 if missing or invalid.
     """
-    token = access_token
-
-    # Fallback: Bearer token in Authorization header (for API clients)
-    if not token:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-
-    if token:
-        user_id = get_user_id_from_token(token)
+    if access_token:
+        user_id = get_user_id_from_token(access_token)
         if user_id is not None:
             user = auth_service.get_user_by_id(user_id)
             if user is not None:
+                request.state.user_id = user.id
                 return user
 
 
@@ -125,10 +118,14 @@ async def require_upload_with_data(
     """
     upload = await require_upload_access(upload_id, current_user)
     if not exists(upload_id, "df_raw") and not exists(upload_id, "df_clean"):
-        raise HTTPException(
-            status_code=400,
-            detail="No dataset loaded. Please upload a file first.",
-        )
+        from dataforge.api.storage.manager import load
+        # Attempt to restore from Supabase if it exists there
+        if load(upload_id, "df_raw") is None and load(upload_id, "df_clean") is None:
+            print("DEBUG: deps 400 - No dataset loaded (load returned None)")
+            raise HTTPException(
+                status_code=400,
+                detail="No dataset loaded. Please upload a file first.",
+            )
     return upload
 
 

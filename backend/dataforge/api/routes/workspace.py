@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from dataforge.api.deps import CurrentUser, get_job_manager_dep, get_upload_id, require_upload_with_data
@@ -313,6 +313,7 @@ async def api_clean(
 async def api_eda(
     body: EDARequest,
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
     job_manager: JobManager = Depends(get_job_manager_dep),
 ):
     upload_id = body.upload_id
@@ -321,7 +322,7 @@ async def api_eda(
     await require_upload_with_data(upload_id, current_user)
 
     job_id = await job_manager.dispatch_eda(
-        upload_id, current_user.id, minimal=body.minimal, sample_n=body.sample_n
+        background_tasks, upload_id, current_user.id, minimal=body.minimal, sample_n=body.sample_n
     )
     return {"task_id": job_id, "queued": True}
 
@@ -373,6 +374,74 @@ async def api_eda_report(
     return Response(content=html, media_type="text/html", headers=headers)
 
 
+# ── Business Data Report ──────────────────────────────────────────────────────
+
+@router.post("/data-report", summary="Dispatch a background business report generation job")
+async def api_data_report_generate(
+    body: dict,
+    current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
+    upload_id: Optional[int] = Query(default=None),
+):
+    target_upload_id = body.get("upload_id") or upload_id
+    if not target_upload_id:
+        raise HTTPException(400, "upload_id required")
+    await require_upload_with_data(target_upload_id, current_user)
+
+    from dataforge.api.jobs.manager import get_job_manager
+    job_manager = get_job_manager()
+    job_id = await job_manager.dispatch_report(background_tasks, target_upload_id, current_user.id)
+    return {"task_id": job_id, "queued": True}
+
+
+@router.get("/reports/latest", summary="Get the latest generated HTML business report")
+async def api_reports_latest(
+    current_user: CurrentUser,
+    upload_id: Optional[int] = Query(default=None),
+):
+    if not upload_id:
+        raise HTTPException(400, "upload_id required")
+    await require_upload_with_data(upload_id, current_user)
+
+    from dataforge.api.storage.manager import load as _load
+    html = _load(upload_id, "report_html")
+    if not html:
+        raise HTTPException(404, "No business report generated yet. Please generate one first.")
+    
+    return Response(content=html, media_type="text/html")
+
+
+@router.get("/data-report/download", summary="Download the business report as PDF")
+async def api_data_report_download(
+    current_user: CurrentUser,
+    upload_id: Optional[int] = Query(default=None),
+):
+    if not upload_id:
+        raise HTTPException(400, "upload_id required")
+    await require_upload_with_data(upload_id, current_user)
+
+    from dataforge.api.storage.manager import load as _load
+    html = _load(upload_id, "report_html")
+    if not html:
+        raise HTTPException(404, "No report generated yet")
+
+    pdf = None
+    try:
+        from weasyprint import HTML as WP_HTML
+        pdf = WP_HTML(string=html).write_pdf()
+    except Exception as e:
+        log.warning("WeasyPrint failed: %s", e)
+    
+    if not pdf:
+        raise HTTPException(500, "Failed to generate PDF")
+
+    return StreamingResponse(
+        iter([pdf]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=business_report_{upload_id}.pdf"},
+    )
+
+
 # ── AI Query (chat) ───────────────────────────────────────────────────────────
 
 @router.post("/query", summary="Ask an AI question about the dataset")
@@ -396,7 +465,7 @@ async def api_query(
         raise HTTPException(400, "Empty query")
 
     # Load/update chat session structure
-    chat_data = load(upload_id, "chat_history")
+    chat_data = load(target_upload_id, "chat_history")
     if isinstance(chat_data, list):
         if len(chat_data) > 0:
             default_session = {
@@ -488,10 +557,10 @@ async def api_query(
     session["messages"].append(msg)
     session["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    save(upload_id, "chat_history", chat_data)
+    save(target_upload_id, "chat_history", chat_data)
 
     try:
-        db_update("uploads", upload_id, {
+        db_update("uploads", target_upload_id, {
             "chat_history": json.dumps(chat_data, default=str)
         })
     except Exception:
@@ -499,6 +568,7 @@ async def api_query(
 
     result["chat_sessions"] = chat_data["sessions"]
     result["active_session_id"] = session_id
+    result["reply"] = msg
 
     return JSONResponse(content=safe_jsonable(result))
 
@@ -618,17 +688,21 @@ async def api_custom_chart(
 ):
     target_upload_id = body.upload_id or upload_id
     if not target_upload_id:
+        print("DEBUG: 400 - upload_id required")
         raise HTTPException(400, "upload_id required")
     await require_upload_with_data(target_upload_id, current_user)
 
     df_clean = load(target_upload_id, "df_clean")
     df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
     if df is None:
+        print("DEBUG: 400 - No dataset loaded")
         raise HTTPException(400, "No dataset loaded")
 
     if body.x_col not in df.columns:
+        print(f"DEBUG: 400 - x_col not found: '{body.x_col}', cols: {df.columns.tolist()}")
         raise HTTPException(400, f"Column '{body.x_col}' not found")
     if body.y_col and body.y_col not in df.columns:
+        print(f"DEBUG: 400 - y_col not found: '{body.y_col}', cols: {df.columns.tolist()}")
         raise HTTPException(400, f"Column '{body.y_col}' not found")
 
     custom_charts = load(target_upload_id, "custom_charts") or []
@@ -660,6 +734,7 @@ async def api_custom_chart(
             "title": body.title or f"{body.chart_type.title()} of {body.x_col}",
             "is_custom": True,
             "is_area": body.is_area,
+            "top_n": body.top_n,
         }
         custom_charts.append(new_cfg)
 
@@ -679,6 +754,6 @@ async def api_custom_chart_delete(
     await require_upload_with_data(target_upload_id, current_user)
 
     custom_charts = load(target_upload_id, "custom_charts") or []
-    custom_charts = [c for c in custom_charts if c.get("id") != body.id]
+    custom_charts = [c for c in custom_charts if c.get("id") != body.chart_id]
     save(target_upload_id, "custom_charts", custom_charts)
     return {"ok": True, "charts": custom_charts}

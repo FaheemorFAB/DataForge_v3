@@ -10,7 +10,7 @@ import logging
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 
 from dataforge.api.deps import CurrentUser, get_job_manager_dep, get_upload_id, require_upload_with_data
@@ -28,6 +28,7 @@ router = APIRouter(tags=["insights"])
 async def api_insights_run(
     body: InsightsRunRequest,
     current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
     job_manager: JobManager = Depends(get_job_manager_dep),
     upload_id: Optional[int] = Query(default=None),
 ):
@@ -36,7 +37,7 @@ async def api_insights_run(
         raise HTTPException(400, "upload_id required")
     await require_upload_with_data(target_upload_id, current_user)
 
-    job_id = await job_manager.dispatch_insights(target_upload_id, current_user.id, top_n=body.top_n)
+    job_id = await job_manager.dispatch_insights(background_tasks, target_upload_id, current_user.id, top_n=body.top_n)
     return {"task_id": job_id, "queued": True, "upload_id": target_upload_id}
 
 

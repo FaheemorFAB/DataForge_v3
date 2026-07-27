@@ -55,6 +55,7 @@ class CustomChartRequest(BaseModel):
     title: Optional[str] = None
     is_area: bool = False
     duplicate_from_id: Optional[str] = None
+    top_n: Optional[int] = 10
 
 
 class CustomChartDeleteRequest(BaseModel):

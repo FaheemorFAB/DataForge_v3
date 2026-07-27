@@ -41,7 +41,7 @@ async def login_google(request: Request, next: str = "/dashboard"):
     from authlib.integrations.starlette_client import OAuth
     oauth = request.app.state.oauth
     redirect_uri = str(request.url_for("auth_google_callback"))
-    request.session["next_url"] = next if next.startswith("/") else "/dashboard"
+    request.session["next_url"] = next if next.startswith("/") else "/"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
@@ -83,9 +83,9 @@ async def auth_google_callback(request: Request):
         return RedirectResponse(url="http://localhost:3000/?login=1&error=db")
 
     jwt_token = auth_service.create_token_for_user(user)
-    next_url = request.session.pop("next_url", "/workspace")
+    next_url = request.session.pop("next_url", "/")
     if not isinstance(next_url, str) or not next_url.startswith("/"):
-        next_url = "/workspace"
+        next_url = "/"
 
     # Redirect to Next.js frontend port 3000
     frontend_url = f"http://localhost:3000{next_url}"

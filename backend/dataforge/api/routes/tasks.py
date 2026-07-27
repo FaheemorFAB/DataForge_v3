@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 router = APIRouter(tags=["tasks"])
 
 
-@router.get("/task/{task_id}", summary="Poll a single job status")
+@router.get("/tasks/status/{task_id}", summary="Poll a single job status")
 async def get_task_status(
     current_user: CurrentUser,
     task_id: str = Path(...),
@@ -53,6 +53,8 @@ async def get_task_status(
         try:
             created_str = job.get("created_at", "")
             created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+            if created_dt.tzinfo is None:
+                created_dt = created_dt.replace(tzinfo=timezone.utc)
             age_s = (datetime.now(timezone.utc) - created_dt).total_seconds()
             if age_s > stale_s:
                 status = "failure"

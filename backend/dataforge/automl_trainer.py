@@ -403,6 +403,7 @@ def run_automl(
     imbalance_report = {}
     flaml_metric = "auto"
     if task == "classification":
+        n_classes = int(y_train.nunique())
         imbalance_report = _detect_imbalance(y_train)
         if imbalance_report["is_imbalanced"]:
             flaml_metric = imbalance_report["recommended_metric"]
@@ -410,6 +411,13 @@ def run_automl(
                 "[automl_trainer] Imbalanced dataset detected (minority=%.1f%%). Switching metric -> %s",
                 imbalance_report["minority_ratio"] * 100,
                 flaml_metric,
+            )
+        # Force a multiclass-safe metric when there are more than 2 classes
+        if n_classes > 2 and flaml_metric in ("auto", "f1"):
+            flaml_metric = "macro_f1" if n_classes <= 20 else "log_loss"
+            log.info(
+                "[automl_trainer] Multiclass target (%d classes). Using metric -> %s",
+                n_classes, flaml_metric,
             )
 
     backend_used = "flaml"

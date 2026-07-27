@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Optional
+from fastapi import BackgroundTasks
 
 from dataforge.api.jobs import registry
 
@@ -32,6 +33,7 @@ class JobManager:
 
     async def dispatch_insights(
         self,
+        background_tasks: BackgroundTasks,
         upload_id: int,
         user_id: int,
         top_n: int = 6,
@@ -44,15 +46,13 @@ class JobManager:
 
         from dataforge.api.jobs.tasks import run_insights_task
         job_id = await registry.create_job(user_id, upload_id, "insights")
-        asyncio.create_task(
-            run_insights_task(job_id, upload_id, user_id, top_n),
-            name=f"insights-{job_id}",
-        )
+        background_tasks.add_task(run_insights_task, job_id, upload_id, user_id, top_n)
         log.info("Dispatched insights job %s for upload_id=%d", job_id, upload_id)
         return job_id
 
     async def dispatch_automl(
         self,
+        background_tasks: BackgroundTasks,
         upload_id: int,
         user_id: int,
         target_col: str,
@@ -67,16 +67,16 @@ class JobManager:
 
         from dataforge.api.jobs.tasks import run_automl_task
         job_id = await registry.create_job(user_id, upload_id, "automl")
-        asyncio.create_task(
-            run_automl_task(job_id, upload_id, user_id, target_col,
-                            task_choice, time_budget, test_size),
-            name=f"automl-{job_id}",
+        background_tasks.add_task(
+            run_automl_task, job_id, upload_id, user_id, target_col,
+            task_choice, time_budget, test_size
         )
         log.info("Dispatched automl job %s for upload_id=%d target=%s", job_id, upload_id, target_col)
         return job_id
 
     async def dispatch_eda(
         self,
+        background_tasks: BackgroundTasks,
         upload_id: int,
         user_id: int,
         minimal: bool = True,
@@ -89,14 +89,13 @@ class JobManager:
 
         from dataforge.api.jobs.tasks import run_eda_task
         job_id = await registry.create_job(user_id, upload_id, "eda")
-        asyncio.create_task(
-            run_eda_task(job_id, upload_id, user_id, minimal, sample_n),
-            name=f"eda-{job_id}",
+        background_tasks.add_task(
+            run_eda_task, job_id, upload_id, user_id, minimal, sample_n
         )
         log.info("Dispatched EDA job %s for upload_id=%d", job_id, upload_id)
         return job_id
 
-    async def dispatch_report(self, upload_id: int, user_id: int) -> str:
+    async def dispatch_report(self, background_tasks: BackgroundTasks, upload_id: int, user_id: int) -> str:
         """Dispatch an HTML report generation job. Returns job_id immediately."""
         active = registry.get_active_job(upload_id, "report")
         if active:
@@ -104,14 +103,11 @@ class JobManager:
 
         from dataforge.api.jobs.tasks import generate_report_task
         job_id = await registry.create_job(user_id, upload_id, "report")
-        asyncio.create_task(
-            generate_report_task(job_id, upload_id, user_id),
-            name=f"report-{job_id}",
-        )
+        background_tasks.add_task(generate_report_task, job_id, upload_id, user_id)
         log.info("Dispatched report job %s for upload_id=%d", job_id, upload_id)
         return job_id
 
-    async def dispatch_alerts(self, upload_id: int, user_id: int) -> str:
+    async def dispatch_alerts(self, background_tasks: BackgroundTasks, upload_id: int, user_id: int) -> str:
         """Dispatch an alerts check job. Returns job_id immediately."""
         active = registry.get_active_job(upload_id, "alerts")
         if active:
@@ -119,10 +115,7 @@ class JobManager:
 
         from dataforge.api.jobs.tasks import check_alerts_task
         job_id = await registry.create_job(user_id, upload_id, "alerts")
-        asyncio.create_task(
-            check_alerts_task(job_id, upload_id, user_id),
-            name=f"alerts-{job_id}",
-        )
+        background_tasks.add_task(check_alerts_task, job_id, upload_id, user_id)
         log.info("Dispatched alerts job %s for upload_id=%d", job_id, upload_id)
         return job_id
 

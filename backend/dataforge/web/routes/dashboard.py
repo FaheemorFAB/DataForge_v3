@@ -1229,12 +1229,13 @@ def _compute_chart_data(df, config):
                 else:
                     grp = df.groupby(x_col)[y_col].count()
             
-            if chart_type in ("pie", "doughnut") and len(grp) > 10:
+            top_n = config.get("top_n", 10)
+            if chart_type in ("pie", "doughnut") and len(grp) > top_n:
                 grp_sorted = grp.sort_values(ascending=False)
-                top_10 = grp_sorted.iloc[:10]
-                other_val = grp_sorted.iloc[10:].sum() if agg_type in ("sum", "count") else grp_sorted.iloc[10:].mean()
-                labels = [str(x) for x in top_10.index] + ["Other"]
-                values = [round(float(v), 2) for v in top_10.values] + [round(float(other_val), 2)]
+                top_slices = grp_sorted.iloc[:top_n]
+                other_val = grp_sorted.iloc[top_n:].sum() if agg_type in ("sum", "count") else grp_sorted.iloc[top_n:].mean()
+                labels = [str(x) for x in top_slices.index] + ["Other"]
+                values = [round(float(v), 2) for v in top_slices.values] + [round(float(other_val), 2)]
             else:
                 grp = grp.sort_values(ascending=False).head(500)
                 labels = [str(x) for x in grp.index]

@@ -185,6 +185,8 @@ async def bootstrap():
                     created_str = j.get("created_at", "")
                     try:
                         created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                        if created.tzinfo is None:
+                            created = created.replace(tzinfo=timezone.utc)
                         age_s = (now_ts - created).total_seconds()
                         stale_after = 120 if status == "queued" else 600
                         if age_s > stale_after:
