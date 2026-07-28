@@ -1,0 +1,89 @@
+# =============================================================================
+#  DataForge v3 — Python Backend Dependencies
+#  Last updated: 2026-07-28
+#  Run:  pip install -r requirements.txt
+# =============================================================================
+
+# ── Web Framework ─────────────────────────────────────────────────────────────
+fastapi>=0.140.0              # Async REST API framework (currently 0.140.2)
+uvicorn[standard]>=0.51.0    # ASGI server with WebSocket + hot-reload support
+starlette>=1.3.0              # ASGI toolkit underlying FastAPI (middleware, routing)
+python-multipart>=0.0.32      # Parses multipart/form-data (CSV/Excel file uploads)
+httpx>=0.28.0                 # Async HTTP client used for OAuth callbacks & Gemini
+itsdangerous>=2.2.0           # Secure cookie signing for Starlette session middleware
+aiofiles>=23.0.0              # Async file I/O for serving static assets
+watchfiles>=1.0.0             # File-change watcher for uvicorn --reload
+websockets>=15.0.0            # WebSocket protocol support (real-time job progress)
+
+# ── Authentication & Security ─────────────────────────────────────────────────
+python-jose[cryptography]>=3.5.0  # JWT encode/decode for API token auth
+passlib[bcrypt]>=1.7.4            # Password hashing (bcrypt) for local accounts
+Authlib>=1.7.0                    # Google OAuth / OIDC integration (PKCE flow)
+cryptography>=49.0.0              # Low-level crypto — required by python-jose
+bcrypt>=5.0.0                     # Bcrypt backend used by passlib
+PyJWT>=2.13.0                     # JWT utilities (complementary to python-jose)
+requests>=2.34.0                  # Sync HTTP client for OAuth token exchange
+requests-oauthlib>=2.0.0          # OAuth1/2 support used by google-auth
+google-auth>=2.56.0               # Google service account & ADC authentication
+google-auth-oauthlib>=1.4.0       # Google OAuth2 flow helpers
+
+# ── Data Processing ───────────────────────────────────────────────────────────
+pandas>=2.3.0                 # Core DataFrame engine for all data operations
+numpy>=2.3.0                  # Numerical arrays underlying pandas & ML models
+pyarrow>=25.0.0               # Parquet read/write — primary storage format for uploads
+openpyxl>=3.1.5               # Excel (.xlsx) file parsing via pandas
+pyjanitor>=0.32.0             # DataFrame cleaning helpers (snake_case column names)
+scipy>=1.16.0                 # Statistical functions used in EDA & trend analysis
+statsmodels>=0.14.0           # Time-series analysis, OLS regression, ARIMA
+
+# ── Machine Learning & AutoML ─────────────────────────────────────────────────
+scikit-learn>=1.9.0           # Core ML library: preprocessing, models, metrics
+flaml[automl]>=2.6.0          # AutoML framework — auto-selects best model & params
+lightgbm>=4.7.0               # Gradient boosting (fast tree-based models, used by FLAML)
+xgboost>=2.1.0                # Gradient boosting alternative (used by FLAML)
+shap>=0.51.0                  # Model explainability: SHAP values for feature importance
+joblib>=1.5.0                 # Parallel processing & model serialisation (sklearn dep)
+numba>=0.62.0                 # JIT compilation — speeds up SHAP & numerical loops
+
+# ── EDA & Profiling ───────────────────────────────────────────────────────────
+ydata-profiling>=4.18.0       # Automated EDA report generation (HTML / JSON output)
+matplotlib>=3.10.0            # Plot engine underlying ydata-profiling reports
+seaborn>=0.13.0               # Statistical visualisation (used in report charts)
+phik>=0.12.0                  # Phi_k correlation matrix (used by ydata-profiling)
+visions>=0.8.0                # Column type inference (used by ydata-profiling)
+wordcloud>=1.9.0              # Word-cloud charts for text columns in EDA reports
+
+# ── NLP ───────────────────────────────────────────────────────────────────────
+spacy>=3.8.0                  # NLP pipeline — tokenisation, NER for text column analysis
+
+# ── AI / Gemini ───────────────────────────────────────────────────────────────
+# google-generativeai is imported via gemini_pipeline.py
+# Install separately if Gemini features are needed:
+#   pip install google-generativeai>=0.7.0
+
+# ── Database / Storage ────────────────────────────────────────────────────────
+supabase>=2.31.0              # Supabase Python client — auth, DB queries, storage
+pydantic>=2.13.0              # Data validation & settings models (FastAPI schemas)
+pydantic-settings>=2.14.0     # .env / environment variable loading into pydantic models
+filelock>=3.32.0              # File-level locking for concurrent Parquet writes
+
+# ── Caching & Rate Limiting ───────────────────────────────────────────────────
+redis>=8.0.0                  # Redis client — response cache & rate-limit counters
+orjson>=3.11.0                # Ultra-fast JSON serialiser (replaces stdlib json)
+slowapi>=0.1.10               # Rate-limiting middleware for FastAPI (wraps limits)
+
+# ── Report Generation ─────────────────────────────────────────────────────────
+weasyprint>=69.0              # HTML → PDF renderer for downloadable reports
+Jinja2>=3.1.0                 # HTML templating engine for report layouts
+
+# ── Spreadsheet Connectors ────────────────────────────────────────────────────
+gspread>=6.2.0                # Google Sheets API client for live data connectors
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv>=1.2.0          # Loads .env into os.environ at startup
+watchdog>=6.0.0               # Filesystem event monitoring (used by legacy Flask server)
+PyYAML>=6.0.0                 # YAML config parsing
+rich>=15.0.0                  # Pretty terminal output (logging, tracebacks)
+tqdm>=4.70.0                  # Progress bars for long-running ML/EDA tasks
+pillow>=12.0.0                # Image processing (used by ydata-profiling & wordcloud)
+packaging>=26.0               # Version parsing utilities
