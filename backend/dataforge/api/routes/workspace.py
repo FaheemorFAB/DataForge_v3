@@ -494,11 +494,12 @@ async def api_data_report_download(
     except Exception as e:
         log.warning("WeasyPrint PDF compilation bypassed: %s", e)
     
-    if pdf:
-        return StreamingResponse(
-            iter([pdf]),
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=business_report_{upload_id}.pdf"},
+if pdf and not print_pdf:
+    return StreamingResponse(
+        iter([pdf]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=business_report_{upload_id}.pdf"},
+    )
         )
 
     # 2. High-Fidelity Vector Fallback: Auto-Printable HTML for Browser PDF Export
