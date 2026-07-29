@@ -366,7 +366,7 @@ export function DashboardTab() {
     finally { setIsDashLoading(false); }
   }, [uploadId, profile]);
 
-  useEffect(() => { if (uploadId) loadDashboard(); }, [uploadId]);
+useEffect(() => { if (uploadId) loadDashboard(); }, [uploadId, loadDashboard]);
 
   const saveCustomChart = async () => {
     setCustomChartError(""); setIsGeneratingChart(true);
