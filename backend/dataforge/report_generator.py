@@ -1,7 +1,6 @@
 import html
 import json
 import math
-import re
 from datetime import datetime
 
 # ── Color Palette & Light Royalty Theme Constants ─────────────────────────────
