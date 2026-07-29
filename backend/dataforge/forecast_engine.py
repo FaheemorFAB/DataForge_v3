@@ -287,7 +287,10 @@ def _arima_model(train: np.ndarray, horizon: int) -> Tuple[np.ndarray, float]:
 def _ensemble(
     models: List[Tuple[np.ndarray, float]],
     train_residuals: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    MAPE-weighted ensemble of model predictions.
+    Returns (point_forecast, upper_95, lower_95, upper_80, lower_80).
     """
     MAPE-weighted ensemble of model predictions.
     Returns (point_forecast, upper_95, lower_95).
