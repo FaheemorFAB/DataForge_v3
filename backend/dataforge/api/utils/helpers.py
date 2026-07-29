@@ -51,6 +51,22 @@ def format_member_since(val: Any) -> str:
 
 # ── DataFrame helpers ─────────────────────────────────────────────────────────
 
+def resolve_column(col_name: Optional[str], df_columns: Any) -> Optional[str]:
+    """Case-insensitive & whitespace-tolerant column name resolution."""
+    if not col_name:
+        return None
+    s = str(col_name).strip()
+    if not s:
+        return None
+    if s in df_columns:
+        return s
+    s_lower = s.lower()
+    for real_col in df_columns:
+        if str(real_col).strip().lower() == s_lower:
+            return str(real_col)
+    return None
+
+
 def safe_json_value(v: Any) -> Any:
     if isinstance(v, np.integer):   return int(v)
     if isinstance(v, np.floating):  return None if np.isnan(v) else float(v)

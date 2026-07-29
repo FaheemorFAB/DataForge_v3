@@ -1,7 +1,7 @@
 """
 dataforge/api/routes/insights.py
 ──────────────────────────────────
-Insights routes: run, list, current, root-cause.
+Insights routes: run, list, current, root-cause, forecast.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 
 from dataforge.api.deps import CurrentUser, get_job_manager_dep, get_upload_id, require_upload_with_data
 from dataforge.api.jobs.manager import JobManager
-from dataforge.api.schemas.automl import InsightsRunRequest, RootCauseRequest
+from dataforge.api.schemas.automl import ForecastRequest, InsightsRunRequest, RootCauseRequest
 from dataforge.api.storage.manager import load
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_all, db_client
@@ -117,3 +117,76 @@ async def api_root_cause(
     except Exception as exc:
         log.exception("Root cause analysis failed: %s", exc)
         raise HTTPException(500, f"Root cause analysis failed: {exc}")
+
+
+@router.post("/insights/forecast", summary="Run advanced time-series forecasting on a metric")
+async def api_forecast(
+    body: ForecastRequest,
+    current_user: CurrentUser,
+    upload_id_q: Optional[int] = Query(default=None, alias="upload_id"),
+):
+    """
+    Run the full forecasting pipeline (Holt-Winters, ARIMA, Ridge-Lag ensemble)
+    and return predictions, 80%/95% confidence intervals, seasonal decomposition,
+    and summary growth metrics.
+
+    If `date_col` or `metric_col` are omitted, they are auto-detected from the
+    dataset schema.
+    """
+    target_upload_id = body.upload_id or upload_id_q
+    if not target_upload_id:
+        raise HTTPException(400, "upload_id required")
+    await require_upload_with_data(target_upload_id, current_user)
+
+    df_clean = load(target_upload_id, "df_clean")
+    df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
+    if df is None:
+        raise HTTPException(400, "No dataset loaded")
+
+    try:
+        # Auto-detect date / metric columns when not provided
+        date_col   = body.date_col
+        metric_col = body.metric_col
+
+        if not date_col or not metric_col:
+            from dataforge.insight_engine import InsightEngine
+            schema = InsightEngine().detect_schema(df)
+            if not date_col:
+                date_col = schema.get("date")
+            if not metric_col and schema.get("metrics"):
+                metric_col = schema["metrics"][0]
+
+        if not date_col:
+            raise HTTPException(400, "Could not auto-detect a date column. Please supply date_col.")
+        if not metric_col:
+            raise HTTPException(400, "Could not auto-detect a metric column. Please supply metric_col.")
+
+        if date_col not in df.columns:
+            raise HTTPException(400, f"date_col '{date_col}' not found in dataset")
+        if metric_col not in df.columns:
+            raise HTTPException(400, f"metric_col '{metric_col}' not found in dataset")
+
+        from dataforge.api.jobs.executor import run_in_executor
+        from dataforge.forecast_engine import run_forecast
+
+        result = await run_in_executor(
+            lambda: run_forecast(
+                df,
+                date_col=date_col,
+                metric_col=metric_col,
+                horizon=body.horizon,
+                freq_override=body.freq_override,
+                include_decomposition=body.include_decomposition,
+            )
+        )
+
+        if "error" in result:
+            raise HTTPException(422, result["error"])
+
+        return JSONResponse(content=safe_jsonable(result))
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Forecast failed: %s", exc)
+        raise HTTPException(500, f"Forecast failed: {exc}")

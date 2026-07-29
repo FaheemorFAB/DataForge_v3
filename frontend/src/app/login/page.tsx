@@ -59,6 +59,11 @@ export default function LoginPage() {
           Continue with Google
         </a>
 
+        <a href="http://localhost:5000/login/mock" className={styles.googleBtn} style={{ background: "rgba(255,255,255,0.05)", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", marginTop: "0.75rem" }}>
+          👤 Developer Sandbox Login
+        </a>
+
+
         <p
           className="text-center text-[10px] mt-6"
           style={{ color: "var(--txt-m)" }}

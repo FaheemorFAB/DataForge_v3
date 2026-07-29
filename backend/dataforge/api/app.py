@@ -192,8 +192,9 @@ def create_app() -> FastAPI:
         from dataforge.api.auth.jwt import get_user_id_from_token
         from dataforge.api.websocket.manager import get_ws_manager
 
-        # Authenticate via token query param
-        uid = get_user_id_from_token(token or "")
+        # Authenticate via token query param or HTTP-only cookie fallback
+        cookie_token = websocket.cookies.get("access_token")
+        uid = get_user_id_from_token(token or cookie_token or "")
         if uid is None:
             await websocket.close(code=4001, reason="Unauthorized")
             return

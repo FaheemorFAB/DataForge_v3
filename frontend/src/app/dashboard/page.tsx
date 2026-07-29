@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import io, { Socket } from "socket.io-client";
+import { Socket } from "socket.io-client";
 import styles from "./dashboard.module.css";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -211,17 +211,80 @@ export default function DashboardPage() {
       loadReports();
       loadSchedules();
 
-      // WS
-      const socket = io({ transports: ["websocket", "polling"], path: "/socket.io" });
-      socketRef.current = socket;
+      // WS - Use native WebSocket instead of socket.io-client to align with FastAPI backend
+      let ws: WebSocket | null = null;
+      let pingInterval: any = null;
+      let reconnectTimeout: any = null;
+      const eventHandlers: { [key: string]: ((data: any) => void)[] } = {};
 
-      socket.on("connect", () => setWsConnected(true));
-      socket.on("disconnect", () => setWsConnected(false));
-      socket.on("connect_error", () => setWsConnected(false));
+      const connectWs = () => {
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
+          ? "127.0.0.1:5000" 
+          : `${window.location.hostname}:5000`;
+        const wsUrl = `${wsProtocol}//${wsHost}/ws`;
+        
+        ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+          setWsConnected(true);
+          eventHandlers["connect"]?.forEach(cb => cb(null));
+        };
+        
+        ws.onclose = () => {
+          setWsConnected(false);
+          eventHandlers["disconnect"]?.forEach(cb => cb(null));
+          // Reconnect with backoff
+          reconnectTimeout = setTimeout(connectWs, 5000);
+        };
+        
+        ws.onerror = () => {
+          setWsConnected(false);
+          eventHandlers["connect_error"]?.forEach(cb => cb(null));
+        };
+        
+        ws.onmessage = (event) => {
+          try {
+            if (event.data === "pong") return;
+            const payload = JSON.parse(event.data);
+            if (payload && payload.event) {
+              eventHandlers[payload.event]?.forEach(cb => cb(payload.data));
+            }
+          } catch (err) {
+            console.error("WebSocket message parse error:", err);
+          }
+        };
+      };
 
-      socket.on("activity", (d) => onActivity(d));
-      socket.on("stats_update", (d) => setStats((prev: any) => ({ ...prev, ...d })));
-      socket.on("alert", (d) => {
+      connectWs();
+
+      // Ping keepalive every 20s
+      pingInterval = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send("ping");
+        }
+      }, 20000);
+
+      const socketFake = {
+        on: (event: string, callback: (data: any) => void) => {
+          if (!eventHandlers[event]) eventHandlers[event] = [];
+          eventHandlers[event].push(callback);
+        },
+        disconnect: () => {
+          if (reconnectTimeout) clearTimeout(reconnectTimeout);
+          if (pingInterval) clearInterval(pingInterval);
+          if (ws) {
+            ws.onclose = null; // prevent reconnect loop
+            ws.close();
+          }
+        }
+      };
+
+      socketRef.current = socketFake as any;
+
+      socketFake.on("activity", (d) => onActivity(d));
+      socketFake.on("stats_update", (d) => setStats((prev: any) => ({ ...prev, ...d })));
+      socketFake.on("alert", (d) => {
         setAlertCount((prev) => prev + 1);
         setAlerts((prev) => [{
           id: Date.now(), rule: d.rule, message: d.message,
@@ -234,12 +297,12 @@ export default function DashboardPage() {
           body: d.message,
         });
       });
-      socket.on("report_ready", (d) => {
+      socketFake.on("report_ready", (d) => {
         setPreviewReportId(d.report_id);
         loadReports();
         pushToast({ type: "report", icon: "📄", title: "Report Ready", body: `Generated for ${d.filename || "dataset"}` });
       });
-      socket.on("insight_ready", (d) => {
+      socketFake.on("insight_ready", (d) => {
         pushToast({ type: "info", icon: "💡", title: `${d.count} Insights Ready`, body: `${d.dataset_type} · ${d.filename}` });
       });
     };
@@ -888,7 +951,7 @@ export default function DashboardPage() {
                     <a href={`/api/reports/${previewReportId}?format=pdf`} target="_blank" rel="noreferrer" className={`${styles.btnP} text-[10px] py-1.5 px-3`}>📄 Download PDF</a>
                   </div>
                 </div>
-                <iframe src={`/api/reports/${previewReportId}`} className="w-full rounded-b-2xl" style={{ height: "480px", border: 0, background: "#050505" }}></iframe>
+                <iframe src={`/api/reports/${previewReportId}`} className="w-full rounded-b-2xl block" style={{ height: "640px", border: 0, background: "#E2E8F0" }}></iframe>
               </div>
             )}
             <div className={`${styles.gc} rounded-2xl overflow-hidden`}>
