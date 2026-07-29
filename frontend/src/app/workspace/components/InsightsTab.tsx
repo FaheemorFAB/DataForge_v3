@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
 import { apiFetch } from "@/lib/api";
 import {
@@ -10,7 +10,7 @@ import {
   Title, Tooltip, Legend, Filler,
 } from "chart.js";
 import { Scatter, Line, Bar, Doughnut } from "react-chartjs-2";
-import { Sparkles, Brain, TrendingUp, TrendingDown, AlertTriangle, Activity } from "lucide-react";
+import { Sparkles, Brain, TrendingUp, TrendingDown, AlertTriangle, Activity, BarChart2, GitBranch, Layers, Zap, Target, ChevronDown } from "lucide-react";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement,
@@ -34,6 +34,7 @@ const TYPE_THEME: Record<string, { bg: string; border: string; text: string; glo
   numeric_summary:    { bg: "rgba(99,102,241,0.10)",  border: "rgba(99,102,241,0.25)", text: "#a78bfa", glow: "#a78bfa" },
   categorical:        { bg: "rgba(20,184,166,0.10)",  border: "rgba(20,184,166,0.25)", text: "#14b8a6", glow: "#14b8a6" },
   profile:            { bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.1)", text: "rgba(255,255,255,0.5)", glow: "transparent" },
+  forecast:           { bg: "rgba(0,212,255,0.10)",   border: "rgba(0,212,255,0.3)",   text: "#00d4ff", glow: "#00d4ff" },
 };
 
 const PIE_PALETTE = [
@@ -80,9 +81,9 @@ function mkTooltip(color: string) {
 // ── Base chart options ────────────────────────────────────────────────────────
 function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): any {
   const scaleBase = {
-    ticks: { color: "rgba(255,255,255,0.6)", font: { size: 11 }, maxTicksLimit: 8 },
-    grid: { color: "rgba(255,255,255,0.06)" },
-    border: { color: "rgba(255,255,255,0.1)" },
+    ticks: { color: "#000000", font: { size: 11, weight: "bold" as const }, maxTicksLimit: 8 },
+    grid: { color: "rgba(0,0,0,0.08)" },
+    border: { color: "#000000" },
   };
   return {
     responsive: true,
@@ -94,9 +95,13 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
     scales: {
       x: {
         ...scaleBase,
-        title: xLabel
-          ? { display: true, text: xLabel, color: "rgba(255,255,255,0.7)", font: { size: 11, weight: "600" as const } }
-          : { display: false },
+        title: {
+          display: true,
+          text: xLabel || "Category",
+          color: "#000000",
+          font: { size: 12, weight: "bold" as const },
+          padding: { top: 4 },
+        },
         ticks: {
           ...scaleBase.ticks,
           callback: horizontal ? (v: any) => fmtN(Number(v)) : undefined,
@@ -104,9 +109,13 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
       },
       y: {
         ...scaleBase,
-        title: yLabel
-          ? { display: true, text: yLabel, color: "rgba(255,255,255,0.7)", font: { size: 11, weight: "600" as const } }
-          : { display: false },
+        title: {
+          display: true,
+          text: yLabel || "Value",
+          color: "#000000",
+          font: { size: 12, weight: "bold" as const },
+          padding: { bottom: 4 },
+        },
         ticks: {
           ...scaleBase.ticks,
           callback: horizontal ? undefined : (v: any) => fmtN(Number(v)),
@@ -117,6 +126,7 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
     },
   };
 }
+
 
 // ── Safe chart_data parser helper ──────────────────────────────────────────────
 function getChartData(ins: any): { labels: string[]; values: number[]; [key: string]: any } | null {
@@ -336,6 +346,9 @@ function renderInsightChart(ins: any): React.ReactNode {
     );
   }
 
+  // 10. FORECAST → handled by ForecastCard; return null here (InsightCard switches)
+  if (type === "forecast") return null;
+
   // 10. DATA QUALITY → horizontal completion bars
   if (type === "data_quality") {
     return (
@@ -410,8 +423,346 @@ function renderInsightChart(ins: any): React.ReactNode {
   );
 }
 
+// ── Forecast Card — Full interactive predictive analytics card ────────────────
+export function ForecastCard({ ins }: { ins: any }) {
+  const [activeTab, setActiveTab] = useState<"forecast" | "decomp" | "models">("forecast");
+  const [horizon, setHorizon] = useState<number | null>(null);
+  const [runningForecast, setRunningForecast] = useState(false);
+  const [localData, setLocalData] = useState<any>(null);
+  const { uploadId } = useWorkspace();
+
+  const cd = localData ?? (ins.chart_data && typeof ins.chart_data === "string" ? JSON.parse(ins.chart_data) : ins.chart_data);
+  const stats   = cd?.summary_stats || {};
+  const mapes   = cd?.model_mapes   || {};
+  const decomp  = cd?.decomposition;
+  const col     = "#00d4ff";
+
+  const histLabels  = cd?.labels          || [];
+  const histValues  = cd?.values          || [];
+  const fcLabels    = cd?.forecast_labels || [];
+  const fcValues    = cd?.forecast_values || [];
+  const upper95     = cd?.upper_95        || [];
+  const lower95     = cd?.lower_95        || [];
+  const upper80     = cd?.upper_80        || [];
+  const lower80     = cd?.lower_80        || [];
+
+  const allLabels = [...histLabels, ...fcLabels];
+  const n_hist    = histLabels.length;
+  const n_fc      = fcLabels.length;
+
+  // Re-run forecast with custom horizon
+  const rerunForecast = useCallback(async (h: number) => {
+    if (!uploadId) return;
+    setRunningForecast(true);
+    try {
+      const res = await apiFetch("/insights/forecast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          upload_id: uploadId,
+          metric_col: ins.metric,
+          horizon: h,
+          include_decomposition: true,
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setLocalData({
+          labels:           d.historical_labels || [],
+          values:           d.historical_values || [],
+          forecast_labels:  d.forecast_labels   || [],
+          forecast_values:  d.forecast_values   || [],
+          upper_95:         d.upper_95          || [],
+          lower_95:         d.lower_95          || [],
+          upper_80:         d.upper_80          || [],
+          lower_80:         d.lower_80          || [],
+          decomposition:    d.decomposition,
+          freq:             d.freq,
+          horizon:          d.horizon,
+          model_mapes:      d.model_mapes       || {},
+          best_model:       d.best_model,
+          summary_stats:    d.summary_stats     || {},
+        });
+      }
+    } catch (e) { console.error(e); }
+    finally { setRunningForecast(false); }
+  }, [uploadId, ins.metric]);
+
+  const growthPct  = stats.projected_growth_pct ?? 0;
+  const isPositive = growthPct >= 0;
+  const bestModel  = cd?.best_model || "Ensemble";
+  const mapeValues = Object.values(mapes as Record<string, number>);
+  const avgMAPE    = mapeValues.length > 0
+    ? (mapeValues.reduce((a, b) => a + b, 0) / mapeValues.length).toFixed(1)
+    : String(stats.avg_mape ?? "—");
+
+  const HORIZONS = [
+    { label: "7d",   v: 7 },
+    { label: "30d",  v: 30 },
+    { label: "90d",  v: 90 },
+    { label: "1yr",  v: 365 },
+  ];
+
+  const chartData = {
+    labels: allLabels,
+    datasets: [
+      {
+        label: "Upper 95%",
+        data: [...Array(n_hist).fill(null), ...upper95],
+        borderColor: "transparent",
+        backgroundColor: "rgba(0,212,255,0.07)",
+        fill: "+1" as const,
+        pointRadius: 0,
+        tension: 0.4,
+        borderWidth: 0,
+      },
+      {
+        label: "Lower 95%",
+        data: [...Array(n_hist).fill(null), ...lower95],
+        borderColor: "transparent",
+        backgroundColor: "rgba(0,212,255,0.07)",
+        fill: false as const,
+        pointRadius: 0,
+        tension: 0.4,
+        borderWidth: 0,
+      },
+      {
+        label: "Upper 80%",
+        data: [...Array(n_hist).fill(null), ...upper80],
+        borderColor: "transparent",
+        backgroundColor: "rgba(0,212,255,0.11)",
+        fill: "+1" as const,
+        pointRadius: 0,
+        tension: 0.4,
+        borderWidth: 0,
+      },
+      {
+        label: "Lower 80%",
+        data: [...Array(n_hist).fill(null), ...lower80],
+        borderColor: "transparent",
+        backgroundColor: "rgba(0,212,255,0.11)",
+        fill: false as const,
+        pointRadius: 0,
+        tension: 0.4,
+        borderWidth: 0,
+      },
+      {
+        label: "Historical",
+        data: [...histValues, ...Array(n_fc).fill(null)],
+        borderColor: "rgba(99,102,241,0.9)",
+        backgroundColor: "rgba(99,102,241,0.08)",
+        borderWidth: 2.5,
+        fill: false as const,
+        pointRadius: 2,
+        pointBackgroundColor: "#6366f1",
+        tension: 0.35,
+      },
+      {
+        label: "Forecast",
+        data: [...Array(n_hist).fill(null), ...fcValues],
+        borderColor: "#00d4ff",
+        backgroundColor: "rgba(0,212,255,0.12)",
+        borderWidth: 2.5,
+        borderDash: [6, 4],
+        fill: false as const,
+        pointRadius: 3,
+        pointBackgroundColor: "#00d4ff",
+        tension: 0.35,
+      },
+    ],
+  };
+
+  const chartOpts: any = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 500 },
+    layout: { padding: { top: 4, right: 8, bottom: 4, left: 4 } },
+    plugins: {
+      legend: {
+        display: true,
+        labels: {
+          color: "#000000",
+          font: { size: 11, weight: "bold" },
+          boxWidth: 12,
+          filter: (item: any) => ["Historical", "Forecast"].includes(item.text),
+        },
+      },
+      tooltip: {
+        ...mkTooltip(col),
+        filter: (item: any) => ["Historical", "Forecast"].includes(item.dataset.label),
+      },
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: "Date / Time",
+          color: "#000000",
+          font: { size: 12, weight: "bold" },
+          padding: { top: 4 },
+        },
+        ticks: { color: "#000000", font: { size: 11, weight: "bold" }, maxTicksLimit: 8 },
+        grid: { color: "rgba(0,0,0,0.08)" },
+        border: { color: "#000000" },
+      },
+      y: {
+        title: {
+          display: true,
+          text: toLabel(ins.metric || "Value"),
+          color: "#000000",
+          font: { size: 12, weight: "bold" },
+          padding: { bottom: 4 },
+        },
+        ticks: { color: "#000000", font: { size: 11, weight: "bold" }, callback: (v: any) => fmtN(Number(v)) },
+        grid: { color: "rgba(0,0,0,0.08)" },
+        border: { color: "#000000" },
+      },
+    },
+  };
+
+  return (
+    <div className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: "1px solid rgba(0,212,255,0.28)", boxShadow: "0 4px 32px rgba(0,0,0,0.28), 0 0 40px rgba(0,212,255,0.05)", gridColumn: "1 / -1" }}>
+      {/* Accent bar */}
+      <div className="h-[3px] w-full" style={{ background: "linear-gradient(90deg,#6366f1,#00d4ff,#6366f1)" }} />
+
+      {/* Header */}
+      <div className="px-5 pt-5 pb-3 flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg,rgba(0,212,255,0.18),rgba(99,102,241,0.18))", border: "1px solid rgba(0,212,255,0.25)" }}>
+            <GitBranch size={16} style={{ color: "#00d4ff" }} />
+          </div>
+          <div>
+            <p className="font-black text-sm leading-tight" style={{ color: "var(--txt)" }}>{ins.title}</p>
+            <p className="text-[10px] font-mono mt-0.5" style={{ color: "rgba(255,255,255,0.28)" }}>Predictive Analytics · {bestModel}</p>
+          </div>
+        </div>
+        <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full" style={{ background: "rgba(0,212,255,0.1)", color: "#00d4ff", border: "1px solid rgba(0,212,255,0.25)" }}>
+          forecast
+        </span>
+      </div>
+
+      {/* Description */}
+      <p className="px-5 pb-3 text-[11px] leading-relaxed" style={{ color: "var(--txt-m)" }}>{ins.description}</p>
+
+      {/* KPI pills */}
+      <div className="px-5 pb-4 flex flex-wrap gap-2">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: isPositive ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", border: `1px solid ${isPositive ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"}` }}>
+          {isPositive ? <TrendingUp size={11} style={{ color: "#10b981" }} /> : <TrendingDown size={11} style={{ color: "#ef4444" }} />}
+          <span className="text-[10px] font-black" style={{ color: isPositive ? "#10b981" : "#ef4444" }}>{isPositive ? "+" : ""}{growthPct.toFixed(1)}% Projected</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.2)" }}>
+          <Target size={11} style={{ color: "#00d4ff" }} />
+          <span className="text-[10px] font-black" style={{ color: "#00d4ff" }}>Est. {fmtN(stats.proj_end_val ?? 0)}</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}>
+          <Zap size={11} style={{ color: "#f59e0b" }} />
+          <span className="text-[10px] font-black" style={{ color: "#f59e0b" }}>MAPE {avgMAPE}%</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)" }}>
+          <BarChart2 size={11} style={{ color: "#8b5cf6" }} />
+          <span className="text-[10px] font-black" style={{ color: "#8b5cf6" }}>{stats.n_points ?? 0} pts</span>
+        </div>
+      </div>
+
+      {/* Tab bar + Horizon selector */}
+      <div className="px-5 pb-2 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-1">
+          {(["forecast", "decomp", "models"] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all"
+              style={{ background: activeTab === tab ? "rgba(0,212,255,0.15)" : "transparent", color: activeTab === tab ? "#00d4ff" : "rgba(255,255,255,0.35)", border: `1px solid ${activeTab === tab ? "rgba(0,212,255,0.3)" : "transparent"}` }}>
+              {tab === "forecast" ? "Forecast" : tab === "decomp" ? "Decompose" : "Models"}
+            </button>
+          ))}
+        </div>
+        {activeTab === "forecast" && (
+          <div className="flex gap-1">
+            {HORIZONS.map(h => (
+              <button key={h.v}
+                onClick={() => { setHorizon(h.v); rerunForecast(h.v); }}
+                disabled={runningForecast}
+                className="text-[9px] font-black px-2.5 py-1 rounded-lg transition-all"
+                style={{
+                  background: (horizon ?? cd?.horizon ?? 30) === h.v ? "rgba(0,212,255,0.2)" : "rgba(255,255,255,0.04)",
+                  color: (horizon ?? cd?.horizon ?? 30) === h.v ? "#00d4ff" : "rgba(255,255,255,0.35)",
+                  border: `1px solid ${(horizon ?? cd?.horizon ?? 30) === h.v ? "rgba(0,212,255,0.35)" : "rgba(255,255,255,0.07)"}`,
+                  opacity: runningForecast ? 0.5 : 1,
+                }}>
+                {runningForecast && (horizon ?? cd?.horizon ?? 30) === h.v ? "…" : h.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Chart area */}
+      <div className="mx-3 mb-4 rounded-xl p-3 bg-white border border-slate-300 shadow-inner" style={{ height: 290, position: "relative" }}>
+        {activeTab === "forecast" && (
+          <>
+            {runningForecast && (
+              <div className="absolute inset-0 flex items-center justify-center z-10 rounded-xl" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
+                <div className="flex flex-col items-center gap-2">
+                  <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="#00d4ff" strokeWidth="4"/><path className="opacity-75" fill="#00d4ff" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  <p className="text-[10px] font-black" style={{ color: "#00d4ff" }}>Running forecast…</p>
+                </div>
+              </div>
+            )}
+            <Line data={chartData} options={chartOpts} />
+          </>
+        )}
+
+        {activeTab === "decomp" && decomp && (
+          <Line
+            data={{
+              labels: decomp.labels,
+              datasets: [
+                { label: "Trend",    data: decomp.trend,    borderColor: "#6366f1",           backgroundColor: "transparent", borderWidth: 2,   pointRadius: 0, tension: 0.4 },
+                { label: "Seasonal", data: decomp.seasonal, borderColor: "#10b981",            backgroundColor: "transparent", borderWidth: 1.5, pointRadius: 0, tension: 0.4, borderDash: [4, 3] },
+                { label: "Residual", data: decomp.residual, borderColor: "rgba(239,68,68,0.6)", backgroundColor: "transparent", borderWidth: 1,   pointRadius: 0, tension: 0.3 },
+              ],
+            }}
+            options={{ ...chartOpts, plugins: { ...chartOpts.plugins, legend: { display: true, labels: { color: "rgba(255,255,255,0.6)", font: { size: 10 }, boxWidth: 12 } } } }}
+          />
+        )}
+        {activeTab === "decomp" && !decomp && (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.3)" }}>Decomposition not available for this dataset length.</p>
+          </div>
+        )}
+
+        {activeTab === "models" && (
+          <div className="h-full overflow-auto flex flex-col gap-3 px-2 py-4">
+            <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)" }}>Model Accuracy (MAPE — lower is better)</p>
+            {Object.entries(mapes as Record<string, number>).map(([name, mape]) => {
+              const isB = name === bestModel;
+              const barW = Math.max(5, Math.min(100, 100 - mape));
+              return (
+                <div key={name} className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold flex-shrink-0" style={{ width: 120, color: isB ? "#00d4ff" : "rgba(255,255,255,0.45)" }}>
+                    {name}{isB ? " ★" : ""}
+                  </span>
+                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${barW}%`, background: isB ? "linear-gradient(90deg,#00d4ff,#6366f1)" : "rgba(255,255,255,0.15)" }} />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold" style={{ width: 60, textAlign: "right", color: isB ? "#00d4ff" : "rgba(255,255,255,0.35)" }}>{mape.toFixed(1)}% err</span>
+                </div>
+              );
+            })}
+            {Object.keys(mapes).length === 0 && (
+              <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.3)" }}>No model metrics available.</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Insight Card ──────────────────────────────────────────────────────────────
 function InsightCard({ ins, idx }: { ins: any; idx: number }) {
+  // Forecast insights get their own dedicated card
+  if (ins.type === "forecast") return <ForecastCard ins={ins} />;
+
   const t    = theme(ins.type);
   const imp  = Math.round((ins.importance ?? 0) * 100);
   const cd   = getChartData(ins);
@@ -447,7 +798,7 @@ function InsightCard({ ins, idx }: { ins: any; idx: number }) {
 
       {/* Chart */}
       {hasChart ? (
-        <div className="px-3 pb-4" style={{ height: 220, position: "relative" }}>
+        <div className="mx-3 mb-4 rounded-xl p-3 bg-white border border-slate-300 shadow-inner" style={{ height: 230, position: "relative" }}>
           {renderInsightChart(ins)}
         </div>
       ) : ins.type === "profile" ? (
@@ -652,9 +1003,12 @@ export function InsightsTab() {
         <div className="p-4 rounded-xl font-mono text-sm text-red-400" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>{insightError}</div>
       )}
 
-      {/* Cards grid */}
+      {/* Cards — forecast cards rendered full-width first, then regular grid */}
+      {insightCards.filter(ins => ins.type === "forecast").map((ins, i) => (
+        <InsightCard key={`fc-${i}`} ins={ins} idx={i} />
+      ))}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {insightCards.map((ins, i) => <InsightCard key={i} ins={ins} idx={i} />)}
+        {insightCards.filter(ins => ins.type !== "forecast").map((ins, i) => <InsightCard key={i} ins={ins} idx={i} />)}
       </div>
     </div>
   );

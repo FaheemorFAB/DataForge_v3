@@ -25,7 +25,7 @@ from dataforge.api.schemas.workspace import (
     QueryRequest, SyncSheetsRequest, TransformRequest,
 )
 from dataforge.api.storage.manager import exists, load, persist, save, upath
-from dataforge.api.utils.helpers import df_profile, df_to_json_rows
+from dataforge.api.utils.helpers import df_profile, df_to_json_rows, resolve_column
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_all, db_get, db_update
 
@@ -786,12 +786,17 @@ async def api_custom_chart(
         print("DEBUG: 400 - No dataset loaded")
         raise HTTPException(400, "No dataset loaded")
 
-    if body.x_col not in df.columns:
+    x_col_res = resolve_column(body.x_col, df.columns)
+    if not x_col_res:
         print(f"DEBUG: 400 - x_col not found: '{body.x_col}', cols: {df.columns.tolist()}")
-        raise HTTPException(400, f"Column '{body.x_col}' not found")
-    if body.y_col and body.y_col not in df.columns:
-        print(f"DEBUG: 400 - y_col not found: '{body.y_col}', cols: {df.columns.tolist()}")
-        raise HTTPException(400, f"Column '{body.y_col}' not found")
+        raise HTTPException(400, f"Column '{body.x_col}' not found in dataset")
+
+    y_col_res = None
+    if body.y_col:
+        y_col_res = resolve_column(body.y_col, df.columns)
+        if not y_col_res:
+            print(f"DEBUG: 400 - y_col not found: '{body.y_col}', cols: {df.columns.tolist()}")
+            raise HTTPException(400, f"Column '{body.y_col}' not found in dataset")
 
     custom_charts = load(target_upload_id, "custom_charts") or []
 
@@ -810,16 +815,18 @@ async def api_custom_chart(
             raise HTTPException(404, "Chart to edit not found")
         new_cfg = body.model_dump(exclude_none=True)
         new_cfg.pop("upload_id", None)
+        new_cfg["x_col"] = x_col_res
+        new_cfg["y_col"] = y_col_res
         custom_charts[idx] = new_cfg
     else:
         new_cfg = {
             "id": f"custom_{_ts()}",
             "type": body.chart_type,
             "chart_type": body.chart_type,
-            "x_col": body.x_col,
-            "y_col": body.y_col,
+            "x_col": x_col_res,
+            "y_col": y_col_res,
             "agg_type": body.agg_type or "none",
-            "title": body.title or f"{body.chart_type.title()} of {body.x_col}",
+            "title": body.title or f"{body.chart_type.title()} of {x_col_res}",
             "is_custom": True,
             "is_area": body.is_area,
             "top_n": body.top_n,

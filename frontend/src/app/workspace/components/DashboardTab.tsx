@@ -18,6 +18,7 @@ import {
 } from "chart.js";
 import { RefreshCw, X, BarChart4, TrendingUp, TrendingDown, Minus, Plus, Layers, PieChart, Activity, GitBranch } from "lucide-react";
 import { Scatter, Line, Bar, Pie, Doughnut } from "react-chartjs-2";
+import { ForecastCard } from "./InsightsTab";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement,
@@ -32,7 +33,7 @@ const PALETTE = [
 
 const CHART_TYPES = [
   { id: "bar",      label: "Bar",      icon: "bar" },
-  { id: "line",     label: "Line",     icon: "line" },
+  { id: "line",     label: "Line / Time Series", icon: "line" },
   { id: "scatter",  label: "Scatter",  icon: "scatter" },
   { id: "pie",      label: "Pie",      icon: "pie" },
   { id: "doughnut", label: "Donut",    icon: "donut" },
@@ -46,9 +47,9 @@ function fmtNum(v: number): string {
 }
 
 // ── Box Plot ──────────────────────────────────────────────────────────────────
-function BoxPlotViz({ data, formatted }: { data: any; formatted: any }) {
+function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: { data: any; formatted: any; xLabel?: string; yLabel?: string }) {
   if (!data || typeof data.min !== "number") return (
-    <p className="text-xs text-center py-10" style={{ color: "var(--txt-m)" }}>Invalid data</p>
+    <p className="text-xs text-center py-10 font-medium text-slate-700">Invalid data</p>
   );
   const range = data.max - data.min;
   const pad   = range === 0 ? 1 : range * 0.12;
@@ -56,21 +57,22 @@ function BoxPlotViz({ data, formatted }: { data: any; formatted: any }) {
   const total = (data.max + pad) - minX;
   const toPct = (v: number) => `${Math.max(0, Math.min(100, ((v - minX) / total) * 100)).toFixed(2)}%`;
   return (
-    <div className="w-full h-full flex flex-col justify-center px-6 select-none">
-      <div className="relative w-full h-16 flex items-center mb-8 mt-2">
-        <div className="absolute h-px" style={{ left: toPct(data.min), right: `${(100 - parseFloat(toPct(data.max))).toFixed(2)}%`, background: "rgba(255,255,255,0.15)" }} />
-        <div className="absolute w-[2px] h-5 rounded" style={{ left: toPct(data.min), top: "50%", transform: "translate(-50%,-50%)", background: "rgba(255,255,255,0.3)" }} />
-        <div className="absolute w-[2px] h-5 rounded" style={{ left: toPct(data.max), top: "50%", transform: "translate(-50%,-50%)", background: "rgba(255,255,255,0.3)" }} />
-        <div className="absolute h-9 rounded-md" style={{ left: toPct(data.q1), width: `${((data.q3 - data.q1) / total) * 100}%`, background: "rgba(99,102,241,0.2)", border: "1.5px solid rgba(99,102,241,0.6)", top: "50%", transform: "translateY(-50%)" }} />
-        <div className="absolute w-[3px] h-10 rounded" style={{ left: toPct(data.median), top: "50%", transform: "translate(-50%,-50%)", background: "#f59e0b", boxShadow: "0 0 8px rgba(245,158,11,0.5)" }} />
-        <div className="absolute text-[9px] font-mono -bottom-6 text-center" style={{ left: toPct(data.min), transform: "translateX(-50%)", color: "rgba(255,255,255,0.35)" }}>{formatted?.min}</div>
-        <div className="absolute text-[9px] font-mono -bottom-6 text-center" style={{ left: toPct(data.max), transform: "translateX(-50%)", color: "rgba(255,255,255,0.35)" }}>{formatted?.max}</div>
-        <div className="absolute text-[10px] font-bold font-mono -top-7 text-center" style={{ left: toPct(data.median), transform: "translateX(-50%)", color: "#f59e0b" }}>{formatted?.median}</div>
+    <div className="w-full h-full flex flex-col justify-center px-4 select-none">
+      <div className="text-center mb-1 font-bold text-xs text-black uppercase tracking-wider">{toLabel(xLabel)} Distribution ({toLabel(yLabel)})</div>
+      <div className="relative w-full h-14 flex items-center mb-8 mt-2">
+        <div className="absolute h-0.5 bg-slate-400" style={{ left: toPct(data.min), right: `${(100 - parseFloat(toPct(data.max))).toFixed(2)}%` }} />
+        <div className="absolute w-1 h-5 rounded bg-slate-600" style={{ left: toPct(data.min), top: "50%", transform: "translate(-50%,-50%)" }} />
+        <div className="absolute w-1 h-5 rounded bg-slate-600" style={{ left: toPct(data.max), top: "50%", transform: "translate(-50%,-50%)" }} />
+        <div className="absolute h-9 rounded-md" style={{ left: toPct(data.q1), width: `${((data.q3 - data.q1) / total) * 100}%`, background: "rgba(99,102,241,0.25)", border: "2px solid #6366f1", top: "50%", transform: "translateY(-50%)" }} />
+        <div className="absolute w-1 h-10 rounded bg-amber-500 shadow-md" style={{ left: toPct(data.median), top: "50%", transform: "translate(-50%,-50%)" }} />
+        <div className="absolute text-[10px] font-bold font-mono -bottom-6 text-center text-slate-900" style={{ left: toPct(data.min), transform: "translateX(-50%)" }}>{formatted?.min}</div>
+        <div className="absolute text-[10px] font-bold font-mono -bottom-6 text-center text-slate-900" style={{ left: toPct(data.max), transform: "translateX(-50%)" }}>{formatted?.max}</div>
+        <div className="absolute text-[11px] font-black font-mono -top-7 text-center text-amber-700" style={{ left: toPct(data.median), transform: "translateX(-50%)" }}>{formatted?.median}</div>
       </div>
       <div className="grid grid-cols-3 gap-2 mt-2">
-        {([["Q1", formatted?.q1, "#6366f1"], ["Median", formatted?.median, "#f59e0b"], ["Q3", formatted?.q3, "#6366f1"]] as [string,string,string][]).map(([lbl, val, col]) => (
-          <div key={lbl} className="text-center rounded-lg py-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
-            <p className="text-[9px] uppercase tracking-widest font-bold mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>{lbl}</p>
+        {([["Q1", formatted?.q1, "#4f46e5"], ["Median", formatted?.median, "#d97706"], ["Q3", formatted?.q3, "#4f46e5"]] as [string,string,string][]).map(([lbl, val, col]) => (
+          <div key={lbl} className="text-center rounded-lg py-1.5 bg-slate-100 border border-slate-300">
+            <p className="text-[9px] uppercase tracking-widest font-extrabold text-slate-700 mb-0.5">{lbl}</p>
             <p className="text-xs font-black font-mono" style={{ color: col }}>{val}</p>
           </div>
         ))}
@@ -134,36 +136,36 @@ function renderChart(ch: any, idx: number) {
       title: {
         display: true,
         text:    xLabel,
-        color:   "rgba(255,255,255,0.75)",
-        font:    { size: 12, weight: "600", family: "inherit" },
+        color:   "#000000",
+        font:    { size: 12, weight: "bold", family: "inherit" },
         padding: { top: 6 },
       },
       ticks: {
-        color:        "rgba(255,255,255,0.6)",
-        font:         { size: 11 },
+        color:        "#000000",
+        font:         { size: 11, weight: "bold" },
         maxTicksLimit: 10,
         maxRotation:  30,
         autoSkip:     true,
       },
-      grid:   { color: "rgba(255,255,255,0.05)" },
-      border: { color: "rgba(255,255,255,0.12)" },
+      grid:   { color: "rgba(0,0,0,0.08)" },
+      border: { color: "#000000" },
     },
     y: {
       title: {
         display: true,
         text:    yLabel,
-        color:   "rgba(255,255,255,0.75)",
-        font:    { size: 12, weight: "600", family: "inherit" },
+        color:   "#000000",
+        font:    { size: 12, weight: "bold", family: "inherit" },
         padding: { bottom: 6 },
       },
       ticks: {
-        color:         "rgba(255,255,255,0.6)",
-        font:          { size: 11 },
+        color:         "#000000",
+        font:          { size: 11, weight: "bold" },
         callback:      (v: any) => fmtNum(Number(v)),
         maxTicksLimit: 6,
       },
-      grid:        { color: "rgba(255,255,255,0.07)" },
-      border:      { color: "rgba(255,255,255,0.12)" },
+      grid:        { color: "rgba(0,0,0,0.08)" },
+      border:      { color: "#000000" },
       beginAtZero: true,
     },
   };
@@ -209,8 +211,8 @@ function renderChart(ch: any, idx: number) {
             display: true,
             position: "right" as const,
             labels: {
-              color: "rgba(255,255,255,0.85)",
-              font: { size: 12, weight: "600" },
+              color: "#000000",
+              font: { size: 12, weight: "bold" },
               boxWidth: 14,
               padding: 14,
               generateLabels: (chart: any) => {
@@ -266,8 +268,8 @@ function renderChart(ch: any, idx: number) {
         x: {
           ...scales.x,
           ticks: {
-            color:         "rgba(255,255,255,0.65)",
-            font:          { size: 11 },
+            color:         "#000000",
+            font:          { size: 11, weight: "bold" },
             maxRotation:   45,
             minRotation:   0,
             autoSkip:      true,
@@ -318,10 +320,10 @@ function ChartCard({ ch, idx, onRemove }: { ch: any; idx: number; onRemove: () =
           {maxVal !== null && minVal !== null && maxVal !== minVal && <span className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>Δ {fmtNum(maxVal - minVal)}</span>}
         </div>
       )}
-      {/* Chart area — explicit height so axis titles & pie legends are never clipped */}
-      <div style={{ height: chartH, position: "relative", padding: "0 8px 8px" }}>
+      {/* Chart area — white container for maximum clarity of black axis labels */}
+      <div style={{ height: chartH, position: "relative", padding: "10px", background: "#ffffff", borderRadius: "12px", margin: "0 12px 12px", border: "1px solid #cbd5e1" }}>
         {ch.type === "boxplot"
-          ? <BoxPlotViz data={ch.values} formatted={ch.formatted_values} />
+          ? <BoxPlotViz data={ch.values} formatted={ch.formatted_values} xLabel={ch.x_col} yLabel={ch.y_col} />
           : renderChart(ch, idx)
         }
       </div>
@@ -338,6 +340,7 @@ export function DashboardTab() {
   const [dashSummary,       setDashSummary]        = useState("");
   const [dashIdStats,       setDashIdStats]        = useState<any>(null);
   const [dashNumericCols,   setDashNumericCols]    = useState<string[]>([]);
+  const [dashInsights,      setDashInsights]       = useState<any[]>([]);
   const [profileCols,       setProfileCols]        = useState<string[]>([]);
   const [builderOpen,       setBuilderOpen]        = useState(false);
   const [customChart,       setCustomChart]        = useState({ id: null as any, chart_type: "bar", x_col: "", y_col: "", agg_type: "mean", title: "", is_area: false, top_n: 10 });
@@ -356,6 +359,7 @@ export function DashboardTab() {
         setDashSummary(d.summary || "");
         setDashIdStats(d.id_stats || null);
         setDashNumericCols(d.numeric_cols || []);
+        setDashInsights(d.insights || []);
         setProfileCols(d.cat_cols ? [...(d.cat_cols || []), ...(d.numeric_cols || [])] : profile?.columns?.map((c: any) => c.name) || []);
       }
     } catch (e) { console.error(e); }
@@ -367,14 +371,37 @@ export function DashboardTab() {
   const saveCustomChart = async () => {
     setCustomChartError(""); setIsGeneratingChart(true);
     try {
-      const res = await apiFetch("/dashboard/custom-chart", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...customChart, upload_id: uploadId }) });
-      const d = await res.json();
-      if (!res.ok || d.error) { setCustomChartError(d.error || "Failed to generate chart"); return; }
+      const payload: any = {
+        ...customChart,
+        upload_id: uploadId,
+        x_col: customChart.x_col ? customChart.x_col.trim() : "",
+        y_col: customChart.y_col ? customChart.y_col.trim() : undefined,
+      };
+      if (!payload.y_col) delete payload.y_col;
+      if (!payload.id) delete payload.id;
+      if (!payload.title) delete payload.title;
+
+      const res = await apiFetch("/dashboard/custom-chart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.error || d.detail) {
+        let err = d.error || d.detail;
+        if (Array.isArray(err)) err = err.map((e: any) => e.msg || e.detail || String(e)).join(", ");
+        setCustomChartError(typeof err === "string" ? err : "Failed to generate chart");
+        return;
+      }
       setCustomChart({ id: null, chart_type: "bar", x_col: "", y_col: "", agg_type: "mean", title: "", is_area: false, top_n: 10 });
       setBuilderOpen(false);
       await loadDashboard();
-    } catch (e: any) { setCustomChartError("Network error: " + (e.message || String(e))); }
-    finally { setIsGeneratingChart(false); }
+    } catch (e: any) {
+      setCustomChartError("Network error: " + (e.message || String(e)));
+    } finally {
+      setIsGeneratingChart(false);
+    }
   };
 
   const removeChart = async (ch: any) => {
@@ -552,6 +579,13 @@ export function DashboardTab() {
           </div>
         </div>
       )}
+
+      {/* Time Series & Advanced Forecast Section */}
+      {dashInsights.filter((ins: any) => ins.type === "forecast").map((ins: any, i: number) => (
+        <div key={`dash-fc-${i}`} className="w-full">
+          <ForecastCard ins={ins} />
+        </div>
+      ))}
 
       {/* Charts Grid */}
       {dashCharts.length > 0 && (

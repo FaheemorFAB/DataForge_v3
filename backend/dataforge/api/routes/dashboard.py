@@ -28,7 +28,7 @@ from dataforge.api.schemas.dashboard import (
     ScheduleCreateRequest,
 )
 from dataforge.api.storage.manager import exists, load, save, upath
-from dataforge.api.utils.helpers import format_stat_val, is_id_like_col, time_ago
+from dataforge.api.utils.helpers import format_stat_val, is_id_like_col, resolve_column, time_ago
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_client, db_get
 
@@ -138,24 +138,32 @@ def _compute_chart_data(df, config):
     """Compute chart data for a custom chart config dict."""
     chart_id   = config.get("id")
     chart_type = config.get("chart_type") or config.get("type")
-    x_col      = config.get("x_col")
-    y_col      = config.get("y_col")
+    raw_x      = config.get("x_col")
+    raw_y      = config.get("y_col")
     agg_type   = config.get("agg_type", "none")
-    title      = config.get("title") or f"{(chart_type or 'Chart').title()} of {x_col}"
 
-    if x_col not in df.columns:
+    x_col = resolve_column(raw_x, df.columns)
+    if not x_col:
         return None
-    if y_col and y_col not in df.columns:
-        y_col = None
+
+    y_col = resolve_column(raw_y, df.columns) if raw_y else None
+    title = config.get("title") or f"{(chart_type or 'Chart').title()} of {x_col}"
 
     labels           = []
     values           = []
     formatted_values = None
 
     if chart_type == "scatter":
-        if not y_col or not pd.api.types.is_numeric_dtype(df[x_col]) or not pd.api.types.is_numeric_dtype(df[y_col]):
+        if not y_col:
             return None
         sub_df = df[[x_col, y_col]].dropna()
+        if sub_df.empty:
+            return None
+        sub_df[x_col] = pd.to_numeric(sub_df[x_col], errors="coerce")
+        sub_df[y_col] = pd.to_numeric(sub_df[y_col], errors="coerce")
+        sub_df = sub_df.dropna()
+        if sub_df.empty:
+            return None
         if len(sub_df) > 500:
             sub_df = sub_df.sample(n=500, random_state=42)
         sub_df = sub_df.sort_values(by=x_col)
@@ -163,9 +171,7 @@ def _compute_chart_data(df, config):
         labels = []
 
     elif chart_type == "histogram":
-        if not pd.api.types.is_numeric_dtype(df[x_col]):
-            return None
-        s = df[x_col].dropna()
+        s = pd.to_numeric(df[x_col], errors="coerce").dropna()
         if len(s) > 0:
             counts, edges = np.histogram(s, bins=15)
             for i in range(len(counts)):
@@ -173,9 +179,7 @@ def _compute_chart_data(df, config):
             values = [int(c) for c in counts]
 
     elif chart_type == "boxplot":
-        if not pd.api.types.is_numeric_dtype(df[x_col]):
-            return None
-        s = df[x_col].dropna()
+        s = pd.to_numeric(df[x_col], errors="coerce").dropna()
         if len(s) > 0:
             desc           = s.describe()
             q1             = float(desc["25%"])
@@ -201,17 +205,23 @@ def _compute_chart_data(df, config):
             if len(sub_df) > 500:
                 sub_df = sub_df.head(500)
             labels = [str(v) for v in sub_df[x_col]]
-            values = [float(v) if pd.notna(v) else 0.0 for v in sub_df[y_col]] if y_col else [1.0] * len(sub_df)
-        else:
-            if not y_col:
-                agg_type = "count"
-                grp = df.groupby(x_col).size()
-            elif agg_type == "sum":
-                grp = df.groupby(x_col)[y_col].sum()
-            elif agg_type == "mean":
-                grp = df.groupby(x_col)[y_col].mean()
+            if y_col:
+                y_nums = pd.to_numeric(sub_df[y_col], errors="coerce").fillna(0.0)
+                values = [float(v) for v in y_nums]
             else:
-                grp = df.groupby(x_col)[y_col].count()
+                values = [1.0] * len(sub_df)
+        else:
+            if not y_col or agg_type == "count":
+                grp = df.groupby(x_col).size()
+            else:
+                num_y = pd.to_numeric(df[y_col], errors="coerce")
+                temp_df = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna(subset=["_y"])
+                if agg_type == "sum":
+                    grp = temp_df.groupby(x_col)["_y"].sum()
+                elif agg_type == "mean":
+                    grp = temp_df.groupby(x_col)["_y"].mean()
+                else:
+                    grp = temp_df.groupby(x_col)["_y"].count()
 
             top_n = config.get("top_n", 10)
             if chart_type in ("pie", "doughnut") and len(grp) > top_n:
