@@ -45,6 +45,48 @@ async def login_google(request: Request, next: str = "/dashboard"):
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
+@router.get("/login/mock", summary="Dev-only mock login bypass")
+async def login_mock(email: str = "dev@example.com", name: str = "Dev User"):
+    # Safety: never expose mock login outside local development
+    if not settings.DEBUG:
+        return Response(status_code=404)
+
+    frontend_base = next((o for o in settings.ALLOWED_ORIGINS if ":3000" in o), "http://localhost:3000").rstrip("/")
+
+    # Create or retrieve a dev user
+    user_info = {
+        "sub": "mock-sub-12345",
+        "email": email,
+        "name": name,
+        "picture": "https://api.dicebear.com/7.x/pixel-art/svg",
+    }
+    user = auth_service.get_or_create_google_user(user_info)
+    if not user:
+        return RedirectResponse(url=f"{frontend_base}/?login=1&error=db")
+
+    jwt_token = auth_service.create_token_for_user(user)
+    response = RedirectResponse(url=f"{frontend_base}/dashboard", status_code=302)
+    _set_auth_cookie(response, jwt_token)
+    log.info("Mock login success: user_id=%d email=%s", user.id, user.email)
+    return response
+        "email": email,
+        "name": name,
+        "picture": "https://api.dicebear.com/7.x/pixel-art/svg"
+    }
+    user = auth_service.get_or_create_google_user(user_info)
+    if not user:
+        return RedirectResponse(url="http://localhost:3000/?login=1&error=db")
+
+    jwt_token = auth_service.create_token_for_user(user)
+    # Redirect to Next.js frontend port 3000
+    frontend_url = "http://localhost:3000/dashboard"
+    response = RedirectResponse(url=frontend_url, status_code=302)
+    _set_auth_cookie(response, jwt_token)
+    log.info("Mock login success: user_id=%d email=%s", user.id, user.email)
+    return response
+
+
+
 @router.get("/auth/google/callback", name="auth_google_callback", summary="Google OAuth callback")
 async def auth_google_callback(request: Request):
     if not settings.GOOGLE_AUTH_ENABLED:

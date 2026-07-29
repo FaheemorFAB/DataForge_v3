@@ -28,7 +28,7 @@ from dataforge.api.schemas.dashboard import (
     ScheduleCreateRequest,
 )
 from dataforge.api.storage.manager import exists, load, save, upath
-from dataforge.api.utils.helpers import format_stat_val, is_id_like_col, time_ago
+from dataforge.api.utils.helpers import format_stat_val, is_id_like_col, resolve_column, time_ago
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_client, db_get
 
@@ -132,6 +132,124 @@ async def api_dashboard_init(current_user: CurrentUser):
     }
 
 
+# ── Local chart helper (self-contained, no Flask dependency) ─────────────────
+
+def _compute_chart_data(df, config):
+    """Compute chart data for a custom chart config dict."""
+    chart_id   = config.get("id")
+    chart_type = config.get("chart_type") or config.get("type")
+    raw_x      = config.get("x_col")
+    raw_y      = config.get("y_col")
+    agg_type   = config.get("agg_type", "none")
+
+    x_col = resolve_column(raw_x, df.columns)
+    if not x_col:
+        return None
+
+    y_col = resolve_column(raw_y, df.columns) if raw_y else None
+    title = config.get("title") or f"{(chart_type or 'Chart').title()} of {x_col}"
+
+    labels           = []
+    values           = []
+    formatted_values = None
+
+    if chart_type == "scatter":
+        if not y_col:
+            return None
+        sub_df = df[[x_col, y_col]].dropna()
+        if sub_df.empty:
+            return None
+        sub_df[x_col] = pd.to_numeric(sub_df[x_col], errors="coerce")
+        sub_df[y_col] = pd.to_numeric(sub_df[y_col], errors="coerce")
+        sub_df = sub_df.dropna()
+        if sub_df.empty:
+            return None
+        if len(sub_df) > 500:
+            sub_df = sub_df.sample(n=500, random_state=42)
+        sub_df = sub_df.sort_values(by=x_col)
+        values = [{"x": float(r[x_col]), "y": float(r[y_col])} for _, r in sub_df.iterrows()]
+        labels = []
+
+    elif chart_type == "histogram":
+        s = pd.to_numeric(df[x_col], errors="coerce").dropna()
+        if len(s) > 0:
+            counts, edges = np.histogram(s, bins=15)
+            for i in range(len(counts)):
+                labels.append(f"{format_stat_val(x_col, edges[i])} - {format_stat_val(x_col, edges[i+1])}")
+            values = [int(c) for c in counts]
+
+    elif chart_type == "boxplot":
+        s = pd.to_numeric(df[x_col], errors="coerce").dropna()
+        if len(s) > 0:
+            desc           = s.describe()
+            q1             = float(desc["25%"])
+            median         = float(desc["50%"])
+            q3             = float(desc["75%"])
+            iqr            = q3 - q1
+            lower_whisker  = float(s[s >= q1 - 1.5 * iqr].min()) if not s[s >= q1 - 1.5 * iqr].empty else float(desc["min"])
+            upper_whisker  = float(s[s <= q3 + 1.5 * iqr].max()) if not s[s <= q3 + 1.5 * iqr].empty else float(desc["max"])
+            values         = {"min": lower_whisker, "q1": q1, "median": median, "q3": q3, "max": upper_whisker}
+            formatted_values = {
+                "min":    format_stat_val(x_col, lower_whisker),
+                "q1":     format_stat_val(x_col, q1),
+                "median": format_stat_val(x_col, median),
+                "q3":     format_stat_val(x_col, q3),
+                "max":    format_stat_val(x_col, upper_whisker),
+            }
+
+    else:  # bar / line / area / pie / doughnut
+        if agg_type == "none":
+            sub_df = df.dropna(subset=[x_col])
+            if y_col:
+                sub_df = sub_df.dropna(subset=[y_col])
+            if len(sub_df) > 500:
+                sub_df = sub_df.head(500)
+            labels = [str(v) for v in sub_df[x_col]]
+            if y_col:
+                y_nums = pd.to_numeric(sub_df[y_col], errors="coerce").fillna(0.0)
+                values = [float(v) for v in y_nums]
+            else:
+                values = [1.0] * len(sub_df)
+        else:
+            if not y_col or agg_type == "count":
+                grp = df.groupby(x_col).size()
+            else:
+                num_y = pd.to_numeric(df[y_col], errors="coerce")
+                temp_df = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna(subset=["_y"])
+                if agg_type == "sum":
+                    grp = temp_df.groupby(x_col)["_y"].sum()
+                elif agg_type == "mean":
+                    grp = temp_df.groupby(x_col)["_y"].mean()
+                else:
+                    grp = temp_df.groupby(x_col)["_y"].count()
+
+            top_n = config.get("top_n", 10)
+            if chart_type in ("pie", "doughnut") and len(grp) > top_n:
+                grp_sorted  = grp.sort_values(ascending=False)
+                top_slices  = grp_sorted.iloc[:top_n]
+                other_val   = grp_sorted.iloc[top_n:].sum() if agg_type in ("sum", "count") else grp_sorted.iloc[top_n:].mean()
+                labels      = [str(x) for x in top_slices.index] + ["Other"]
+                values      = [round(float(v), 2) for v in top_slices.values] + [round(float(other_val), 2)]
+            else:
+                grp    = grp.sort_values(ascending=False).head(500)
+                labels = [str(x) for x in grp.index]
+                values = [round(float(v), 2) for v in grp.values]
+
+    return {
+        "id":               chart_id,
+        "type":             chart_type,
+        "x_col":            x_col,
+        "y_col":            y_col,
+        "agg_type":         agg_type,
+        "title":            title,
+        "labels":           labels,
+        "values":           values,
+        "formatted_values": formatted_values,
+        "is_custom":        True,
+        "is_area":          config.get("is_area", False),
+    }
+
+
 # ── Dashboard stats ───────────────────────────────────────────────────────────
 
 @router.post("/dashboard/stats", summary="Compute dashboard KPIs and charts")
@@ -147,9 +265,6 @@ async def api_dashboard_stats(
 
     def _compute():
         from dataforge.api.storage.manager import load as _load
-        from dataforge.web.routes.dashboard import (
-            _compute_chart_data, _format_stat_val, _is_id_like_col as is_id_like_col,
-        )
 
         df_clean = _load(target_upload_id, "df_clean")
         df = df_clean if df_clean is not None else _load(target_upload_id, "df_raw")
@@ -189,8 +304,8 @@ async def api_dashboard_stats(
             if len(s) > 0:
                 stats.append({
                     "label": f"Total {metric_col}",
-                    "value": _format_stat_val(metric_col, float(s.sum())),
-                    "sub": f"Avg: {_format_stat_val(metric_col, float(s.mean()))}",
+                    "value": format_stat_val(metric_col, float(s.sum())),
+                    "sub": f"Avg: {format_stat_val(metric_col, float(s.mean()))}",
                     "type": "sum",
                 })
 
@@ -203,7 +318,7 @@ async def api_dashboard_stats(
                     top_val = top_val[:12] + "..."
                 stats.append({
                     "label": f"Unique {dim_col}",
-                    "value": _format_stat_val(None, unique_cnt),
+                    "value": format_stat_val(None, unique_cnt),
                     "sub": f"Top: {top_val} ({unique_cnt:,} total)",
                     "type": "distinct",
                 })
@@ -245,7 +360,7 @@ async def api_dashboard_stats(
                 charts.append({
                     "id": "dist", "type": "histogram",
                     "title": f"Distribution: {col}",
-                    "labels": [f"{_format_stat_val(col, edges[i])}" for i in range(len(counts))],
+                    "labels": [f"{format_stat_val(col, edges[i])}" for i in range(len(counts))],
                     "values": [int(c) for c in counts],
                     "x_col": col, "y_col": "count",
                 })

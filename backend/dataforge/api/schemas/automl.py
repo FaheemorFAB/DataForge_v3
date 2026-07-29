@@ -44,3 +44,13 @@ class RootCauseRequest(BaseModel):
     dimensions: Optional[list[str]] = None
     date_col: Optional[str] = None
     top_n: int = Field(default=6, ge=1, le=20)
+
+
+class ForecastRequest(BaseModel):
+    upload_id: Optional[int] = None
+    date_col: Optional[str] = None
+    metric_col: Optional[str] = None
+    horizon: Optional[int] = Field(default=None, ge=1, le=365)
+    freq_override: Optional[str] = None
+    include_decomposition: bool = True
+

@@ -1,388 +1,201 @@
-# 🛠️ DataForge v3
+# 🛠️ DataForge v3 — Enterprise AI Data & Analytics Platform
 
-DataForge is a premium, enterprise-grade automated data engineering, analytical profiling, and machine learning platform. It empowers organizations to seamlessly ingest raw datasets, execute rule-based data cleaning pipelines, run advanced statistical scans, generate AI-driven narrative business insights, query datasets using conversational natural language, train predictive models automatically, and distribute publication-quality reports.
+DataForge v3 is a premium, enterprise-grade automated data engineering, analytical profiling, dynamic time-series forecasting, interactive data cleaning, and machine learning platform. Built with a high-performance **FastAPI** backend and a modern **Next.js 16** frontend, DataForge empowers organizations to ingest raw datasets, execute interactive dynamic data cleaning pipelines, run 14+ automated statistical & predictive insight algorithms, build custom dashboard charts with high-contrast visual styling, query data conversationally using AI, train predictive AutoML models, and export McKinsey-grade executive slide decks and vector PDF reports.
 
 ---
 
-## 🎨 System Architecture Overview
-
-This diagram displays the flow of data and asynchronous requests through the DataForge backend services and third-party integration layers:
+## 🎨 Architecture & Data Flow
 
 ```mermaid
 graph TD
-    %% Styling
     classDef client fill:#E8F0FE,stroke:#4285F4,stroke-width:2px;
     classDef api fill:#F1F3F4,stroke:#3C4043,stroke-width:2px;
     classDef worker fill:#FCE8E6,stroke:#D93025,stroke-width:2px;
     classDef external fill:#FFE8D6,stroke:#DDBEA9,stroke-width:2px;
     classDef storage fill:#E6F4EA,stroke:#34A853,stroke-width:2px;
 
-    %% Nodes
-    User[Client Browser / SPA]:::client
-    GAuth[Google OAuth 2.0]:::external
-    Gemini[Google Gemini 2.5 Flash]:::external
-    Flask[Flask Web API Server]:::api
-    Redis[Redis Message Broker & Cache]:::worker
-    Celery[Celery Async Task Workers]:::worker
-    Supa[Supabase PostgreSQL & S3 Storage]:::storage
+    User[Next.js 16 Frontend SPA]:::client
+    FastAPI[FastAPI / Uvicorn ASGI Engine]:::api
+    Gemini[Google Gemini 2.5 AI Engine]:::external
+    Forecast[Time-Series Forecast Engine]:::worker
+    Supa[Supabase PostgreSQL & Object Storage]:::storage
+    AutoML[FLAML / Scikit-Learn / LightGBM / XGBoost Engine]:::worker
 
-    %% Flows
-    User -->|HTTPS Requests / WebSockets| Flask
-    Flask <-->|OAuth Code Exchange| GAuth
-    Flask <-->|Metadata & File Store| Supa
-    Flask -->|Enqueue Async Jobs| Redis
-    Redis -->|Dispatch Tasks| Celery
-    Celery <-->|Dataset Reads & Writes| Supa
-    Celery <-->|Context & Prompts / Narrative Slides| Gemini
-    Flask <-->|Session Cache & Live Alerts| Redis
-    Celery -->|WebSocket Broadcasts| User
+    User -->|REST API / WebSockets| FastAPI
+    FastAPI <-->|Metadata & File Storage| Supa
+    FastAPI <-->|Model Tuning & Training| AutoML
+    FastAPI <-->|Predictive Analytics & Decomposition| Forecast
+    FastAPI <-->|Narrative Summaries & AI Query| Gemini
+    FastAPI -->|High-Contrast Visuals & PDF Generation| User
 ```
 
 ---
 
-## 📸 Platform Showcase
+## 🌟 Key Platform Capabilities
 
-Explore the end-to-end user journey within the DataForge ecosystem, showcasing the workflow from secure entry to machine learning deployment.
+### 🧹 1. Dynamic Data Cleaning Studio
+- **Automated 1-Click Clean**: Normalizes headers to `snake_case` using PyJanitor, prunes columns with >60% missing data, and imputes null values using distribution skewness heuristics.
+- **Dynamic Interactive Studio**: Granular per-column cleaning rules:
+  - **Imputation**: Mean, Median, Mode, Zero, Custom Constant, Forward Fill (`ffill`), Backward Fill (`bfill`), or Drop Missing Rows.
+  - **Outlier Handling**: Winsorization (1st/99th percentile clipping), Replace with Median, or Remove Outlier Rows.
+  - **Text Normalization**: Lowercase, Uppercase, Trim Whitespace, Header Normalization.
+  - **Type Casting**: Explicit casting to Float, Integer, Datetime, or String.
+- **Audit Action Logs**: Real-time before vs. after dataset stats, missing percentage diffs, and downloadable cleaned CSV/Excel files.
 
-### 🔐 1. Secure Authentication Portal
-A secure, role-based gateway featuring native local credentials verification alongside Google OAuth 2.0 single sign-on (SSO).
-![Secure Authentication Portal](assets/auth.jpg)
+### 🔮 2. Advanced Time-Series Predictive Analytics & Auto-Insights Engine
+- **Multi-Model Predictive Engine (`ForecastInsight` & `ForecastCard`)**:
+  - Automatically detects time-series date/time columns and numeric metrics.
+  - Trains and evaluates 6 forecasting algorithms: **ARIMA**, **Prophet**, **Holt-Winters**, **Exponential Smoothing**, **XGBoost**, and an **Ensemble Model**.
+  - Provides multi-horizon predictions (7 days, 30 days, 90 days, 1 year).
+  - Renders 80% & 95% confidence prediction bands, model MAPE accuracy comparisons, and seasonal/trend/residual decomposition.
+- **14 Specialized Insight Plugins**:
+  1. `ForecastInsight` — Predictive time-series forecasting & trend projections.
+  2. `TrendInsight` — Identifies metric growth and decline patterns over time.
+  3. `TopPerformerInsight` — Ranks top and bottom dimensions.
+  4. `CorrelationInsight` — Detects metric dependencies and correlations.
+  5. `AnomalyInsight` — IQR + Z-score hybrid anomaly detection.
+  6. `DistributionInsight` — Skewness, Kurtosis, and histogram distribution profiling.
+  7. `ContributionInsight` — Donut chart representation of dimension share.
+  8. `SegmentInsight` — Grouped segment performance analysis.
+  9. `ChangeInsight` — Period-over-period % change comparison.
+  10. `FeatureImportanceInsight` — Key driver impact scores.
+  11. `DataQualityInsight` — Column-level completeness meters.
+  12. `OutlierSummaryInsight` — Column-by-column IQR outlier counts.
+  13. `NumericSummaryInsight` — Coefficient of variation analysis.
+  14. `CategoricalInsight` — Category concentration and share.
 
-### 📥 2. Intelligent Data Ingestion
-Drag-and-drop CSV/Excel file uploads or live streaming via public Google Sheets connections, with automatic initial dimension profiling.
-![Intelligent Data Ingestion](assets/uplid.jpg)
+### 📊 3. Interactive Analytics Dashboard & Custom Chart Builder
+- **Custom Chart Builder**: Create custom visualizations (Bar, Line / Time Series, Scatter, Pie, Donut, Box Plot) and pin them to your live dashboard.
+- **Case-Insensitive Column Resolution**: Smart `resolve_column` matching tolerant to whitespace and cleaning case transformations.
+- **High-Contrast Black Axis Visual Engine**:
+  - X and Y axis titles displayed prominently in **bold solid black font** (`#000000`).
+  - Axis tick labels, gridlines, and borders formatted in high contrast.
+  - Crisp white canvas containers (`#FFFFFF`) ensuring perfect legibility across all dark and light themes.
+- **Integrated Forecast Cards**: Surface time-series predictive analytics directly on the Analytics Dashboard.
 
-### 🔍 3. Interactive Data Preview & Profiling
-High-fidelity tabular preview of ingested data highlighting missing cell percentages, data type detection, completeness metrics, and summary stats.
-![Interactive Data Preview](assets/previwe.jpg)
+### 📄 4. McKinsey-Grade Royalty Business Data Reports
+- **5-Slide Executive Presentation Deck**:
+  - **Slide 1**: Executive Cover with Royalty Seal Crest (`DATAFORGE EXECUTIVE ADVISORY`).
+  - **Slide 2**: KPI Footprint & Executive Advisory Assessment.
+  - **Slide 3**: Strategic Insights with Embedded Vector SVG Charts.
+  - **Slide 4**: Data Health Diagnostics & Column Schema Footprint.
+  - **Slide 5**: Actionable Execution Plan & Numbered Priority Cards.
+- **Pure Python SVG Vector Chart Engine**: Generates pure SVG line, bar, donut, and scatter graphics that export to PDF with vector crispness.
+- **1-Click Vector PDF Saving**: Export high-resolution presentation decks directly to PDF.
 
-### 🧹 4. Workspace & Data Cleaning Pipeline
-Apply rule-based transformations—such as filters, group-bys, column derivations, and missing value interpolations—with visual pipeline state validation and parquet-optimized storage.
-![Data Cleaning Pipeline](assets/cleaning.jpg)
+### 🤖 5. Automated Machine Learning (AutoML) Studio
+- Automatic task detection (Classification vs Regression), hyperparameter tuning via **FLAML**, leaderboard model evaluation (F1 / ROC-AUC / RMSE), **SHAP** feature importance graphs, and downloadable `.pkl` model assets.
 
-### 📊 5. Executive Dashboard
-An interactive central cockpit showing dataset metrics, key statistics, column distributions, and live Celery/WebSocket event activity logs.
-![Executive Dashboard](assets/dash_brd.jpg)
-
-### 💡 6. AI-Powered Insight Engine
-Automated scans for statistical anomalies, category distributions, trends, and correlations, paired with executive summaries compiled by Google Gemini API.
-![AI-Powered Insight Engine](assets/insght.jpg)
-
-### 💬 7. Conversational AI Analyst Chatbot
-Interact with datasets in plain English. The sandboxed AI Analyst generates, validates, and runs Python code to create charts and tables on the fly.
-![Conversational AI Analyst Chatbot](assets/aiQry.jpg)
-
-### 🤖 8. Automated Machine Learning (AutoML)
-Automatically detect classification/regression tasks, search for optimal models (XGBoost, LightGBM, Random Forest) via hyperparameter optimization, and export trained model assets.
-![AutoML Model Training](assets/AutoML.jpg)
+### 💬 6. Conversational AI Analyst Chatbot
+- Ask natural language questions about your dataset. Features an AST-validated Python code sandbox that safely generates, executes, and renders dynamic pandas dataframes and charts.
 
 ---
 
-## 🚀 Core Features
+## 🛠️ Technology Stack
 
-* **Quality & Completeness Scans**: Live quality bars, column-level completeness, and missingness metrics.
-* **Rule-Based Data Transformation**: In-place filtering, column renaming, drop/imputation of null values, and custom expressions saved to Parquet.
-* **Statistical Insights Engine**: Automatic trend detection, segment analysis, outlier detection, and correlation matrices.
-* **AI Summary Generator**: McKinsey-style executive commentary and narrative bullet points powered by `gemini-2.5-flash`.
-* **Visual Sandbox Chatbot**: Secure AST validation of generated Python scripts before execution to prevent system calls or arbitrary file edits.
-* **AutoML Leaderboard**: Hyperparameter tuning, F1/ROC-AUC scoring, and downloadable pickled model objects.
-* **WebSocket Alert Broadcasting**: Instantaneous warnings and live job updates sent to connected browser clients.
-
----
-
-## 🛠️ Architecture & Technology Stack
-
-| Component | Technology | Description |
+| Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **Backend Framework** | Flask (Python 3.10+) | Monolithic web server and API routes handler |
-| **Async Task Queue** | Celery + Redis | Handles async AutoML training, slides compiling, and alert evaluation |
-| **AI Orchestration** | Gemini API (`gemini-2.5-flash`) | Narrative report synthesis and conversational NLP code generation |
-| **Database & Storage** | Supabase (PostgreSQL + S3 Bucket) | User credentials storage, workspace state tables, and Parquet data store |
-| **Machine Learning** | FLAML (AutoML) + scikit-learn | Fast hyperparameter optimization and model search |
-| **Frontend** | Vanilla JS (Alpine.js), CSS (Themes), HTML5 | Clean, responsive UI supporting custom themes (dark & light) |
+| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4, DaisyUI 5 | High-performance SPA with modern glassmorphism & responsive themes |
+| **Visualization** | Chart.js 4.5+, React-Chartjs-2, Custom SVG Engine | High-contrast black axis charts & vector report graphics |
+| **Backend Framework** | FastAPI (Python 3.11+), Uvicorn | High-concurrency async REST API and WebSockets |
+| **Time-Series & Math**| Statsmodels, Prophet, XGBoost, SciPy, NumPy, Pandas | Predictive time-series modeling, decomposition & forecasting |
+| **Data Engine** | Pandas 2.3+, PyArrow, OpenPyXL, PyJanitor | Fast Parquet storage, DataFrame manipulation & cleaning |
+| **Machine Learning** | FLAML, Scikit-Learn, LightGBM, XGBoost, SHAP | Automated model selection, tuning, and explainability |
+| **AI Orchestration** | Google Gemini API (`gemini-2.5-flash`) | Executive narrative generation and natural language data querying |
+| **Database & Cache** | Supabase (PostgreSQL), Redis | Account data, workspace metadata, and response caching |
+| **Report PDF Engine**| Pure Python SVG Engine + WeasyPrint / Print API | Pixel-perfect A4 landscape slide PDF generation |
 
 ---
 
-## ⚙️ How to Run Locally
+## ⚙️ Quick Start & Local Setup Guide
 
 ### Prerequisites
-- **Python 3.10+** — [python.org](https://www.python.org/downloads/)
-- **Redis** — used for Celery task queuing and WebSocket pub/sub  
-  - **Windows**: install via [Chocolatey](https://chocolatey.org/) → `choco install redis-64` or use the [Windows port](https://github.com/microsoftarchive/redis/releases). Alternatively use WSL2 → `sudo apt install redis-server && sudo service redis start`
-  - **macOS**: `brew install redis && brew services start redis`
-  - **Linux**: `sudo apt install redis-server && sudo service redis start`
-  > Redis is **optional** — the app automatically falls back to synchronous task execution if Redis/Celery are not running.
+- **Node.js 18+** & `npm` — [nodejs.org](https://nodejs.org/)
+- **Python 3.11+** — [python.org](https://www.python.org/)
+- **Redis** *(Optional for caching)* — [redis.io](https://redis.io/)
 
 ---
 
-### Step 1 — Clone and Configure Environment
+### Step 1 — Clone Repository & Environment Setup
 
 ```bash
-# 1. Copy the example env file and fill in your values
+# Clone repository
+git clone https://github.com/FaheemorFAB/DataForge_v3.git
+cd DataForge_v3-main
+
+# Set up environment variables
 cp .env.example .env
-# Then open .env and populate all required variables (see comments inside)
 ```
 
 ---
 
-### Step 2 — Backend Setup
+### Step 2 — Backend Setup (FastAPI)
 
 ```bash
-# Navigate to the backend directory
+# Navigate to backend
 cd backend
 
-# Create and activate a virtual environment
+# Create virtual environment
 python -m venv venv
 
-# Activate (Windows PowerShell)
+# Activate Virtualenv
+# Windows (PowerShell):
 venv\Scripts\Activate.ps1
-
-# Activate (Windows CMD)
+# Windows (CMD):
 venv\Scripts\activate.bat
-
-# Activate (macOS / Linux)
+# macOS / Linux:
 source venv/bin/activate
 
-# Install all dependencies
+# Install Python dependencies
 pip install -r requirements.txt
+
+# Run FastAPI backend server
+python main.py
 ```
+> The backend server will start on **`http://localhost:8000`** (API Docs available at `http://localhost:8000/docs`).
 
 ---
 
-### Step 3 — Run the Flask Server
+### Step 3 — Frontend Setup (Next.js)
+
+In a **second terminal window**:
 
 ```bash
-# From the project root (with venv active and PYTHONPATH set to backend/)
-cd backend
-python app.py
-```
+# Navigate to frontend
+cd frontend
 
-Open your browser at **http://localhost:5000**
+# Install Node dependencies
+npm install
+
+# Start Next.js development server
+npm run dev
+```
+> The frontend application will start on **`http://localhost:3000`**.
 
 ---
 
-### Step 4 — Run the Celery Worker (Optional but Recommended)
+## 📖 User Guide & Step-by-Step Workflow
 
-In a **second terminal** (with the same venv active):
-
-```bash
-cd backend
-
-# Windows (uses --pool=solo for compatibility)
-celery --app=dataforge.web.tasks:celery worker --loglevel=info --pool=solo
-
-# macOS / Linux (uses prefork for full parallelism)
-celery --app=dataforge.web.tasks:celery worker --loglevel=info --pool=prefork
-```
-
-> **Without a Celery worker**, heavy tasks (AutoML, EDA reports, Insights) run synchronously in the web request. The app will be slower but fully functional.
-
----
-
-### Step 5 — Run Celery Beat (Optional — for scheduled reports)
-
-In a **third terminal**:
-
-```bash
-cd backend
-celery --app=dataforge.web.tasks:celery beat --loglevel=info
-```
+1. **Upload Dataset**: Navigate to Workspace and drag-and-drop a CSV or Excel file (or connect via Google Sheets link).
+2. **Data Cleaning Studio**:
+   - Click **1-Click Auto Clean** for instant automated cleaning.
+   - Or toggle **Dynamic Studio** to build custom per-column rules (imputation, outlier clipping, text casing, type casting). Click **Apply Dynamic Pipeline**.
+3. **Run Insight Engine & Time-Series Forecasting**:
+   - Switch to the **Insights** tab and click **Run Insights**.
+   - View 14+ auto-detected trends, anomalies, and correlations.
+   - Interact with the **Time-Series Predictive Forecast Card** to switch horizons (7d, 30d, 90d, 1yr), inspect 80%/95% confidence bands, model MAPEs, and trend decomposition.
+4. **Explore Dashboard & Build Custom Charts**:
+   - Switch to **Dashboard** for auto-generated analytical charts, aggregated metrics, and time-series forecast widgets.
+   - Click **Add Chart** to open the Chart Builder. Select Chart Type (Bar, Line / Time Series, Scatter, Pie, Donut, Box Plot), X-Axis / Category, Y-Axis / Metric, and Aggregation (Mean, Sum, Count).
+   - Click **Add to Dashboard** to pin high-contrast charts with black axis titles and labels to your live dashboard.
+5. **Train AutoML Model**: Select your target column in **AutoML**, set your time budget, and train optimal models with SHAP feature importance.
+6. **Generate Executive Business Report**:
+   - In the **Report** section, click **Generate Analysis**.
+   - Preview the 5-slide McKinsey presentation deck with vector SVG charts.
+   - Click **Download PDF** for instant 1-click vector PDF saving!
 
 ---
 
-### Step 6 — Monitor Tasks with Flower (Optional)
+## 📄 License & Credits
 
-```bash
-cd backend
-celery --app=dataforge.web.tasks:celery flower --port=5555
-```
-
-Open **http://localhost:5555** to see the Celery task dashboard.
-
----
-
-
-
-## 📐 Data Flow Diagrams (DFDs)
-
-For full architectural transparency, here are the System Data Flow Diagrams:
-
-<details>
-<summary>🔍 Level 0: Context Level Diagram</summary>
-
-Shows system boundaries and data exchange between external entities and the core system.
-
-```mermaid
-graph TD
-    %% Styling
-    classDef entity fill:#FFE8D6,stroke:#DDBEA9,stroke-width:2px;
-    classDef process fill:#E8F0FE,stroke:#4285F4,stroke-width:2px;
-    classDef store fill:#E6F4EA,stroke:#34A853,stroke-width:2px;
-
-    %% Nodes
-    User[User / Client Browser]:::entity
-    GAuth[Google OAuth]:::entity
-    GSheets[Google Sheets API]:::entity
-    Gemini[Gemini AI API]:::entity
-    Supa[Supabase DB & Storage]:::store
-    DF((DataForge System)):::process
-
-    %% Flows
-    User -->|Credentials / Uploads / Rules| DF
-    DF -->|Data Previews / Reports / Alerts| User
-    DF <-->|Validate User Auth| GAuth
-    GSheets -->|Stream Sheet Data| DF
-    DF <-->|Metadata & Files| Supa
-    DF <-->|Context & Prompts / Business Slides| Gemini
-```
-</details>
-
-<details>
-<summary>⚙️ Level 1: Feature-Specific DFDs</summary>
-
-### 1. Authentication & Session Management
-Manages user logins, credentials validation, and Google OAuth flow.
-
-```mermaid
-flowchart TD
-    classDef entity fill:#FFE8D6,stroke:#DDBEA9,stroke-width:2px;
-    classDef process fill:#E8F0FE,stroke:#4285F4,stroke-width:2px;
-    classDef store fill:#E6F4EA,stroke:#34A853,stroke-width:2px;
-
-    User[User / Client Browser]:::entity
-    GAuth[Google OAuth Provider]:::entity
-    P1((1.0 Auth & Session Management)):::process
-    DB[(Users Table)]:::store
-
-    User -->|Credentials / OAuth Request| P1
-    P1 <-->|Verify Code / Token| GAuth
-    P1 <-->|Read / Write User Session| DB
-    P1 -->|Session Cookie & Login Status| User
-```
-
-### 2. Data Ingestion & Import
-Handles file uploads (CSV/Excel) and public Google Sheet connections.
-
-```mermaid
-flowchart TD
-    classDef entity fill:#FFE8D6,stroke:#DDBEA9,stroke-width:2px;
-    classDef process fill:#E8F0FE,stroke:#4285F4,stroke-width:2px;
-    classDef store fill:#E6F4EA,stroke:#34A853,stroke-width:2px;
-
-    User[User / Client Browser]:::entity
-    GSheets[Google Sheets API]:::entity
-    P2((2.0 Data Ingestion & Profiling)):::process
-    DB[(Uploads Table)]:::store
-    Store[(df_raw Parquet)]:::store
-
-    User -->|Upload CSV-Excel / Google Sheets Link| P2
-    P2 -->|Fetch Sheet Data| GSheets
-    GSheets -->|Raw CSV Data| P2
-    P2 -->|Save Dataset File| Store
-    P2 -->|Log Upload Metadata| DB
-    P2 -->|Dataset Stats Profile| User
-```
-
-### 3. Workspace & Transformation Pipeline
-Executes dynamic, rule-based data cleaning, filtering, groupings, and derived column calculations.
-
-```mermaid
-flowchart TD
-    classDef entity fill:#FFE8D6,stroke:#DDBEA9,stroke-width:2px;
-    classDef process fill:#E8F0FE,stroke:#4285F4,stroke-width:2px;
-    classDef store fill:#E6F4EA,stroke:#34A853,stroke-width:2px;
-
-    User[User / Client Browser]:::entity
-    P3((3.0 Cleaning & Transform Engine)):::process
-    DB[(Uploads Table)]:::store
-    RawStore[(df_raw Parquet)]:::store
-    CleanStore[(df_clean Parquet)]:::store
-
-    User -->|Define Rules: Clean / Filter / Groupby / Derive| P3
-    P3 -->|Load Raw Dataset| RawStore
-    P3 -->|Save Cleaned Dataset| CleanStore
-    P3 -->|Update Clean Metadata JSON| DB
-    P3 -->|Interactive Data Preview| User
-```
-
-### 4. Insights Engine
-Runs plugin scanning rules (Trends, Outliers, Correlations, segment analysis) and calls Gemini to build executive summaries.
-
-```mermaid
-flowchart TD
-    classDef entity fill:#FFE8D6,stroke:#DDBEA9,stroke-width:2px;
-    classDef process fill:#E8F0FE,stroke:#4285F4,stroke-width:2px;
-    classDef store fill:#E6F4EA,stroke:#34A853,stroke-width:2px;
-
-    User[User / Client Browser]:::entity
-    Gemini[Gemini AI API]:::entity
-    P4((4.0 Insights Generation)):::process
-    DB_Jobs[(Jobs Table)]:::store
-    DB_Insights[(Insight Records Table)]:::store
-    CleanStore[(df_clean Parquet)]:::store
-    Cache[(last_insights Parquet/JSON)]:::store
-
-    User -->|Trigger Insights Request| P4
-    P4 -->|Create Background Job| DB_Jobs
-    P4 -->|Load Cleaned Dataset| CleanStore
-    P4 -->|Run Statistical Scan & Send Context| Gemini
-    Gemini -->|Generate Summary Narrative| P4
-    P4 -->|Save Structured Insights| DB_Insights
-    P4 -->|Cache Result Details| Cache
-    P4 -->|Rendered Statistical Charts| User
-```
-
-### 5. AutoML Training
-Fits machine learning classifiers or regressors based on target selection, saving and evaluating the results.
-
-```mermaid
-flowchart TD
-    classDef entity fill:#FFE8D6,stroke:#DDBEA9,stroke-width:2px;
-    classDef process fill:#E8F0FE,stroke:#4285F4,stroke-width:2px;
-    classDef store fill:#E6F4EA,stroke:#34A853,stroke-width:2px;
-
-    User[User / Client Browser]:::entity
-    P5((5.0 AutoML Training)):::process
-    DB_Jobs[(Jobs Table)]:::store
-    DB_Uploads[(Uploads Table)]:::store
-    CleanStore[(df_clean Parquet)]:::store
-    ModelStore[(model_pkl Joblib)]:::store
-
-    User -->|Select Target Column & Time Budget| P5
-    P5 -->|Create Training Background Job| DB_Jobs
-    P5 -->|Load Cleaned Dataset| CleanStore
-    P5 -->|Fit & Save Trained Model| ModelStore
-    P5 -->|Update Upload automl_meta_json| DB_Uploads
-    P5 -->|Model Evaluation Metrics & Importance| User
-```
-
-### 6. Strategic Reporting & Alerting
-Generates presentation-ready HTML/PDF reports using McKinsey-formatted slide commentary, evaluates alert conditions, and broadcasts messages via WebSockets.
-
-```mermaid
-flowchart TD
-    classDef entity fill:#FFE8D6,stroke:#DDBEA9,stroke-width:2px;
-    classDef process fill:#E8F0FE,stroke:#4285F4,stroke-width:2px;
-    classDef store fill:#E6F4EA,stroke:#34A853,stroke-width:2px;
-
-    User[User Browser / WebSocket]:::entity
-    Gemini[Gemini AI API]:::entity
-    P6((6.0 Reporting & Alerts)):::process
-    DB_Alerts[(Alerts Table)]:::store
-    DB_Reports[(Reports Table)]:::store
-    DB_Jobs[(Jobs Table)]:::store
-    CleanStore[(df_clean Parquet)]:::store
-    ReportStore[(report_html File)]:::store
-
-    User -->|Request Slide Deck Report / Rules Check| P6
-    P6 -->|Check Celery Job status| DB_Jobs
-    P6 -->|Load Cleaned Dataset| CleanStore
-    P6 -->|Evaluate Alert Rules| P6
-    P6 -->|Log Fired Alerts| DB_Alerts
-    P6 -->|Prompts for McKinsey Slide Commentary| Gemini
-    Gemini -->|Executive Slides Text| P6
-    P6 -->|Generate & Save HTML Report| ReportStore
-    P6 -->|Save Report Reference| DB_Reports
-    P6 -->|WebSocket Push & HTML Download| User
-```
-</details>
+Built with ❤️ by the DataForge Team. Powered by FastAPI, Next.js 16, Chart.js, PyJanitor, FLAML, Statsmodels, Prophet, and Google Gemini 2.5.

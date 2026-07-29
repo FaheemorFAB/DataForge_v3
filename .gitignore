@@ -9,6 +9,18 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.pyd
+*.so
+.pytest_cache/
+
+# Node & Next.js build artifacts
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+dist/
+out/
+build/
+.cache/
 
 # Environment variables
 .env
@@ -17,17 +29,19 @@ __pycache__/
 .env.test.local
 .env.production.local
 
-# Databases
+# Databases & local state
 *.db
 *.sqlite
 instance/
+.antigravity/
+.gemini/
 
-# Data parquets / data uploads
+# Data parquets / uploads
 *.parquet
 *.csv
-*.json
 !dataforge/**/*.json
 !frontend/**/*.json
+!package*.json
 
 # IDEs & System files
 .vscode/

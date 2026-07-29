@@ -89,13 +89,32 @@ class AnomalyInsight(BaseInsight):
                 f"A total of {n_total} unusual values were identified across the timeline, which may warrant further investigation."
             )
 
+            # Build chart data: top anomalous rows sorted by |z-score|
+            anomaly_series = series[combined_mask]
+            if std > 0:
+                z_vals = ((anomaly_series - mean) / std).abs()
+                top_anom = z_vals.nlargest(12)
+            else:
+                top_anom = anomaly_series.sub(mean).abs().nlargest(12)
+
+            chart_labels = [str(idx) for idx in top_anom.index]
+            chart_values = [self._safe_float(series.loc[idx]) for idx in top_anom.index]
+
             return {
                 "title":       f"{metric} Anomaly Detected",
                 "description": description,
                 "importance":  self._clamp(abs(worst_z) / 6),
                 "type":        "anomaly",
-                "chart":       None,
-                "chart_data":  None,
+                "chart":       "bar",
+                "chart_data":  {
+                    "labels":    chart_labels,
+                    "values":    chart_values,
+                    "threshold_hi": round(float(iqr_hi), 4),
+                    "threshold_lo": round(float(iqr_lo), 4),
+                    "mean":         round(mean, 4),
+                    "x_label":      "Row",
+                    "y_label":      metric,
+                },
                 "metric":      metric,
                 "meta": {
                     "n_anomalies":  n_total,

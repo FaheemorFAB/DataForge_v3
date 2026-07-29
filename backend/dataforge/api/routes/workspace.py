@@ -25,7 +25,7 @@ from dataforge.api.schemas.workspace import (
     QueryRequest, SyncSheetsRequest, TransformRequest,
 )
 from dataforge.api.storage.manager import exists, load, persist, save, upath
-from dataforge.api.utils.helpers import df_profile, df_to_json_rows
+from dataforge.api.utils.helpers import df_profile, df_to_json_rows, resolve_column
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_all, db_get, db_update
 
@@ -264,7 +264,7 @@ async def api_clean(
         raise HTTPException(400, "No raw dataset loaded")
 
     def _clean():
-        from dataforge.web.helpers import run_cleaning_pipeline
+        from dataforge.data_cleaner import run_cleaning_pipeline
         return run_cleaning_pipeline(df_raw)
 
     try:
@@ -282,6 +282,66 @@ async def api_clean(
         "missing_log": result["missing_log"],
         "struct_actions": result["struct_actions"],
         "clean_profile": clean_profile,
+    }
+    save(upload_id, "clean_meta", meta)
+
+    try:
+        persist(upload_id, "df_clean", df_clean)
+    except Exception:
+        pass
+
+    try:
+        db_update("uploads", upload_id, {"clean_meta_json": json.dumps(meta, default=str)})
+    except Exception:
+        pass
+
+    from dataforge.api.cache.manager import invalidate_upload
+    invalidate_upload(upload_id)
+
+    return JSONResponse(content=safe_jsonable({
+        "ok": True,
+        "stats": result["stats"],
+        "missing_log": result["missing_log"],
+        "struct_actions": result["struct_actions"],
+        "clean_profile": clean_profile,
+    }))
+
+
+@router.post("/clean/dynamic", summary="Run interactive dynamic cleaning with custom column rules")
+async def api_clean_dynamic(
+    body: dict,
+    current_user: CurrentUser,
+):
+    upload_id = body.get("upload_id")
+    rules = body.get("rules", [])
+    if not upload_id:
+        raise HTTPException(400, "upload_id required")
+    await require_upload_with_data(upload_id, current_user)
+
+    df_raw = load(upload_id, "df_raw")
+    if df_raw is None:
+        raise HTTPException(400, "No raw dataset loaded")
+
+    def _dynamic_clean():
+        from dataforge.data_cleaner import run_dynamic_cleaning_pipeline
+        return run_dynamic_cleaning_pipeline(df_raw, rules)
+
+    try:
+        result = await run_in_executor(_dynamic_clean)
+    except Exception as exc:
+        raise HTTPException(500, f"Dynamic cleaning failed: {exc}")
+
+    df_clean = result["df_clean"]
+    save(upload_id, "df_clean", df_clean)
+
+    up_row = db_get("uploads", upload_id) or {}
+    clean_profile = df_profile(df_clean, up_row.get("filename", ""))
+    meta = {
+        "stats": result["stats"],
+        "missing_log": result["missing_log"],
+        "struct_actions": result["struct_actions"],
+        "clean_profile": clean_profile,
+        "rules_applied": rules,
     }
     save(upload_id, "clean_meta", meta)
 
@@ -411,10 +471,11 @@ async def api_reports_latest(
     return Response(content=html, media_type="text/html")
 
 
-@router.get("/data-report/download", summary="Download the business report as PDF")
+@router.get("/data-report/download", summary="Download the business report as PDF or Printable Document")
 async def api_data_report_download(
     current_user: CurrentUser,
     upload_id: Optional[int] = Query(default=None),
+    print_pdf: Optional[bool] = Query(default=False, alias="print"),
 ):
     if not upload_id:
         raise HTTPException(400, "upload_id required")
@@ -425,20 +486,48 @@ async def api_data_report_download(
     if not html:
         raise HTTPException(404, "No report generated yet")
 
+    # 1. Try WeasyPrint PDF compilation
     pdf = None
     try:
         from weasyprint import HTML as WP_HTML
         pdf = WP_HTML(string=html).write_pdf()
     except Exception as e:
-        log.warning("WeasyPrint failed: %s", e)
+        log.warning("WeasyPrint PDF compilation bypassed: %s", e)
     
-    if not pdf:
-        raise HTTPException(500, "Failed to generate PDF")
-
+if pdf and not print_pdf:
     return StreamingResponse(
         iter([pdf]),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=business_report_{upload_id}.pdf"},
+    )
+        )
+
+    # 2. High-Fidelity Vector Fallback: Auto-Printable HTML for Browser PDF Export
+    printable_html = html
+    if "window.print()" not in printable_html:
+        print_script = """
+        <script>
+          window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() { window.print(); }, 500);
+          });
+        </script>
+        </body>"""
+        if "</body>" in printable_html:
+            printable_html = printable_html.replace("</body>", print_script)
+        else:
+            printable_html += print_script
+
+    if print_pdf or not pdf:
+        return Response(
+            content=printable_html,
+            media_type="text/html",
+            headers={"Content-Disposition": f"inline; filename=business_report_{upload_id}.html"}
+        )
+
+    return Response(
+        content=printable_html,
+        media_type="text/html",
+        headers={"Content-Disposition": f"attachment; filename=business_report_{upload_id}.html"},
     )
 
 
@@ -698,12 +787,17 @@ async def api_custom_chart(
         print("DEBUG: 400 - No dataset loaded")
         raise HTTPException(400, "No dataset loaded")
 
-    if body.x_col not in df.columns:
+    x_col_res = resolve_column(body.x_col, df.columns)
+    if not x_col_res:
         print(f"DEBUG: 400 - x_col not found: '{body.x_col}', cols: {df.columns.tolist()}")
-        raise HTTPException(400, f"Column '{body.x_col}' not found")
-    if body.y_col and body.y_col not in df.columns:
-        print(f"DEBUG: 400 - y_col not found: '{body.y_col}', cols: {df.columns.tolist()}")
-        raise HTTPException(400, f"Column '{body.y_col}' not found")
+        raise HTTPException(400, f"Column '{body.x_col}' not found in dataset")
+
+    y_col_res = None
+    if body.y_col:
+        y_col_res = resolve_column(body.y_col, df.columns)
+        if not y_col_res:
+            print(f"DEBUG: 400 - y_col not found: '{body.y_col}', cols: {df.columns.tolist()}")
+            raise HTTPException(400, f"Column '{body.y_col}' not found in dataset")
 
     custom_charts = load(target_upload_id, "custom_charts") or []
 
@@ -722,16 +816,18 @@ async def api_custom_chart(
             raise HTTPException(404, "Chart to edit not found")
         new_cfg = body.model_dump(exclude_none=True)
         new_cfg.pop("upload_id", None)
+        new_cfg["x_col"] = x_col_res
+        new_cfg["y_col"] = y_col_res
         custom_charts[idx] = new_cfg
     else:
         new_cfg = {
             "id": f"custom_{_ts()}",
             "type": body.chart_type,
             "chart_type": body.chart_type,
-            "x_col": body.x_col,
-            "y_col": body.y_col,
+            "x_col": x_col_res,
+            "y_col": y_col_res,
             "agg_type": body.agg_type or "none",
-            "title": body.title or f"{body.chart_type.title()} of {body.x_col}",
+            "title": body.title or f"{body.chart_type.title()} of {x_col_res}",
             "is_custom": True,
             "is_area": body.is_area,
             "top_n": body.top_n,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
@@ -28,12 +28,15 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
   const [isSheetsLoading, setIsSheetsLoading] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Tracks when the user has explicitly reset — prevents the auto-load effect
+  // from immediately re-populating state after clicking "CHANGE FILE".
+  const userReset = useRef(false);
 
   React.useEffect(() => {
+    // Skip auto-load if the user explicitly clicked "CHANGE FILE"
+    if (userReset.current) return;
+
     if (isLoggedIn && !fileUploaded) {
-      // Check if we have an upload in localStorage first to avoid flash
-      const lastUpload = localStorage.getItem('df_last_upload');
-      
       apiFetch('/projects')
         .then(res => res.json())
         .then(data => {
@@ -42,7 +45,7 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
             setFileName(latest.filename || 'Existing Dataset');
             setCurrentUploadId(latest.id);
             localStorage.setItem('df_last_upload', latest.id);
-            
+
             // Reconstruct a mock profile for the UI from the project list stats
             setProfile({
               rows: latest.rows,
@@ -50,10 +53,10 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
               numeric: latest.numeric || 0,
               missing_pct: latest.missing_pct || 0
             });
-            
+
             setFileUploaded(true);
           } else {
-             localStorage.removeItem('df_last_upload');
+            localStorage.removeItem('df_last_upload');
           }
         })
         .catch(err => console.error("Failed to fetch projects:", err));
@@ -106,12 +109,18 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
     }
   };
 
-  const reset = () => {
-    setFileUploaded(false); setFileName(''); setProfile(null);
-    setErrorMsg(''); setSheetsUrl(''); setSheetsError('');
+  const reset = useCallback(() => {
+    // Mark as user-initiated reset so the auto-load effect doesn't re-populate
+    userReset.current = true;
+    setFileUploaded(false);
+    setFileName('');
+    setProfile(null);
+    setErrorMsg('');
+    setSheetsUrl('');
+    setSheetsError('');
     setCurrentUploadId(null);
     localStorage.removeItem('df_last_upload');
-  };
+  }, []);
 
   const loadSheets = async () => {
     if (!sheetsUrl.trim()) return;

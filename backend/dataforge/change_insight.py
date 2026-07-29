@@ -61,8 +61,14 @@ class ChangeInsight(BaseInsight):
                 "description": description,
                 "importance":  self._clamp(abs(change_pct) / 100),
                 "type":        "change",
-                "chart":       None,
-                "chart_data":  None,
+                "chart":       "bar",
+                "chart_data":  {
+                    "labels":     ["Previous Period", "Current Period"],
+                    "values":     [round(prev_mean, 4), round(recent_mean, 4)],
+                    "change_pct": round(change_pct, 2),
+                    "x_label":    "Period",
+                    "y_label":    metric,
+                },
                 "metric":      metric,
             }
         except Exception:

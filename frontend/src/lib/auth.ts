@@ -26,10 +26,20 @@ function setCachedUser(user: any | null) {
 }
 
 export function useAuth() {
-  const [user, setUser] = useState<any>(() => getCachedUser());
-  const [loading, setLoading] = useState(() => !getCachedUser());
+  // Always start with null so the server and client render the same initial HTML.
+  // The cached user is loaded in useEffect (client-only) to avoid hydration mismatches.
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Hydrate from localStorage cache immediately (client-only) so the UI
+    // shows the correct state before the API call resolves.
+    const cached = getCachedUser();
+    if (cached) {
+      setUser(cached);
+      setLoading(false);
+    }
+
     const checkAuth = async () => {
       try {
         const res = await apiFetch("/v1/auth/me");

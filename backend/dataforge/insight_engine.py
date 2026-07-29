@@ -40,6 +40,7 @@ from .data_quality_insight import DataQualityInsight
 from .numeric_summary_insight import NumericSummaryInsight
 from .categorical_insight import CategoricalInsight
 from .outlier_summary_insight import OutlierSummaryInsight
+from .forecast_insight import ForecastInsight
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ class InsightEngine:
 
     PLUGINS = [
         # --- Conditional plugins (require specific schema features) ---
+        ForecastInsight(),        # requires date + metric (≥8 rows) — predictive
         TrendInsight(),           # requires date + metric
         TopPerformerInsight(),    # requires dimension + metric
         CorrelationInsight(),     # requires ≥2 metrics

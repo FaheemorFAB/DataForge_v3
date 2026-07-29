@@ -210,7 +210,7 @@ export function EDATab() {
               <span className="flex items-center gap-1.5">{bizReportGenerating ? 'ANALYSING...' : (bizReportReady ? <><RefreshCw size={14}/> UPDATE ANALYSIS</> : <><Sparkles size={14}/> GENERATE ANALYSIS</>)}</span>
             </button>
             {bizReportReady && (
-              <a href={`/api/data-report/download?upload_id=${uploadId}`} className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> DOWNLOAD PDF</a>
+              <a href={`/api/data-report/download?print=true&upload_id=${uploadId}`} target="_blank" rel="noopener noreferrer" className="bg flex items-center gap-2" style={{ textDecoration: "none" }}><Download size={14} /> DOWNLOAD PDF</a>
             )}
           </div>
         </div>
@@ -226,8 +226,8 @@ export function EDATab() {
         )}
 
         {bizReportReady && !bizReportGenerating && (
-          <div className="gc rounded-2xl overflow-hidden mt-4" style={{ border: "1px solid var(--border)", height: 600 }}>
-            <iframe src={`/api/reports/latest?upload_id=${uploadId}`} className="w-full h-full bg-white border-none"></iframe>
+          <div className="gc rounded-2xl overflow-hidden mt-4 shadow-xl" style={{ border: "1px solid var(--border)", background: "#E2E8F0", height: "calc(100vh - 220px)", minHeight: 680 }}>
+            <iframe src={`/api/reports/latest?upload_id=${uploadId}`} className="w-full h-full border-none block" style={{ background: "#E2E8F0" }}></iframe>
           </div>
         )}
 
