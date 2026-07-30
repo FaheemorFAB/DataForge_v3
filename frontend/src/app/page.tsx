@@ -11,7 +11,6 @@ import FAQ from "./components/landing/FAQ";
 import CTABanner from "./components/landing/CTABanner";
 import Footer from "./components/landing/Footer";
 import ProcessTimeline from "./components/landing/ProcessTimeline";
-import TeamSection from "./components/landing/TeamSection";
 
 export default function Home() {
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -50,8 +49,6 @@ export default function Home() {
       <BuiltFor />
 
       <CTABanner />
-
-      <TeamSection />
 
       <FAQ />
 
