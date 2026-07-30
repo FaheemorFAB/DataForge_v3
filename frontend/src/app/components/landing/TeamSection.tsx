@@ -120,11 +120,13 @@ export default function TeamSection() {
                 {member.name}
               </h3>
               <p
-                className="text-xs font-semibold tracking-wide uppercase mb-6"
+                className="text-xs font-semibold tracking-wide uppercase mb-6 inline-block"
                 style={{
                   background: member.gradient,
                   WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
                   WebkitTextFillColor: "transparent",
+                  color: "var(--accent)"
                 }}
               >
                 {member.role}

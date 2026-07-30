@@ -136,36 +136,36 @@ function renderChart(ch: any, idx: number) {
       title: {
         display: true,
         text:    xLabel,
-        color:   "#000000",
+        color:   "#0f172a",
         font:    { size: 12, weight: "bold", family: "inherit" },
         padding: { top: 6 },
       },
       ticks: {
-        color:        "#000000",
+        color:        "#1e293b",
         font:         { size: 11, weight: "bold" },
         maxTicksLimit: 10,
         maxRotation:  30,
         autoSkip:     true,
       },
-      grid:   { color: "rgba(0,0,0,0.08)" },
-      border: { color: "#000000" },
+      grid:   { color: "rgba(0,0,0,0.06)" },
+      border: { color: "#94a3b8" },
     },
     y: {
       title: {
         display: true,
         text:    yLabel,
-        color:   "#000000",
+        color:   "#0f172a",
         font:    { size: 12, weight: "bold", family: "inherit" },
         padding: { bottom: 6 },
       },
       ticks: {
-        color:         "#000000",
+        color:         "#1e293b",
         font:          { size: 11, weight: "bold" },
         callback:      (v: any) => fmtNum(Number(v)),
         maxTicksLimit: 6,
       },
-      grid:        { color: "rgba(0,0,0,0.08)" },
-      border:      { color: "#000000" },
+      grid:        { color: "rgba(0,0,0,0.06)" },
+      border:      { color: "#94a3b8" },
       beginAtZero: true,
     },
   };
@@ -211,7 +211,7 @@ function renderChart(ch: any, idx: number) {
             display: true,
             position: "right" as const,
             labels: {
-              color: "#000000",
+              color: "#0f172a",
               font: { size: 12, weight: "bold" },
               boxWidth: 14,
               padding: 14,
@@ -268,7 +268,7 @@ function renderChart(ch: any, idx: number) {
         x: {
           ...scales.x,
           ticks: {
-            color:         "#000000",
+            color:         "#1e293b",
             font:          { size: 11, weight: "bold" },
             maxRotation:   45,
             minRotation:   0,
@@ -291,7 +291,7 @@ function ChartCard({ ch, idx, onRemove }: { ch: any; idx: number; onRemove: () =
   const isPie = ch.type === "pie" || ch.type === "doughnut";
   const chartH = isPie ? 300 : 280;
   return (
-    <div className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 30px rgba(0,0,0,0.25)" }}>
+    <div className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 4px 30px rgba(0,0,0,0.25)" }}>
       {/* Accent top bar */}
       <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg,${color},${color}44)` }} />
       <div className="flex items-start justify-between px-5 pt-4 pb-2">
@@ -302,11 +302,11 @@ function ChartCard({ ch, idx, onRemove }: { ch: any; idx: number; onRemove: () =
             {ch.is_custom && <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>Custom</span>}
           </div>
           {/* Axis context */}
-          {ch.x_col && <p className="text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.28)" }}>{ch.x_col}{ch.y_col ? ` → ${ch.y_col}` : ""}{ch.agg_type && ch.agg_type !== "none" ? ` · ${ch.agg_type}` : ""}</p>}
+          {ch.x_col && <p className="text-[9px] font-mono" style={{ color: "var(--txt-m)" }}>{ch.x_col}{ch.y_col ? ` → ${ch.y_col}` : ""}{ch.agg_type && ch.agg_type !== "none" ? ` · ${ch.agg_type}` : ""}</p>}
         </div>
         {ch.is_custom && (
-          <button onClick={onRemove} className="ml-3 flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all" style={{ color: "rgba(255,255,255,0.25)" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")} onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.25)")}>
+          <button onClick={onRemove} className="ml-3 flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all" style={{ color: "var(--txt-m)" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")} onMouseLeave={e => (e.currentTarget.style.color = "var(--txt-m)")}>
             <X size={12} />
           </button>
         )}
@@ -314,10 +314,10 @@ function ChartCard({ ch, idx, onRemove }: { ch: any; idx: number; onRemove: () =
       {/* Stats ribbon */}
       {numericVals && ch.type !== "boxplot" && (
         <div className="flex items-center gap-3 px-5 pb-2">
-          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.35)" }}>{totalPts} pts</span>
+          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "var(--inp-bg)", color: "var(--txt-m)" }}>{totalPts} pts</span>
           {maxVal !== null && <span className="text-[9px] font-bold" style={{ color: "#10b981" }}>↑ {fmtNum(maxVal)}</span>}
           {minVal !== null && <span className="text-[9px] font-bold" style={{ color: "#f59e0b" }}>↓ {fmtNum(minVal)}</span>}
-          {maxVal !== null && minVal !== null && maxVal !== minVal && <span className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>Δ {fmtNum(maxVal - minVal)}</span>}
+          {maxVal !== null && minVal !== null && maxVal !== minVal && <span className="text-[9px] font-bold" style={{ color: "var(--txt-m)" }}>Δ {fmtNum(maxVal - minVal)}</span>}
         </div>
       )}
       {/* Chart area — white container for maximum clarity of black axis labels */}
@@ -491,7 +491,7 @@ export function DashboardTab() {
 
       {/* ID Stats */}
       {dashIdStats && (
-        <div className="rounded-2xl p-5 flex items-center gap-6" style={{ background: "var(--surface)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <div className="rounded-2xl p-5 flex items-center gap-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(245,158,11,0.1)" }}>
             <GitBranch size={16} style={{ color: "#f59e0b" }} />
           </div>
@@ -499,7 +499,7 @@ export function DashboardTab() {
             <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--txt-m)" }}>Index Column — <span className="font-mono">{dashIdStats.col}</span></p>
             <div className="flex gap-6">
               {([["Unique", dashIdStats.total], ["Min", dashIdStats.min], ["Max", dashIdStats.max]] as [string,any][]).map(([l, v]) => (
-                <div key={l}><p className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>{l}</p><p className="text-lg font-black" style={{ color: "#f59e0b" }}>{v}</p></div>
+                <div key={l}><p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>{l}</p><p className="text-lg font-black" style={{ color: "#f59e0b" }}>{v}</p></div>
               ))}
             </div>
           </div>

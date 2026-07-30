@@ -81,9 +81,9 @@ function mkTooltip(color: string) {
 // ── Base chart options ────────────────────────────────────────────────────────
 function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): any {
   const scaleBase = {
-    ticks: { color: "#000000", font: { size: 11, weight: "bold" as const }, maxTicksLimit: 8 },
-    grid: { color: "rgba(0,0,0,0.08)" },
-    border: { color: "#000000" },
+    ticks: { color: "#1e293b", font: { size: 11, weight: "bold" as const }, maxTicksLimit: 8 },
+    grid: { color: "rgba(0,0,0,0.06)" },
+    border: { color: "#94a3b8" },
   };
   return {
     responsive: true,
@@ -98,7 +98,7 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
         title: {
           display: true,
           text: xLabel || "Category",
-          color: "#000000",
+          color: "#0f172a",
           font: { size: 12, weight: "bold" as const },
           padding: { top: 4 },
         },
@@ -112,7 +112,7 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
         title: {
           display: true,
           text: yLabel || "Value",
-          color: "#000000",
+          color: "#0f172a",
           font: { size: 12, weight: "bold" as const },
           padding: { bottom: 4 },
         },
@@ -274,7 +274,7 @@ function renderInsightChart(ins: any): React.ReactNode {
           animation: { duration: 500 },
           layout: { padding: 8 },
           plugins: {
-            legend: { display: true, position: "right" as const, labels: { color: "rgba(255,255,255,0.75)", font: { size: 11 }, boxWidth: 12, padding: 12,
+            legend: { display: true, position: "right" as const, labels: { color: "#1e293b", font: { size: 11, weight: "bold" }, boxWidth: 12, padding: 12,
               generateLabels: (chart: any) => {
                 const ds = chart.data.datasets[0];
                 return (chart.data.labels || []).map((lbl: string, i: number) => {
@@ -300,7 +300,7 @@ function renderInsightChart(ins: any): React.ReactNode {
         options={{
           responsive: true, maintainAspectRatio: false, animation: { duration: 500 }, layout: { padding: 8 },
           plugins: {
-            legend: { display: true, position: "right" as const, labels: { color: "rgba(255,255,255,0.75)", font: { size: 11 }, boxWidth: 12, padding: 12 } },
+            legend: { display: true, position: "right" as const, labels: { color: "#1e293b", font: { size: 11, weight: "bold" }, boxWidth: 12, padding: 12 } },
             tooltip: { ...mkTooltip(col), callbacks: { label: (ctx: any) => `  ${ctx.label}: ${fmtN(Number(ctx.parsed))} (${total > 0 ? ((Math.abs(Number(ctx.parsed)) / total) * 100).toFixed(1) : 0}%)` } },
           },
         }}
@@ -633,7 +633,7 @@ export function ForecastCard({ ins }: { ins: any }) {
           </div>
           <div>
             <p className="font-black text-sm leading-tight" style={{ color: "var(--txt)" }}>{ins.title}</p>
-            <p className="text-[10px] font-mono mt-0.5" style={{ color: "rgba(255,255,255,0.28)" }}>Predictive Analytics · {bestModel}</p>
+            <p className="text-[10px] font-mono mt-0.5" style={{ color: "var(--txt-m)" }}>Predictive Analytics · {bestModel}</p>
           </div>
         </div>
         <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full" style={{ background: "rgba(0,212,255,0.1)", color: "#00d4ff", border: "1px solid rgba(0,212,255,0.25)" }}>
@@ -670,7 +670,7 @@ export function ForecastCard({ ins }: { ins: any }) {
           {(["forecast", "decomp", "models"] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all"
-              style={{ background: activeTab === tab ? "rgba(0,212,255,0.15)" : "transparent", color: activeTab === tab ? "#00d4ff" : "rgba(255,255,255,0.35)", border: `1px solid ${activeTab === tab ? "rgba(0,212,255,0.3)" : "transparent"}` }}>
+              style={{ background: activeTab === tab ? "rgba(0,212,255,0.15)" : "transparent", color: activeTab === tab ? "#00d4ff" : "var(--txt-m)", border: `1px solid ${activeTab === tab ? "rgba(0,212,255,0.3)" : "transparent"}` }}>
               {tab === "forecast" ? "Forecast" : tab === "decomp" ? "Decompose" : "Models"}
             </button>
           ))}
@@ -684,8 +684,8 @@ export function ForecastCard({ ins }: { ins: any }) {
                 className="text-[9px] font-black px-2.5 py-1 rounded-lg transition-all"
                 style={{
                   background: (horizon ?? cd?.horizon ?? 30) === h.v ? "rgba(0,212,255,0.2)" : "rgba(255,255,255,0.04)",
-                  color: (horizon ?? cd?.horizon ?? 30) === h.v ? "#00d4ff" : "rgba(255,255,255,0.35)",
-                  border: `1px solid ${(horizon ?? cd?.horizon ?? 30) === h.v ? "rgba(0,212,255,0.35)" : "rgba(255,255,255,0.07)"}`,
+                  color: (horizon ?? cd?.horizon ?? 30) === h.v ? "#00d4ff" : "var(--txt-m)",
+                  border: `1px solid ${(horizon ?? cd?.horizon ?? 30) === h.v ? "rgba(0,212,255,0.35)" : "var(--border)"}`,
                   opacity: runningForecast ? 0.5 : 1,
                 }}>
                 {runningForecast && (horizon ?? cd?.horizon ?? 30) === h.v ? "…" : h.label}
@@ -721,35 +721,35 @@ export function ForecastCard({ ins }: { ins: any }) {
                 { label: "Residual", data: decomp.residual, borderColor: "rgba(239,68,68,0.6)", backgroundColor: "transparent", borderWidth: 1,   pointRadius: 0, tension: 0.3 },
               ],
             }}
-            options={{ ...chartOpts, plugins: { ...chartOpts.plugins, legend: { display: true, labels: { color: "rgba(255,255,255,0.6)", font: { size: 10 }, boxWidth: 12 } } } }}
+            options={{ ...chartOpts, plugins: { ...chartOpts.plugins, legend: { display: true, labels: { color: "#1e293b", font: { size: 10, weight: "bold" }, boxWidth: 12 } } } }}
           />
         )}
         {activeTab === "decomp" && !decomp && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.3)" }}>Decomposition not available for this dataset length.</p>
+            <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>Decomposition not available for this dataset length.</p>
           </div>
         )}
 
         {activeTab === "models" && (
           <div className="h-full overflow-auto flex flex-col gap-3 px-2 py-4">
-            <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)" }}>Model Accuracy (MAPE — lower is better)</p>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "#1e293b" }}>Model Accuracy (MAPE — lower is better)</p>
             {Object.entries(mapes as Record<string, number>).map(([name, mape]) => {
               const isB = name === bestModel;
               const barW = Math.max(5, Math.min(100, 100 - mape));
               return (
                 <div key={name} className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold flex-shrink-0" style={{ width: 120, color: isB ? "#00d4ff" : "rgba(255,255,255,0.45)" }}>
+                  <span className="text-[10px] font-bold flex-shrink-0" style={{ width: 120, color: isB ? "#00d4ff" : "#1e293b" }}>
                     {name}{isB ? " ★" : ""}
                   </span>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${barW}%`, background: isB ? "linear-gradient(90deg,#00d4ff,#6366f1)" : "rgba(255,255,255,0.15)" }} />
+                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.08)" }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${barW}%`, background: isB ? "linear-gradient(90deg,#00d4ff,#6366f1)" : "rgba(0,0,0,0.25)" }} />
                   </div>
-                  <span className="text-[10px] font-mono font-bold" style={{ width: 60, textAlign: "right", color: isB ? "#00d4ff" : "rgba(255,255,255,0.35)" }}>{mape.toFixed(1)}% err</span>
+                  <span className="text-[10px] font-mono font-bold" style={{ width: 60, textAlign: "right", color: isB ? "#00d4ff" : "#1e293b" }}>{mape.toFixed(1)}% err</span>
                 </div>
               );
             })}
             {Object.keys(mapes).length === 0 && (
-              <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.3)" }}>No model metrics available.</p>
+              <p className="text-[11px]" style={{ color: "#1e293b" }}>No model metrics available.</p>
             )}
           </div>
         )}
@@ -777,7 +777,7 @@ function InsightCard({ ins, idx }: { ins: any; idx: number }) {
       <div className="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-black text-sm leading-tight truncate" style={{ color: "var(--txt)" }}>{ins.title}</p>
-          {ins.metric && <p className="text-[9px] font-mono mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{ins.metric}</p>}
+          {ins.metric && <p className="text-[9px] font-mono mt-0.5" style={{ color: "var(--txt-m)" }}>{ins.metric}</p>}
         </div>
         <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full flex-shrink-0 whitespace-nowrap" style={{ background: t.bg, color: t.text, border: `1px solid ${t.border}` }}>
           {ins.type?.replace(/_/g, " ")}
@@ -789,8 +789,8 @@ function InsightCard({ ins, idx }: { ins: any; idx: number }) {
 
       {/* Importance bar */}
       <div className="px-4 pb-3 flex items-center gap-2">
-        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.3)" }}>Importance</span>
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Importance</span>
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--inp-bg)" }}>
           <div className="h-full rounded-full transition-all" style={{ width: `${imp}%`, background: `linear-gradient(90deg,${t.text},${t.text}88)` }} />
         </div>
         <span className="font-mono text-[10px] font-bold" style={{ color: t.text }}>{imp}%</span>
@@ -802,8 +802,8 @@ function InsightCard({ ins, idx }: { ins: any; idx: number }) {
           {renderInsightChart(ins)}
         </div>
       ) : ins.type === "profile" ? (
-        <div className="mx-4 mb-4 rounded-xl p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <p className="text-[10px] leading-relaxed" style={{ color: "rgba(255,255,255,0.35)" }}>No chart available for this insight type.</p>
+        <div className="mx-4 mb-4 rounded-xl p-3" style={{ background: "var(--inp-bg)", border: "1px solid var(--border)" }}>
+          <p className="text-[10px] leading-relaxed" style={{ color: "var(--txt-m)" }}>No chart available for this insight type.</p>
         </div>
       ) : null}
     </div>

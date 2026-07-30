@@ -37,9 +37,6 @@ export default function LoginModal({ onClose }: LoginModalProps) {
               </svg>
               Continue with Google
             </a>
-            <a href="http://localhost:5000/login/mock" className="google-btn" style={{ background: "rgba(255,255,255,0.05)", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", marginTop: "0.25rem" }}>
-              👤 Developer Sandbox Login
-            </a>
           </div>
         ) : (
           <div className="p-4 rounded-xl" style={{ background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.2)" }}>

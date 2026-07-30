@@ -37,7 +37,7 @@ export default function LoginPage() {
           to continue to your analytics dashboard
         </p>
 
-        <a href="/api/auth/login/google" className={styles.googleBtn}>
+        <a href="http://localhost:5000/login/google" className={styles.googleBtn}>
           <svg width="18" height="18" viewBox="0 0 48 48">
             <path
               fill="#EA4335"
@@ -57,10 +57,6 @@ export default function LoginPage() {
             />
           </svg>
           Continue with Google
-        </a>
-
-        <a href="http://localhost:5000/login/mock" className={styles.googleBtn} style={{ background: "rgba(255,255,255,0.05)", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", marginTop: "0.75rem" }}>
-          👤 Developer Sandbox Login
         </a>
 
 

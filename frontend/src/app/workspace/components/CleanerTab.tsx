@@ -10,6 +10,7 @@ export function CleanerTab() {
   const [mode, setMode] = useState<"auto" | "dynamic">("dynamic");
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanError, setCleanError] = useState("");
+  const [alreadyCleanModal, setAlreadyCleanModal] = useState(false);
 
   // Dynamic Rule Builder State
   const [selectedCol, setSelectedCol] = useState("");
@@ -64,6 +65,14 @@ export function CleanerTab() {
       }
       setCleanResult(data);
       setCleanProfile(data.clean_profile);
+
+      // Trigger modal if dataset is already 100% clean (0 missing values / 0 cleaning actions needed)
+      const missingLog = data.missing_log || [];
+      const structActions = data.struct_actions || [];
+      const isClean = missingLog.length === 0 && structActions.length === 0;
+      if (isClean || (profile && profile.missing_pct === 0)) {
+        setAlreadyCleanModal(true);
+      }
     } catch (e: any) {
       setCleanError("Network error: " + e.message);
     } finally {
@@ -137,7 +146,7 @@ export function CleanerTab() {
         </div>
       )}
 
-      {/* ── MODE 1: 1-Click Automated Cleaner ────────────────────────── */}
+      {/* MODE 1: 1-Click Automated Cleaner */}
       {mode === "auto" && (
         <div className="rounded-2xl p-6 space-y-4" style={{ background: "var(--surface)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <div>
@@ -154,7 +163,7 @@ export function CleanerTab() {
         </div>
       )}
 
-      {/* ── MODE 2: Dynamic Custom Rule Studio ───────────────────────── */}
+      {/* MODE 2: Dynamic Custom Rule Studio */}
       {mode === "dynamic" && (
         <div className="space-y-6">
           {/* Rule Builder Form */}
@@ -292,7 +301,7 @@ export function CleanerTab() {
         </div>
       )}
 
-      {/* ── Results Cards & Audit Log ──────────────────────────────────── */}
+      {/* Results Cards & Audit Log */}
       {cleanResult && (
         <div className="space-y-6 mt-6">
           <div className="grid-2-4m grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -323,7 +332,7 @@ export function CleanerTab() {
                     <thead><tr><th>Target Column</th><th>Type</th><th>Action Performed</th></tr></thead>
                     <tbody>
                       {cleanResult.missing_log.map((row: any, i: number) => (
-                        <tr key={i} style={{ borderLeft: `3px solid ${row.type === 'drop' ? '#ef4444' : row.type === 'outlier' ? '#f59e0b' : '#10b981'}` }}>
+                        <tr key={i} style={{ borderLeftWidth: "3px", borderLeftStyle: "solid", borderLeftColor: row.type === 'drop' ? '#ef4444' : row.type === 'outlier' ? '#f59e0b' : '#10b981' }}>
                           <td className="font-mono font-bold" style={{ color: "var(--txt)" }}>{row.column}</td>
                           <td><span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.05)", color: "var(--txt-m)" }}>{row.type || "clean"}</span></td>
                           <td style={{ color: "var(--txt)" }}>{row.action}</td>
@@ -335,6 +344,59 @@ export function CleanerTab() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Dataset Already Clean Modal Popup */}
+      {alreadyCleanModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-fadeIn" onClick={() => setAlreadyCleanModal(false)}>
+          <div className="w-full max-w-md rounded-3xl p-6 md:p-8 flex flex-col items-center text-center shadow-2xl relative overflow-hidden border"
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}>
+            
+            {/* Ambient Glow */}
+            <div className="absolute -top-16 -right-16 w-36 h-36 rounded-full opacity-20 blur-3xl pointer-events-none" style={{ background: "var(--accent)" }} />
+
+            {/* Icon */}
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 border shadow-lg"
+              style={{ background: "rgba(16,185,129,0.12)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
+              <CheckCircle2 size={34} />
+            </div>
+
+            <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-3" style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+              100% Analysis Ready
+            </span>
+
+            <h3 className="text-xl font-black tracking-tight mb-2" style={{ color: "var(--txt)" }}>
+              Dataset is Already Clean! 🎉
+            </h3>
+
+            <p className="text-xs leading-relaxed mb-6" style={{ color: "var(--txt-m)" }}>
+              No missing values, duplicate records, or formatting errors were detected in your dataset. Your dataset is already in pristine condition and ready for analysis!
+            </p>
+
+            {/* Stats Summary Grid */}
+            <div className="w-full grid grid-cols-3 gap-2 p-3.5 rounded-2xl mb-6 border" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+              <div className="text-center">
+                <p className="text-[9px] uppercase font-extrabold" style={{ color: "var(--txt-m)" }}>Missing Values</p>
+                <p className="text-base font-black text-emerald-400">0%</p>
+              </div>
+              <div className="text-center border-x" style={{ borderColor: "var(--border)" }}>
+                <p className="text-[9px] uppercase font-extrabold" style={{ color: "var(--txt-m)" }}>Duplicates</p>
+                <p className="text-base font-black text-emerald-400">0</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[9px] uppercase font-extrabold" style={{ color: "var(--txt-m)" }}>Data Quality</p>
+                <p className="text-base font-black text-emerald-400">100%</p>
+              </div>
+            </div>
+
+            <button onClick={() => setAlreadyCleanModal(false)}
+              className="w-full py-3 rounded-xl font-bold text-xs text-white shadow-xl transition-all hover:scale-[1.02]"
+              style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>
+              Great, Continue Analysis!
+            </button>
+          </div>
         </div>
       )}
     </div>
