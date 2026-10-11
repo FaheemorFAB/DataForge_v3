@@ -83,6 +83,13 @@ function WorkspaceContent() {
                   </span>
               )}
 
+              {sourceType === 'database' && (
+                  <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider shrink-0" 
+                        style={{ background: "rgba(99,102,241,.15)", border: "1px solid rgba(99,102,241,.3)", color: "#6366f1" }}>
+                      SQL DB
+                  </span>
+              )}
+
               {sourceType === 'sheets' && (
                   <button onClick={syncSheets} 
                           disabled={isSyncingSheets}

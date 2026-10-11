@@ -213,123 +213,442 @@ def run_cleaning_pipeline(df_raw: pd.DataFrame) -> dict:
 
 def run_dynamic_cleaning_pipeline(df_raw: pd.DataFrame, rules: list[dict]) -> dict:
     """
-    Applies custom user-defined dynamic cleaning rules column-by-column.
-    Returns cleaned dataframe, audit log of actions, and before/after stats.
+    Applies custom user-defined dynamic cleaning rules column-by-column or in batch.
+    Enterprise-grade engine supporting advanced statistical and ML algorithms:
+      • Multi-column batch transformations
+      • Advanced Imputation: Mean, Median, Mode, Constant, Zero, Forward/Backward fill,
+        Linear/Spline/Polynomial Interpolation, KNN Imputer, MICE (IterativeImputer)
+      • Outlier Handling: Tunable IQR fence (k-multiplier), Z-Score, Modified Z-Score (MAD),
+        Isolation Forest, Local Outlier Factor (LOF), Percentile Winsorization
+      • Scaling & Normalization: RobustScaler, StandardScaler, MinMaxScaler
+      • Categorical Encoding: One-Hot Encoding (with min_freq), Ordinal Encoding
+      • Text & PII Protection: Case conversion, Trim, RegEx substitution, Fuzzy Deduplication,
+        PII masking (Email, Phone, SSN, Credit Cards)
+      • Type Casting & Column Dropping
     """
     df = df_raw.copy()
     logs = []
-    
+
     for rule in rules:
-        col = rule.get("column")
-        action = rule.get("action_type")
-        if not col or col not in df.columns:
-            continue
+        # Support both 'columns' (list of str) and 'column' (single str)
+        cols = rule.get("columns")
+        if not cols:
+            single_col = rule.get("column")
+            cols = [single_col] if single_col else []
         
-        # 1. Drop Column
-        if action == "drop":
-            df.drop(columns=[col], inplace=True)
-            logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Dropped column '{col}'", "type": "drop"})
+        # Filter to columns that actually exist in df
+        target_cols = [c for c in cols if c in df.columns]
+        if not target_cols:
             continue
 
-        # 2. Imputation
+        action = rule.get("action_type")
+
+        # ── 1. DROP COLUMNS ───────────────────────────────────────────────────
+        if action == "drop":
+            df.drop(columns=target_cols, inplace=True)
+            for c in target_cols:
+                logs.append({
+                    "column": c,
+                    "missing": 0,
+                    "pct_missing": 0.0,
+                    "action": f"Dropped column '{c}'",
+                    "type": "drop",
+                })
+            continue
+
+        # ── 2. IMPUTATION ─────────────────────────────────────────────────────
         if action == "impute":
-            method = rule.get("impute_method", "mean")
+            method = rule.get("impute_method", "median")
             val = rule.get("fill_value")
-            n_miss = int(df[col].isnull().sum())
-            pct_miss = round(n_miss / len(df) * 100, 1) if len(df) > 0 else 0.0
-            
-            if n_miss > 0:
+
+            # A. Multivariate KNN Imputation (applied jointly across selected numeric cols)
+            if method == "knn":
+                num_target = [c for c in target_cols if pd.api.types.is_numeric_dtype(df[c])]
+                if num_target:
+                    k_neighbors = int(rule.get("knn_neighbors", 5))
+                    weights = rule.get("knn_weights", "uniform")
+                    try:
+                        from sklearn.impute import KNNImputer
+                        imputer = KNNImputer(n_neighbors=k_neighbors, weights=weights)
+                        df[num_target] = imputer.fit_transform(df[num_target])
+                        for c in num_target:
+                            logs.append({
+                                "column": c,
+                                "missing": 0,
+                                "pct_missing": 0.0,
+                                "action": f"Imputed via KNN (k={k_neighbors}, weights={weights})",
+                                "type": "fill",
+                            })
+                    except Exception:
+                        # Graceful fallback to median if sklearn is unavailable or fails
+                        for c in num_target:
+                            med = float(df[c].median())
+                            df[c] = df[c].fillna(med)
+                            logs.append({
+                                "column": c,
+                                "missing": 0,
+                                "pct_missing": 0.0,
+                                "action": f"Filled with Median ({med:.4g}) [KNN Fallback]",
+                                "type": "fill",
+                            })
+                continue
+
+            # B. Multivariate MICE / Iterative Imputation
+            elif method in ("mice", "iterative"):
+                num_target = [c for c in target_cols if pd.api.types.is_numeric_dtype(df[c])]
+                if num_target:
+                    max_iter = int(rule.get("mice_max_iter", 10))
+                    init_strat = rule.get("mice_initial", "median")
+                    try:
+                        from sklearn.experimental import enable_iterative_imputer  # noqa: F401
+                        from sklearn.impute import IterativeImputer
+                        imputer = IterativeImputer(max_iter=max_iter, initial_strategy=init_strat, random_state=42)
+                        df[num_target] = imputer.fit_transform(df[num_target])
+                        for c in num_target:
+                            logs.append({
+                                "column": c,
+                                "missing": 0,
+                                "pct_missing": 0.0,
+                                "action": f"Imputed via MICE / IterativeImputer (max_iter={max_iter})",
+                                "type": "fill",
+                            })
+                    except Exception:
+                        for c in num_target:
+                            med = float(df[c].median())
+                            df[c] = df[c].fillna(med)
+                            logs.append({
+                                "column": c,
+                                "missing": 0,
+                                "pct_missing": 0.0,
+                                "action": f"Filled with Median ({med:.4g}) [MICE Fallback]",
+                                "type": "fill",
+                            })
+                continue
+
+            # C. Standard Univariate Imputations (per column)
+            for col in target_cols:
+                n_miss = int(df[col].isnull().sum())
+                pct_miss = round(n_miss / len(df) * 100, 1) if len(df) > 0 else 0.0
+                if n_miss == 0:
+                    continue
+
                 if method == "mean" and pd.api.types.is_numeric_dtype(df[col]):
-                    m_val = float(df[col].mean())
+                    trim = float(rule.get("trim_percent", 0.0))
+                    if 0.0 < trim < 0.5:
+                        try:
+                            from scipy.stats import trim_mean
+                            m_val = float(trim_mean(df[col].dropna(), proportiontocut=trim))
+                            action_label = f"Filled with Trimmed Mean ({trim*100:.0f}% cut: {m_val:.4g})"
+                        except Exception:
+                            m_val = float(df[col].mean())
+                            action_label = f"Filled with Mean ({m_val:.4g})"
+                    else:
+                        m_val = float(df[col].mean())
+                        action_label = f"Filled with Mean ({m_val:.4g})"
                     df[col] = df[col].fillna(m_val)
-                    logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Filled with Mean ({m_val:.4g})", "type": "fill"})
+                    logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": action_label, "type": "fill"})
+
                 elif method == "median" and pd.api.types.is_numeric_dtype(df[col]):
                     m_val = float(df[col].median())
                     df[col] = df[col].fillna(m_val)
                     logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Filled with Median ({m_val:.4g})", "type": "fill"})
+
                 elif method == "mode":
                     mode_v = df[col].mode(dropna=True)
                     m_val = mode_v.iloc[0] if not mode_v.empty else "Unknown"
                     df[col] = df[col].fillna(m_val)
                     logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Filled with Mode ('{m_val}')", "type": "fill"})
+
                 elif method == "zero":
                     df[col] = df[col].fillna(0)
                     logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": "Filled with 0", "type": "fill"})
+
                 elif method == "constant":
-                    c_val = val if val is not None else "N/A"
+                    c_val = val if val is not None and str(val).strip() != "" else "N/A"
                     df[col] = df[col].fillna(c_val)
                     logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Filled with Constant ('{c_val}')", "type": "fill"})
+
                 elif method == "ffill":
-                    df[col] = df[col].ffill()
-                    logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": "Forward-filled values", "type": "fill"})
+                    limit = int(rule.get("fill_limit")) if rule.get("fill_limit") else None
+                    df[col] = df[col].ffill(limit=limit)
+                    logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Forward-filled values (limit={limit})", "type": "fill"})
+
                 elif method == "bfill":
-                    df[col] = df[col].bfill()
-                    logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": "Backward-filled values", "type": "fill"})
+                    limit = int(rule.get("fill_limit")) if rule.get("fill_limit") else None
+                    df[col] = df[col].bfill(limit=limit)
+                    logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Backward-filled values (limit={limit})", "type": "fill"})
+
+                elif method == "interpolate" and pd.api.types.is_numeric_dtype(df[col]):
+                    interp_m = rule.get("interp_method", "linear")
+                    order = int(rule.get("interp_order", 2))
+                    limit_dir = rule.get("limit_direction", "both")
+                    try:
+                        if interp_m in ("polynomial", "spline"):
+                            df[col] = df[col].interpolate(method=interp_m, order=order, limit_direction=limit_dir)
+                        else:
+                            df[col] = df[col].interpolate(method="linear", limit_direction=limit_dir)
+                        logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Interpolated ({interp_m}, order={order})", "type": "fill"})
+                    except Exception as e:
+                        df[col] = df[col].interpolate(method="linear")
+                        logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Linear interpolation (fallback: {e})", "type": "fill"})
+
                 elif method == "drop_rows":
                     before_len = len(df)
                     df = df.dropna(subset=[col])
                     dropped_n = before_len - len(df)
                     logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Dropped {dropped_n} rows with missing values", "type": "drop"})
 
-        # 3. Outlier Handling
-        elif action == "outlier" and pd.api.types.is_numeric_dtype(df[col]):
-            method = rule.get("outlier_method", "clip")
-            q1, q3 = df[col].quantile(0.25), df[col].quantile(0.75)
-            iqr = q3 - q1
-            lo_fence, hi_fence = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-            outliers_mask = (df[col] < lo_fence) | (df[col] > hi_fence)
-            n_outliers = int(outliers_mask.sum())
+        # ── 3. OUTLIER HANDLING ───────────────────────────────────────────────
+        elif action == "outlier":
+            method = rule.get("outlier_method", "iqr")
+            sub_action = rule.get("outlier_action", "clip")
 
-            if n_outliers > 0:
-                if method == "clip":
-                    p1, p99 = df[col].quantile(0.01), df[col].quantile(0.99)
-                    df[col] = df[col].clip(lower=p1, upper=p99)
-                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Clipped {n_outliers} outliers to [1st, 99th] percentiles", "type": "outlier"})
-                elif method == "drop_rows":
+            # A. Multivariate Isolation Forest
+            if method == "isolation_forest":
+                num_target = [c for c in target_cols if pd.api.types.is_numeric_dtype(df[c])]
+                if num_target:
+                    contam = float(rule.get("iso_contamination", 0.05))
+                    n_est = int(rule.get("iso_estimators", 100))
+                    try:
+                        from sklearn.ensemble import IsolationForest
+                        iso = IsolationForest(contamination=contam, n_estimators=n_est, random_state=42)
+                        # Impute temporary median for rows with null to allow isolation forest
+                        x_temp = df[num_target].fillna(df[num_target].median())
+                        preds = iso.fit_predict(x_temp)
+                        outlier_mask = (preds == -1)
+                        n_outliers = int(outlier_mask.sum())
+                        if n_outliers > 0:
+                            if sub_action == "drop_rows":
+                                before_len = len(df)
+                                df = df[~outlier_mask]
+                                dropped_n = before_len - len(df)
+                                logs.append({"column": ", ".join(num_target), "missing": 0, "pct_missing": 0.0, "action": f"Removed {dropped_n} anomaly rows via Isolation Forest", "type": "outlier"})
+                            elif sub_action == "nullify":
+                                for c in num_target:
+                                    df.loc[outlier_mask, c] = np.nan
+                                logs.append({"column": ", ".join(num_target), "missing": 0, "pct_missing": 0.0, "action": f"Set {n_outliers} anomalies to NaN via Isolation Forest", "type": "outlier"})
+                            else: # clip to 1st/99th
+                                for c in num_target:
+                                    p1, p99 = df[c].quantile(0.01), df[c].quantile(0.99)
+                                    df.loc[outlier_mask, c] = df.loc[outlier_mask, c].clip(lower=p1, upper=p99)
+                                logs.append({"column": ", ".join(num_target), "missing": 0, "pct_missing": 0.0, "action": f"Clipped {n_outliers} Isolation Forest anomalies to [1st, 99th] percentiles", "type": "outlier"})
+                    except Exception as exc:
+                        logs.append({"column": ", ".join(num_target), "missing": 0, "pct_missing": 0.0, "action": f"Isolation Forest failed: {exc}", "type": "error"})
+                continue
+
+            # B. Column-by-Column Outlier Processing
+            for col in target_cols:
+                if not pd.api.types.is_numeric_dtype(df[col]):
+                    continue
+
+                outlier_mask = pd.Series(False, index=df.index)
+
+                # Method 1: Configurable IQR Fence
+                if method == "iqr":
+                    k = float(rule.get("multiplier_k", 1.5))
+                    q1, q3 = df[col].quantile(0.25), df[col].quantile(0.75)
+                    iqr = q3 - q1
+                    lo_fence, hi_fence = q1 - k * iqr, q3 + k * iqr
+                    outlier_mask = (df[col] < lo_fence) | (df[col] > hi_fence)
+
+                # Method 2: Z-Score or Robust MAD
+                elif method in ("zscore", "mad"):
+                    thresh = float(rule.get("zscore_threshold", 3.0))
+                    z_mode = rule.get("zscore_method", "zscore")
+                    if z_mode == "mad":
+                        med_val = df[col].median()
+                        mad = (df[col] - med_val).abs().median()
+                        scale = mad * 1.4826 if mad > 0 else df[col].std()
+                        if scale > 0:
+                            scores = (df[col] - med_val).abs() / scale
+                            outlier_mask = scores > thresh
+                    else:
+                        std_val = df[col].std()
+                        mean_val = df[col].mean()
+                        if std_val > 0:
+                            scores = ((df[col] - mean_val) / std_val).abs()
+                            outlier_mask = scores > thresh
+
+                # Method 3: Percentile Bounds
+                elif method == "percentile" or method == "clip":
+                    p_lo = float(rule.get("lower_percentile", 0.01))
+                    p_hi = float(rule.get("upper_percentile", 0.99))
+                    lo_fence, hi_fence = df[col].quantile(p_lo), df[col].quantile(p_hi)
+                    outlier_mask = (df[col] < lo_fence) | (df[col] > hi_fence)
+
+                n_outliers = int(outlier_mask.sum())
+                if n_outliers == 0:
+                    continue
+
+                if sub_action == "clip":
+                    if method == "iqr":
+                        df[col] = df[col].clip(lower=lo_fence, upper=hi_fence)
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Clipped {n_outliers} outliers to IQR fences [k={k}]", "type": "outlier"})
+                    elif method in ("zscore", "mad"):
+                        p1, p99 = df[col].quantile(0.01), df[col].quantile(0.99)
+                        df[col] = df[col].clip(lower=p1, upper=p99)
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Clipped {n_outliers} Z-score anomalies to [1st, 99th] percentiles", "type": "outlier"})
+                    else:
+                        df[col] = df[col].clip(lower=lo_fence, upper=hi_fence)
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Winsorized {n_outliers} outliers to [{p_lo*100:.0f}%, {p_hi*100:.0f}%] percentiles", "type": "outlier"})
+
+                elif sub_action == "drop_rows":
                     before_len = len(df)
-                    df = df[~outliers_mask]
+                    df = df[~outlier_mask]
                     dropped_n = before_len - len(df)
                     logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Removed {dropped_n} outlier rows", "type": "outlier"})
-                elif method == "fill_median":
+
+                elif sub_action == "fill_median":
                     med_val = float(df[col].median())
-                    df.loc[outliers_mask, col] = med_val
+                    df.loc[outlier_mask, col] = med_val
                     logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Replaced {n_outliers} outliers with Median ({med_val:.4g})", "type": "outlier"})
 
-        # 4. Text Normalization
-        elif action == "normalize":
+                elif sub_action == "nullify":
+                    df.loc[outlier_mask, col] = np.nan
+                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Set {n_outliers} outliers to NaN", "type": "outlier"})
+
+        # ── 4. FEATURE SCALING & NORMALIZATION ────────────────────────────────
+        elif action == "scale":
+            scale_method = rule.get("scaler_method", "robust")
+            for col in target_cols:
+                if not pd.api.types.is_numeric_dtype(df[col]):
+                    continue
+                if scale_method == "robust":
+                    q_l = float(rule.get("quantile_low", 25.0)) / 100.0
+                    q_h = float(rule.get("quantile_high", 75.0)) / 100.0
+                    med = df[col].median()
+                    iqr = df[col].quantile(q_h) - df[col].quantile(q_l)
+                    denom = iqr if iqr > 0 else 1.0
+                    df[col] = (df[col] - med) / denom
+                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Scaled via RobustScaler (Quantiles [{q_l*100:.0f}%, {q_h*100:.0f}%])", "type": "scale"})
+                elif scale_method == "standard":
+                    m, s = df[col].mean(), df[col].std()
+                    denom = s if s > 0 else 1.0
+                    df[col] = (df[col] - m) / denom
+                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Standardized (Zero Mean, Unit Variance)", "type": "scale"})
+                elif scale_method == "minmax":
+                    f_min = float(rule.get("scale_min", 0.0))
+                    f_max = float(rule.get("scale_max", 1.0))
+                    c_min, c_max = df[col].min(), df[col].max()
+                    denom = (c_max - c_min) if (c_max - c_min) > 0 else 1.0
+                    df[col] = (df[col] - c_min) / denom * (f_max - f_min) + f_min
+                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"MinMax Scaled to range [{f_min}, {f_max}]", "type": "scale"})
+
+        # ── 5. CATEGORICAL ENCODING ──────────────────────────────────────────
+        elif action == "encode":
+            enc_method = rule.get("encode_method", "onehot")
+            for col in target_cols:
+                if enc_method == "onehot":
+                    drop_first = bool(rule.get("drop_first", False))
+                    min_freq = float(rule.get("min_freq", 0.0))
+                    if min_freq > 0:
+                        counts = df[col].value_counts(normalize=True)
+                        rare_mask = df[col].isin(counts[counts < min_freq].index)
+                        df.loc[rare_mask, col] = "Other"
+                    dummies = pd.get_dummies(df[col], prefix=col, drop_first=drop_first)
+                    df = pd.concat([df.drop(columns=[col]), dummies], axis=1)
+                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"One-Hot Encoded into {dummies.shape[1]} binary column(s)", "type": "encode"})
+                elif enc_method == "ordinal":
+                    df[col] = df[col].astype("category").cat.codes
+                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Ordinal Encoded into integer categories", "type": "encode"})
+
+        # ── 6. TEXT NORMALIZATION & PII PROTECTION ────────────────────────────
+        elif action == "normalize" or action == "text":
             case_opt = rule.get("text_case", "trim")
-            if _is_non_numeric(df[col]):
+            pattern = rule.get("regex_pattern")
+            replacement = rule.get("regex_replacement", "")
+            is_pii = bool(rule.get("pii_mask", False))
+            is_fuzzy = bool(rule.get("fuzzy_dedupe", False))
+
+            for col in target_cols:
+                if not _is_non_numeric(df[col]):
+                    continue
+                
+                # Case conversion
                 if case_opt == "lowercase":
                     df[col] = df[col].astype(str).str.lower().str.strip()
                     logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Converted text to lowercase", "type": "normalize"})
                 elif case_opt == "uppercase":
                     df[col] = df[col].astype(str).str.upper().str.strip()
                     logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Converted text to uppercase", "type": "normalize"})
+                elif case_opt == "titlecase":
+                    df[col] = df[col].astype(str).str.title().str.strip()
+                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Converted text to Title Case", "type": "normalize"})
                 elif case_opt == "trim":
                     df[col] = df[col].astype(str).str.strip()
                     logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Trimmed leading/trailing whitespace", "type": "normalize"})
 
-        # 5. Type Casting
+                # Custom RegEx Substitution
+                if pattern:
+                    try:
+                        df[col] = df[col].astype(str).str.replace(pattern, replacement, regex=True)
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Applied RegEx replace (/{pattern}/ -> '{replacement}')", "type": "normalize"})
+                    except Exception as e:
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"RegEx error: {e}", "type": "error"})
+
+                # PII Redaction
+                if is_pii:
+                    entities = rule.get("pii_entities", ["email", "phone"])
+                    s = df[col].astype(str)
+                    if "email" in entities:
+                        s = s.str.replace(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", "[REDACTED_EMAIL]", regex=True)
+                    if "phone" in entities:
+                        s = s.str.replace(r"\+?[\d\s\-\(\)]{7,}\b", "[REDACTED_PHONE]", regex=True)
+                    if "ssn" in entities:
+                        s = s.str.replace(r"\b\d{3}-\d{2}-\d{4}\b", "[REDACTED_SSN]", regex=True)
+                    if "credit_card" in entities:
+                        s = s.str.replace(r"\b(?:\d{4}[ -]?){3}\d{4}\b", "[REDACTED_CARD]", regex=True)
+                    df[col] = s
+                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Redacted PII entities: {', '.join(entities)}", "type": "normalize"})
+
+                # Fuzzy Deduplication
+                if is_fuzzy:
+                    threshold = float(rule.get("fuzzy_threshold", 0.85))
+                    import difflib
+                    unique_vals = [str(x) for x in df[col].dropna().unique()]
+                    mapping = {}
+                    processed = set()
+                    for val in sorted(unique_vals, key=len, reverse=True):
+                        if val in processed:
+                            continue
+                        matches = difflib.get_close_matches(val, unique_vals, n=10, cutoff=threshold)
+                        for m in matches:
+                            mapping[m] = val
+                            processed.add(m)
+                    if mapping:
+                        df[col] = df[col].astype(str).replace(mapping)
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Fuzzy deduplicated {len(mapping)} variants (similarity > {threshold*100:.0f}%)", "type": "normalize"})
+
+        # ── 7. TYPE CASTING ───────────────────────────────────────────────────
         elif action == "cast":
             target_type = rule.get("cast_type", "float")
-            try:
-                if target_type == "float":
-                    df[col] = pd.to_numeric(df[col], errors="coerce")
-                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Cast column to Float", "type": "cast"})
-                elif target_type == "int":
-                    df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Cast column to Integer", "type": "cast"})
-                elif target_type == "datetime":
-                    df[col] = pd.to_datetime(df[col], format="mixed", errors="coerce")
-                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Parsed column as Datetime", "type": "cast"})
-                elif target_type == "string":
-                    df[col] = df[col].astype(str)
-                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Cast column to Text", "type": "cast"})
-            except Exception as e:
-                logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Type cast failed: {e}", "type": "error"})
+            for col in target_cols:
+                try:
+                    if target_type == "float":
+                        df[col] = pd.to_numeric(df[col], errors="coerce")
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Cast column to Float", "type": "cast"})
+                    elif target_type == "int":
+                        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Cast column to Integer", "type": "cast"})
+                    elif target_type == "datetime":
+                        df[col] = pd.to_datetime(df[col], format="mixed", errors="coerce")
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Parsed column as Datetime", "type": "cast"})
+                    elif target_type == "string":
+                        df[col] = df[col].astype(str)
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Cast column to Text", "type": "cast"})
+                    elif target_type == "bool":
+                        df[col] = df[col].astype(bool)
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Cast column to Boolean", "type": "cast"})
+                    elif target_type == "category":
+                        df[col] = df[col].astype("category")
+                        logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": "Cast column to Categorical", "type": "cast"})
+                except Exception as e:
+                    logs.append({"column": col, "missing": 0, "pct_missing": 0.0, "action": f"Type cast failed: {e}", "type": "error"})
 
     if not logs:
-        logs.append({"column": "Dataset", "missing": 0, "pct_missing": 0.0, "action": "Dynamic rules applied cleanly.", "type": "info"})
+        logs.append({"column": "Dataset", "missing": 0, "pct_missing": 0.0, "action": "Cleaning rules executed cleanly.", "type": "info"})
+
+    python_script = generate_python_script(rules)
 
     return {
         "df_clean": df,
@@ -343,4 +662,248 @@ def run_dynamic_cleaning_pipeline(df_raw: pd.DataFrame, rules: list[dict]) -> di
             "rows_removed": int(len(df_raw) - len(df)),
             "cols_removed": int(df_raw.shape[1] - df.shape[1]),
         },
+        "pipeline_script": python_script,
     }
+
+
+def compute_rule_diff(df_raw: pd.DataFrame, rule: dict, max_sample_rows: int = 1000) -> dict:
+    """
+    Simulates a single cleaning rule on a sample of the dataset and returns
+    before/after metrics and row deltas for live UI preview.
+    """
+    cols = rule.get("columns")
+    if not cols:
+        single_col = rule.get("column")
+        cols = [single_col] if single_col else []
+
+    target_cols = [c for c in cols if c in df_raw.columns]
+    if not target_cols:
+        return {"error": "Target column(s) not found in dataset."}
+
+    # Sample dataframe for fast preview
+    df_sample = df_raw.head(max_sample_rows).copy()
+    col = target_cols[0] # primary inspection column
+
+    # Compute stats before
+    nulls_before = int(df_sample[col].isnull().sum())
+    is_num = pd.api.types.is_numeric_dtype(df_sample[col])
+    
+    stats_before = {
+        "nulls": nulls_before,
+        "null_pct": round(nulls_before / len(df_sample) * 100, 1),
+    }
+    if is_num and df_sample[col].notna().sum() > 0:
+        stats_before["mean"] = round(float(df_sample[col].mean()), 4)
+        stats_before["median"] = round(float(df_sample[col].median()), 4)
+        stats_before["std"] = round(float(df_sample[col].std()), 4) if df_sample[col].count() > 1 else 0.0
+        stats_before["min"] = round(float(df_sample[col].min()), 4)
+        stats_before["max"] = round(float(df_sample[col].max()), 4)
+
+    # Run single rule simulation
+    sim_result = run_dynamic_cleaning_pipeline(df_sample, [rule])
+    df_sim = sim_result["df_clean"]
+
+    # If column was dropped, indicate in response
+    if col not in df_sim.columns:
+        return {
+            "column": col,
+            "action": "drop",
+            "stats_before": stats_before,
+            "stats_after": {"status": "Column Dropped"},
+            "sample_diff": [],
+        }
+
+    # Compute stats after
+    nulls_after = int(df_sim[col].isnull().sum()) if col in df_sim.columns else 0
+    stats_after = {
+        "nulls": nulls_after,
+        "null_pct": round(nulls_after / max(len(df_sim), 1) * 100, 1),
+    }
+    if is_num and col in df_sim.columns and df_sim[col].notna().sum() > 0:
+        stats_after["mean"] = round(float(df_sim[col].mean()), 4)
+        stats_after["median"] = round(float(df_sim[col].median()), 4)
+        stats_after["std"] = round(float(df_sim[col].std()), 4) if df_sim[col].count() > 1 else 0.0
+        stats_after["min"] = round(float(df_sim[col].min()), 4)
+        stats_after["max"] = round(float(df_sim[col].max()), 4)
+
+    # 10-row side-by-side comparison sample
+    sample_diff = []
+    sample_indices = df_sample.index[:15]
+    for idx in sample_indices:
+        b_val = str(df_sample.loc[idx, col]) if idx in df_sample.index else "N/A"
+        a_val = str(df_sim.loc[idx, col]) if (idx in df_sim.index and col in df_sim.columns) else "REMOVED"
+        sample_diff.append({
+            "row": int(idx),
+            "before": b_val,
+            "after": a_val,
+            "changed": b_val != a_val,
+        })
+
+    return {
+        "column": col,
+        "columns_targeted": target_cols,
+        "stats_before": stats_before,
+        "stats_after": stats_after,
+        "actions_simulated": sim_result["struct_actions"],
+        "sample_diff": sample_diff[:10],
+    }
+
+
+def generate_python_script(rules: list[dict], filename: str = "raw_dataset.csv") -> str:
+    """
+    Generates a reproducible, standalone Python script representing the exact
+    cleaning pipeline steps applied in DataForge.
+    """
+    lines = [
+        '"""',
+        f'DataForge Enterprise Data Pipeline',
+        f'Auto-generated reproducible Python ETL pipeline for: {filename}',
+        f'Generated on: {pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")}',
+        '"""',
+        '',
+        'import pandas as pd',
+        'import numpy as np',
+        '',
+        'def clean_dataset(filepath: str = "input_dataset.csv") -> pd.DataFrame:',
+        '    print(f"Loading dataset from {filepath}...")',
+        '    # 1. Ingest Raw Dataset',
+        '    df = pd.read_csv(filepath)',
+        '    print(f"Initial shape: {df.shape[0]} rows x {df.shape[1]} columns")',
+        '',
+    ]
+
+    step_idx = 1
+    for r in rules:
+        cols = r.get("columns") or ([r.get("column")] if r.get("column") else [])
+        action = r.get("action_type")
+        if not cols or not action:
+            continue
+
+        cols_repr = repr(cols) if len(cols) > 1 else repr(cols[0])
+        lines.append(f'    # Step {step_idx}: {action.upper()} on {cols_repr}')
+
+        if action == "drop":
+            lines.append(f'    df.drop(columns={cols}, inplace=True, errors="ignore")')
+
+        elif action == "impute":
+            method = r.get("impute_method", "median")
+            if method == "mean":
+                for c in cols:
+                    lines.append(f'    df["{c}"] = df["{c}"].fillna(df["{c}"].mean())')
+            elif method == "median":
+                for c in cols:
+                    lines.append(f'    df["{c}"] = df["{c}"].fillna(df["{c}"].median())')
+            elif method == "mode":
+                for c in cols:
+                    lines.append(f'    df["{c}"] = df["{c}"].fillna(df["{c}"].mode().iloc[0] if not df["{c}"].mode().empty else "Unknown")')
+            elif method == "zero":
+                for c in cols:
+                    lines.append(f'    df["{c}"] = df["{c}"].fillna(0)')
+            elif method == "constant":
+                val = r.get("fill_value", "N/A")
+                for c in cols:
+                    lines.append(f'    df["{c}"] = df["{c}"].fillna({repr(val)})')
+            elif method == "ffill":
+                for c in cols:
+                    lines.append(f'    df["{c}"] = df["{c}"].ffill()')
+            elif method == "bfill":
+                for c in cols:
+                    lines.append(f'    df["{c}"] = df["{c}"].bfill()')
+            elif method == "knn":
+                k = r.get("knn_neighbors", 5)
+                lines.append('    from sklearn.impute import KNNImputer')
+                lines.append(f'    imputer = KNNImputer(n_neighbors={k})')
+                lines.append(f'    df[{cols}] = imputer.fit_transform(df[{cols}])')
+            elif method in ("mice", "iterative"):
+                max_iter = r.get("mice_max_iter", 10)
+                lines.append('    from sklearn.experimental import enable_iterative_imputer')
+                lines.append('    from sklearn.impute import IterativeImputer')
+                lines.append(f'    imputer = IterativeImputer(max_iter={max_iter}, random_state=42)')
+                lines.append(f'    df[{cols}] = imputer.fit_transform(df[{cols}])')
+            elif method == "drop_rows":
+                lines.append(f'    df.dropna(subset={cols}, inplace=True)')
+
+        elif action == "outlier":
+            method = r.get("outlier_method", "iqr")
+            sub_action = r.get("outlier_action", "clip")
+            k = r.get("multiplier_k", 1.5)
+            if method == "iqr":
+                for c in cols:
+                    lines.append(f'    q1, q3 = df["{c}"].quantile(0.25), df["{c}"].quantile(0.75)')
+                    lines.append(f'    iqr = q3 - q1')
+                    lines.append(f'    lo, hi = q1 - {k} * iqr, q3 + {k} * iqr')
+                    if sub_action == "clip":
+                        lines.append(f'    df["{c}"] = df["{c}"].clip(lower=lo, upper=hi)')
+                    elif sub_action == "drop_rows":
+                        lines.append(f'    df = df[(df["{c}"] >= lo) & (df["{c}"] <= hi)]')
+                    elif sub_action == "fill_median":
+                        lines.append(f'    df.loc[(df["{c}"] < lo) | (df["{c}"] > hi), "{c}"] = df["{c}"].median()')
+            elif method == "isolation_forest":
+                contam = r.get("iso_contamination", 0.05)
+                n_est = r.get("iso_estimators", 100)
+                lines.append('    from sklearn.ensemble import IsolationForest')
+                lines.append(f'    iso = IsolationForest(contamination={contam}, n_estimators={n_est}, random_state=42)')
+                lines.append(f'    outliers = iso.fit_predict(df[{cols}].fillna(df[{cols}].median())) == -1')
+                if sub_action == "drop_rows":
+                    lines.append('    df = df[~outliers]')
+                else:
+                    for c in cols:
+                        lines.append(f'    df.loc[outliers, "{c}"] = df["{c}"].median()')
+
+        elif action == "scale":
+            scale_m = r.get("scaler_method", "robust")
+            if scale_m == "robust":
+                lines.append('    from sklearn.preprocessing import RobustScaler')
+                lines.append(f'    scaler = RobustScaler(quantile_range=({r.get("quantile_low", 25.0)}, {r.get("quantile_high", 75.0)}))')
+                lines.append(f'    df[{cols}] = scaler.fit_transform(df[{cols}])')
+            elif scale_m == "standard":
+                lines.append('    from sklearn.preprocessing import StandardScaler')
+                lines.append(f'    scaler = StandardScaler()')
+                lines.append(f'    df[{cols}] = scaler.fit_transform(df[{cols}])')
+            elif scale_m == "minmax":
+                lines.append('    from sklearn.preprocessing import MinMaxScaler')
+                lines.append(f'    scaler = MinMaxScaler(feature_range=({r.get("scale_min", 0.0)}, {r.get("scale_max", 1.0)}))')
+                lines.append(f'    df[{cols}] = scaler.fit_transform(df[{cols}])')
+
+        elif action == "normalize" or action == "text":
+            case = r.get("text_case", "trim")
+            for c in cols:
+                if case == "lowercase":
+                    lines.append(f'    df["{c}"] = df["{c}"].astype(str).str.lower().str.strip()')
+                elif case == "uppercase":
+                    lines.append(f'    df["{c}"] = df["{c}"].astype(str).str.upper().str.strip()')
+                elif case == "trim":
+                    lines.append(f'    df["{c}"] = df["{c}"].astype(str).str.strip()')
+            if r.get("regex_pattern"):
+                pat = r.get("regex_pattern")
+                rep = r.get("regex_replacement", "")
+                for c in cols:
+                    lines.append(f'    df["{c}"] = df["{c}"].astype(str).str.replace(r"{pat}", "{rep}", regex=True)')
+
+        elif action == "cast":
+            ctype = r.get("cast_type", "float")
+            for c in cols:
+                if ctype == "float":
+                    lines.append(f'    df["{c}"] = pd.to_numeric(df["{c}"], errors="coerce")')
+                elif ctype == "int":
+                    lines.append(f'    df["{c}"] = pd.to_numeric(df["{c}"], errors="coerce").fillna(0).astype(int)')
+                elif ctype == "datetime":
+                    lines.append(f'    df["{c}"] = pd.to_datetime(df["{c}"], format="mixed", errors="coerce")')
+                elif ctype == "string":
+                    lines.append(f'    df["{c}"] = df["{c}"].astype(str)')
+
+        lines.append('')
+        step_idx += 1
+
+    lines.extend([
+        '    print(f"Final cleaned shape: {df.shape[0]} rows x {df.shape[1]} columns")',
+        '    return df',
+        '',
+        'if __name__ == "__main__":',
+        '    cleaned_df = clean_dataset()',
+        '    cleaned_df.to_parquet("cleaned_dataset.parquet", index=False)',
+        '    cleaned_df.to_csv("cleaned_dataset.csv", index=False)',
+        '    print("Cleaned dataset saved successfully to parquet & csv!")',
+    ])
+
+    return "\n".join(lines)

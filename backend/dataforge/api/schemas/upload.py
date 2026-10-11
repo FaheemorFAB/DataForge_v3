@@ -13,6 +13,32 @@ class SheetsUploadRequest(BaseModel):
     url: str = Field(..., min_length=10, description="Google Sheets URL")
 
 
+class DBTestConnectionRequest(BaseModel):
+    connection_string: str = Field(..., min_length=5, description="SQLAlchemy database connection string")
+
+
+class DBListTablesRequest(BaseModel):
+    connection_string: str = Field(..., min_length=5)
+    db_schema: Optional[str] = Field(default=None, alias="schema")
+
+    model_config = {"populate_by_name": True}
+
+
+class DBPreviewRequest(BaseModel):
+    connection_string: str = Field(..., min_length=5)
+    table_name: Optional[str] = None
+    query: Optional[str] = None
+    limit: int = Field(default=50, ge=1, le=1000)
+
+
+class DBIngestRequest(BaseModel):
+    connection_string: str = Field(..., min_length=5)
+    table_name: Optional[str] = None
+    query: Optional[str] = None
+    limit: Optional[int] = Field(default=None, ge=1, le=2000000)
+    dataset_name: Optional[str] = None
+
+
 class DuplicateCheckRequest(BaseModel):
     filename: str = Field(..., min_length=1)
 

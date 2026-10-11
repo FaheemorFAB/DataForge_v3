@@ -17,8 +17,12 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from dataforge.api.deps import CurrentUser, get_job_manager_dep, require_upload_with_data
 from dataforge.api.jobs.executor import run_in_executor
 from dataforge.api.jobs.manager import JobManager
-from dataforge.api.schemas.automl import AutoMLDetectTaskRequest, AutoMLTrainRequest
-from dataforge.api.storage.manager import load
+from dataforge.api.schemas.automl import (
+    AutoMLDetectTaskRequest,
+    AutoMLTrainRequest,
+    FeatureAnalysisRequest,
+)
+from dataforge.api.storage.manager import load, STORE_DIR, upath
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.settings import PROJECTS_DIR
 
@@ -74,6 +78,32 @@ async def api_automl_detect_task(
         raise HTTPException(500, f"Task detection failed: {exc}")
 
 
+@router.post("/automl/feature-analysis", summary="Analyze features for target leakage, signal strength, and missingness")
+async def api_automl_feature_analysis(
+    body: FeatureAnalysisRequest,
+    current_user: CurrentUser,
+    upload_id: Optional[str] = Query(default=None),
+):
+    target_upload_id = body.upload_id or upload_id
+    if not target_upload_id:
+        raise HTTPException(400, "upload_id required")
+    await require_upload_with_data(target_upload_id, current_user)
+
+    df_clean = load(target_upload_id, "df_clean")
+    df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
+    if df is None:
+        raise HTTPException(400, "No dataset loaded")
+
+    resolved_col = _resolve_column(body.target_col, df.columns)
+
+    def _analyze():
+        from dataforge.automl_trainer import analyze_features_for_target
+        return analyze_features_for_target(df, resolved_col)
+
+    result = await run_in_executor(_analyze)
+    return JSONResponse(content=safe_jsonable(result))
+
+
 @router.post("/automl/train", summary="Start an async AutoML training job")
 async def api_automl_train(
     body: AutoMLTrainRequest,
@@ -102,6 +132,12 @@ async def api_automl_train(
         task_choice=body.task_choice,
         time_budget=body.time_budget,
         test_size=body.test_size / 100.0,
+        feature_whitelist=body.feature_whitelist,
+        excluded_features=body.excluded_features,
+        algorithm_whitelist=body.algorithm_whitelist,
+        cv_strategy=body.cv_strategy,
+        cv_folds=body.cv_folds,
+        metric_override=body.metric_override,
     )
     return {"task_id": job_id, "queued": True, "upload_id": target_upload_id}
 

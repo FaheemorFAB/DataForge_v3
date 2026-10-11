@@ -24,10 +24,15 @@ _MAX_TRAIN_ROWS = 50_000
 
 
 def _detect_task(y: pd.Series) -> str:
-    if y.dtype == object or str(y.dtype) == "category":
+    if (
+        y.dtype == object
+        or str(y.dtype) == "category"
+        or pd.api.types.is_string_dtype(y)
+        or not pd.api.types.is_numeric_dtype(y)
+    ):
         return "classification"
     n_unique = y.nunique()
-    if n_unique <= 20 and n_unique / max(len(y), 1) < 0.05:
+    if n_unique <= 20 and n_unique / max(len(y), 1) < 0.20:
         return "classification"
     return "regression"
 
@@ -327,12 +332,113 @@ def _compute_shap(automl, X_test: pd.DataFrame, max_rows: int = 100, timeout_s: 
         return []
 
 
+def analyze_features_for_target(df: pd.DataFrame, target_col: str) -> dict:
+    """Enterprise pre-flight feature audit:
+    Computes missingness, cardinality, data type, and correlation with target.
+    Flags potential target leakage (corr >= 0.90) and IDs before training.
+    """
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        return {"error": "Dataset is empty or invalid.", "features": []}
+    if target_col not in df.columns:
+        return {"error": f"Target column '{target_col}' not found in dataset.", "features": []}
+
+    task = _detect_task(df[target_col])
+    target_series = df[target_col]
+    n_rows = len(df)
+
+    if task == "classification":
+        t_numeric = target_series.astype("category").cat.codes.astype(float)
+        t_numeric[t_numeric == -1] = np.nan
+    else:
+        t_numeric = pd.to_numeric(target_series, errors="coerce")
+
+    features = []
+    high_risk_count = 0
+
+    for col in df.columns:
+        if col == target_col:
+            continue
+        col_s = df[col]
+        dtype_str = str(col_s.dtype)
+        n_unique = int(col_s.nunique(dropna=True))
+        missing_count = int(col_s.isna().sum())
+        missing_pct = round(float(missing_count / max(n_rows, 1) * 100), 2)
+
+        # Check ID candidate
+        is_id = False
+        lower_name = col.lower()
+        if n_unique > 0 and n_unique == (n_rows - missing_count) and n_rows > 30:
+            is_id = True
+        elif lower_name.endswith(("_id", "id", "guid", "uuid", "identifier", "pk")):
+            is_id = True
+
+        # Correlation computation
+        corr_val = None
+        leakage_risk = "low"
+        try:
+            if pd.api.types.is_numeric_dtype(col_s):
+                c_num = col_s.astype(float)
+            else:
+                c_num = col_s.astype("category").cat.codes.astype(float)
+                c_num[c_num == -1] = np.nan
+
+            valid = c_num.notna() & t_numeric.notna()
+            if valid.sum() >= 5:
+                if c_num[valid].std() > 1e-9 and t_numeric[valid].std() > 1e-9:
+                    raw_corr = float(c_num[valid].corr(t_numeric[valid]))
+                    if math.isfinite(raw_corr):
+                        corr_val = round(raw_corr, 4)
+                        abs_c = abs(corr_val)
+                        if abs_c >= 0.90:
+                            leakage_risk = "high"
+                            high_risk_count += 1
+                        elif abs_c >= 0.70:
+                            leakage_risk = "medium"
+        except Exception:
+            corr_val = None
+
+        recommendation = "include"
+        if leakage_risk == "high":
+            recommendation = "drop_leakage"
+        elif is_id:
+            recommendation = "drop_id"
+        elif missing_pct >= 60.0:
+            recommendation = "drop_missing"
+
+        features.append({
+            "name": col,
+            "dtype": dtype_str,
+            "missing_count": missing_count,
+            "missing_pct": missing_pct,
+            "n_unique": n_unique,
+            "is_id": is_id,
+            "correlation": corr_val,
+            "leakage_risk": leakage_risk,
+            "recommendation": recommendation,
+        })
+
+    return {
+        "error": None,
+        "target_col": target_col,
+        "task": task,
+        "n_rows": n_rows,
+        "features": features,
+        "high_risk_count": high_risk_count,
+    }
+
+
 def run_automl(
     df: pd.DataFrame,
     target_col: str,
     task_choice: str = "auto-detect",
     time_budget: int = 120,
     test_size: float = 0.2,
+    feature_whitelist: Optional[list[str]] = None,
+    excluded_features: Optional[list[str]] = None,
+    algorithm_whitelist: Optional[list[str]] = None,
+    cv_strategy: str = "auto",
+    cv_folds: int = 5,
+    metric_override: str = "auto",
 ) -> dict:
     from sklearn.model_selection import train_test_split
 
@@ -350,7 +456,44 @@ def run_automl(
     task = auto_task if task_choice == "auto-detect" else task_choice
     log.info("[automl_trainer] Task detected: %s (rows=%d, cols=%d)", task, len(df), df.shape[1])
 
-    df_model = _encode_features(df.drop(columns=[target_col]))
+    # Granular feature selection (whitelist & blacklist)
+    all_features = [c for c in df.columns if c != target_col]
+    if feature_whitelist is not None:
+        selected_features = [c for c in all_features if c in feature_whitelist]
+    else:
+        selected_features = all_features
+
+    if excluded_features:
+        selected_features = [c for c in selected_features if c not in excluded_features]
+
+    if not selected_features:
+        return {"error": "No feature columns selected for AutoML training.", "model_pkl": None}
+
+    # Pre-training Target Leakage check on selected features
+    leakage_warnings = []
+    try:
+        t_series = df[target_col]
+        if task == "classification":
+            t_num = t_series.astype("category").cat.codes.astype(float)
+            t_num[t_num == -1] = np.nan
+        else:
+            t_num = pd.to_numeric(t_series, errors="coerce")
+
+        for c in selected_features:
+            c_s = pd.to_numeric(df[c], errors="coerce") if pd.api.types.is_numeric_dtype(df[c]) else df[c].astype("category").cat.codes.astype(float)
+            vld = c_s.notna() & t_num.notna()
+            if vld.sum() >= 5 and c_s[vld].std() > 1e-9 and t_num[vld].std() > 1e-9:
+                c_val = float(c_s[vld].corr(t_num[vld]))
+                if math.isfinite(c_val) and abs(c_val) >= 0.90:
+                    leakage_warnings.append({
+                        "feature": c,
+                        "correlation": round(c_val, 4),
+                        "warning": f"Feature '{c}' has {round(c_val * 100, 1)}% correlation with target '{target_col}'. High risk of target leakage.",
+                    })
+    except Exception as exc:
+        log.warning("[automl_trainer] Leakage pre-check failed: %s", exc)
+
+    df_model = _encode_features(df[selected_features])
     y = df[target_col].copy()
 
     if task == "classification" and (y.dtype == object or str(y.dtype) == "category"):
@@ -421,8 +564,16 @@ def run_automl(
             )
 
     backend_used = "flaml"
-    use_cv = len(X_train) > 5_000
-    n_splits = 5 if len(X_train) > 10_000 else 3
+    if cv_strategy == "holdout":
+        use_cv = False
+        n_splits = 1
+    elif cv_strategy in ("cv", "stratified_kfold", "kfold"):
+        use_cv = True
+        n_splits = max(2, min(int(cv_folds), 10))
+    else:  # "auto"
+        use_cv = len(X_train) > 5_000
+        n_splits = 5 if len(X_train) > 10_000 else 3
+
     t_train = time.time()
 
     try:
@@ -440,8 +591,33 @@ def run_automl(
         )
         if use_cv:
             fit_kwargs["n_splits"] = n_splits
-        if flaml_metric != "auto":
+
+        # Custom Metric override
+        if metric_override and metric_override != "auto":
+            fit_kwargs["metric"] = metric_override
+        elif flaml_metric != "auto":
             fit_kwargs["metric"] = flaml_metric
+
+        # Algorithm Whitelist
+        if algorithm_whitelist and len(algorithm_whitelist) > 0:
+            clean_algos = []
+            for a in algorithm_whitelist:
+                al = a.lower().replace(" ", "_").replace("-", "_")
+                if al in ("lgbm", "lightgbm"):
+                    clean_algos.append("lgbm")
+                elif al in ("xgboost", "xgb"):
+                    clean_algos.append("xgboost")
+                elif al in ("catboost", "cat"):
+                    clean_algos.append("catboost")
+                elif al in ("rf", "random_forest", "randomforest"):
+                    clean_algos.append("rf")
+                elif al in ("extra_tree", "extratrees", "extra_trees"):
+                    clean_algos.append("extra_tree")
+                elif al in ("linear", "logistic_regression", "ridge"):
+                    clean_algos.append("linear")
+            if clean_algos:
+                fit_kwargs["estimator_list"] = list(dict.fromkeys(clean_algos))
+                log.info("[automl_trainer] Estimators restricted to whitelist: %s", fit_kwargs["estimator_list"])
 
         try:
             automl.fit(X_train, y_train, **fit_kwargs)
@@ -556,12 +732,17 @@ def run_automl(
         "was_sampled": was_sampled,
         "dropped_cols": dropped_cols,
         "n_cv_splits": n_splits if use_cv else 1,
-        "eval_method": "cv" if use_cv else "holdout",
         "metrics": metrics,
         "leaderboard": leaderboard,
         "feature_importance": feature_importance,
         "shap_summary": shap_summary,
         "imbalance_report": imbalance_report,
+        "leakage_warnings": leakage_warnings,
+        "selected_features": selected_features,
+        "algorithm_whitelist": algorithm_whitelist or ["all"],
+        "cv_strategy": cv_strategy,
+        "cv_folds": n_splits if use_cv else 1,
+        "metric_override": metric_override,
         "timing_breakdown": timing,
         "model_pkl": model_pkl,
     }

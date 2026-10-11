@@ -22,6 +22,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -127,6 +128,12 @@ async def run_automl_task(
     task_choice: str = "auto-detect",
     time_budget: int = 60,
     test_size: float = 0.2,
+    feature_whitelist: Optional[list[str]] = None,
+    excluded_features: Optional[list[str]] = None,
+    algorithm_whitelist: Optional[list[str]] = None,
+    cv_strategy: str = "auto",
+    cv_folds: int = 5,
+    metric_override: str = "auto",
 ):
     from dataforge.api.jobs import registry
     from dataforge.api.jobs.executor import run_in_executor
@@ -145,8 +152,19 @@ async def run_automl_task(
 
         def _train():
             from dataforge.automl_trainer import run_automl
-            return run_automl(df, target_col, task_choice=task_choice,
-                              time_budget=time_budget, test_size=test_size)
+            return run_automl(
+                df,
+                target_col,
+                task_choice=task_choice,
+                time_budget=time_budget,
+                test_size=test_size,
+                feature_whitelist=feature_whitelist,
+                excluded_features=excluded_features,
+                algorithm_whitelist=algorithm_whitelist,
+                cv_strategy=cv_strategy,
+                cv_folds=cv_folds,
+                metric_override=metric_override,
+            )
 
         result = await run_in_executor(_train)
         if result.get("error"):

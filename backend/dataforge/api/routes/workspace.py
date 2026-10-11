@@ -23,6 +23,7 @@ from dataforge.api.schemas.workspace import (
     AiConsentRequest, ChatSessionRequest, CleanRequest,
     CustomChartDeleteRequest, CustomChartRequest, EDARequest,
     QueryRequest, SyncSheetsRequest, TransformRequest,
+    GranularCleanRequest, RuleDiffRequest,
 )
 from dataforge.api.storage.manager import exists, load, persist, save, upath
 from dataforge.api.utils.helpers import df_profile, df_to_json_rows, resolve_column
@@ -342,6 +343,7 @@ async def api_clean_dynamic(
         "struct_actions": result["struct_actions"],
         "clean_profile": clean_profile,
         "rules_applied": rules,
+        "pipeline_script": result.get("pipeline_script", ""),
     }
     save(upload_id, "clean_meta", meta)
 
@@ -364,7 +366,61 @@ async def api_clean_dynamic(
         "missing_log": result["missing_log"],
         "struct_actions": result["struct_actions"],
         "clean_profile": clean_profile,
+        "pipeline_script": result.get("pipeline_script", ""),
     }))
+
+
+@router.post("/clean/diff", summary="Preview live statistical before/after diff for a proposed cleaning rule")
+async def api_clean_diff(
+    body: RuleDiffRequest,
+    current_user: CurrentUser,
+):
+    upload_id = body.upload_id
+    rule = body.rule
+    if not upload_id:
+        raise HTTPException(400, "upload_id required")
+    await require_upload_with_data(upload_id, current_user)
+
+    # Use df_clean if it exists, otherwise df_raw
+    df = load(upload_id, "df_clean")
+    if df is None:
+        df = load(upload_id, "df_raw")
+    if df is None:
+        raise HTTPException(400, "No dataset loaded")
+
+    def _diff():
+        from dataforge.data_cleaner import compute_rule_diff
+        return compute_rule_diff(df, rule)
+
+    try:
+        diff_res = await run_in_executor(_diff)
+        return JSONResponse(content=safe_jsonable({"ok": True, "diff": diff_res}))
+    except Exception as exc:
+        raise HTTPException(500, f"Diff preview failed: {exc}")
+
+
+@router.get("/clean/export-script", summary="Download reproducible Python cleaning pipeline script")
+async def api_clean_export_script(
+    upload_id: str = Query(...),
+    current_user: CurrentUser = None,
+):
+    await require_upload_with_data(upload_id, current_user)
+    meta = load(upload_id, "clean_meta") or {}
+    script = meta.get("pipeline_script")
+
+    if not script:
+        rules = meta.get("rules_applied", [])
+        from dataforge.data_cleaner import generate_python_script
+        up_row = db_get("uploads", upload_id) or {}
+        fname = up_row.get("filename", "raw_dataset.csv")
+        script = generate_python_script(rules, fname)
+
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(
+        content=script,
+        media_type="text/x-python",
+        headers={"Content-Disposition": f"attachment; filename=clean_pipeline_{upload_id[:8]}.py"}
+    )
 
 
 # ── EDA ───────────────────────────────────────────────────────────────────────
@@ -751,7 +807,7 @@ async def api_transform(
         raise HTTPException(400, "No dataset loaded")
 
     def _transform():
-        from dataforge.web.helpers import apply_transforms
+        from dataforge.transform_engine import apply_transforms
         return apply_transforms(df, body.operations)
 
     try:

@@ -56,12 +56,12 @@ def test_workspace_endpoints():
     print("  PASS  GET /api/preview")
 
     # 3. POST AI Consent
-    res = client.post("/api/workspace/consent?upload_id=1001", json={"upload_id": 1001, "consent": True})
+    res = client.post("/api/workspace/consent?upload_id=1001", json={"upload_id": "1001", "consent": True})
     assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
     print("  PASS  POST /api/workspace/consent")
 
     # 4. POST AI Query (Gemini / Code Execution)
-    res = client.post("/api/query?upload_id=1001", json={"upload_id": 1001, "query": "What is the average Revenue by Category?"})
+    res = client.post("/api/query?upload_id=1001", json={"upload_id": "1001", "query": "What is the average Revenue by Category?"})
     assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
     q = res.json()
     assert "chat_sessions" in q
@@ -69,7 +69,7 @@ def test_workspace_endpoints():
 
     # 5. POST Data Cleaning Operation
     clean_payload = {
-        "upload_id": 1001,
+        "upload_id": "1001",
         "fill_nulls": "none",
         "drop_duplicates": True,
         "outlier_method": "none"
@@ -83,7 +83,7 @@ def test_workspace_endpoints():
 
     # 6. POST Data Transformation (Type conversion)
     transform_payload = {
-        "upload_id": 1001,
+        "upload_id": "1001",
         "operations": [{"type": "cast", "column": "Employee_Count", "target_type": "float"}]
     }
     res = client.post("/api/transform?upload_id=1001", json=transform_payload)

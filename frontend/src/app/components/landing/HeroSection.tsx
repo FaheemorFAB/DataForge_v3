@@ -23,13 +23,27 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
   const [errorMsg, setErrorMsg] = useState("");
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
 
-  const [sourceTab, setSourceTab] = useState<"csv" | "sheets">("csv");
+  const [sourceTab, setSourceTab] = useState<"csv" | "sheets" | "database">("csv");
   const [sheetsUrl, setSheetsUrl] = useState("");
   const [sheetsError, setSheetsError] = useState("");
   const [isSheetsLoading, setIsSheetsLoading] = useState(false);
 
+  // Database connector states
+  const [dbDialect, setDbDialect] = useState<"postgresql" | "mysql" | "sqlite" | "snowflake" | "bigquery" | "clickhouse">("postgresql");
+  const [dbConnStr, setDbConnStr] = useState("postgresql://postgres:password@localhost:5432/postgres");
+  const [isDbTesting, setIsDbTesting] = useState(false);
+  const [dbTestResult, setDbTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [dbTables, setDbTables] = useState<string[]>([]);
+  const [selectedDbTable, setSelectedDbTable] = useState("");
+  const [dbQueryMode, setDbQueryMode] = useState<"table" | "sql">("table");
+  const [dbCustomSql, setDbCustomSql] = useState("");
+  const [dbLimit, setDbLimit] = useState("5000");
+  const [isDbIngesting, setIsDbIngesting] = useState(false);
+  const [dbError, setDbError] = useState("");
+  const [dbPreview, setDbPreview] = useState<any | null>(null);
+  const [isPreviewingDb, setIsPreviewingDb] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // No auto-load effect since data is not saved externally
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -83,6 +97,11 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
     setErrorMsg('');
     setSheetsUrl('');
     setSheetsError('');
+    setDbTestResult(null);
+    setDbTables([]);
+    setSelectedDbTable('');
+    setDbError('');
+    setDbPreview(null);
     setCurrentUploadId(null);
   }, []);
 
@@ -112,6 +131,105 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
       setSheetsError('Network error: ' + err.message);
     } finally {
       setIsSheetsLoading(false);
+    }
+  };
+
+  // Database connector actions
+  const testDbConnection = async () => {
+    if (!dbConnStr.trim()) return;
+    if (!isLoggedIn) { onLoginRequired(); return; }
+    setIsDbTesting(true);
+    setDbError("");
+    setDbTestResult(null);
+    try {
+      const res = await apiFetch('/upload/database/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_string: dbConnStr.trim() }),
+      });
+      const data = await res.json();
+      setDbTestResult({ ok: data.ok, message: data.message });
+      if (data.ok) {
+        // Automatically fetch tables
+        loadDbTables();
+      }
+    } catch (err: any) {
+      setDbTestResult({ ok: false, message: err.message || "Failed to reach database server." });
+    } finally {
+      setIsDbTesting(false);
+    }
+  };
+
+  const loadDbTables = async () => {
+    try {
+      const res = await apiFetch('/upload/database/tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_string: dbConnStr.trim() }),
+      });
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.tables)) {
+        setDbTables(data.tables);
+        if (data.tables.length > 0 && !selectedDbTable) {
+          setSelectedDbTable(data.tables[0]);
+        }
+      }
+    } catch (err) {}
+  };
+
+  const previewDbData = async () => {
+    if (!dbConnStr.trim()) return;
+    setIsPreviewingDb(true);
+    setDbError("");
+    try {
+      const res = await apiFetch('/upload/database/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          connection_string: dbConnStr.trim(),
+          table_name: dbQueryMode === 'table' ? selectedDbTable : undefined,
+          query: dbQueryMode === 'sql' ? dbCustomSql.trim() : undefined,
+          limit: 10,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Preview failed.");
+      setDbPreview(data);
+    } catch (err: any) {
+      setDbError(err.message || "Preview query failed.");
+    } finally {
+      setIsPreviewingDb(false);
+    }
+  };
+
+  const ingestDbData = async () => {
+    if (!dbConnStr.trim()) return;
+    if (!isLoggedIn) { onLoginRequired(); return; }
+    setIsDbIngesting(true);
+    setDbError("");
+    try {
+      const res = await apiFetch('/upload/database/ingest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          connection_string: dbConnStr.trim(),
+          table_name: dbQueryMode === 'table' ? selectedDbTable : undefined,
+          query: dbQueryMode === 'sql' ? dbCustomSql.trim() : undefined,
+          limit: parseInt(dbLimit, 10),
+          dataset_name: dbQueryMode === 'table' ? `${selectedDbTable}.csv` : "sql_query.csv",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Database ingestion failed.");
+      setProfile(data.profile);
+      setFileName(dbQueryMode === 'table' ? selectedDbTable : "SQL Query Result");
+      setCurrentUploadId(data.upload_id);
+      setFileUploaded(true);
+      goToWorkspace(data.upload_id);
+    } catch (err: any) {
+      setDbError(err.message || "Ingestion failed.");
+    } finally {
+      setIsDbIngesting(false);
     }
   };
 
@@ -155,13 +273,17 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
 
                 {/* Source tabs */}
                 <div className="flex gap-1 p-1 rounded-xl w-full" style={{ background: "rgba(255,255,255,.04)", border: "1px solid var(--border)" }}>
-                  <button onClick={() => setSourceTab("csv")} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200 ${sourceTab === 'csv' ? 'text-white shadow' : 'text-[color:var(--txt-m)] hover:text-[color:var(--txt)]'}`} style={sourceTab === 'csv' ? { background: "var(--accent)" } : {}}>
+                  <button onClick={() => setSourceTab("csv")} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200 ${sourceTab === 'csv' ? 'text-white shadow' : 'text-[color:var(--txt-m)] hover:text-[color:var(--txt)]'}`} style={sourceTab === 'csv' ? { background: "var(--accent)" } : {}}>
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                     CSV File
                   </button>
-                  <button onClick={() => setSourceTab("sheets")} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200 ${sourceTab === 'sheets' ? 'text-white shadow' : 'text-[color:var(--txt-m)] hover:text-[color:var(--txt)]'}`} style={sourceTab === 'sheets' ? { background: "var(--accent)" } : {}}>
+                  <button onClick={() => setSourceTab("sheets")} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200 ${sourceTab === 'sheets' ? 'text-white shadow' : 'text-[color:var(--txt-m)] hover:text-[color:var(--txt)]'}`} style={sourceTab === 'sheets' ? { background: "var(--accent)" } : {}}>
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3h5v2h-5V6zm0 4h5v2h-5v-2zm0 4h5v2h-5v-2zM7 6h3v2H7V6zm0 4h3v2H7v-2zm0 4h3v2H7v-2z" /></svg>
                     Google Sheets
+                  </button>
+                  <button onClick={() => setSourceTab("database")} className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-[11px] font-bold tracking-wide transition-all duration-200 ${sourceTab === 'database' ? 'text-white shadow' : 'text-[color:var(--txt-m)] hover:text-[color:var(--txt)]'}`} style={sourceTab === 'database' ? { background: "var(--accent)" } : {}}>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+                    SQL / Warehouse
                   </button>
                 </div>
 
@@ -218,6 +340,196 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
                     </button>
                   </div>
                 )}
+
+                {/* Database / Warehouse Panel */}
+                {sourceTab === 'database' && (
+                  <div className="space-y-3.5 text-left">
+                    {/* Dialect selector pills */}
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--txt-m)" }}>
+                        Database / Warehouse Dialect
+                      </label>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                        {[
+                          { id: "postgresql", name: "Postgres", str: "postgresql://postgres:password@localhost:5432/postgres" },
+                          { id: "mysql", name: "MySQL", str: "mysql+pymysql://root:password@localhost:3306/mydb" },
+                          { id: "snowflake", name: "Snowflake", str: "snowflake://user:password@account/my_db/public?warehouse=compute_wh" },
+                          { id: "bigquery", name: "BigQuery", str: "bigquery://gcp-project-id/analytics_dataset" },
+                          { id: "clickhouse", name: "ClickHouse", str: "clickhouse+native://default:password@localhost:9000/default" },
+                          { id: "sqlite", name: "SQLite", str: "sqlite:///sample.db" },
+                        ].map(d => (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => {
+                              setDbDialect(d.id as any);
+                              setDbConnStr(d.str);
+                              setDbTestResult(null);
+                            }}
+                            className={`py-1.5 px-2 rounded-lg text-[10px] font-mono font-bold text-center transition-all ${dbDialect === d.id ? 'text-white' : 'hover:bg-white/5'}`}
+                            style={{
+                              background: dbDialect === d.id ? "var(--accent)" : "rgba(255,255,255,0.03)",
+                              border: `1px solid ${dbDialect === d.id ? "var(--accent)" : "var(--border)"}`,
+                              color: dbDialect === d.id ? "white" : "var(--txt-m)",
+                            }}>
+                            {d.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Connection String */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>
+                          Connection String (SQLAlchemy URI)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={testDbConnection}
+                          disabled={!dbConnStr.trim() || isDbTesting}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded transition-all flex items-center gap-1"
+                          style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>
+                          {isDbTesting && <svg className="w-2.5 h-2.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                          <span>{isDbTesting ? "Testing..." : "Test Connection"}</span>
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        value={dbConnStr}
+                        onChange={(e) => { setDbConnStr(e.target.value); setDbTestResult(null); }}
+                        placeholder="postgresql://user:pass@host:5432/dbname"
+                        className="w-full px-3 py-2 rounded-xl text-xs font-mono outline-none"
+                        style={{ background: "rgba(255,255,255,.05)", border: "1px solid var(--border)", color: "var(--txt)" }}
+                      />
+                      {dbTestResult && (
+                        <p className={`text-[10px] font-mono mt-1 ${dbTestResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {dbTestResult.ok ? "✓ Connection successful! Tables retrieved." : `✗ Connection failed: ${dbTestResult.message}`}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Ingestion Mode: Table or Query */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>
+                            Table or SQL Mode
+                          </label>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setDbQueryMode("table")}
+                              className={`text-[9px] px-2 py-0.5 rounded font-bold ${dbQueryMode === 'table' ? 'bg-[var(--accent)] text-white' : 'text-[var(--txt-m)]'}`}>
+                              Table
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDbQueryMode("sql")}
+                              className={`text-[9px] px-2 py-0.5 rounded font-bold ${dbQueryMode === 'sql' ? 'bg-[var(--accent)] text-white' : 'text-[var(--txt-m)]'}`}>
+                              Pushdown SQL
+                            </button>
+                          </div>
+                        </div>
+
+                        {dbQueryMode === "table" ? (
+                          dbTables.length > 0 ? (
+                            <select
+                              value={selectedDbTable}
+                              onChange={(e) => setSelectedDbTable(e.target.value)}
+                              className="w-full px-3 py-2 rounded-xl text-xs font-mono outline-none"
+                              style={{ background: "rgba(255,255,255,.05)", border: "1px solid var(--border)", color: "var(--txt)" }}>
+                              {dbTables.map(t => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={selectedDbTable}
+                              onChange={(e) => setSelectedDbTable(e.target.value)}
+                              placeholder="Enter table name (e.g. customers)"
+                              className="w-full px-3 py-2 rounded-xl text-xs font-mono outline-none"
+                              style={{ background: "rgba(255,255,255,.05)", border: "1px solid var(--border)", color: "var(--txt)" }}
+                            />
+                          )
+                        ) : (
+                          <textarea
+                            rows={2}
+                            value={dbCustomSql}
+                            onChange={(e) => setDbCustomSql(e.target.value)}
+                            placeholder="SELECT * FROM orders WHERE total > 100"
+                            className="w-full px-3 py-1.5 rounded-xl text-xs font-mono outline-none"
+                            style={{ background: "rgba(255,255,255,.05)", border: "1px solid var(--border)", color: "var(--txt)" }}
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-widest block mb-1" style={{ color: "var(--txt-m)" }}>
+                          Max Ingestion Rows
+                        </label>
+                        <select
+                          value={dbLimit}
+                          onChange={(e) => setDbLimit(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-mono outline-none"
+                          style={{ background: "rgba(255,255,255,.05)", border: "1px solid var(--border)" , color: "var(--txt)" }}>
+                          <option value="1000">1,000 rows (Instant)</option>
+                          <option value="5000">5,000 rows (Standard)</option>
+                          <option value="25000">25,000 rows (Large)</option>
+                          <option value="100000">100,000 rows (Warehouse Dump)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Preview Table if generated */}
+                    {dbPreview && (
+                      <div className="p-2.5 rounded-xl overflow-x-auto max-h-32 text-[10px] font-mono border" style={{ background: "rgba(0,0,0,0.3)", borderColor: "var(--border)" }}>
+                        <div className="font-bold text-[9px] uppercase tracking-wider mb-1 text-emerald-400">
+                          Preview Sample ({dbPreview.rows?.length} rows):
+                        </div>
+                        <table className="w-full text-left">
+                          <thead>
+                            <tr style={{ color: "var(--txt-m)" }}>
+                              {dbPreview.columns?.map((c: any) => <th key={c.name} className="pr-3 pb-1">{c.name}</th>)}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dbPreview.rows?.slice(0, 3).map((r: any, idx: number) => (
+                              <tr key={idx} style={{ color: "var(--txt)" }}>
+                                {dbPreview.columns?.map((c: any) => <td key={c.name} className="pr-3 truncate max-w-[100px]">{String(r[c.name])}</td>)}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {dbError && <p className="text-[11px] font-mono text-red-400">{dbError}</p>}
+
+                    {/* Action buttons */}
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={previewDbData}
+                        disabled={isPreviewingDb || !dbConnStr}
+                        className="px-3 py-2.5 rounded-xl font-bold text-xs transition-all border"
+                        style={{ borderColor: "var(--border)", background: "rgba(255,255,255,0.04)", color: "var(--txt)" }}>
+                        {isPreviewingDb ? "Previewing..." : "Preview Sample"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={ingestDbData}
+                        disabled={isDbIngesting || !dbConnStr}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs text-white transition-all shadow-md"
+                        style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
+                        {isDbIngesting && <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                        <span>{isDbIngesting ? "Syncing Database..." : "Ingest into DataForge"}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -226,7 +538,7 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
               <div className="w-full space-y-6">
                 <div className="flex items-center justify-between w-full p-5 rounded-2xl" style={{ background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.1)" }}>
                   <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0" style={{ background: "var(--accent)" }}>{sourceTab === 'sheets' ? 'GS' : 'CSV'}</div>
+                    <div className="w-11 h-11 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0" style={{ background: "var(--accent)" }}>{sourceTab === 'sheets' ? 'GS' : sourceTab === 'database' ? 'SQL' : 'CSV'}</div>
                     <div className="text-left min-w-0">
                       <p className="font-bold truncate max-w-[180px]" style={{ color: "var(--txt)" }}>{fileName}</p>
                       <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>{profile ? `${profile.rows?.toLocaleString()} rows · ${profile.cols} cols` : 'Ready for analysis'}</p>

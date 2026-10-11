@@ -14,12 +14,23 @@ class AutoMLDetectTaskRequest(BaseModel):
     target_col: str = ""
 
 
+class FeatureAnalysisRequest(BaseModel):
+    upload_id: Optional[str] = None
+    target_col: str = Field(..., min_length=1)
+
+
 class AutoMLTrainRequest(BaseModel):
     upload_id: Optional[str] = None
     target_col: str = Field(..., min_length=1)
     task_choice: str = "auto-detect"
     time_budget: int = Field(default=60, ge=10, le=900)
     test_size: float = Field(default=20.0, ge=10.0, le=40.0)
+    feature_whitelist: Optional[list[str]] = None
+    excluded_features: Optional[list[str]] = None
+    algorithm_whitelist: Optional[list[str]] = None
+    cv_strategy: str = "auto"
+    cv_folds: int = Field(default=5, ge=2, le=10)
+    metric_override: str = "auto"
 
 
 class AutoMLTrainResponse(BaseModel):

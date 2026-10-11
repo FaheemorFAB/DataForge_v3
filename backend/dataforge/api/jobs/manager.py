@@ -59,6 +59,12 @@ class JobManager:
         task_choice: str = "auto-detect",
         time_budget: int = 60,
         test_size: float = 0.2,
+        feature_whitelist: Optional[list[str]] = None,
+        excluded_features: Optional[list[str]] = None,
+        algorithm_whitelist: Optional[list[str]] = None,
+        cv_strategy: str = "auto",
+        cv_folds: int = 5,
+        metric_override: str = "auto",
     ) -> str:
         """Dispatch an AutoML training job. Returns job_id immediately."""
         active = registry.get_active_job(upload_id, "automl")
@@ -69,9 +75,11 @@ class JobManager:
         job_id = await registry.create_job(user_id, upload_id, "automl")
         background_tasks.add_task(
             run_automl_task, job_id, upload_id, user_id, target_col,
-            task_choice, time_budget, test_size
+            task_choice, time_budget, test_size,
+            feature_whitelist, excluded_features, algorithm_whitelist,
+            cv_strategy, cv_folds, metric_override
         )
-        log.info("Dispatched automl job %s for upload_id=%d target=%s", job_id, upload_id, target_col)
+        log.info("Dispatched automl job %s for upload_id=%s target=%s", job_id, upload_id, target_col)
         return job_id
 
     async def dispatch_eda(

@@ -49,7 +49,7 @@ assert "charts" in data
 print("  PASS  POST /api/dashboard/stats with query param upload_id")
 
 # 2. AI Query (/api/query)
-res = client.post("/api/query", json={"upload_id": 999, "query": "Summarize this dataset"})
+res = client.post("/api/query", json={"upload_id": "999", "query": "Summarize this dataset"})
 print(f"POST /api/query -> {res.status_code}")
 assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
 data = res.json()
@@ -57,7 +57,7 @@ assert "chat_sessions" in data
 print("  PASS  POST /api/query")
 
 # 3. AutoML Detect Task (/api/automl/detect-task)
-res = client.post("/api/automl/detect-task?upload_id=999", json={"upload_id": 999, "target_col": "Target"})
+res = client.post("/api/automl/detect-task?upload_id=999", json={"upload_id": "999", "target_col": "Target"})
 print(f"POST /api/automl/detect-task -> {res.status_code}")
 assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
 data = res.json()
@@ -65,7 +65,7 @@ assert "task" in data
 print("  PASS  POST /api/automl/detect-task")
 
 # 4. AutoML Train (/api/automl/train)
-res = client.post("/api/automl/train?upload_id=999", json={"upload_id": 999, "target_col": "Target", "time_budget": 10})
+res = client.post("/api/automl/train?upload_id=999", json={"upload_id": "999", "target_col": "Target", "time_budget": 10})
 print(f"POST /api/automl/train -> {res.status_code}")
 assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
 data = res.json()

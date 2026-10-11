@@ -16,8 +16,16 @@ from fastapi.responses import JSONResponse
 
 from dataforge.api.config import get_settings
 from dataforge.api.deps import CurrentUser, get_job_manager_dep
+from dataforge.api.jobs.executor import run_in_executor
 from dataforge.api.jobs.manager import JobManager
-from dataforge.api.schemas.upload import DuplicateCheckRequest, SheetsUploadRequest
+from dataforge.api.schemas.upload import (
+    DuplicateCheckRequest,
+    SheetsUploadRequest,
+    DBTestConnectionRequest,
+    DBListTablesRequest,
+    DBPreviewRequest,
+    DBIngestRequest,
+)
 from dataforge.api.services.upload import upload_service
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import User
@@ -117,6 +125,103 @@ async def api_upload_sheets(
     filename = f"sheet_{sheet_id[:8]}.csv"
     source_config = {"sheet_id": sheet_id, "url": req.url}
     result = upload_service.process_dataframe(df, filename, "sheets", current_user, source_config)
+
+    return JSONResponse(content=safe_jsonable({
+        "ok": True,
+        "upload_id": result["upload_id"],
+        "profile": result["profile"],
+    }))
+
+
+@router.post("/upload/database/test", summary="Test connection to external database or warehouse")
+async def api_test_db_connection(
+    req: DBTestConnectionRequest,
+    current_user: CurrentUser,
+):
+    from dataforge.db_connector import DBConnector
+    conn = DBConnector(req.connection_string)
+    ok, msg = await run_in_executor(conn.test)
+    return {"ok": ok, "message": msg}
+
+
+@router.post("/upload/database/tables", summary="List tables in external database")
+async def api_list_db_tables(
+    req: DBListTablesRequest,
+    current_user: CurrentUser,
+):
+    from dataforge.db_connector import DBConnector
+    conn = DBConnector(req.connection_string)
+    def _list():
+        return conn.list_tables(schema=req.db_schema)
+    try:
+        tables = await run_in_executor(_list)
+        return {"ok": True, "tables": tables}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to list tables: {exc}")
+
+
+@router.post("/upload/database/preview", summary="Preview rows from external database table or SQL query")
+async def api_preview_db(
+    req: DBPreviewRequest,
+    current_user: CurrentUser,
+):
+    from dataforge.db_connector import DBConnector
+    conn = DBConnector(req.connection_string)
+    def _preview():
+        if req.query:
+            q = req.query.strip().rstrip(";")
+            if "limit" not in q.lower():
+                q += f" LIMIT {req.limit}"
+            return conn.query(q)
+        elif req.table_name:
+            return conn.load_table(req.table_name, limit=req.limit)
+        else:
+            raise ValueError("Either table_name or query must be provided")
+    try:
+        df = await run_in_executor(_preview)
+        records = df.head(req.limit).fillna("").to_dict(orient="records")
+        columns = [{"name": c, "dtype": str(df[c].dtype)} for c in df.columns]
+        return {
+            "ok": True,
+            "columns": columns,
+            "rows": records,
+            "row_count": len(df),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Query failed: {exc}")
+
+
+@router.post("/upload/database/ingest", summary="Ingest database table or SQL query into DataForge")
+async def api_ingest_db(
+    req: DBIngestRequest,
+    current_user: CurrentUser,
+):
+    from dataforge.db_connector import DBConnector
+    conn = DBConnector(req.connection_string)
+    def _load():
+        if req.query:
+            return conn.query(req.query)
+        elif req.table_name:
+            return conn.load_table(req.table_name, limit=req.limit)
+        else:
+            raise ValueError("Either table_name or query must be provided")
+    try:
+        df = await run_in_executor(_load)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Database load failed: {exc}")
+
+    if df.empty:
+        raise HTTPException(status_code=400, detail="Queried database table is empty")
+    if len(df) > 2_000_000:
+        raise HTTPException(status_code=400, detail="Dataset exceeds 2M rows limit")
+
+    filename = req.dataset_name or (f"{req.table_name}.csv" if req.table_name else "db_query.csv")
+    source_config = {
+        "type": "database",
+        "table_name": req.table_name,
+        "has_query": bool(req.query),
+    }
+    result = upload_service.process_dataframe(df, filename, "database", current_user, source_config)
 
     return JSONResponse(content=safe_jsonable({
         "ok": True,

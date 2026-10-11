@@ -48,7 +48,7 @@ def test_dashboard_endpoints():
 
     # 2. POST Custom Chart Creation (Bar Chart)
     chart_payload = {
-        "upload_id": 1002,
+        "upload_id": "1002",
         "chart_type": "bar",
         "x_col": "Category",
         "y_col": "Revenue",
@@ -63,7 +63,7 @@ def test_dashboard_endpoints():
 
     # 3. POST Custom Chart Creation (Scatter Plot)
     scatter_payload = {
-        "upload_id": 1002,
+        "upload_id": "1002",
         "chart_type": "scatter",
         "x_col": "Employee_Count",
         "y_col": "Revenue",
@@ -76,7 +76,7 @@ def test_dashboard_endpoints():
 
     # 4. POST Dashboard Drilldown
     drill_payload = {
-        "upload_id": 1002,
+        "upload_id": "1002",
         "chart_id": "top_cat",
         "col_name": "Category",
         "x_label": "Technology"
