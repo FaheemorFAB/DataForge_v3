@@ -246,3 +246,7 @@ def upload_router():
     """Lazy import to avoid circular deps."""
     from dataforge.api.routes.upload import router
     return router
+
+
+app = create_app()
+
