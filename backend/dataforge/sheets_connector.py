@@ -57,6 +57,12 @@ class SheetsConnector:
             f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv",
             f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv",
         ]
+        if sheet_id.startswith("pub:"):
+            pub_id = sheet_id.split("pub:", 1)[1]
+            urls = [
+                f"https://docs.google.com/spreadsheets/d/e/{pub_id}/pub?output=csv&gid={gid}",
+                f"https://docs.google.com/spreadsheets/d/e/{pub_id}/pub?output=csv",
+            ] + urls
 
         headers = {
             "User-Agent": (
@@ -85,6 +91,43 @@ class SheetsConnector:
             f"Could not load Google Sheet ({last_err}). "
             "Check that sharing is set to 'Anyone with the link can view'."
         )
+
+    @classmethod
+    def parse_sheet_url(cls, url: str) -> tuple[Optional[str], str]:
+        """Extracts (sheet_id, gid) from any format of Google Sheets URL."""
+        import re, urllib.parse
+        if not url:
+            return None, "0"
+        url = url.strip()
+        parsed = urllib.parse.urlparse(url)
+
+        gid = "0"
+        qs = urllib.parse.parse_qs(parsed.query)
+        if "gid" in qs and qs["gid"]:
+            gid = qs["gid"][0]
+        elif "gid=" in parsed.fragment:
+            frag_match = re.search(r"gid=(\d+)", parsed.fragment)
+            if frag_match:
+                gid = frag_match.group(1)
+
+        # Published web spreadsheets: /spreadsheets/d/e/{pub_id}
+        m_pub = re.search(r"/spreadsheets/d/e/([a-zA-Z0-9_-]+)", url)
+        if m_pub:
+            return f"pub:{m_pub.group(1)}", gid
+
+        # Standard spreadsheets: /spreadsheets/d/{sheet_id}
+        m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", url)
+        if m and m.group(1) != "e":
+            return m.group(1), gid
+
+        return None, gid
+
+    def load_from_url(self, url: str) -> pd.DataFrame:
+        """Parses and loads a Google Sheet directly from its full URL."""
+        sheet_id, gid = self.parse_sheet_url(url)
+        if not sheet_id:
+            raise ValueError("Invalid Google Sheets URL. Could not find spreadsheet ID.")
+        return self.load_public(sheet_id=sheet_id, gid=gid)
 
     # ── Private sheet (service account) ──────────────────────────────────────
     def _get_client(self):

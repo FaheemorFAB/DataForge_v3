@@ -32,6 +32,7 @@ google-auth-oauthlib>=1.4.0       # Google OAuth2 flow helpers
 pandas>=2.3.0                 # Core DataFrame engine for all data operations
 numpy>=2.3.0                  # Numerical arrays underlying pandas & ML models
 pyarrow>=25.0.0               # Parquet read/write — primary storage format for uploads
+duckdb>=1.0.0                 # High-performance analytical in-process SQL & relational join pushdown
 openpyxl>=3.1.5               # Excel (.xlsx) file parsing via pandas
 pyjanitor>=0.32.0             # DataFrame cleaning helpers (snake_case column names)
 scipy>=1.16.0                 # Statistical functions used in EDA & trend analysis

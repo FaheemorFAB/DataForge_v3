@@ -36,7 +36,13 @@ const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefin
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState("preview");
-  const [uploadId, setUploadId] = useState<string | undefined>();
+  const [uploadId, setUploadId] = useState<string | undefined>(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get("upload_id") || undefined;
+    }
+    return undefined;
+  });
   const [profile, setProfile] = useState<any>(null);
   const [cleanProfile, setCleanProfile] = useState<any>(null);
   const [geminiOk, setGeminiOk] = useState(true);
@@ -60,8 +66,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    if (!uid && typeof window !== "undefined") {
-      window.location.href = "/?upload_required=1";
+    if (!uid) {
+      // No upload ID present yet — stay in workspace and open Ingestion Hub
       return;
     }
 

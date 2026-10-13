@@ -100,12 +100,21 @@ def auto_fix_missing(df: pd.DataFrame) -> tuple:
     if to_drop:
         df.drop(columns=to_drop, inplace=True)
 
+    imputed_cells: dict[str, dict] = {}
     for col in df.columns:
-        n_missing = int(df[col].isnull().sum())
+        missing_mask = df[col].isnull()
+        n_missing = int(missing_mask.sum())
         if n_missing == 0:
             continue
         pct = n_missing / len(df) * 100
         strategy, filled = _infer_fill_strategy(df[col])
+        imputed_indices = [int(idx) for idx in df.index[missing_mask].tolist()]
+        imputed_cells[col] = {
+            "strategy": strategy,
+            "imputed_count": n_missing,
+            "pct_missing": round(pct, 1),
+            "sample_imputed_indices": imputed_indices[:50],
+        }
         df[col] = filled
         log.append({
             "column":      col,
@@ -113,9 +122,11 @@ def auto_fix_missing(df: pd.DataFrame) -> tuple:
             "pct_missing": round(pct, 1),
             "action":      f"Filled with {strategy}",
             "type":        "fill",
+            "imputed_indices_count": n_missing,
+            "sample_imputed_indices": imputed_indices[:50],
         })
 
-    return df, log
+    return df, log, imputed_cells
 
 
 def structural_clean(df: pd.DataFrame) -> tuple:
@@ -191,14 +202,21 @@ def structural_clean(df: pd.DataFrame) -> tuple:
 def run_cleaning_pipeline(df_raw: pd.DataFrame) -> dict:
     """
     Run automated 1-click cleaning pipeline.
-    Returns dict with cleaned df, stats, logs.
+    Returns dict with cleaned df, stats, logs, and flagged imputed cells.
     """
-    df_step1, missing_log  = auto_fix_missing(df_raw)
+    res = auto_fix_missing(df_raw)
+    if len(res) == 3:
+        df_step1, missing_log, imputed_cells = res
+    else:
+        df_step1, missing_log = res
+        imputed_cells = {}
+
     df_clean, struct_actions = structural_clean(df_step1)
 
     return {
         "df_clean":       df_clean,
         "missing_log":    missing_log,
+        "imputed_cells":  imputed_cells,
         "struct_actions": struct_actions,
         "stats": {
             "original_rows": int(len(df_raw)),
@@ -207,6 +225,7 @@ def run_cleaning_pipeline(df_raw: pd.DataFrame) -> dict:
             "cleaned_cols":  int(df_clean.shape[1]),
             "rows_removed":  int(len(df_raw) - len(df_clean)),
             "cols_removed":  int(df_raw.shape[1] - df_clean.shape[1]),
+            "imputed_columns_count": len(imputed_cells),
         },
     }
 

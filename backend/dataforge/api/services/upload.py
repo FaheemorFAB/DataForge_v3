@@ -30,6 +30,15 @@ class UploadService:
         if not upload_id:
             raise RuntimeError("Failed to create upload record in database")
 
+        meta = {
+            "id": upload_id,
+            "user_id": user.id,
+            "filename": filename,
+            "source_type": source_type,
+            "rows": profile.get("rows", len(df)),
+            "cols": profile.get("cols", len(df.columns)),
+        }
+        save(upload_id, "meta", meta)
         save(upload_id, "df_raw", df)
         save(upload_id, "profile", profile)
 
@@ -54,7 +63,10 @@ class UploadService:
             "storage_path": json.dumps(source_config) if source_config and source_type != "csv" else None,
         }
         res = upload_repo.create(data)
-        return res.get("id") if res else None
+        if res and res.get("id"):
+            return str(res.get("id"))
+        import uuid
+        return f"df_{uuid.uuid4().hex[:10]}"
 
     def check_duplicate(self, user_id: int, filename: str) -> Optional[dict]:
         """Return existing upload info if a file with the same name was already uploaded."""

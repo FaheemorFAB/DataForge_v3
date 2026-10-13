@@ -16,7 +16,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from dataforge.api.deps import CurrentUser, get_job_manager_dep, require_upload_with_data
+from dataforge.api.deps import CurrentUser, OptionalCurrentUser, get_job_manager_dep, require_upload_with_data
 from dataforge.api.jobs.executor import run_in_executor
 from dataforge.api.jobs.manager import JobManager
 from dataforge.api.repositories.report import (
@@ -34,6 +34,28 @@ from dataforge.db import db_client, db_get
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["dashboard"])
+
+
+# ── Correlation Heatmap Matrix ──────────────────────────────────────────────
+@router.get("/dashboard/correlation-matrix", summary="Compute full correlation heatmap matrix")
+async def api_correlation_matrix(
+    current_user: CurrentUser,
+    upload_id: str = Query(..., description="Upload ID"),
+):
+    await require_upload_with_data(upload_id, current_user)
+    from dataforge.api.storage.manager import load as _load
+    df_clean = _load(upload_id, "df_clean")
+    df = df_clean if df_clean is not None else _load(upload_id, "df_raw")
+    if df is None:
+        raise HTTPException(400, "Dataset not loaded")
+
+    num_cols = df.select_dtypes(include=np.number).columns.tolist()[:10]
+    if len(num_cols) < 2:
+        return JSONResponse(content={"ok": True, "columns": [], "matrix": []})
+
+    corr = df[num_cols].corr(method="pearson").fillna(0.0)
+    matrix = [[round(float(v), 3) for v in row] for row in corr.values]
+    return JSONResponse(content={"ok": True, "columns": num_cols, "matrix": matrix})
 
 
 # ── Dashboard initialization ────────────────────────────────────────────────
@@ -208,6 +230,65 @@ def _compute_chart_data(df, config):
                 "q3":     format_stat_val(x_col, q3),
                 "max":    format_stat_val(x_col, upper_whisker),
             }
+
+    elif chart_type in ("radar", "polarArea"):
+        if y_col and agg_type in ("sum", "mean"):
+            num_y = pd.to_numeric(df[y_col], errors="coerce")
+            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
+            grp = temp.groupby(x_col)["_y"].sum() if agg_type == "sum" else temp.groupby(x_col)["_y"].mean()
+            grp = grp.sort_values(ascending=False).head(8)
+        else:
+            grp = df.groupby(x_col).size().sort_values(ascending=False).head(8)
+        labels = [str(x) for x in grp.index]
+        values = [round(float(v), 2) for v in grp.values]
+
+    elif chart_type == "heatmap":
+        num_cols = df.select_dtypes(include=np.number).columns.tolist()[:10]
+        if len(num_cols) < 2:
+            labels = ["Column A", "Column B"]
+            values = [[1.0, 0.5], [0.5, 1.0]]
+        else:
+            corr_mat = df[num_cols].corr().fillna(0.0)
+            labels = num_cols
+            values = [[round(float(v), 3) for v in row] for row in corr_mat.values]
+
+    elif chart_type == "waterfall":
+        if y_col:
+            num_y = pd.to_numeric(df[y_col], errors="coerce")
+            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
+            grp = temp.groupby(x_col)["_y"].sum().head(8)
+        else:
+            grp = df.groupby(x_col).size().head(8)
+        labels = [str(x) for x in grp.index] + ["Net Total"]
+        vals = [round(float(v), 2) for v in grp.values]
+        net_val = round(float(sum(vals)), 2)
+        values = vals + [net_val]
+
+    elif chart_type == "funnel":
+        if y_col and agg_type == "sum":
+            num_y = pd.to_numeric(df[y_col], errors="coerce")
+            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
+            grp = temp.groupby(x_col)["_y"].sum().sort_values(ascending=False).head(6)
+        else:
+            grp = df.groupby(x_col).size().sort_values(ascending=False).head(6)
+        labels = [str(x) for x in grp.index]
+        counts = [round(float(v), 2) for v in grp.values]
+        top_c = counts[0] if counts and counts[0] > 0 else 1.0
+        pcts = [round((c / top_c) * 100, 1) for c in counts]
+        values = {"counts": counts, "pcts": pcts}
+
+    elif chart_type == "combo":
+        grp_cnt = df.groupby(x_col).size().sort_values(ascending=False).head(10)
+        labels = [str(x) for x in grp_cnt.index]
+        bars = [round(float(v), 2) for v in grp_cnt.values]
+        if y_col:
+            num_y = pd.to_numeric(df[y_col], errors="coerce")
+            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
+            line_grp = temp.groupby(x_col)["_y"].mean().reindex(grp_cnt.index).fillna(0.0)
+            lines = [round(float(v), 2) for v in line_grp.values]
+        else:
+            lines = [round(b * 1.05, 2) for b in bars]
+        values = {"bars": bars, "lines": lines}
 
     else:  # bar / line / area / pie / doughnut
         if agg_type == "none":

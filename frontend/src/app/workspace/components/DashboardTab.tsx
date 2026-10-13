@@ -11,33 +11,74 @@ import {
   LineElement,
   BarElement,
   ArcElement,
+  RadialLinearScale,
   Title,
   Tooltip,
   Legend,
   Filler,
 } from "chart.js";
-import { RefreshCw, X, BarChart4, TrendingUp, TrendingDown, Minus, Plus, Layers, PieChart, Activity, GitBranch } from "lucide-react";
-import { Scatter, Line, Bar, Pie, Doughnut } from "react-chartjs-2";
+import {
+  RefreshCw,
+  X,
+  BarChart4,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Plus,
+  Layers,
+  PieChart,
+  Activity,
+  GitBranch,
+  Download,
+  Palette,
+  Maximize2,
+} from "lucide-react";
+import { Scatter, Line, Bar, Pie, Doughnut, Radar, PolarArea } from "react-chartjs-2";
 import { ForecastCard } from "./InsightsTab";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement,
-  BarElement, ArcElement, Title, Tooltip, Legend, Filler
+  BarElement, ArcElement, RadialLinearScale, Title, Tooltip, Legend, Filler
 );
 
-const PALETTE = [
-  "#6366f1","#10b981","#f59e0b","#ef4444","#8b5cf6",
-  "#06b6d4","#ec4899","#f97316","#84cc16","#14b8a6",
-  "#3b82f6","#a78bfa","#34d399","#fbbf24","#f87171",
-];
+export const PALETTES: Record<string, { name: string; colors: string[] }> = {
+  indigo: {
+    name: "Neon Indigo",
+    colors: ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#f97316", "#84cc16", "#14b8a6"],
+  },
+  sapphire: {
+    name: "Sapphire Corporate",
+    colors: ["#2563eb", "#0284c7", "#06b6d4", "#3b82f6", "#1d4ed8", "#60a5fa", "#0ea5e9", "#38bdf8", "#0369a1", "#075985"],
+  },
+  emerald: {
+    name: "Emerald Forest",
+    colors: ["#059669", "#10b981", "#34d399", "#047857", "#0d9488", "#14b8a6", "#2dd4bf", "#15803d", "#16a34a", "#22c55e"],
+  },
+  cyberpunk: {
+    name: "Cyberpunk Sunset",
+    colors: ["#ec4899", "#f43f5e", "#fb7185", "#f97316", "#fb923c", "#f59e0b", "#8b5cf6", "#a855f7", "#d946ef", "#c026d3"],
+  },
+  monochrome: {
+    name: "Monochrome Slate",
+    colors: ["#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#1e293b", "#0f172a", "#64748b", "#94a3b8", "#334155"],
+  },
+};
+
+const PALETTE = PALETTES.indigo.colors;
 
 const CHART_TYPES = [
-  { id: "bar",      label: "Bar",      icon: "bar" },
-  { id: "line",     label: "Line / Time Series", icon: "line" },
-  { id: "scatter",  label: "Scatter",  icon: "scatter" },
-  { id: "pie",      label: "Pie",      icon: "pie" },
-  { id: "doughnut", label: "Donut",    icon: "donut" },
-  { id: "boxplot",  label: "Box Plot", icon: "box" },
+  { id: "bar",        label: "Bar",                icon: "bar" },
+  { id: "line",       label: "Line / Time Series", icon: "line" },
+  { id: "scatter",    label: "Scatter",            icon: "scatter" },
+  { id: "pie",        label: "Pie",                icon: "pie" },
+  { id: "doughnut",   label: "Donut",              icon: "donut" },
+  { id: "boxplot",    label: "Box Plot",           icon: "box" },
+  { id: "radar",      label: "Radar / Spider",     icon: "radar" },
+  { id: "polarArea",  label: "Polar Area",         icon: "polar" },
+  { id: "heatmap",    label: "Correlation Matrix", icon: "heatmap" },
+  { id: "waterfall",  label: "Waterfall Bridge",   icon: "waterfall" },
+  { id: "funnel",     label: "Conversion Funnel",  icon: "funnel" },
+  { id: "combo",      label: "Dual-Axis Combo",    icon: "combo" },
 ];
 
 function fmtNum(v: number): string {
@@ -46,10 +87,10 @@ function fmtNum(v: number): string {
   return v % 1 === 0 ? String(v) : v.toFixed(2);
 }
 
-// ── Box Plot ──────────────────────────────────────────────────────────────────
+// -- Box Plot --
 function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: { data: any; formatted: any; xLabel?: string; yLabel?: string }) {
   if (!data || typeof data.min !== "number") return (
-    <p className="text-xs text-center py-10 font-medium text-slate-700">Invalid data</p>
+    <p className="text-xs text-center py-10 font-medium" style={{ color: "var(--txt-m)" }}>Invalid data</p>
   );
   const range = data.max - data.min;
   const pad   = range === 0 ? 1 : range * 0.12;
@@ -58,21 +99,21 @@ function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: 
   const toPct = (v: number) => `${Math.max(0, Math.min(100, ((v - minX) / total) * 100)).toFixed(2)}%`;
   return (
     <div className="w-full h-full flex flex-col justify-center px-4 select-none">
-      <div className="text-center mb-1 font-bold text-xs text-black uppercase tracking-wider">{toLabel(xLabel)} Distribution ({toLabel(yLabel)})</div>
+      <div className="text-center mb-1 font-bold text-xs uppercase tracking-wider" style={{ color: "var(--txt)" }}>{toLabel(xLabel)} Distribution ({toLabel(yLabel)})</div>
       <div className="relative w-full h-14 flex items-center mb-8 mt-2">
-        <div className="absolute h-0.5 bg-slate-400" style={{ left: toPct(data.min), right: `${(100 - parseFloat(toPct(data.max))).toFixed(2)}%` }} />
-        <div className="absolute w-1 h-5 rounded bg-slate-600" style={{ left: toPct(data.min), top: "50%", transform: "translate(-50%,-50%)" }} />
-        <div className="absolute w-1 h-5 rounded bg-slate-600" style={{ left: toPct(data.max), top: "50%", transform: "translate(-50%,-50%)" }} />
+        <div className="absolute h-0.5" style={{ left: toPct(data.min), right: `${(100 - parseFloat(toPct(data.max))).toFixed(2)}%`, background: "var(--border)" }} />
+        <div className="absolute w-1 h-5 rounded" style={{ left: toPct(data.min), top: "50%", transform: "translate(-50%,-50%)", background: "var(--txt-m)" }} />
+        <div className="absolute w-1 h-5 rounded" style={{ left: toPct(data.max), top: "50%", transform: "translate(-50%,-50%)", background: "var(--txt-m)" }} />
         <div className="absolute h-9 rounded-md" style={{ left: toPct(data.q1), width: `${((data.q3 - data.q1) / total) * 100}%`, background: "rgba(99,102,241,0.25)", border: "2px solid #6366f1", top: "50%", transform: "translateY(-50%)" }} />
         <div className="absolute w-1 h-10 rounded bg-amber-500 shadow-md" style={{ left: toPct(data.median), top: "50%", transform: "translate(-50%,-50%)" }} />
-        <div className="absolute text-[10px] font-bold font-mono -bottom-6 text-center text-slate-900" style={{ left: toPct(data.min), transform: "translateX(-50%)" }}>{formatted?.min}</div>
-        <div className="absolute text-[10px] font-bold font-mono -bottom-6 text-center text-slate-900" style={{ left: toPct(data.max), transform: "translateX(-50%)" }}>{formatted?.max}</div>
-        <div className="absolute text-[11px] font-black font-mono -top-7 text-center text-amber-700" style={{ left: toPct(data.median), transform: "translateX(-50%)" }}>{formatted?.median}</div>
+        <div className="absolute text-[10px] font-bold font-mono -bottom-6 text-center" style={{ left: toPct(data.min), transform: "translateX(-50%)", color: "var(--txt)" }}>{formatted?.min}</div>
+        <div className="absolute text-[10px] font-bold font-mono -bottom-6 text-center" style={{ left: toPct(data.max), transform: "translateX(-50%)", color: "var(--txt)" }}>{formatted?.max}</div>
+        <div className="absolute text-[11px] font-black font-mono -top-7 text-center text-amber-500" style={{ left: toPct(data.median), transform: "translateX(-50%)" }}>{formatted?.median}</div>
       </div>
       <div className="grid grid-cols-3 gap-2 mt-2">
         {([["Q1", formatted?.q1, "#4f46e5"], ["Median", formatted?.median, "#d97706"], ["Q3", formatted?.q3, "#4f46e5"]] as [string,string,string][]).map(([lbl, val, col]) => (
-          <div key={lbl} className="text-center rounded-lg py-1.5 bg-slate-100 border border-slate-300">
-            <p className="text-[9px] uppercase tracking-widest font-extrabold text-slate-700 mb-0.5">{lbl}</p>
+          <div key={lbl} className="text-center rounded-lg py-1.5 border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+            <p className="text-[9px] uppercase tracking-widest font-extrabold mb-0.5" style={{ color: "var(--txt-m)" }}>{lbl}</p>
             <p className="text-xs font-black font-mono" style={{ color: col }}>{val}</p>
           </div>
         ))}
@@ -81,11 +122,11 @@ function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: 
   );
 }
 
-// ── KPI Card ──────────────────────────────────────────────────────────────────
+// -- KPI Card --
 function KpiCard({ stat, idx }: { stat: any; idx: number }) {
   const color = stat.color || PALETTE[idx % PALETTE.length];
   return (
-    <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid rgba(255,255,255,0.07)", minHeight: 110 }}>
+    <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid var(--border)", minHeight: 110 }}>
       <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-15 blur-2xl pointer-events-none" style={{ background: color }} />
       <div className="flex items-start justify-between">
         <p className="text-[10px] font-bold uppercase tracking-widest truncate pr-2" style={{ color: "var(--txt-m)" }}>{stat.label}</p>
@@ -95,7 +136,7 @@ function KpiCard({ stat, idx }: { stat: any; idx: number }) {
       </div>
       <div>
         <p className="text-3xl font-black tracking-tight mt-2" style={{ color }}>{stat.value}</p>
-        {stat.sub && <p className="text-[10px] font-semibold mt-1 truncate" style={{ color: "rgba(255,255,255,0.4)" }}>{stat.sub}</p>}
+        {stat.sub && <p className="text-[10px] font-semibold mt-1 truncate" style={{ color: "var(--txt-m)" }}>{stat.sub}</p>}
       </div>
     </div>
   );
@@ -104,9 +145,123 @@ function KpiCard({ stat, idx }: { stat: any; idx: number }) {
 // helpers
 const toLabel = (s: string) => (s || "").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
 
-// ── Chart renderer ─────────────────────────────────────────────────────────────
-function renderChart(ch: any, idx: number) {
-  const color  = PALETTE[idx % PALETTE.length];
+// -- Correlation Matrix Heatmap --
+function HeatmapViz({ labels, values }: { labels: string[]; values: number[][] }) {
+  if (!values || !Array.isArray(values) || !values.length) {
+    return <p className="text-xs text-center py-10" style={{ color: "var(--txt-m)" }}>No correlation data</p>;
+  }
+  return (
+    <div className="w-full h-full overflow-auto p-1 flex flex-col justify-center">
+      <div className="grid gap-1 items-center" style={{ gridTemplateColumns: `70px repeat(${labels.length}, minmax(36px, 1fr))` }}>
+        <div />
+        {labels.map((col, j) => (
+          <div key={`h-top-${j}`} className="text-[9px] font-bold truncate text-center" style={{ color: "var(--txt-m)" }} title={col}>
+            {col.slice(0, 6)}
+          </div>
+        ))}
+        {labels.map((rowCol, i) => (
+          <React.Fragment key={`row-${i}`}>
+            <div className="text-[9px] font-bold truncate text-right pr-2" style={{ color: "var(--txt-m)" }} title={rowCol}>
+              {rowCol.slice(0, 8)}
+            </div>
+            {labels.map((_, j) => {
+              const val = values[i]?.[j] ?? 0;
+              const isPos = val >= 0;
+              const abs = Math.min(1, Math.abs(val));
+              const bg = isPos
+                ? `rgba(99, 102, 241, ${abs * 0.85 + 0.1})`
+                : `rgba(239, 68, 68, ${abs * 0.85 + 0.1})`;
+              const textColor = abs > 0.45 ? "#ffffff" : "#1e293b";
+              return (
+                <div
+                  key={`cell-${i}-${j}`}
+                  className="rounded flex items-center justify-center text-[10px] font-mono font-bold transition-transform hover:scale-110 cursor-pointer shadow-xs"
+                  style={{ height: 28, background: bg, color: textColor }}
+                  title={`${rowCol} ✕ ${labels[j]}: ${val.toFixed(3)}`}
+                >
+                  {val.toFixed(2)}
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// -- Waterfall Bridge --
+function WaterfallViz({ labels, values }: { labels: string[]; values: number[] }) {
+  if (!values || !values.length) return <p className="text-xs text-center py-10" style={{ color: "var(--txt-m)" }}>No waterfall data</p>;
+  const maxVal = Math.max(...values.map(Math.abs), 1);
+  return (
+    <div className="w-full h-full flex flex-col justify-end p-2">
+      <div className="flex items-end justify-between gap-1.5 h-44 border-b pb-1" style={{ borderColor: "var(--border)" }}>
+        {labels.map((label, i) => {
+          const val = values[i] ?? 0;
+          const isNet = i === labels.length - 1;
+          const isPos = val >= 0;
+          const heightPct = Math.max(8, Math.min(100, (Math.abs(val) / maxVal) * 90));
+          const color = isNet ? "#6366f1" : isPos ? "#10b981" : "#ef4444";
+          return (
+            <div key={`wf-${i}`} className="flex-1 flex flex-col items-center justify-end h-full group">
+              <span className="text-[8px] font-mono font-bold mb-0.5 opacity-90 group-hover:opacity-100" style={{ color: "var(--txt)" }}>
+                {isPos && !isNet ? "+" : ""}{fmtNum(val)}
+              </span>
+              <div
+                className="w-full rounded-t transition-all duration-300 group-hover:brightness-110 shadow-sm"
+                style={{ height: `${heightPct}%`, background: color }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex justify-between gap-1 mt-1.5">
+        {labels.map((label, i) => (
+          <div key={`wf-lbl-${i}`} className="flex-1 text-[8px] font-bold truncate text-center" style={{ color: "var(--txt-m)" }} title={label}>
+            {label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// -- Conversion Funnel --
+function FunnelViz({ labels, values }: { labels: string[]; values: any }) {
+  const counts: number[] = Array.isArray(values) ? values : (values?.counts || []);
+  const pcts: number[] = !Array.isArray(values) && values?.pcts ? values.pcts : counts.map((c: number) => counts[0] > 0 ? Math.round((c / counts[0]) * 100) : 100);
+  if (!counts.length) return <p className="text-xs text-center py-10" style={{ color: "var(--txt-m)" }}>No funnel data</p>;
+  return (
+    <div className="w-full h-full flex flex-col justify-center gap-2.5 p-3">
+      {labels.map((stage, i) => {
+        const count = counts[i] ?? 0;
+        const pct = pcts[i] ?? 100;
+        return (
+          <div key={`fn-${i}`} className="space-y-1">
+            <div className="flex items-center justify-between text-[11px] font-bold" style={{ color: "var(--txt)" }}>
+              <span className="truncate max-w-[180px]">{stage}</span>
+              <span className="font-mono font-extrabold" style={{ color: "var(--accent)" }}>{fmtNum(count)} ({pct}%)</span>
+            </div>
+            <div className="w-full h-4 rounded-full overflow-hidden relative shadow-inner border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${Math.max(6, Math.min(100, pct))}%`,
+                  background: `linear-gradient(90deg, #6366f1, #8b5cf6)`,
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// -- Chart renderer --
+function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALETTE) {
+  const color  = activePaletteColors[idx % activePaletteColors.length];
   const xLabel = toLabel(ch.x_col || "Category");
   const agg    = ch.agg_type && ch.agg_type !== "none" ? ` (${ch.agg_type})` : "";
   const yLabel = toLabel(ch.y_col || "Count") + agg;
@@ -179,6 +334,124 @@ function renderChart(ch: any, idx: number) {
     scales,
   };
 
+  if (ch.type === "radar") {
+    return <Radar
+      data={{
+        labels: ch.labels,
+        datasets: [{
+          label: yLabel,
+          data: ch.values,
+          backgroundColor: `${color}33`,
+          borderColor: color,
+          borderWidth: 2,
+          pointBackgroundColor: color,
+          pointBorderColor: "#fff",
+          pointHoverRadius: 6,
+        }],
+      }}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip },
+        scales: {
+          r: {
+            angleLines: { color: "rgba(0,0,0,0.1)" },
+            grid: { color: "rgba(0,0,0,0.08)" },
+            pointLabels: { color: "#0f172a", font: { size: 11, weight: "bold" } },
+            ticks: { color: "#334155", backdropColor: "transparent", font: { size: 9 } },
+          },
+        },
+      }}
+    />;
+  }
+
+  if (ch.type === "polarArea") {
+    return <PolarArea
+      data={{
+        labels: ch.labels,
+        datasets: [{
+          data: ch.values,
+          backgroundColor: (ch.labels || []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}bb`),
+          borderColor: "rgba(0,0,0,0.25)",
+          borderWidth: 1.5,
+        }],
+      }}
+      options={{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: "right" as const }, tooltip },
+        scales: {
+          r: {
+            grid: { color: "rgba(0,0,0,0.08)" },
+            ticks: { backdropColor: "transparent", color: "#334155", font: { size: 9 } },
+          },
+        },
+      }}
+    />;
+  }
+
+  if (ch.type === "heatmap") {
+    return <HeatmapViz labels={ch.labels || []} values={ch.values || []} />;
+  }
+
+  if (ch.type === "waterfall") {
+    return <WaterfallViz labels={ch.labels || []} values={ch.values || []} />;
+  }
+
+  if (ch.type === "funnel") {
+    return <FunnelViz labels={ch.labels || []} values={ch.values} />;
+  }
+
+  if (ch.type === "combo") {
+    const bars = ch.values?.bars || (Array.isArray(ch.values) ? ch.values : []);
+    const lines = ch.values?.lines || [];
+    return <Bar
+      data={{
+        labels: ch.labels,
+        datasets: [
+          {
+            type: "bar" as const,
+            label: `${yLabel} (Volume)`,
+            data: bars,
+            backgroundColor: (ch.labels || []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}cc`),
+            borderColor: (ch.labels || []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
+            borderWidth: 1.5,
+            borderRadius: 6,
+            yAxisID: "y",
+          },
+          {
+            type: "line" as const,
+            label: `${yLabel} (Trend)`,
+            data: lines,
+            borderColor: "#f59e0b",
+            backgroundColor: "rgba(245,158,11,0.1)",
+            borderWidth: 2.5,
+            tension: 0.35,
+            pointRadius: 4,
+            pointBackgroundColor: "#fff",
+            pointBorderColor: "#f59e0b",
+            pointBorderWidth: 2,
+            yAxisID: "y1",
+          },
+        ] as any,
+      }}
+      options={{
+        ...common,
+        plugins: { legend: { display: true, position: "top" as const }, tooltip },
+        scales: {
+          ...scales,
+          y1: {
+            type: "linear" as const,
+            display: true,
+            position: "right" as const,
+            grid: { drawOnChartArea: false },
+            ticks: { color: "#d97706", font: { size: 10, weight: "bold" }, callback: (v: any) => fmtNum(Number(v)) },
+          },
+        },
+      }}
+    />;
+  }
+
   if (ch.type === "scatter") {
     const pts = Array.isArray(ch.values) && ch.values.length > 0 && typeof ch.values[0] === "object" && ch.values[0].x !== undefined
       ? ch.values
@@ -200,7 +473,7 @@ function renderChart(ch: any, idx: number) {
     const Comp = ch.type === "doughnut" ? Doughnut : Pie;
     const total = (ch.values || []).reduce((s: number, v: number) => s + (Number(v) || 0), 0);
     return <Comp
-      data={{ labels: ch.labels, datasets: [{ data: ch.values, backgroundColor: PALETTE, borderColor: "rgba(0,0,0,0.3)", borderWidth: 2, hoverOffset: 12 }] }}
+      data={{ labels: ch.labels, datasets: [{ data: ch.values, backgroundColor: activePaletteColors, borderColor: "rgba(0,0,0,0.3)", borderWidth: 2, hoverOffset: 12 }] }}
       options={{
         responsive: true,
         maintainAspectRatio: false,
@@ -222,7 +495,7 @@ function renderChart(ch: any, idx: number) {
                   const pct = total > 0 ? ((Number(val) / total) * 100).toFixed(1) : "0";
                   return {
                     text: `${lbl} (${pct}%)`,
-                    fillStyle: PALETTE[i % PALETTE.length],
+                    fillStyle: activePaletteColors[i % activePaletteColors.length],
                     strokeStyle: "rgba(0,0,0,0.3)",
                     lineWidth: 1,
                     index: i,
@@ -247,15 +520,15 @@ function renderChart(ch: any, idx: number) {
     />;
   }
 
-  // Bar / histogram — per-bar palette colours
+  // Bar / histogram
   return <Bar
     data={{
       labels: ch.labels,
       datasets: [{
         label:           yLabel,
         data:            ch.values,
-        backgroundColor: (ch.labels || []).map((_: any, i: number) => `${PALETTE[i % PALETTE.length]}cc`),
-        borderColor:     (ch.labels || []).map((_: any, i: number) => PALETTE[i % PALETTE.length]),
+        backgroundColor: (ch.labels || []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}cc`),
+        borderColor:     (ch.labels || []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
         borderWidth:     1.5,
         borderRadius:    6,
         borderSkipped:   false as const,
@@ -281,17 +554,30 @@ function renderChart(ch: any, idx: number) {
   />;
 }
 
-// ── Chart Card ─────────────────────────────────────────────────────────────────
-function ChartCard({ ch, idx, onRemove }: { ch: any; idx: number; onRemove: () => void }) {
-  const color = PALETTE[idx % PALETTE.length];
+// -- Chart Card --
+function ChartCard({ ch, idx, onRemove, activePaletteColors }: { ch: any; idx: number; onRemove: () => void; activePaletteColors: string[] }) {
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const color = activePaletteColors[idx % activePaletteColors.length];
   const numericVals = Array.isArray(ch.values) && ch.values.length > 0 && typeof ch.values[0] === "number" ? ch.values as number[] : null;
   const maxVal = numericVals ? Math.max(...numericVals) : null;
   const minVal = numericVals ? Math.min(...numericVals) : null;
   const totalPts = Array.isArray(ch.values) ? ch.values.length : 0;
   const isPie = ch.type === "pie" || ch.type === "doughnut";
   const chartH = isPie ? 300 : 280;
+
+  const downloadPng = () => {
+    const canvas = cardRef.current?.querySelector("canvas");
+    if (canvas) {
+      const url = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(ch.title || "chart").toLowerCase().replace(/\s+/g, "_")}.png`;
+      a.click();
+    }
+  };
+
   return (
-    <div className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 4px 30px rgba(0,0,0,0.25)" }}>
+    <div ref={cardRef} className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 4px 30px rgba(0,0,0,0.25)" }}>
       {/* Accent top bar */}
       <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg,${color},${color}44)` }} />
       <div className="flex items-start justify-between px-5 pt-4 pb-2">
@@ -300,16 +586,34 @@ function ChartCard({ ch, idx, onRemove }: { ch: any; idx: number; onRemove: () =
             <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color, boxShadow: `0 0 5px ${color}` }} />
             <p className="text-[11px] font-black uppercase tracking-wide truncate" style={{ color: "var(--txt)" }}>{ch.title}</p>
             {ch.is_custom && <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>Custom</span>}
+            <span
+              className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded border"
+              style={{ background: "var(--inp-bg)", color: "var(--txt-m)", borderColor: "var(--border)" }}
+            >
+              {ch.type}
+            </span>
           </div>
           {/* Axis context */}
           {ch.x_col && <p className="text-[9px] font-mono" style={{ color: "var(--txt-m)" }}>{ch.x_col}{ch.y_col ? ` → ${ch.y_col}` : ""}{ch.agg_type && ch.agg_type !== "none" ? ` · ${ch.agg_type}` : ""}</p>}
         </div>
-        {ch.is_custom && (
-          <button onClick={onRemove} className="ml-3 flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all" style={{ color: "var(--txt-m)" }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")} onMouseLeave={e => (e.currentTarget.style.color = "var(--txt-m)")}>
-            <X size={12} />
+        <div className="flex items-center gap-1.5 ml-2">
+          <button
+            onClick={downloadPng}
+            title="Export High-Res PNG"
+            className="w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer opacity-70 hover:opacity-100"
+            style={{ color: "var(--txt)" }}
+          >
+            <Download size={12} />
           </button>
-        )}
+          {ch.is_custom && (
+            <button
+              onClick={onRemove}
+              className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer text-red-400 hover:bg-red-500/10"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
       </div>
       {/* Stats ribbon */}
       {numericVals && ch.type !== "boxplot" && (
@@ -320,18 +624,18 @@ function ChartCard({ ch, idx, onRemove }: { ch: any; idx: number; onRemove: () =
           {maxVal !== null && minVal !== null && maxVal !== minVal && <span className="text-[9px] font-bold" style={{ color: "var(--txt-m)" }}>Δ {fmtNum(maxVal - minVal)}</span>}
         </div>
       )}
-      {/* Chart area — white container for maximum clarity of black axis labels */}
+      {/* Chart area */}
       <div style={{ height: chartH, position: "relative", padding: "10px", background: "#ffffff", borderRadius: "12px", margin: "0 12px 12px", border: "1px solid #cbd5e1" }}>
         {ch.type === "boxplot"
           ? <BoxPlotViz data={ch.values} formatted={ch.formatted_values} xLabel={ch.x_col} yLabel={ch.y_col} />
-          : renderChart(ch, idx)
+          : renderChart(ch, idx, activePaletteColors)
         }
       </div>
     </div>
   );
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+// -- Main --
 export function DashboardTab() {
   const { uploadId, profile } = useWorkspace();
   const [isDashLoading,     setIsDashLoading]     = useState(false);
@@ -343,9 +647,12 @@ export function DashboardTab() {
   const [dashInsights,      setDashInsights]       = useState<any[]>([]);
   const [profileCols,       setProfileCols]        = useState<string[]>([]);
   const [builderOpen,       setBuilderOpen]        = useState(false);
+  const [selectedPalette,   setSelectedPalette]    = useState<string>("indigo");
   const [customChart,       setCustomChart]        = useState({ id: null as any, chart_type: "bar", x_col: "", y_col: "", agg_type: "mean", title: "", is_area: false, top_n: 10 });
   const [isGeneratingChart, setIsGeneratingChart]  = useState(false);
   const [customChartError,  setCustomChartError]   = useState("");
+
+  const activeColors = PALETTES[selectedPalette]?.colors || PALETTES.indigo.colors;
 
   const loadDashboard = useCallback(async () => {
     if (!uploadId) return;
@@ -458,6 +765,26 @@ export function DashboardTab() {
           <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>{dashCharts.length} chart{dashCharts.length !== 1 ? "s" : ""} · {dashStats.length} KPIs · Live dataset analysis</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Palette Selector */}
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold"
+            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+          >
+            <Palette size={12} style={{ color: "var(--accent)" }} />
+            <select
+              value={selectedPalette}
+              onChange={e => setSelectedPalette(e.target.value)}
+              className="bg-transparent border-none outline-none cursor-pointer font-sans text-[11px]"
+              style={{ color: "var(--txt)" }}
+            >
+              {Object.entries(PALETTES).map(([key, pal]) => (
+                <option key={key} value={key} style={{ background: "var(--surface)", color: "var(--txt)" }}>
+                  {pal.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <button onClick={() => setBuilderOpen(b => !b)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all"
             style={{ borderColor: builderOpen ? "#6366f1" : "rgba(255,255,255,0.1)", background: builderOpen ? "rgba(99,102,241,0.1)" : "transparent", color: builderOpen ? "#6366f1" : "var(--txt-m)" }}>
             <Plus size={12} /> Add Chart
@@ -535,7 +862,7 @@ export function DashboardTab() {
                   {profileCols.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-              {!["histogram","boxplot"].includes(customChart.chart_type) && (
+              {!["histogram","boxplot","heatmap"].includes(customChart.chart_type) && (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Y Axis / Value</label>
                   <select value={customChart.y_col} onChange={e => setCustomChart(c => ({ ...c, y_col: e.target.value }))} style={sel}>
@@ -544,7 +871,7 @@ export function DashboardTab() {
                   </select>
                 </div>
               )}
-              {!["histogram","boxplot","scatter"].includes(customChart.chart_type) && (
+              {!["histogram","boxplot","scatter","heatmap"].includes(customChart.chart_type) && (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Aggregation</label>
                   <select value={customChart.agg_type} onChange={e => setCustomChart(c => ({ ...c, agg_type: e.target.value }))} style={sel}>
@@ -569,9 +896,9 @@ export function DashboardTab() {
                 <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Chart Title (optional)</label>
                 <input type="text" value={customChart.title} onChange={e => setCustomChart(c => ({ ...c, title: e.target.value }))} placeholder="Auto-generated if blank" style={{ ...sel, fontFamily: "inherit" }} />
               </div>
-              <button onClick={saveCustomChart} disabled={isGeneratingChart || !customChart.x_col}
+              <button onClick={saveCustomChart} disabled={isGeneratingChart || (!customChart.x_col && customChart.chart_type !== "heatmap")}
                 className="px-5 py-2 rounded-xl font-bold text-sm text-white transition-all"
-                style={!customChart.x_col || isGeneratingChart ? { background: "rgba(99,102,241,0.3)", cursor: "not-allowed" } : { background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.25)" }}>
+                style={(!customChart.x_col && customChart.chart_type !== "heatmap") || isGeneratingChart ? { background: "rgba(99,102,241,0.3)", cursor: "not-allowed" } : { background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.25)" }}>
                 {isGeneratingChart ? "Saving…" : "Add to Dashboard"}
               </button>
             </div>
@@ -590,7 +917,15 @@ export function DashboardTab() {
       {/* Charts Grid */}
       {dashCharts.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {dashCharts.map((ch, i) => <ChartCard key={ch.id || `c-${i}`} ch={ch} idx={i} onRemove={() => removeChart(ch)} />)}
+          {dashCharts.map((ch, i) => (
+            <ChartCard
+              key={ch.id || `c-${i}`}
+              ch={ch}
+              idx={i}
+              onRemove={() => removeChart(ch)}
+              activePaletteColors={activeColors}
+            />
+          ))}
         </div>
       )}
     </div>

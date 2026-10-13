@@ -8,6 +8,7 @@ _backend_dir = Path(__file__).resolve().parents[1]
 if str(_backend_dir) not in sys.path:
     sys.path.insert(0, str(_backend_dir))
 
+import pytest
 import pandas as pd
 from fastapi.testclient import TestClient
 from dataforge.api.app import create_app
@@ -16,14 +17,18 @@ from dataforge.api.repositories.upload import UploadRepository
 from dataforge.api.services.auth import User
 from dataforge.api.storage.manager import save
 
-# Mock upload_repo.get_by_id
-UploadRepository.get_by_id = lambda self, upload_id: {"id": upload_id, "user_id": 1, "filename": "test_dataset.csv"}
+@pytest.fixture(autouse=True)
+def mock_upload_repo(monkeypatch):
+    orig = UploadRepository.get_by_id
+    monkeypatch.setattr(
+        UploadRepository,
+        "get_by_id",
+        lambda self, upload_id: {"id": upload_id, "user_id": 1, "filename": "test_dataset.csv"} if str(upload_id) == "1001" else orig(self, upload_id)
+    )
 
 app = create_app()
 
 mock_user = User(id=1, email="faheembaiza@gmail.com", name="Faheem Ahmad Bhat")
-app.dependency_overrides[get_current_user] = lambda: mock_user
-
 client = TestClient(app)
 
 # Create mock data for upload_id 1001
@@ -36,6 +41,13 @@ df_test = pd.DataFrame({
 })
 save(1001, "df_raw", df_test)
 save(1001, "df_clean", df_test)
+save(1001, "meta", {"id": "1001", "user_id": 1, "filename": "test_dataset.csv"})
+
+@pytest.fixture(autouse=True)
+def override_user():
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+    yield
+    app.dependency_overrides.clear()
 
 def test_workspace_endpoints():
     print("\n── Workspace API Integration Tests ──\n")

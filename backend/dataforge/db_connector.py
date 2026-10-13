@@ -25,12 +25,15 @@ log = logging.getLogger(__name__)
 
 # Supported engines and friendly names
 SUPPORTED_DIALECTS = {
+    "supabase":   "Supabase (PostgreSQL)",
     "postgresql": "PostgreSQL",
     "mysql":      "MySQL",
     "sqlite":     "SQLite",
     "mssql":      "SQL Server",
     "bigquery":   "BigQuery",
     "snowflake":  "Snowflake",
+    "clickhouse": "ClickHouse",
+    "neon":       "Neon (PostgreSQL)",
 }
 
 
@@ -40,6 +43,7 @@ class DBConnector:
         """
         connection_string examples:
           postgresql://user:pass@localhost:5432/dbname
+          postgresql://postgres:pass@db.ref.supabase.co:5432/postgres
           mysql+pymysql://user:pass@host/dbname
           sqlite:///path/to/file.db
         """
@@ -52,7 +56,10 @@ class DBConnector:
             return self._engine
         try:
             from sqlalchemy import create_engine
-            self._engine = create_engine(self.connection_string, pool_pre_ping=True)
+            conn_str = self.connection_string
+            if conn_str.startswith("supabase://"):
+                conn_str = "postgresql://" + conn_str[len("supabase://"):]
+            self._engine = create_engine(conn_str, pool_pre_ping=True)
             return self._engine
         except ImportError:
             raise RuntimeError("sqlalchemy not installed. Run: pip install sqlalchemy")

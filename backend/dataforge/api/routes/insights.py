@@ -9,11 +9,11 @@ from __future__ import annotations
 import logging
 
 from typing import Optional
-
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 
-from dataforge.api.deps import CurrentUser, get_job_manager_dep, get_upload_id, require_upload_with_data
+from dataforge.api.deps import CurrentUser, OptionalCurrentUser, get_job_manager_dep, get_upload_id, require_upload_with_data
 from dataforge.api.jobs.manager import JobManager
 from dataforge.api.schemas.automl import ForecastRequest, InsightsRunRequest, RootCauseRequest
 from dataforge.api.storage.manager import load
@@ -190,3 +190,180 @@ async def api_forecast(
     except Exception as exc:
         log.exception("Forecast failed: %s", exc)
         raise HTTPException(500, f"Forecast failed: {exc}")
+
+
+# ── Statistical Hypothesis Testing Engine ─────────────────────────────────────
+
+class HypothesisTestRequest(BaseModel):
+    upload_id: str
+    test_type: str = Field(..., description="t_test, mann_whitney, anova, chi_square")
+    col_a: str = Field(..., description="Primary numeric metric or first categorical")
+    col_b: str = Field(..., description="Grouping categorical or second numeric metric")
+    alpha: float = 0.05
+
+
+@router.post("/insights/hypothesis-test", summary="Execute rigorous statistical hypothesis testing")
+async def api_hypothesis_test(
+    body: HypothesisTestRequest,
+    current_user: CurrentUser,
+):
+    """
+    Computes statistical hypothesis tests (Student's/Welch's t-test, Mann-Whitney U,
+    One-way ANOVA, Chi-Square contingency) with p-value, effect size, and executive interpretation.
+    """
+    await require_upload_with_data(body.upload_id, current_user)
+    df_clean = load(body.upload_id, "df_clean")
+    df = df_clean if df_clean is not None else load(body.upload_id, "df_raw")
+    if df is None:
+        raise HTTPException(400, "Dataset not loaded")
+
+    if body.col_a not in df.columns or body.col_b not in df.columns:
+        raise HTTPException(400, f"Columns '{body.col_a}' or '{body.col_b}' not found in dataset")
+
+    import scipy.stats as stats
+    import numpy as np
+    import pandas as pd
+
+    test_type = body.test_type.lower()
+    alpha = body.alpha
+
+    try:
+        if test_type in ("t_test", "mann_whitney"):
+            # Check if col_b is categorical split or if both are numeric
+            is_col_a_num = pd.api.types.is_numeric_dtype(df[body.col_a])
+            is_col_b_num = pd.api.types.is_numeric_dtype(df[body.col_b])
+
+            if is_col_a_num and not is_col_b_num:
+                # Group col_a by top 2 unique values of col_b
+                top_cats = df[body.col_b].dropna().unique()[:2]
+                if len(top_cats) < 2:
+                    raise HTTPException(400, f"Column '{body.col_b}' must have at least 2 distinct categories")
+                g1_name, g2_name = str(top_cats[0]), str(top_cats[1])
+                g1 = df[df[body.col_b] == top_cats[0]][body.col_a].dropna().astype(float)
+                g2 = df[df[body.col_b] == top_cats[1]][body.col_a].dropna().astype(float)
+            elif is_col_a_num and is_col_b_num:
+                g1_name, g2_name = body.col_a, body.col_b
+                g1 = df[body.col_a].dropna().astype(float)
+                g2 = df[body.col_b].dropna().astype(float)
+            else:
+                raise HTTPException(400, f"At least one column must be numeric for {test_type}")
+
+            if len(g1) < 2 or len(g2) < 2:
+                raise HTTPException(400, "Insufficient sample size (minimum 2 rows per group)")
+
+            if test_type == "t_test":
+                res = stats.ttest_ind(g1, g2, equal_var=False)
+                stat_val = float(res.statistic)
+                p_val = float(res.pvalue)
+                test_name = "Welch's Two-Sample t-Test (Unequal Variance)"
+                
+                # Cohen's d effect size
+                n1, n2 = len(g1), len(g2)
+                s1, s2 = np.var(g1, ddof=1), np.var(g2, ddof=1)
+                pooled_se = np.sqrt(((n1 - 1) * s1 + (n2 - 1) * s2) / max(1, n1 + n2 - 2))
+                cohens_d = float(abs(np.mean(g1) - np.mean(g2)) / pooled_se) if pooled_se > 0 else 0.0
+                effect_label = "Large" if cohens_d >= 0.8 else "Medium" if cohens_d >= 0.5 else "Small"
+                effect_str = f"Cohen's d = {cohens_d:.3f} ({effect_label})"
+            else:
+                res = stats.mannwhitneyu(g1, g2, alternative="two-sided")
+                stat_val = float(res.statistic)
+                p_val = float(res.pvalue)
+                test_name = "Mann-Whitney U Test (Non-Parametric)"
+                effect_str = f"U = {stat_val:.1f}"
+
+            sig = p_val < alpha
+            interp = (
+                f"Statistically significant difference detected (p = {p_val:.4e} < {alpha}). "
+                f"Group '{g1_name}' (Mean: {np.mean(g1):.2f}) differs significantly from '{g2_name}' (Mean: {np.mean(g2):.2f})."
+                if sig else
+                f"No statistically significant difference detected (p = {p_val:.4e} >= {alpha}). "
+                f"The observed variation between '{g1_name}' and '{g2_name}' is consistent with random sampling noise."
+            )
+
+            return JSONResponse(content={
+                "ok": True,
+                "test_name": test_name,
+                "statistic": round(stat_val, 4),
+                "p_value": round(p_val, 6),
+                "alpha": alpha,
+                "is_significant": sig,
+                "effect_size": effect_str,
+                "groups": {
+                    g1_name: {"count": len(g1), "mean": round(float(np.mean(g1)), 2), "median": round(float(np.median(g1)), 2), "std": round(float(np.std(g1)), 2)},
+                    g2_name: {"count": len(g2), "mean": round(float(np.mean(g2)), 2), "median": round(float(np.median(g2)), 2), "std": round(float(np.std(g2)), 2)},
+                },
+                "interpretation": interp,
+            })
+
+        elif test_type == "anova":
+            cats = df[body.col_b].dropna().unique()[:6]
+            if len(cats) < 2:
+                raise HTTPException(400, f"Column '{body.col_b}' must have at least 2 distinct categories for ANOVA")
+            groups = [df[df[body.col_b] == c][body.col_a].dropna().astype(float) for c in cats]
+            groups = [g for g in groups if len(g) >= 2]
+            if len(groups) < 2:
+                raise HTTPException(400, "Insufficient sample rows per category group")
+
+            res = stats.f_oneway(*groups)
+            stat_val = float(res.statistic) if not np.isnan(res.statistic) else 0.0
+            p_val = float(res.pvalue) if not np.isnan(res.pvalue) else 1.0
+            sig = p_val < alpha
+
+            return JSONResponse(content={
+                "ok": True,
+                "test_name": "One-Way Analysis of Variance (ANOVA)",
+                "statistic": round(stat_val, 4),
+                "p_value": round(p_val, 6),
+                "alpha": alpha,
+                "is_significant": sig,
+                "effect_size": f"F-Ratio = {stat_val:.3f}",
+                "num_groups": len(groups),
+                "interpretation": (
+                    f"Statistically significant group variance (F = {stat_val:.2f}, p = {p_val:.4e}). "
+                    f"At least one category in '{body.col_b}' exhibits a statistically distinct mean."
+                    if sig else
+                    f"No significant variance across groups in '{body.col_b}' (p = {p_val:.4e} >= {alpha})."
+                )
+            })
+
+        elif test_type == "chi_square":
+            cont_table = pd.crosstab(df[body.col_a], df[body.col_b])
+            res = stats.chi2_contingency(cont_table)
+            chi2_val = float(res.statistic)
+            p_val = float(res.pvalue)
+            dof = int(res.dof)
+            sig = p_val < alpha
+
+            # Cramér's V
+            n = cont_table.sum().sum()
+            phi2 = chi2_val / n if n > 0 else 0
+            r, k = cont_table.shape
+            v = np.sqrt(phi2 / min(k - 1, r - 1)) if min(k - 1, r - 1) > 0 else 0
+            v_label = "Strong" if v >= 0.3 else "Moderate" if v >= 0.15 else "Weak"
+
+            return JSONResponse(content={
+                "ok": True,
+                "test_name": "Pearson's Chi-Square Test of Independence",
+                "statistic": round(chi2_val, 4),
+                "p_value": round(p_val, 6),
+                "degrees_of_freedom": dof,
+                "alpha": alpha,
+                "is_significant": sig,
+                "effect_size": f"Cramér's V = {v:.3f} ({v_label} Association)",
+                "interpretation": (
+                    f"Statistically significant categorical dependency (Chi2 = {chi2_val:.2f}, p = {p_val:.4e}). "
+                    f"'{body.col_a}' and '{body.col_b}' are not independent."
+                    if sig else
+                    f"Independence supported (p = {p_val:.4e} >= {alpha}). No significant association detected between '{body.col_a}' and '{body.col_b}'."
+                )
+            })
+
+        else:
+            raise HTTPException(400, f"Unsupported test_type '{test_type}'. Allowed: t_test, mann_whitney, anova, chi_square")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.exception("Hypothesis test failed: %s", e)
+        raise HTTPException(500, f"Statistical test error: {str(e)}")
+

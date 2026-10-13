@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field
 
 class CleanRequest(BaseModel):
     upload_id: Optional[str] = None
+    expected_version_id: Optional[str] = Field(default=None, description="OCC version token for compare-and-swap")
+    preview_only: bool = Field(default=False, description="If True, preview the cleaning operations without mutating dataset state or committing a snapshot")
 
 
 class EDARequest(BaseModel):
@@ -29,6 +31,7 @@ class QueryRequest(BaseModel):
 class TransformRequest(BaseModel):
     upload_id: Optional[str] = None
     operations: List[Dict[str, Any]] = Field(default_factory=list)
+    expected_version_id: Optional[str] = Field(default=None, description="OCC version token for compare-and-swap")
 
 
 class SyncSheetsRequest(BaseModel):
@@ -118,4 +121,18 @@ class GranularCleanRequest(BaseModel):
 class RuleDiffRequest(BaseModel):
     upload_id: str
     rule: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ShareInviteRequest(BaseModel):
+    email: str = Field(..., description="Email address of the collaborator")
+    role: str = Field(default="Viewer", description="Assigned role: Viewer, Analyst, Editor, Admin")
+
+
+class ShareGeneralRequest(BaseModel):
+    general_access: str = Field(..., description="Access mode: restricted or anyone_with_link")
+    link_role: str = Field(default="Viewer", description="Role for anyone with link: Viewer, Analyst, Editor")
+
+
+class ShareRemoveRequest(BaseModel):
+    email: str = Field(..., description="Email of collaborator to remove")
 

@@ -53,6 +53,7 @@ def _setup_logging():
 async def lifespan(app: FastAPI):
     """Application lifespan manager — replaces Flask's app.before_first_request."""
     _setup_logging()
+    settings.validate_production_environment()
     log.info("Starting DataForge API v%s", settings.APP_VERSION)
 
     # ── Initialize WebSocket manager ──────────────────────────────────────────
@@ -141,6 +142,10 @@ def create_app() -> FastAPI:
     # Request logging
     app.add_middleware(RequestLoggingMiddleware)
 
+    # Security headers (OWASP defense-in-depth)
+    from dataforge.api.middleware.security import SecurityHeadersMiddleware
+    app.add_middleware(SecurityHeadersMiddleware)
+
     # Proxy Headers (trust X-Forwarded-Proto from Render)
     from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
@@ -162,7 +167,7 @@ def create_app() -> FastAPI:
 
     # ── Register routers ──────────────────────────────────────────────────────
     from dataforge.api.routes import (
-        auth, automl, dashboard, health, insights, projects, tasks, workspace,
+        auth, automl, dashboard, health, insights, joins, models, pipeline, procedures, projects, subscription, tasks, teams, workspace,
     )
     
     @app.get("/", include_in_schema=False)
@@ -172,16 +177,23 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(procedures.router)
 
     # Mount API routers under both /api/v1 (REST API) and /api (Web Frontend compatibility)
     api_routers = [
         upload_router(),
         workspace.router,
+        joins.router,
         automl.router,
         insights.router,
         dashboard.router,
         projects.router,
         tasks.router,
+        teams.router,
+        models.router,
+        pipeline.router,
+        subscription.router,
+        subscription.subscriptions_router,
     ]
     for r in api_routers:
         app.include_router(r, prefix="/api/v1")

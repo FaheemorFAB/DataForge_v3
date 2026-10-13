@@ -139,58 +139,18 @@ Available columns: {col_list}"""
     return json.loads(text[s:e])
 
 
-# ── Execute pandas code ───────────────────────────────────────────────────────
+from dataforge.sandbox import (
+    SecurityError,
+    SandboxTimeoutError,
+    SecureASTValidator,
+    run_sandboxed_code,
+)
 
-class SecurityError(Exception):
-    pass
-
-class SecureASTValidator(ast.NodeVisitor):
-    def __init__(self):
-        self.allowed_nodes = {
-            ast.Module, ast.Assign, ast.Name, ast.Store, ast.Load,
-            ast.Constant, ast.BinOp, ast.UnaryOp, ast.Subscript, ast.Slice,
-            ast.Attribute, ast.Call, ast.List, ast.Dict, ast.Tuple, ast.Compare,
-            ast.BoolOp, ast.And, ast.Or, ast.Not, ast.Eq, ast.NotEq, ast.Lt, ast.LtE,
-            ast.Gt, ast.GtE, ast.Is, ast.IsNot, ast.In, ast.NotIn, ast.Add, ast.Sub,
-            ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow, ast.USub, ast.UAdd,
-            ast.keyword, ast.Lambda, ast.ListComp, ast.DictComp, ast.SetComp,
-            ast.GeneratorExp, ast.comprehension
-        }
-        self.allowed_builtins = {"len", "round", "range", "float", "int", "str", "bool", "list", "dict", "set", "sum", "max", "min", "abs"}
-
-    def visit(self, node):
-        node_type = type(node)
-        if node_type not in self.allowed_nodes:
-            raise SecurityError(f"Unauthorized code node type: {node_type.__name__}")
-        if isinstance(node, ast.Name):
-            if node.id in __builtins__ and node.id not in self.allowed_builtins:
-                raise SecurityError(f"Access to unauthorized builtin: {node.id}")
-        if isinstance(node, ast.Call):
-            func = node.func
-            if isinstance(func, ast.Name):
-                if func.id in __builtins__ and func.id not in self.allowed_builtins:
-                    raise SecurityError(f"Call to unauthorized builtin function: {func.id}")
-            elif isinstance(func, ast.Attribute):
-                if func.attr.startswith("__"):
-                    raise SecurityError(f"Dunder attribute access prohibited: {func.attr}")
-        if isinstance(node, ast.Attribute):
-            if node.attr.startswith("__"):
-                raise SecurityError(f"Dunder attribute access prohibited: {node.attr}")
-        self.generic_visit(node)
 
 def _run_code(code: str, df: pd.DataFrame):
-    import ast
     cleaned = _clean_code(code)
-    try:
-        tree = ast.parse(cleaned)
-        SecureASTValidator().visit(tree)
-    except Exception as e:
-        logger.warning("[gemini_pipeline] AST security validation failed: %s", e)
-        raise SecurityError(f"AST security validation failed: {e}") from e
+    return run_sandboxed_code(cleaned, df)
 
-    ns = {"df": df.copy(), "pd": pd, "np": np, "result": None}
-    exec(cleaned, {}, ns)  # noqa: S102
-    return ns.get("result")
 
 
 # ── Build chart/table/metric payload ─────────────────────────────────────────

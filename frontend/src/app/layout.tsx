@@ -16,6 +16,7 @@ export default function RootLayout({
       lang="en"
       data-theme="dark"
       data-font="inter"
+      data-scroll-behavior="smooth"
     >
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />

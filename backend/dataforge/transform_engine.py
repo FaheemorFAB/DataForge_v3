@@ -34,43 +34,9 @@ import pandas as pd
 from dataclasses import dataclass, field
 from typing import Any
 
-# ── Safe expression evaluation whitelist ─────────────────────────────────────
-_SAFE_NAMES: dict[str, Any] = {
-    # math
-    "abs": abs, "round": round, "min": min, "max": max,
-    "sum": sum, "len": len, "int": int, "float": float, "str": str,
-    # numpy shortcuts
-    "log": np.log, "log2": np.log2, "log10": np.log10,
-    "sqrt": np.sqrt, "exp": np.exp, "nan": float("nan"),
-    # pandas date helpers
-    "pd": pd, "np": np,
-}
+# ── Hardened SQL Expression Engine ─────────────────────────────────────────────
+from dataforge.sql_expression_engine import evaluate_formula as _safe_eval
 
-_FORBIDDEN_RE = re.compile(
-    r"\b(import|exec|eval|open|os|sys|subprocess|__|\bcompile\b|breakpoint)\b",
-    re.IGNORECASE,
-)
-
-
-def _safe_eval(formula: str, df: pd.DataFrame) -> pd.Series:
-    """
-    Evaluate a column formula in the context of the DataFrame columns.
-    Raises ValueError for unsafe expressions.
-    """
-    if _FORBIDDEN_RE.search(formula):
-        raise ValueError(f"Unsafe expression: {formula!r}")
-    local_env = dict(_SAFE_NAMES)
-    for col in df.columns:
-        safe_key = re.sub(r"[^a-zA-Z0-9_]", "_", col)
-        local_env[safe_key] = df[col]
-        local_env[col]      = df[col]   # also allow original name
-    try:
-        result = eval(formula, {"__builtins__": {}}, local_env)  # noqa: S307
-    except Exception as e:
-        raise ValueError(f"Formula error ({formula!r}): {e}") from e
-    if not isinstance(result, pd.Series):
-        result = pd.Series([result] * len(df), index=df.index)
-    return result
 
 
 # ── Operator map ──────────────────────────────────────────────────────────────

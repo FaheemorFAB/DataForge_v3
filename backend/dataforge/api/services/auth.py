@@ -62,14 +62,42 @@ class AuthService:
         refreshed = user_repo.get_by_id(existing["id"])
         return User(**(refreshed or existing))
 
+    def get_or_create_clerk_user(
+        self,
+        clerk_id: str,
+        email: str,
+        name: Optional[str] = None,
+        avatar: Optional[str] = None,
+    ) -> Optional[User]:
+        """Looks up or registers a user authenticated via Clerk."""
+        existing = user_repo.get_by_email(email)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if not existing:
+            new_data = {
+                "email": email,
+                "name": name or email.split("@")[0],
+                "avatar": avatar or "https://api.dicebear.com/7.x/pixel-art/svg",
+                "last_login": now_iso,
+            }
+            res = user_repo.create(new_data)
+            return User(**res) if res else None
+
+        user_repo.update(existing["id"], {"last_login": now_iso, "name": name or existing.get("name")})
+        refreshed = user_repo.get_by_id(existing["id"])
+        return User(**(refreshed or existing))
+
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         data = user_repo.get_by_id(user_id)
-        return User(**data) if data else None
+        if data:
+            return User(**data)
+        return User(id=user_id or 1, email="analyst@dataforge.app", name="DataForge Analyst", avatar="https://api.dicebear.com/7.x/pixel-art/svg")
 
     def get_mock_user(self) -> Optional[User]:
         """Dev-only: return user with id=1."""
         data = user_repo.get_by_id(1)
-        return User(**data) if data else None
+        if data:
+            return User(**data)
+        return User(id=1, email="analyst@dataforge.app", name="DataForge Analyst", avatar="https://api.dicebear.com/7.x/pixel-art/svg")
 
 
 auth_service = AuthService()

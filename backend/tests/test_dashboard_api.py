@@ -16,8 +16,6 @@ from dataforge.api.repositories.upload import UploadRepository
 from dataforge.api.services.auth import User
 from dataforge.api.storage.manager import save
 
-UploadRepository.get_by_id = lambda self, upload_id: {"id": upload_id, "user_id": 1, "filename": "dashboard_dataset.csv"}
-
 app = create_app()
 
 mock_user = User(id=1, email="faheembaiza@gmail.com", name="Faheem Ahmad Bhat")
@@ -34,7 +32,13 @@ df_test = pd.DataFrame({
 save(1002, "df_raw", df_test)
 save(1002, "df_clean", df_test)
 
-def test_dashboard_endpoints():
+def test_dashboard_endpoints(monkeypatch):
+    orig_get = UploadRepository.get_by_id
+    monkeypatch.setattr(
+        UploadRepository,
+        "get_by_id",
+        lambda self, upload_id: {"id": upload_id, "user_id": 1, "filename": "dashboard_dataset.csv"} if str(upload_id) == "1002" else orig_get(self, upload_id)
+    )
     print("\n── Dashboard & Custom Chart API Integration Tests ──\n")
 
     # 1. POST Dashboard Stats (KPI calculation & auto-generated charts)

@@ -24,8 +24,11 @@ from dataforge.api.schemas.workspace import (
     CustomChartDeleteRequest, CustomChartRequest, EDARequest,
     QueryRequest, SyncSheetsRequest, TransformRequest,
     GranularCleanRequest, RuleDiffRequest,
+    ShareInviteRequest, ShareGeneralRequest, ShareRemoveRequest,
 )
+from dataforge.api.services.sharing import DatasetSharingService
 from dataforge.api.storage.manager import exists, load, persist, save, upath
+from dataforge.api.storage.snapshots import ConcurrencyConflictError, SnapshotManager
 from dataforge.api.utils.helpers import df_profile, df_to_json_rows, resolve_column
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_all, db_get, db_update
@@ -120,26 +123,34 @@ async def api_workspace_state(
                     "Re-upload the original file to continue."
                 )
 
-    return JSONResponse(content=safe_jsonable({
-        "has_df": df_raw is not None,
-        "has_clean": df_clean is not None,
-        "has_eda": has_eda,
-        "has_biz_report": exists(upload_id, "data_report_html"),
-        "profile": profile,
-        "clean_profile": clean_profile,
-        "columns": profile.get("columns", []),
-        "clean_meta": clean_meta,
-        "automl_meta": automl_meta,
-        "chat_history": active_msgs,
-        "chat_sessions": chat_sessions,
-        "active_session_id": active_session_id,
-        "ai_consent": ai_consent,
-        "filename": filename,
-        "needs_reupload": needs_reupload,
-        "reupload_filename": filename,
-        "reupload_message": reupload_message,
-        "source_type": src,
-    }))
+    version_id = SnapshotManager.get_version(upload_id)
+    snapshot_id = load(upload_id, "active_snapshot_id")
+
+    return JSONResponse(
+        content=safe_jsonable({
+            "has_df": df_raw is not None,
+            "has_clean": df_clean is not None,
+            "has_eda": has_eda,
+            "has_biz_report": exists(upload_id, "report_html") or exists(upload_id, "data_report_html"),
+            "profile": profile,
+            "clean_profile": clean_profile,
+            "columns": profile.get("columns", []),
+            "clean_meta": clean_meta,
+            "automl_meta": automl_meta,
+            "chat_history": active_msgs,
+            "chat_sessions": chat_sessions,
+            "active_session_id": active_session_id,
+            "ai_consent": ai_consent,
+            "filename": filename,
+            "needs_reupload": needs_reupload,
+            "reupload_filename": filename,
+            "reupload_message": reupload_message,
+            "source_type": src,
+            "version_id": version_id,
+            "snapshot_id": snapshot_id,
+        }),
+        headers={"ETag": f'"{version_id}"'},
+    )
 
 
 # ── Preview ───────────────────────────────────────────────────────────────────
@@ -254,11 +265,12 @@ async def api_sync_sheets(
 async def api_clean(
     body: CleanRequest,
     current_user: CurrentUser,
+    request: Request,
 ):
     upload_id = body.upload_id
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    await require_upload_with_data(upload_id, current_user, min_role="Editor")
 
     df_raw = load(upload_id, "df_raw")
     if df_raw is None:
@@ -273,16 +285,54 @@ async def api_clean(
     except Exception as exc:
         raise HTTPException(500, f"Cleaning failed: {exc}")
 
+    if body.preview_only:
+        up_row = db_get("uploads", upload_id) or {}
+        clean_profile = df_profile(result["df_clean"], up_row.get("filename", ""))
+        return JSONResponse(
+            content=safe_jsonable({
+                "ok": True,
+                "preview_only": True,
+                "stats": result["stats"],
+                "missing_log": result["missing_log"],
+                "imputed_cells": result.get("imputed_cells", {}),
+                "struct_actions": result["struct_actions"],
+                "clean_profile": clean_profile,
+            })
+        )
+
     df_clean = result["df_clean"]
-    save(upload_id, "df_clean", df_clean)
+
+    # Optimistic Concurrency Control (OCC) and Immutable Snapshot Commit
+    if_match = request.headers.get("if-match") or body.expected_version_id
+    try:
+        new_version_id, snapshot_id = SnapshotManager.commit_snapshot(
+            upload_id=upload_id,
+            df=df_clean,
+            expected_version=if_match,
+            action="clean",
+            metadata={"stats": result["stats"], "imputed_cells": result.get("imputed_cells", {})},
+        )
+    except ConcurrencyConflictError as err:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "Conflict: dataset has been modified by another operation.",
+                "current_version_id": err.current_version,
+                "expected_version_id": err.expected_version,
+            },
+            headers={"ETag": f'"{err.current_version}"'},
+        )
 
     up_row = db_get("uploads", upload_id) or {}
     clean_profile = df_profile(df_clean, up_row.get("filename", ""))
     meta = {
         "stats": result["stats"],
         "missing_log": result["missing_log"],
+        "imputed_cells": result.get("imputed_cells", {}),
         "struct_actions": result["struct_actions"],
         "clean_profile": clean_profile,
+        "version_id": new_version_id,
+        "snapshot_id": snapshot_id,
     }
     save(upload_id, "clean_meta", meta)
 
@@ -299,25 +349,31 @@ async def api_clean(
     from dataforge.api.cache.manager import invalidate_upload
     invalidate_upload(upload_id)
 
-    return JSONResponse(content=safe_jsonable({
-        "ok": True,
-        "stats": result["stats"],
-        "missing_log": result["missing_log"],
-        "struct_actions": result["struct_actions"],
-        "clean_profile": clean_profile,
-    }))
+    return JSONResponse(
+        content=safe_jsonable({
+            "ok": True,
+            "version_id": new_version_id,
+            "snapshot_id": snapshot_id,
+            "stats": result["stats"],
+            "missing_log": result["missing_log"],
+            "struct_actions": result["struct_actions"],
+            "clean_profile": clean_profile,
+        }),
+        headers={"ETag": f'"{new_version_id}"'},
+    )
 
 
 @router.post("/clean/dynamic", summary="Run interactive dynamic cleaning with custom column rules")
 async def api_clean_dynamic(
     body: dict,
     current_user: CurrentUser,
+    request: Request,
 ):
     upload_id = body.get("upload_id")
     rules = body.get("rules", [])
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    await require_upload_with_data(upload_id, current_user, min_role="Editor")
 
     df_raw = load(upload_id, "df_raw")
     if df_raw is None:
@@ -333,7 +389,27 @@ async def api_clean_dynamic(
         raise HTTPException(500, f"Dynamic cleaning failed: {exc}")
 
     df_clean = result["df_clean"]
-    save(upload_id, "df_clean", df_clean)
+
+    # Optimistic Concurrency Control (OCC) and Immutable Snapshot Commit
+    if_match = request.headers.get("if-match") or body.get("expected_version_id")
+    try:
+        new_version_id, snapshot_id = SnapshotManager.commit_snapshot(
+            upload_id=upload_id,
+            df=df_clean,
+            expected_version=if_match,
+            action="clean_dynamic",
+            metadata={"rules_count": len(rules), "stats": result["stats"]},
+        )
+    except ConcurrencyConflictError as err:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "Conflict: dataset has been modified by another operation.",
+                "current_version_id": err.current_version,
+                "expected_version_id": err.expected_version,
+            },
+            headers={"ETag": f'"{err.current_version}"'},
+        )
 
     up_row = db_get("uploads", upload_id) or {}
     clean_profile = df_profile(df_clean, up_row.get("filename", ""))
@@ -344,6 +420,8 @@ async def api_clean_dynamic(
         "clean_profile": clean_profile,
         "rules_applied": rules,
         "pipeline_script": result.get("pipeline_script", ""),
+        "version_id": new_version_id,
+        "snapshot_id": snapshot_id,
     }
     save(upload_id, "clean_meta", meta)
 
@@ -360,13 +438,34 @@ async def api_clean_dynamic(
     from dataforge.api.cache.manager import invalidate_upload
     invalidate_upload(upload_id)
 
+    return JSONResponse(
+        content=safe_jsonable({
+            "ok": True,
+            "version_id": new_version_id,
+            "snapshot_id": snapshot_id,
+            "stats": result["stats"],
+            "missing_log": result["missing_log"],
+            "struct_actions": result["struct_actions"],
+            "clean_profile": clean_profile,
+            "pipeline_script": result.get("pipeline_script", ""),
+        }),
+        headers={"ETag": f'"{new_version_id}"'},
+    )
+
+
+@router.get("/workspace/snapshots", summary="List immutable content-addressed dataset snapshots")
+async def api_snapshots_list(
+    current_user: CurrentUser,
+    upload_id: str = Query(...),
+):
+    await require_upload_with_data(upload_id, current_user)
+    manifest = SnapshotManager.get_manifest(upload_id)
+    current_v = SnapshotManager.get_version(upload_id)
     return JSONResponse(content=safe_jsonable({
         "ok": True,
-        "stats": result["stats"],
-        "missing_log": result["missing_log"],
-        "struct_actions": result["struct_actions"],
-        "clean_profile": clean_profile,
-        "pipeline_script": result.get("pipeline_script", ""),
+        "upload_id": upload_id,
+        "current_version_id": current_v,
+        "snapshots": manifest,
     }))
 
 
@@ -401,8 +500,8 @@ async def api_clean_diff(
 
 @router.get("/clean/export-script", summary="Download reproducible Python cleaning pipeline script")
 async def api_clean_export_script(
+    current_user: CurrentUser,
     upload_id: str = Query(...),
-    current_user: CurrentUser = None,
 ):
     await require_upload_with_data(upload_id, current_user)
     meta = load(upload_id, "clean_meta") or {}
@@ -520,7 +619,7 @@ async def api_reports_latest(
     await require_upload_with_data(upload_id, current_user)
 
     from dataforge.api.storage.manager import load as _load
-    html = _load(upload_id, "report_html")
+    html = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
     if not html:
         raise HTTPException(404, "No business report generated yet. Please generate one first.")
     
@@ -538,7 +637,7 @@ async def api_data_report_download(
     await require_upload_with_data(upload_id, current_user)
 
     from dataforge.api.storage.manager import load as _load
-    html = _load(upload_id, "report_html")
+    html = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
     if not html:
         raise HTTPException(404, "No report generated yet")
 
@@ -679,6 +778,12 @@ async def api_query(
         except Exception:
             pass
 
+    from dataforge.api.services.entitlements import EntitlementService
+    allowed, reason = EntitlementService.check_entitlement(current_user.id, "ai_queries", 1)
+    if not allowed:
+        raise HTTPException(status_code=402, detail=reason)
+    EntitlementService.record_usage(current_user.id, "ai_queries", 1)
+
     def _run():
         from dataforge.gemini_pipeline import run_query_pipeline
         return run_query_pipeline(query_str, df, metric_context=metric_context)
@@ -794,12 +899,13 @@ async def api_chat_session_delete(
 async def api_transform(
     body: TransformRequest,
     current_user: CurrentUser,
+    request: Request,
     upload_id: Optional[str] = Query(default=None),
 ):
     target_upload_id = body.upload_id or upload_id
     if not target_upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(target_upload_id, current_user)
+    await require_upload_with_data(target_upload_id, current_user, min_role="Editor")
 
     df_clean = load(target_upload_id, "df_clean")
     df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
@@ -816,10 +922,38 @@ async def api_transform(
     except Exception as exc:
         raise HTTPException(400, f"Transform failed: {exc}")
 
-    save(target_upload_id, "df_clean", result_df)
+    # Optimistic Concurrency Control (OCC) and Immutable Snapshot Commit
+    if_match = request.headers.get("if-match") or body.expected_version_id
+    try:
+        new_version_id, snapshot_id = SnapshotManager.commit_snapshot(
+            upload_id=target_upload_id,
+            df=result_df,
+            expected_version=if_match,
+            action="transform",
+            metadata={"operations": body.operations},
+        )
+    except ConcurrencyConflictError as err:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "Conflict: dataset has been modified by another operation.",
+                "current_version_id": err.current_version,
+                "expected_version_id": err.expected_version,
+            },
+            headers={"ETag": f'"{err.current_version}"'},
+        )
+
     up_row = db_get("uploads", target_upload_id) or {}
     profile = df_profile(result_df, up_row.get("filename", ""))
-    return JSONResponse(content=safe_jsonable({"ok": True, "profile": profile}))
+    return JSONResponse(
+        content=safe_jsonable({
+            "ok": True,
+            "version_id": new_version_id,
+            "snapshot_id": snapshot_id,
+            "profile": profile,
+        }),
+        headers={"ETag": f'"{new_version_id}"'},
+    )
 
 
 # ── Custom chart ──────────────────────────────────────────────────────────────
@@ -908,3 +1042,102 @@ async def api_custom_chart_delete(
     custom_charts = [c for c in custom_charts if c.get("id") != body.chart_id]
     save(target_upload_id, "custom_charts", custom_charts)
     return {"ok": True, "charts": custom_charts}
+
+
+# ── Google Sheets-Style Dataset Sharing & User-Level Access Control ─────────────
+
+@router.get("/workspace/{upload_id}/share", summary="Get dataset sharing permissions and members")
+async def api_get_dataset_share(
+    upload_id: str,
+    current_user: CurrentUser,
+):
+    upload = await require_upload_with_data(upload_id, current_user, min_role="Viewer")
+    owner_id = upload.get("user_id")
+    shares = DatasetSharingService.get_shares(upload_id, owner_id=owner_id)
+    
+    # Calculate caller's effective role
+    _, eff_role = DatasetSharingService.check_access(
+        upload_id=upload_id,
+        user=current_user,
+        owner_id=owner_id,
+    )
+    
+    return JSONResponse(content=safe_jsonable({
+        "ok": True,
+        "shares": shares,
+        "current_user_role": eff_role,
+        "is_owner": eff_role in ("Owner", "Admin"),
+    }))
+
+
+@router.post("/workspace/{upload_id}/share/invite", summary="Invite or update a collaborator by email")
+async def api_invite_collaborator(
+    upload_id: str,
+    body: ShareInviteRequest,
+    current_user: CurrentUser,
+):
+    upload = await require_upload_with_data(upload_id, current_user, min_role="Admin")
+    try:
+        updated = DatasetSharingService.invite_collaborator(
+            upload_id=upload_id,
+            operator_id=current_user.id,
+            email=body.email,
+            role=body.role,
+        )
+        return JSONResponse(content=safe_jsonable({"ok": True, "shares": updated}))
+    except (ValueError, PermissionError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/workspace/{upload_id}/share/collaborators", summary="Remove collaborator access")
+async def api_remove_collaborator(
+    upload_id: str,
+    body: ShareRemoveRequest,
+    current_user: CurrentUser,
+):
+    upload = await require_upload_with_data(upload_id, current_user, min_role="Admin")
+    try:
+        updated = DatasetSharingService.remove_collaborator(
+            upload_id=upload_id,
+            operator_id=current_user.id,
+            email=body.email,
+        )
+        return JSONResponse(content=safe_jsonable({"ok": True, "shares": updated}))
+    except (ValueError, PermissionError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/workspace/{upload_id}/share/general", summary="Update general link access settings")
+async def api_update_general_share(
+    upload_id: str,
+    body: ShareGeneralRequest,
+    current_user: CurrentUser,
+):
+    upload = await require_upload_with_data(upload_id, current_user, min_role="Admin")
+    try:
+        updated = DatasetSharingService.update_general_access(
+            upload_id=upload_id,
+            operator_id=current_user.id,
+            general_access=body.general_access,
+            link_role=body.link_role,
+        )
+        return JSONResponse(content=safe_jsonable({"ok": True, "shares": updated}))
+    except (ValueError, PermissionError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/workspace/{upload_id}/share/regenerate", summary="Regenerate secret share token")
+async def api_regenerate_share_token(
+    upload_id: str,
+    current_user: CurrentUser,
+):
+    upload = await require_upload_with_data(upload_id, current_user, min_role="Owner")
+    try:
+        updated = DatasetSharingService.regenerate_share_token(
+            upload_id=upload_id,
+            operator_id=current_user.id,
+        )
+        return JSONResponse(content=safe_jsonable({"ok": True, "shares": updated}))
+    except (ValueError, PermissionError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+

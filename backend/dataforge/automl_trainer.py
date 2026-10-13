@@ -154,26 +154,45 @@ def _encode_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _impute_features(df: pd.DataFrame) -> pd.DataFrame:
+def _leak_free_preprocess(
+    X_train: pd.DataFrame,
+    X_test: Optional[pd.DataFrame] = None,
+) -> Tuple[pd.DataFrame, Optional[pd.DataFrame]]:
+    """
+    Leak-free feature preprocessing.
+    Imputers and encoders are fitted strictly on X_train and applied to X_test.
+    Prevents data leakage into validation or test folds.
+    """
     from sklearn.impute import SimpleImputer
 
-    df = df.copy()
-    num_cols = df.select_dtypes(include=["float64", "float32"]).columns.tolist()
-    int_cols = df.select_dtypes(include=["int64", "int32", "uint8"]).columns.tolist()
-    cat_cols = int_cols
+    X_tr = X_train.copy()
+    X_te = X_test.copy() if X_test is not None else None
+
+    num_cols = X_tr.select_dtypes(include=["float64", "float32"]).columns.tolist()
+    int_cols = X_tr.select_dtypes(include=["int64", "int32", "uint8"]).columns.tolist()
 
     if num_cols:
-        imp = SimpleImputer(strategy="median")
-        df[num_cols] = imp.fit_transform(df[num_cols])
+        imp_num = SimpleImputer(strategy="median")
+        X_tr[num_cols] = imp_num.fit_transform(X_tr[num_cols])
+        if X_te is not None:
+            X_te[num_cols] = imp_num.transform(X_te[num_cols])
 
-    if cat_cols:
-        imp = SimpleImputer(strategy="most_frequent")
-        df[cat_cols] = imp.fit_transform(df[cat_cols])
+    if int_cols:
+        imp_cat = SimpleImputer(strategy="most_frequent")
+        X_tr[int_cols] = imp_cat.fit_transform(X_tr[int_cols])
+        if X_te is not None:
+            X_te[int_cols] = imp_cat.transform(X_te[int_cols])
 
-    if df.isnull().any().any():
-        df = df.fillna(0)
+    X_tr = X_tr.fillna(0)
+    if X_te is not None:
+        X_te = X_te.fillna(0)
 
-    return df
+    return X_tr, X_te
+
+
+def _impute_features(df: pd.DataFrame) -> pd.DataFrame:
+    X_tr, _ = _leak_free_preprocess(df)
+    return X_tr
 
 
 def _build_leaderboard(automl) -> list:
@@ -515,12 +534,19 @@ def run_automl(
         return {"error": "No usable feature columns remain after preprocessing.", "model_pkl": None}
 
     df_model = _downcast_dtypes(df_model)
-    df_model = _impute_features(df_model)
-    df_model, dropped_cols = _remove_low_variance(df_model)
-    if df_model.shape[1] == 0:
-        return {"error": "All features were removed during preprocessing.", "model_pkl": None}
 
-    timing["preprocessing_s"] = round(time.time() - t0, 2)
+    # ── Target leakage check ──────────────────────────────────────────────────
+    target_leakage_warnings: list[str] = []
+    if pd.api.types.is_numeric_dtype(y):
+        for col in df_model.select_dtypes(include="number").columns:
+            try:
+                corr = float(df_model[col].corr(y))
+                if pd.notna(corr) and abs(corr) > 0.995:
+                    target_leakage_warnings.append(
+                        f"Feature '{col}' has extreme correlation ({corr:.4f}) with target, indicating potential target leakage."
+                    )
+            except Exception:
+                pass
 
     stratify = None
     if task == "classification" and y.nunique() < 50:
@@ -539,6 +565,18 @@ def run_automl(
         )
     except Exception as exc:
         return {"error": f"Train/test split failed: {exc}", "model_pkl": None}
+
+    # Strict fit-on-train only preprocessing (Zero Data Leakage)
+    X_train, X_test = _leak_free_preprocess(X_train, X_test)
+    X_train, dropped_cols = _remove_low_variance(X_train)
+    if X_test is not None:
+        kept_cols = [c for c in X_train.columns if c in X_test.columns]
+        X_test = X_test[kept_cols]
+
+    if X_train.shape[1] == 0:
+        return {"error": "All features were removed during preprocessing.", "model_pkl": None}
+
+    timing["preprocessing_s"] = round(time.time() - t0, 2)
 
     X_train, y_train, was_sampled = _smart_sample(X_train, y_train, task)
     effective_budget = _adaptive_time_budget(len(X_train), X_train.shape[1], time_budget)

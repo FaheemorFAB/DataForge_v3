@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { 
   Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders, 
   Cpu, Check, Download, Play, RefreshCw, Search, Filter, 
-  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2
+  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight
 } from "lucide-react";
 
 interface FeatureInfo {
@@ -31,7 +31,7 @@ const AVAILABLE_ALGORITHMS = [
 ];
 
 export function AutoMLTab() {
-  const { profile, cleanProfile, uploadId } = useWorkspace();
+  const { profile, cleanProfile, uploadId, setActiveTab } = useWorkspace();
   const effectiveProfile = cleanProfile || profile;
 
   // Configuration States
@@ -60,6 +60,44 @@ export function AutoMLTab() {
   const [automlError, setAutomlError] = useState("");
   const [automlResult, setAutomlResult] = useState<any>(null);
   const [showDeploySnippet, setShowDeploySnippet] = useState(false);
+  const [isDeployingModel, setIsDeployingModel] = useState(false);
+  const [deploySuccessMsg, setDeploySuccessMsg] = useState("");
+
+  const deployChampionToRegistry = async () => {
+    if (!automlResult) return;
+    setIsDeployingModel(true);
+    setDeploySuccessMsg("");
+    try {
+      const modelName = `${automlTarget || "Target"}_${automlResult.best_estimator || "Champion"}`.replace(/[^a-zA-Z0-9_]/g, "_");
+      const payload = {
+        model_name: modelName,
+        task_type: automlResult.task || detectedTask || "classification",
+        algorithm: automlResult.best_estimator || "Ensemble",
+        target_column: automlTarget,
+        features: selectedFeatures,
+        metrics: automlResult.metrics || { score: automlResult.test_score ?? 0.88 },
+        version: "v1.0.0",
+        summary: `Automated champion estimator trained via DataForge tournament on ${effectiveProfile?.filename || "dataset"} (${automlResult.train_rows || 0} rows).`,
+        upload_id: uploadId,
+      };
+      const res = await apiFetch("/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setDeploySuccessMsg(`Successfully deployed ${modelName} (ID: ${d.model?.id || "REG-01"}) to Enterprise Model Registry!`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Deployment failed: ${err.detail || err.error || res.statusText}`);
+      }
+    } catch (err: any) {
+      alert(`Deployment failed: ${err.message || String(err)}`);
+    } finally {
+      setIsDeployingModel(false);
+    }
+  };
 
   // Available columns from profile
   const allColumns: string[] = useMemo(() => {
@@ -270,7 +308,7 @@ export function AutoMLTab() {
 
   return (
     <div className="tab-panel space-y-6 px-4 py-5 md:px-8 md:py-7 max-w-7xl mx-auto">
-      {/* ── TOP HEADER ── */}
+      {/* -- TOP HEADER -- */}
       <div className="sec-hd flex items-start justify-between flex-wrap gap-4 border-b pb-5" style={{ borderColor: "var(--border)" }}>
         <div>
           <div className="flex items-center gap-2.5">
@@ -310,7 +348,7 @@ export function AutoMLTab() {
         </div>
       </div>
 
-      {/* ── SECTION 1: TARGET SELECTION & PRIMARY CONFIG ── */}
+      {/* -- SECTION 1: TARGET SELECTION & PRIMARY CONFIG -- */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-5 rounded-2xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         {/* Target Column */}
         <div>
@@ -400,7 +438,7 @@ export function AutoMLTab() {
         </div>
       </div>
 
-      {/* ── SECTION 2: GRANULAR FEATURE SELECTION & LEAKAGE GUARD ── */}
+      {/* -- SECTION 2: GRANULAR FEATURE SELECTION & LEAKAGE GUARD -- */}
       {automlTarget && (
         <div className="p-5 rounded-2xl space-y-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -575,7 +613,7 @@ export function AutoMLTab() {
         </div>
       )}
 
-      {/* ── SECTION 3: ALGORITHM WHITELIST & VALIDATION TUNING ── */}
+      {/* -- SECTION 3: ALGORITHM WHITELIST & VALIDATION TUNING -- */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Column: Algorithm Whitelist (7 cols) */}
         <div className="lg:col-span-7 p-5 rounded-2xl space-y-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
@@ -714,7 +752,7 @@ export function AutoMLTab() {
         </div>
       </div>
 
-      {/* ── EXECUTION LAUNCH BAR ── */}
+      {/* -- EXECUTION LAUNCH BAR -- */}
       <div className="flex items-center justify-between p-4 rounded-2xl flex-wrap gap-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <div className="text-xs" style={{ color: "var(--txt-m)" }}>
           {selectedFeatures.length > 0 && selectedAlgos.length > 0 ? (
@@ -743,7 +781,7 @@ export function AutoMLTab() {
         </button>
       </div>
 
-      {/* ── ERROR DISPLAY ── */}
+      {/* -- ERROR DISPLAY -- */}
       {automlError && (
         <div className="p-4 rounded-xl space-y-1" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
           <p className="font-bold text-xs text-red-500 flex items-center gap-1.5">
@@ -753,7 +791,7 @@ export function AutoMLTab() {
         </div>
       )}
 
-      {/* ── TRAINING LOADER ── */}
+      {/* -- TRAINING LOADER -- */}
       {isTraining && (
         <div className="p-10 rounded-2xl flex flex-col items-center justify-center gap-4 text-center border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white animate-bounce" style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
@@ -773,7 +811,7 @@ export function AutoMLTab() {
         </div>
       )}
 
-      {/* ── DEPLOYMENT / INFERENCE CODE SNIPPET MODAL ── */}
+      {/* -- DEPLOYMENT / INFERENCE CODE SNIPPET MODAL -- */}
       {showDeploySnippet && (
         <div className="p-5 rounded-2xl space-y-3" style={{ background: "var(--surface)", border: "1px solid rgba(99,102,241,0.3)" }}>
           <div className="flex items-center justify-between">
@@ -813,7 +851,7 @@ print("Predicted Output:", predictions)
         </div>
       )}
 
-      {/* ── RESULTS & LEADERBOARD SECTION ── */}
+      {/* -- RESULTS & LEADERBOARD SECTION -- */}
       {automlResult && !isTraining && (
         <div className="space-y-5">
           {/* Top KPI Cards */}
@@ -965,7 +1003,49 @@ print("Predicted Output:", predictions)
               )}
             </div>
           </div>
+
+          {/* -- Enterprise Model Registry Deployment Card -- */}
+          <div className="p-5 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-4" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(59,130,246,0.04))", borderColor: "rgba(99,102,241,0.25)" }}>
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
+                <Boxes size={20} className="text-white" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                  Enterprise Model Registry &amp; Private Endpoint
+                </h4>
+                <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
+                  Promote champion <strong className="text-indigo-400 font-mono">{automlResult.best_estimator || "Ensemble"}</strong> to your team registry for REST inference and container export.
+                </p>
+                {deploySuccessMsg && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <p className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle2 size={13} /> {deploySuccessMsg}
+                    </p>
+                    <button
+                      onClick={() => setActiveTab("models")}
+                      className="px-3 py-1 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] transition"
+                      style={{ background: "#10b981" }}
+                    >
+                      <span>Open in Model Registry</span>
+                      <ArrowRight size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={deployChampionToRegistry}
+              disabled={isDeployingModel}
+              className="px-5 py-2.5 rounded-xl font-bold text-xs text-white shrink-0 flex items-center gap-2 shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
+              style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)", opacity: isDeployingModel ? 0.7 : 1 }}
+            >
+              <Boxes size={14} />
+              <span>{isDeployingModel ? "Deploying Artifact..." : "★ Deploy Champion to Registry"}</span>
+            </button>
+          </div>
         </div>
+
       )}
     </div>
   );

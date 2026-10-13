@@ -13,6 +13,19 @@ class SheetsUploadRequest(BaseModel):
     url: str = Field(..., min_length=10, description="Google Sheets URL")
 
 
+class ExcelOnlineUploadRequest(BaseModel):
+    url: str = Field(..., min_length=5, description="Microsoft Excel Online, OneDrive, or SharePoint URL")
+    sheet_name: Optional[str] = Field(default=None, description="Optional sheet/worksheet name or index")
+    dataset_name: Optional[str] = Field(default=None, description="Optional custom dataset title")
+
+
+class JSONUrlUploadRequest(BaseModel):
+    url: str = Field(..., min_length=5, description="JSON or REST API endpoint URL")
+    headers: Optional[dict[str, str]] = None
+    root_key: Optional[str] = None
+    dataset_name: Optional[str] = None
+
+
 class DBTestConnectionRequest(BaseModel):
     connection_string: str = Field(..., min_length=5, description="SQLAlchemy database connection string")
 

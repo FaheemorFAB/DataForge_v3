@@ -38,23 +38,25 @@ class CorrelationInsight(BaseInsight):
             except TypeError:
                 corr_matrix = numeric_df.corr().round(4)
 
-            # ── All-pairs scan ─────────────────────────────────────────────────
-            cols      = corr_matrix.columns.tolist()
-            best_r    = 0.0
-            best_pair = (cols[0], cols[1])
+            from .statistical_rigor import MultipleTestingHypothesisEngine
 
-            for i, col_a in enumerate(cols):
-                for col_b in cols[i + 1:]:
-                    r = corr_matrix.loc[col_a, col_b]
-                    if abs(r) > abs(best_r):
-                        best_r    = float(r)
-                        best_pair = (col_a, col_b)
+            cols = corr_matrix.columns.tolist()
+            engine = MultipleTestingHypothesisEngine(alpha=0.05, fdr_method="fdr_bh")
+            tested_pairs = engine.evaluate_numeric_correlations(numeric_df, cols)
 
-            if abs(best_r) < self.THRESHOLD_WEAK:
+            # Filter for FDR-significant pairs with effect size meeting threshold
+            sig_pairs = [p for p in tested_pairs if p["significant"] and p["effect_size"] >= self.THRESHOLD_WEAK]
+            if not sig_pairs:
                 return None
 
-            col_a, col_b = best_pair
-            direction    = "positively" if best_r > 0 else "negatively"
+            best_test = sig_pairs[0]
+            col_a = best_test["column_a"]
+            col_b = best_test["column_b"]
+            best_r = float(best_test["statistic"])
+            q_val = float(best_test["q_value"])
+            raw_p = float(best_test["raw_p_value"])
+
+            direction = "positively" if best_r > 0 else "negatively"
 
             if abs(best_r) >= self.THRESHOLD_STRONG:
                 strength = "strongly"
@@ -83,12 +85,11 @@ class CorrelationInsight(BaseInsight):
             likelihood_str = "highly likely" if abs(best_r) >= 0.65 else "somewhat likely"
             direction_str = "positive" if best_r > 0 else "negative"
             strength_str = "strong" if abs(best_r) >= 0.85 else "moderate" if abs(best_r) >= 0.65 else "weak"
-            total_sig_pairs = sum(1 for i, a in enumerate(cols) for b in cols[i+1:] if abs(corr_matrix.loc[a, b]) >= self.THRESHOLD_WEAK)
-            
             description = (
-                f"A {strength_str} {direction_str} relationship was detected between '{col_a}' and '{col_b}' "
-                f"({alignment_pct}% alignment). Changes in one are {likelihood_str} to align with changes in the other. "
-                f"A scan of {len(cols)} numeric columns identified {total_sig_pairs} significant relationships."
+                f"A statistically verified {strength_str} {direction_str} relationship was detected between '{col_a}' and '{col_b}' "
+                f"({alignment_pct}% alignment; Benjamini-Hochberg FDR q={q_val:.4g}, p={raw_p:.4g}). "
+                f"Changes in one are {likelihood_str} to align with changes in the other. "
+                f"A scan of {len(cols)} numeric columns identified {len(sig_pairs)} FDR-significant relationships."
             )
 
             return {
@@ -96,6 +97,10 @@ class CorrelationInsight(BaseInsight):
                 "description": description,
                 "importance":  self._clamp(abs(best_r)),
                 "type":        "correlation",
+                "q_value":     round(q_val, 6),
+                "p_value":     round(raw_p, 6),
+                "fdr_controlled": True,
+                "effect_size": round(abs(best_r), 4),
                 "chart":       "scatter",
                 "chart_data":  {
                     "x_label":          col_a,
@@ -103,6 +108,8 @@ class CorrelationInsight(BaseInsight):
                     "x":                scatter_x,
                     "y":                scatter_y,
                     "r":                round(best_r, 4),
+                    "q_value":          round(q_val, 6),
+                    "p_value":          round(raw_p, 6),
                     "correlation_matrix": {
                         "columns": matrix_cols,
                         "rows":    matrix_rows,

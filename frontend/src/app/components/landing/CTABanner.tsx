@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import Link from "next/link";
+import { Sparkles, ArrowUpRight, UploadCloud } from "lucide-react";
 
 interface CTABannerProps {
   title?: React.ReactNode;
@@ -10,58 +11,82 @@ interface CTABannerProps {
   href?: string;
   bgColor?: string;
   btnTextColor?: string;
+  onAction?: () => void;
 }
 
-export default function CTABanner({ title, subtitle, buttonText, href, bgColor, btnTextColor }: CTABannerProps) {
-  useEffect(() => {
-    const items = document.querySelectorAll('.reveal');
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('in');
-          io.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.15 });
-    items.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, []);
-
-  const scrollToTop = () => {
-    if (!href) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+export default function CTABanner({ title, subtitle, buttonText, href, bgColor, btnTextColor, onAction }: CTABannerProps) {
+  const handleClick = () => {
+    if (onAction) {
+      onAction();
+    } else if (!href) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
-  const defaultTitle = (
-    <>Bring your own dataset.<br className="hidden sm:block md:hidden lg:block" /> <span className="sm:hidden md:inline lg:hidden"> </span>See it forged in minutes.</>
-  );
-
-  const buttonContent = (
-    <button onClick={scrollToTop} className="btn-mag w-full md:w-auto flex items-center justify-center gap-2 py-4 px-8 rounded-xl font-bold tracking-tight flex-shrink-0" style={{ background: "#fff", color: btnTextColor || "#7A1F09", minWidth: "160px" }}>
-      {buttonText || "Upload a dataset"}
-    </button>
-  );
-
   return (
-    <section style={{ borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)", padding: "4rem 0" }}>
-      <div className="max-w-6xl mx-auto px-5 md:px-8">
-        <div className="reveal px-6 py-10 md:p-14 flex flex-col md:flex-row items-center justify-between gap-8 md:gap-6 text-center md:text-left" style={{ background: bgColor || "#FF4310", borderRadius: "1.25rem" }}>
-          <div>
-            <h2 className="text-[26px] leading-[1.1] md:text-3xl font-black tracking-tight" style={{ color: "#fff" }}>
-              {title || defaultTitle}
-            </h2>
-            <p className="text-[15px] mt-4 md:mt-3" style={{ color: "rgba(255,255,255,0.75)" }}>
-              {subtitle || "No setup, no credit card, no code."}
-            </p>
+    <section className="py-20 border-t w-full" style={{ borderColor: "var(--border)" }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div
+          className="relative rounded-3xl p-8 sm:p-12 md:p-16 border overflow-hidden backdrop-blur-2xl transition-all"
+          style={{
+            background: bgColor || "linear-gradient(135deg, rgba(255, 67, 16, 0.08) 0%, rgba(99, 102, 241, 0.05) 100%), var(--card)",
+            borderColor: "rgba(255, 67, 16, 0.3)",
+            boxShadow: "0 20px 50px -10px rgba(0,0,0,0.4)",
+          }}
+        >
+          {/* Ethereal background radial glow */}
+          <div
+            className="absolute -right-20 -bottom-20 w-80 h-80 rounded-full pointer-events-none blur-3xl opacity-30"
+            style={{ background: "var(--accent)" }}
+          />
+
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
+            <div className="space-y-3 max-w-2xl text-left">
+              <div
+                className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border"
+                style={{
+                  background: "rgba(255, 67, 16, 0.08)",
+                  borderColor: "rgba(255, 67, 16, 0.25)",
+                  color: "var(--accent)",
+                }}
+              >
+                <Sparkles size={12} />
+                <span>Zero Latency Start</span>
+              </div>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight" style={{ color: "var(--txt)" }}>
+                {title || (
+                  <>
+                    Bring your dataset. <br className="hidden sm:inline" />
+                    See it forged in seconds.
+                  </>
+                )}
+              </h2>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                {subtitle || "No credit card required. Pure automated analysis, instant EDA, and production ML models ready for download."}
+              </p>
+            </div>
+
+            {href && !onAction ? (
+              <Link
+                href={href}
+                className="flex items-center gap-2 px-6 py-3.5 rounded-xl text-xs font-bold text-white shadow-xl transition-all duration-200 hover:scale-[1.03] active:scale-[0.98]"
+                style={{ background: "linear-gradient(135deg, var(--accent), #ff7043)" }}
+              >
+                <span>{buttonText || "Launch Workspace"}</span>
+                <ArrowUpRight size={15} />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={handleClick}
+                className="flex items-center gap-2 px-6 py-3.5 rounded-xl text-xs font-bold text-white shadow-xl transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
+                style={{ background: "linear-gradient(135deg, var(--accent), #ff7043)" }}
+              >
+                <UploadCloud size={16} />
+                <span>{buttonText || "Launch Ingestion Hub"}</span>
+              </button>
+            )}
           </div>
-          {href ? (
-            <Link href={href} className="w-full md:w-auto block">
-              {buttonContent}
-            </Link>
-          ) : (
-            buttonContent
-          )}
         </div>
       </div>
     </section>

@@ -9,15 +9,20 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.109.0",
+    "@types/three": "^0.186.0",
     "chart.js": "^4.5.1",
     "daisyui": "^5.7.4",
     "framer-motion": "^12.43.0",
+    "gsap": "^3.15.0",
     "lucide-react": "^1.27.0",
     "next": "16.2.12",
     "react": "19.2.4",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "19.2.4",
-    "socket.io-client": "^4.8.3"
+    "resend": "^6.32.1",
+    "socket.io-client": "^4.8.3",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

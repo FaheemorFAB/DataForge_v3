@@ -15,12 +15,12 @@ export function CleanerTab() {
   const [cleanError, setCleanError] = useState("");
   const [alreadyCleanModal, setAlreadyCleanModal] = useState(false);
 
-  // ── Multi-Column Attribute Selection State ─────────────────────────────────
+  // -- Multi-Column Attribute Selection State --
   const [selectedCols, setSelectedCols] = useState<string[]>([]);
   const [colSearch, setColSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "numeric" | "text" | "datetime" | "missing">("all");
 
-  // ── Category & Action State ────────────────────────────────────────────────
+  // -- Category & Action State --
   const [actionCategory, setActionCategory] = useState<"impute" | "outlier" | "scale" | "encode" | "text" | "cast" | "drop">("impute");
 
   // Hyperparameters: Imputation
@@ -72,7 +72,7 @@ export function CleanerTab() {
   // Hyperparameters: Type Cast
   const [castType, setCastType] = useState("float");
 
-  // ── Rules Stack & Diff Preview State ───────────────────────────────────────
+  // -- Rules Stack & Diff Preview State --
   const [rules, setRules] = useState<any[]>([]);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffResult, setDiffResult] = useState<any>(null);
@@ -127,7 +127,7 @@ export function CleanerTab() {
     setSelectedCols([]);
   };
 
-  // ── Construct Current Rule Object ──────────────────────────────────────────
+  // -- Construct Current Rule Object --
   const buildCurrentRule = () => {
     if (selectedCols.length === 0) return null;
     const rule: any = {
@@ -210,7 +210,7 @@ export function CleanerTab() {
     return rule;
   };
 
-  // ── Add Rule to Active DAG Stack ───────────────────────────────────────────
+  // -- Add Rule to Active DAG Stack --
   const addRule = () => {
     const newRule = buildCurrentRule();
     if (!newRule) return;
@@ -222,7 +222,7 @@ export function CleanerTab() {
     setRules(prev => prev.filter((_, i) => i !== idx));
   };
 
-  // ── Live Diff Preview ──────────────────────────────────────────────────────
+  // -- Live Diff Preview --
   const runPreviewDiff = async () => {
     const candidateRule = buildCurrentRule();
     if (!candidateRule) return;
@@ -248,7 +248,7 @@ export function CleanerTab() {
     }
   };
 
-  // ── 1-Click Auto Clean ─────────────────────────────────────────────────────
+  // -- 1-Click Auto Clean --
   const runAutoCleaning = async () => {
     setIsCleaning(true);
     setCleanError("");
@@ -279,7 +279,7 @@ export function CleanerTab() {
     }
   };
 
-  // ── Run Granular Custom Rules Clean ────────────────────────────────────────
+  // -- Run Granular Custom Rules Clean --
   const runDynamicCleaning = async () => {
     if (rules.length === 0) return;
     setIsCleaning(true);
@@ -314,7 +314,7 @@ export function CleanerTab() {
 
   return (
     <div className="tab-panel space-y-6 px-4 py-4 md:px-6 md:py-6">
-      {/* ── Top Header & Mode Switcher ─────────────────────────────────────── */}
+      {/* -- Top Header & Mode Switcher ---- */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -363,7 +363,7 @@ export function CleanerTab() {
         </div>
       )}
 
-      {/* ── MODE 1: 1-Click Automated Cleaner ─────────────────────────────── */}
+      {/* -- MODE 1: 1-Click Automated Cleaner ---- */}
       {mode === "auto" && (
         <div className="rounded-2xl p-6 space-y-4" style={{ background: "var(--surface)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <div>
@@ -380,47 +380,59 @@ export function CleanerTab() {
         </div>
       )}
 
-      {/* ── MODE 2: Granular Custom Rule Studio ────────────────────────────── */}
+      {/* -- MODE 2: Granular Custom Rule Studio ---- */}
       {mode === "dynamic" && (
         <div className="space-y-6">
           <div className="rounded-2xl overflow-hidden border shadow-xl" style={{ background: "var(--surface)", borderColor: "rgba(99,102,241,0.2)" }}>
             
-            {/* Step 1: Attribute / Column Selection Matrix */}
-            <div className="p-5 border-b" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(99,102,241,0.03)" }}>
-              <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+            {/* Step 1: Attribute / Column Multi-Select */}
+            <div className="p-5 border-b" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-lg flex items-center justify-center font-black text-xs text-white" style={{ background: "#6366f1" }}>1</div>
                   <span className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>Select Target Attributes</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.05)", color: "var(--txt-m)" }}>
-                    {selectedCols.length} of {rawColumns.length} selected
-                  </span>
+                  <span className="text-[11px] font-mono" style={{ color: "var(--txt-m)" }}>({selectedCols.length} of {rawColumns.length} chosen)</span>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
                   {/* Type Filter Pills */}
-                  <div className="flex p-0.5 rounded-lg border text-[10px]" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-                    <button onClick={() => setTypeFilter("all")} className={`px-2 py-1 rounded font-bold transition-all ${typeFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}>All</button>
-                    <button onClick={() => setTypeFilter("numeric")} className={`px-2 py-1 rounded font-bold transition-all ${typeFilter === 'numeric' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}>Numeric</button>
-                    <button onClick={() => setTypeFilter("text")} className={`px-2 py-1 rounded font-bold transition-all ${typeFilter === 'text' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}>Text</button>
-                    <button onClick={() => setTypeFilter("datetime")} className={`px-2 py-1 rounded font-bold transition-all ${typeFilter === 'datetime' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}>Dates</button>
-                    <button onClick={() => setTypeFilter("missing")} className={`px-2 py-1 rounded font-bold transition-all ${typeFilter === 'missing' ? 'bg-indigo-600 text-white' : 'text-gray-400'}`}>Missing &gt;5%</button>
+                  <div className="flex p-0.5 rounded-lg border text-[10px]" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                    {[
+                      { id: "all", label: "All" },
+                      { id: "numeric", label: "Numeric" },
+                      { id: "text", label: "Text" },
+                      { id: "datetime", label: "Dates" },
+                      { id: "missing", label: "Missing >5%" },
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => setTypeFilter(f.id as any)}
+                        className="px-2 py-1 rounded font-bold transition-all cursor-pointer"
+                        style={{
+                          background: typeFilter === f.id ? "var(--accent)" : "transparent",
+                          color: typeFilter === f.id ? "#ffffff" : "var(--txt-m)",
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
                   </div>
 
-                  <button onClick={selectAllFiltered} className="text-[10px] font-bold px-2 py-1 rounded border hover:bg-white/5" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>Select Filtered</button>
-                  <button onClick={clearSelection} className="text-[10px] font-bold px-2 py-1 rounded border text-red-400 hover:bg-red-500/10" style={{ borderColor: "rgba(239,68,68,0.2)" }}>Clear</button>
+                  <button onClick={selectAllFiltered} className="text-[10px] font-bold px-2 py-1 rounded border hover:opacity-80 transition-opacity" style={{ borderColor: "var(--border)", color: "var(--txt-m)", background: "var(--card)" }}>Select Filtered</button>
+                  <button onClick={clearSelection} className="text-[10px] font-bold px-2 py-1 rounded border text-red-400 hover:bg-red-500/10" style={{ borderColor: "rgba(239,68,68,0.3)" }}>Clear</button>
                 </div>
               </div>
 
               {/* Search Bar */}
               <div className="relative mb-3">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--txt-m)" }} />
                 <input
                   type="text"
                   placeholder="Filter attributes by name..."
                   value={colSearch}
                   onChange={e => setColSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 rounded-xl text-xs font-mono border"
-                  style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--txt)" }}
+                  style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
                 />
               </div>
 
@@ -429,23 +441,24 @@ export function CleanerTab() {
                 {filteredColumns.map((c: any) => {
                   const name = typeof c === "string" ? c : c.name;
                   const isSelected = selectedCols.includes(name);
-                  const dtype = (typeof c === "object" && c.dtype) ? c.dtype : "";
                   const nullPct = (typeof c === "object" && c.null_pct) ? c.null_pct : 0;
                   return (
                     <button
                       key={name}
                       onClick={() => toggleColumnSelection(name)}
-                      className={`px-2.5 py-1.5 rounded-xl text-left border flex items-center justify-between gap-1.5 transition-all text-[11px] font-mono ${
-                        isSelected 
-                          ? "bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-sm" 
-                          : "bg-white/[0.02] border-white/[0.06] text-gray-400 hover:border-white/20"
-                      }`}
+                      className="px-2.5 py-1.5 rounded-xl text-left border flex items-center justify-between gap-1.5 transition-all text-[11px] font-mono cursor-pointer"
+                      style={{
+                        background: isSelected ? "var(--glow)" : "var(--inp-bg)",
+                        borderColor: isSelected ? "var(--accent)" : "var(--border)",
+                        color: isSelected ? "var(--accent)" : "var(--txt)",
+                        boxShadow: isSelected ? "0 0 10px var(--glow)" : "none",
+                      }}
                     >
                       <span className="truncate flex-1">{name}</span>
                       {nullPct > 0 && (
-                        <span className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-400 shrink-0">{nullPct}% null</span>
+                        <span className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-500 font-bold shrink-0">{nullPct}% null</span>
                       )}
-                      {isSelected ? <Check size={12} className="shrink-0 text-indigo-400" /> : null}
+                      {isSelected ? <Check size={12} className="shrink-0" style={{ color: "var(--accent)" }} /> : null}
                     </button>
                   );
                 })}
@@ -473,9 +486,12 @@ export function CleanerTab() {
                   <button
                     key={cat.id}
                     onClick={() => setActionCategory(cat.id as any)}
-                    className={`py-2 px-1 text-[11px] font-bold rounded-lg transition-all text-center ${
-                      actionCategory === cat.id ? "bg-indigo-600 text-white shadow-md" : "text-gray-400 hover:text-white"
-                    }`}
+                    className="py-2 px-1 text-[11px] font-bold rounded-lg transition-all text-center cursor-pointer"
+                    style={{
+                      background: actionCategory === cat.id ? "var(--accent)" : "transparent",
+                      color: actionCategory === cat.id ? "#ffffff" : "var(--txt-m)",
+                      boxShadow: actionCategory === cat.id ? "0 0 10px var(--glow)" : "none",
+                    }}
                   >
                     {cat.label}
                   </button>
@@ -483,13 +499,13 @@ export function CleanerTab() {
               </div>
 
               {/* Dynamic Hyperparameter Panels */}
-              <div className="p-4 rounded-xl border space-y-4" style={{ background: "rgba(255,255,255,0.02)", borderColor: "rgba(255,255,255,0.06)" }}>
+              <div className="p-4 rounded-xl border space-y-4" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
                 
-                {/* ── Category: Imputation ───────────────────────────────── */}
+                {/* -- Category: Imputation ---- */}
                 {actionCategory === "impute" && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Algorithm</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Algorithm</label>
                       <select value={imputeMethod} onChange={e => setImputeMethod(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                         <option value="median">Median (Robust)</option>
                         <option value="mean">Mean (Standard or Trimmed)</option>
@@ -508,11 +524,11 @@ export function CleanerTab() {
                     {imputeMethod === "knn" && (
                       <>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Neighbors (k={knnNeighbors})</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Neighbors (k={knnNeighbors})</label>
                           <input type="range" min={2} max={30} value={knnNeighbors} onChange={e => setKnnNeighbors(parseInt(e.target.value))} className="w-full accent-indigo-500" />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Weights</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Weights</label>
                           <select value={knnWeights} onChange={e => setKnnWeights(e.target.value as any)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                             <option value="uniform">Uniform</option>
                             <option value="distance">Distance-Weighted</option>
@@ -523,14 +539,14 @@ export function CleanerTab() {
 
                     {imputeMethod === "mice" && (
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Max Iterations ({miceMaxIter})</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Max Iterations ({miceMaxIter})</label>
                         <input type="range" min={5} max={50} value={miceMaxIter} onChange={e => setMiceMaxIter(parseInt(e.target.value))} className="w-full accent-indigo-500" />
                       </div>
                     )}
 
                     {imputeMethod === "mean" && (
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Trim Proportion ({Math.round(trimPercent * 100)}% each tail)</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Trim Proportion ({Math.round(trimPercent * 100)}% each tail)</label>
                         <input type="range" min={0} max={0.25} step={0.05} value={trimPercent} onChange={e => setTrimPercent(parseFloat(e.target.value))} className="w-full accent-indigo-500" />
                       </div>
                     )}
@@ -538,7 +554,7 @@ export function CleanerTab() {
                     {imputeMethod === "interpolate" && (
                       <>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Interpolation Type</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Interpolation Type</label>
                           <select value={interpMethod} onChange={e => setInterpMethod(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                             <option value="linear">Linear</option>
                             <option value="polynomial">Polynomial</option>
@@ -547,7 +563,7 @@ export function CleanerTab() {
                         </div>
                         {["polynomial", "spline"].includes(interpMethod) && (
                           <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Polynomial Order ({interpOrder})</label>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Polynomial Order ({interpOrder})</label>
                             <input type="range" min={2} max={5} value={interpOrder} onChange={e => setInterpOrder(parseInt(e.target.value))} className="w-full accent-indigo-500" />
                           </div>
                         )}
@@ -556,18 +572,18 @@ export function CleanerTab() {
 
                     {imputeMethod === "constant" && (
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Constant Value</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Constant Value</label>
                         <input type="text" placeholder="e.g. Unknown, 0, N/A" value={fillValue} onChange={e => setFillValue(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }} />
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* ── Category: Outliers ─────────────────────────────────── */}
+                {/* -- Category: Outliers ---- */}
                 {actionCategory === "outlier" && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Detection Algorithm</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Detection Algorithm</label>
                       <select value={outlierMethod} onChange={e => setOutlierMethod(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                         <option value="iqr">IQR Fence (Tunable k-Multiplier)</option>
                         <option value="zscore">Z-Score & Robust MAD</option>
@@ -577,7 +593,7 @@ export function CleanerTab() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Action on Anomaly</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Action on Anomaly</label>
                       <select value={outlierAction} onChange={e => setOutlierAction(e.target.value as any)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                         <option value="clip">Clip to Boundary Values</option>
                         <option value="fill_median">Replace with Median</option>
@@ -588,7 +604,7 @@ export function CleanerTab() {
 
                     {outlierMethod === "iqr" && (
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">IQR Multiplier (k={multiplierK})</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">IQR Multiplier (k={multiplierK})</label>
                         <input type="range" min={1.0} max={3.5} step={0.1} value={multiplierK} onChange={e => setMultiplierK(parseFloat(e.target.value))} className="w-full accent-indigo-500" />
                         <span className="text-[9px] text-gray-500">1.5 = Standard; 3.0 = Extreme Outliers Only</span>
                       </div>
@@ -597,14 +613,14 @@ export function CleanerTab() {
                     {outlierMethod === "zscore" && (
                       <>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Method</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Method</label>
                           <select value={zscoreMethod} onChange={e => setZscoreMethod(e.target.value as any)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                             <option value="zscore">Standard Z-Score (Mean & Std)</option>
                             <option value="mad">Robust MAD (Median Absolute Deviation)</option>
                           </select>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Threshold (σ={zscoreThreshold})</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Threshold (σ={zscoreThreshold})</label>
                           <input type="range" min={2.0} max={4.5} step={0.1} value={zscoreThreshold} onChange={e => setZscoreThreshold(parseFloat(e.target.value))} className="w-full accent-indigo-500" />
                         </div>
                       </>
@@ -613,11 +629,11 @@ export function CleanerTab() {
                     {outlierMethod === "isolation_forest" && (
                       <>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Contamination ({Math.round(isoContamination * 100)}%)</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Contamination ({Math.round(isoContamination * 100)}%)</label>
                           <input type="range" min={0.01} max={0.20} step={0.01} value={isoContamination} onChange={e => setIsoContamination(parseFloat(e.target.value))} className="w-full accent-indigo-500" />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Estimators ({isoEstimators} Trees)</label>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Estimators ({isoEstimators} Trees)</label>
                           <input type="range" min={50} max={300} step={25} value={isoEstimators} onChange={e => setIsoEstimators(parseInt(e.target.value))} className="w-full accent-indigo-500" />
                         </div>
                       </>
@@ -625,11 +641,11 @@ export function CleanerTab() {
                   </div>
                 )}
 
-                {/* ── Category: Scaling ──────────────────────────────────── */}
+                {/* -- Category: Scaling ---- */}
                 {actionCategory === "scale" && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Scaling Technique</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Scaling Technique</label>
                       <select value={scalerMethod} onChange={e => setScalerMethod(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                         <option value="robust">RobustScaler (Median & IQR - Outlier Resistant)</option>
                         <option value="standard">StandardScaler (Zero Mean, Unit Variance)</option>
@@ -639,7 +655,7 @@ export function CleanerTab() {
 
                     {scalerMethod === "robust" && (
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Quantile Bounds ({quantileLow}% – {quantileHigh}%)</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Quantile Bounds ({quantileLow}% – {quantileHigh}%)</label>
                         <div className="flex gap-2">
                           <input type="number" value={quantileLow} onChange={e => setQuantileLow(parseFloat(e.target.value))} className="inp w-1/2" style={{ fontSize: "11px" }} />
                           <input type="number" value={quantileHigh} onChange={e => setQuantileHigh(parseFloat(e.target.value))} className="inp w-1/2" style={{ fontSize: "11px" }} />
@@ -649,7 +665,7 @@ export function CleanerTab() {
 
                     {scalerMethod === "minmax" && (
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Min / Max Range</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Min / Max Range</label>
                         <div className="flex gap-2">
                           <input type="number" value={scaleMin} onChange={e => setScaleMin(parseFloat(e.target.value))} className="inp w-1/2" style={{ fontSize: "11px" }} />
                           <input type="number" value={scaleMax} onChange={e => setScaleMax(parseFloat(e.target.value))} className="inp w-1/2" style={{ fontSize: "11px" }} />
@@ -659,11 +675,11 @@ export function CleanerTab() {
                   </div>
                 )}
 
-                {/* ── Category: Encoding ─────────────────────────────────── */}
+                {/* -- Category: Encoding ---- */}
                 {actionCategory === "encode" && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Encoding Scheme</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Encoding Scheme</label>
                       <select value={encodeMethod} onChange={e => setEncodeMethod(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                         <option value="onehot">One-Hot Encoding (pd.get_dummies)</option>
                         <option value="ordinal">Ordinal Encoding (Category Codes)</option>
@@ -681,12 +697,12 @@ export function CleanerTab() {
                   </div>
                 )}
 
-                {/* ── Category: Text / PII ───────────────────────────────── */}
+                {/* -- Category: Text / PII ---- */}
                 {actionCategory === "text" && (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Case & Whitespace</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Case & Whitespace</label>
                         <select value={textCase} onChange={e => setTextCase(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                           <option value="trim">Trim Whitespace Only</option>
                           <option value="lowercase">Convert to lowercase</option>
@@ -696,12 +712,12 @@ export function CleanerTab() {
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">RegEx Match Pattern</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">RegEx Match Pattern</label>
                         <input type="text" placeholder="e.g. [^a-zA-Z0-9]" value={regexPattern} onChange={e => setRegexPattern(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }} />
                       </div>
 
                       <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">RegEx Replacement</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">RegEx Replacement</label>
                         <input type="text" placeholder="e.g. _" value={regexReplacement} onChange={e => setRegexReplacement(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }} />
                       </div>
 
@@ -724,7 +740,7 @@ export function CleanerTab() {
                         Enable Automated PII Redaction
                       </label>
                       {piiMask && (
-                        <div className="flex items-center gap-3 text-xs text-gray-400">
+                        <div className="flex items-center gap-3 text-xs text-[var(--txt-m)]">
                           <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={piiEmail} onChange={e => setPiiEmail(e.target.checked)} className="accent-indigo-500" /> Email</label>
                           <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={piiPhone} onChange={e => setPiiPhone(e.target.checked)} className="accent-indigo-500" /> Phone</label>
                           <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={piiSsn} onChange={e => setPiiSsn(e.target.checked)} className="accent-indigo-500" /> SSN</label>
@@ -735,11 +751,11 @@ export function CleanerTab() {
                   </div>
                 )}
 
-                {/* ── Category: Type Casting ─────────────────────────────── */}
+                {/* -- Category: Type Casting ---- */}
                 {actionCategory === "cast" && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Target Type</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--txt-m)]">Target Type</label>
                       <select value={castType} onChange={e => setCastType(e.target.value)} className="inp w-full" style={{ fontSize: "11px", padding: "0.5rem" }}>
                         <option value="float">Numeric (Float64)</option>
                         <option value="int">Integer (Int64)</option>
@@ -752,7 +768,7 @@ export function CleanerTab() {
                   </div>
                 )}
 
-                {/* ── Category: Drop Columns ─────────────────────────────── */}
+                {/* -- Category: Drop Columns ---- */}
                 {actionCategory === "drop" && (
                   <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 font-bold">
                     ⚠️ The selected {selectedCols.length} column(s) will be completely removed from the dataset.
@@ -762,7 +778,7 @@ export function CleanerTab() {
 
               {/* Action Buttons: Preview Diff & Add to Pipeline */}
               <div className="flex items-center justify-between flex-wrap gap-3 mt-4 pt-3 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                <span className="text-[11px] font-mono text-gray-400">
+                <span className="text-[11px] font-mono text-[var(--txt-m)]">
                   Targeting: <strong className="text-indigo-400">{selectedCols.length > 0 ? selectedCols.slice(0, 3).join(", ") + (selectedCols.length > 3 ? ` +${selectedCols.length - 3} more` : "") : "None"}</strong>
                 </span>
 
@@ -794,7 +810,7 @@ export function CleanerTab() {
                 </div>
               )}
 
-              {/* ── Live Diff Preview Card ───────────────────────────────── */}
+              {/* -- Live Diff Preview Card ---- */}
               {diffResult && (
                 <div className="mt-4 p-4 rounded-xl border space-y-3" style={{ background: "rgba(99,102,241,0.03)", borderColor: "rgba(99,102,241,0.2)" }}>
                   <div className="flex items-center justify-between">
@@ -846,7 +862,7 @@ export function CleanerTab() {
                             <tr key={idx} className="border-t border-white/[0.04]">
                               <td className="p-2 text-gray-500">#{row.row}</td>
                               <td className="p-2 text-gray-300">{row.before}</td>
-                              <td className={`p-2 font-bold ${row.changed ? 'text-emerald-400' : 'text-gray-400'}`}>{row.after}</td>
+                              <td className={`p-2 font-bold ${row.changed ? 'text-emerald-500' : 'text-[var(--txt-m)]'}`}>{row.after}</td>
                               <td className="p-2 text-right">
                                 {row.changed ? <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">Modified</span> : <span className="text-[9px] text-gray-600">Unchanged</span>}
                               </td>
@@ -861,7 +877,7 @@ export function CleanerTab() {
             </div>
           </div>
 
-          {/* ── Active Rules DAG Queue ─────────────────────────────────────── */}
+          {/* -- Active Rules DAG Queue ---- */}
           {rules.length > 0 && (
             <div className="rounded-2xl p-5 space-y-4 border shadow-xl" style={{ background: "var(--surface)", borderColor: "rgba(255,255,255,0.07)" }}>
               <div className="flex items-center justify-between">
@@ -910,7 +926,7 @@ export function CleanerTab() {
         </div>
       )}
 
-      {/* ── Results Cards & Audit Log ──────────────────────────────────────── */}
+      {/* -- Results Cards & Audit Log ---- */}
       {cleanResult && (
         <div className="space-y-6 mt-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -956,7 +972,7 @@ export function CleanerTab() {
         </div>
       )}
 
-      {/* ── Reproducible Python Script Modal ───────────────────────────────── */}
+      {/* -- Reproducible Python Script Modal ---- */}
       {showCodeModal && cleanResult?.pipeline_script && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn" onClick={() => setShowCodeModal(false)}>
           <div className="w-full max-w-3xl rounded-3xl p-6 flex flex-col shadow-2xl relative overflow-hidden border max-h-[85vh]"
@@ -983,7 +999,7 @@ export function CleanerTab() {
               </div>
             </div>
 
-            <p className="text-[11px] text-gray-400 mt-2 mb-3">
+            <p className="text-[11px] text-[var(--txt-m)] mt-2 mb-3">
               This standalone script encapsulates all transformations applied in this session. Run it on fresh data feeds in your production pipeline.
             </p>
 
@@ -994,7 +1010,7 @@ export function CleanerTab() {
         </div>
       )}
 
-      {/* ── Dataset Already Clean Modal ─────────────────────────────────────── */}
+      {/* -- Dataset Already Clean Modal ---- */}
       {alreadyCleanModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-fadeIn" onClick={() => setAlreadyCleanModal(false)}>
           <div className="w-full max-w-md rounded-3xl p-6 md:p-8 flex flex-col items-center text-center shadow-2xl relative overflow-hidden border"

@@ -124,7 +124,15 @@ async def api_automl_train(
     if df is None:
         print("DEBUG: automl 400 - No dataset loaded (df is None)")
         raise HTTPException(400, "No dataset loaded")
+
     resolved_col = _resolve_column(body.target_col, df.columns)
+
+    # Enforce plan quota on monthly AutoML training runs
+    from dataforge.api.services.entitlements import EntitlementService
+    allowed, reason = EntitlementService.check_entitlement(current_user.id, "automl_jobs", 1)
+    if not allowed:
+        raise HTTPException(402, detail=reason)
+    EntitlementService.record_usage(current_user.id, "automl_jobs", 1)
 
     job_id = await job_manager.dispatch_automl(
         background_tasks, target_upload_id, current_user.id,

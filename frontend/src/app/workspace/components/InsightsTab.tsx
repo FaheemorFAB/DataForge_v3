@@ -18,7 +18,7 @@ ChartJS.register(
   Title, Tooltip, Legend, Filler
 );
 
-// ── Per-type colour palette ──────────────────────────────────────────────────
+// -- Per-type colour palette --
 const TYPE_THEME: Record<string, { bg: string; border: string; text: string; glow: string }> = {
   trend:              { bg: "rgba(99,102,241,0.12)",  border: "rgba(99,102,241,0.3)",  text: "#6366f1", glow: "#6366f1" },
   ranking:            { bg: "rgba(16,185,129,0.12)",  border: "rgba(16,185,129,0.3)",  text: "#10b981", glow: "#10b981" },
@@ -56,7 +56,7 @@ function theme(type: string) {
   return TYPE_THEME[type] || TYPE_THEME.profile;
 }
 
-// ── Tooltip config ───────────────────────────────────────────────────────────
+// -- Tooltip config --
 function mkTooltip(color: string) {
   return {
     displayColors: false,
@@ -78,7 +78,7 @@ function mkTooltip(color: string) {
   };
 }
 
-// ── Base chart options ────────────────────────────────────────────────────────
+// -- Base chart options --
 function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): any {
   const scaleBase = {
     ticks: { color: "#1e293b", font: { size: 11, weight: "bold" as const }, maxTicksLimit: 8 },
@@ -128,7 +128,7 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
 }
 
 
-// ── Safe chart_data parser helper ──────────────────────────────────────────────
+// -- Safe chart_data parser helper --
 function getChartData(ins: any): { labels: string[]; values: number[]; [key: string]: any } | null {
   if (!ins || !ins.chart_data) return null;
   let cd = ins.chart_data;
@@ -148,7 +148,7 @@ function getChartData(ins: any): { labels: string[]; values: number[]; [key: str
   return { ...cd, labels, values };
 }
 
-// ── 9 Dedicated chart renderers ───────────────────────────────────────────────
+// -- 9 Dedicated chart renderers --
 function renderInsightChart(ins: any): React.ReactNode {
   const cd   = getChartData(ins);
   const type = ins.type as string;
@@ -423,7 +423,7 @@ function renderInsightChart(ins: any): React.ReactNode {
   );
 }
 
-// ── Forecast Card — Full interactive predictive analytics card ────────────────
+// -- Forecast Card — Full interactive predictive analytics card --
 export function ForecastCard({ ins }: { ins: any }) {
   const [activeTab, setActiveTab] = useState<"forecast" | "decomp" | "models">("forecast");
   const [horizon, setHorizon] = useState<number | null>(null);
@@ -758,7 +758,7 @@ export function ForecastCard({ ins }: { ins: any }) {
   );
 }
 
-// ── Insight Card ──────────────────────────────────────────────────────────────
+// -- Insight Card --
 function InsightCard({ ins, idx }: { ins: any; idx: number }) {
   // Forecast insights get their own dedicated card
   if (ins.type === "forecast") return <ForecastCard ins={ins} />;
@@ -810,7 +810,219 @@ function InsightCard({ ins, idx }: { ins: any; idx: number }) {
   );
 }
 
-// ── Main Tab ──────────────────────────────────────────────────────────────────
+// -- Hypothesis Testing & Significance Lab --
+function HypothesisLab({ uploadId, columns }: { uploadId: string; columns: any[] }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [testType, setTestType] = useState<"t_test" | "mann_whitney" | "anova" | "chi_square">("t_test");
+  const [colA, setColA] = useState("");
+  const [colB, setColB] = useState("");
+  const [alpha, setAlpha] = useState(0.05);
+  const [isRunning, setIsRunning] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<any>(null);
+
+  const colNames = (columns || []).map((c: any) => c.name || c);
+
+  const runTest = async () => {
+    if (!colA || !colB || !uploadId) return;
+    setIsRunning(true);
+    setError("");
+    setResult(null);
+    try {
+      const res = await apiFetch("/insights/hypothesis-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upload_id: uploadId, test_type: testType, col_a: colA, col_b: colB, alpha }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setError(data.detail || data.error || "Hypothesis test failed");
+        return;
+      }
+      setResult(data);
+    } catch (e: any) {
+      setError(e.message || String(e));
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const sel: React.CSSProperties = {
+    padding: "0.45rem 0.65rem",
+    borderRadius: "0.5rem",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "var(--txt)",
+    fontSize: "11px",
+    fontWeight: 600,
+    outline: "none",
+  };
+
+  return (
+    <div className="rounded-2xl overflow-hidden border" style={{ background: "var(--surface)", borderColor: "rgba(99,102,241,0.25)" }}>
+      <button
+        onClick={() => setIsOpen(o => !o)}
+        className="w-full px-5 py-4 flex items-center justify-between text-left transition-colors hover:bg-white/[0.02] cursor-pointer"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
+            <Target size={15} className="text-white" />
+          </div>
+          <div>
+            <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+              Hypothesis Testing &amp; Statistical Significance Lab
+            </h3>
+            <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
+              Welch's t-test · Mann-Whitney U · One-Way ANOVA · Chi-Square Contingency with Effect Sizes
+            </p>
+          </div>
+        </div>
+        <span
+          className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg border"
+          style={{ borderColor: "var(--border)", color: "var(--txt-m)", background: "var(--card)" }}
+        >
+          {isOpen ? "Close Lab" : "Open Lab"}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="p-5 border-t space-y-4" style={{ borderColor: "var(--border)" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Hypothesis Test</label>
+              <select value={testType} onChange={e => setTestType(e.target.value as any)} style={{ ...sel, width: "100%", background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                <option value="t_test">Welch's t-Test (2 Means)</option>
+                <option value="mann_whitney">Mann-Whitney U (Non-Parametric)</option>
+                <option value="anova">One-Way ANOVA (3+ Groups)</option>
+                <option value="chi_square">Chi-Square (Independence)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-black uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+                {testType === "chi_square" ? "Categorical A" : "Metric Column (Values)"}
+              </label>
+              <select value={colA} onChange={e => setColA(e.target.value)} style={{ ...sel, width: "100%", background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                <option value="">— Select Column —</option>
+                {colNames.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-black uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+                {testType === "chi_square" ? "Categorical B" : "Grouping / Dimension"}
+              </label>
+              <select value={colB} onChange={e => setColB(e.target.value)} style={{ ...sel, width: "100%", background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                <option value="">— Select Column —</option>
+                {colNames.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-black uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Significance Level (α)</label>
+              <div className="flex gap-2">
+                <select value={alpha} onChange={e => setAlpha(parseFloat(e.target.value))} style={{ ...sel, flex: 1, background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                  <option value={0.05}>α = 0.05 (95% Conf)</option>
+                  <option value={0.01}>α = 0.01 (99% Conf)</option>
+                  <option value={0.10}>α = 0.10 (90% Conf)</option>
+                </select>
+                <button
+                  onClick={runTest}
+                  disabled={isRunning || !colA || !colB}
+                  className="px-4 py-2 rounded-lg font-bold text-xs text-white shrink-0 transition-all cursor-pointer"
+                  style={!colA || !colB || isRunning ? { background: "rgba(99,102,241,0.3)", cursor: "not-allowed" } : { background: "var(--accent)" }}
+                >
+                  {isRunning ? "Testing..." : "Run Test"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-xs font-mono text-red-400 bg-red-500/10 p-3 rounded-lg border border-red-500/20">{error}</p>
+          )}
+
+          {result && (
+            <div className="p-4 rounded-xl border space-y-3" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>{result.test_name}</span>
+                  <p className="text-xs font-bold mt-0.5" style={{ color: "var(--txt)" }}>{colA} vs {colB}</p>
+                </div>
+                <span
+                  className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider"
+                  style={result.is_significant
+                    ? { background: "rgba(16,185,129,0.15)", color: "#10b981", border: "1px solid rgba(16,185,129,0.3)" }
+                    : { background: "rgba(245,158,11,0.15)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.3)" }
+                  }
+                >
+                  {result.is_significant ? "★ Statistically Significant (p < α)" : "Fail to Reject H₀ (Not Significant)"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-2.5 rounded-lg border text-center" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                  <p className="text-[9px] font-mono uppercase" style={{ color: "var(--txt-m)" }}>p-Value</p>
+                  <p className="text-sm font-black font-mono mt-0.5" style={{ color: "var(--accent)" }}>
+                    {result.p_value < 0.0001 ? result.p_value.toExponential(4) : result.p_value.toFixed(5)}
+                  </p>
+                </div>
+                <div className="p-2.5 rounded-lg border text-center" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                  <p className="text-[9px] font-mono uppercase" style={{ color: "var(--txt-m)" }}>Test Statistic</p>
+                  <p className="text-sm font-black font-mono mt-0.5" style={{ color: "var(--txt)" }}>{result.statistic}</p>
+                </div>
+                <div className="p-2.5 rounded-lg border text-center" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                  <p className="text-[9px] font-mono uppercase" style={{ color: "var(--txt-m)" }}>Alpha Threshold</p>
+                  <p className="text-sm font-black font-mono mt-0.5" style={{ color: "var(--txt)" }}>{result.alpha}</p>
+                </div>
+                <div className="p-2.5 rounded-lg border text-center" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                  <p className="text-[9px] font-mono uppercase" style={{ color: "var(--txt-m)" }}>Effect Size</p>
+                  <p className="text-sm font-black font-mono mt-0.5 text-amber-500 truncate" title={result.effect_size}>{result.effect_size}</p>
+                </div>
+              </div>
+
+              {/* Executive Interpretation */}
+              <div className="p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5">
+                <p className="text-[10px] font-black uppercase text-indigo-400 tracking-wider mb-0.5">Executive Interpretation</p>
+                <p className="text-xs leading-relaxed font-medium" style={{ color: "var(--txt)" }}>{result.interpretation}</p>
+              </div>
+
+              {/* Group stats if present */}
+              {result.groups && typeof result.groups === "object" && (
+                <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "var(--border)" }}>
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="text-[9px] uppercase border-b" style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
+                      <tr>
+                        <th className="py-1.5 px-3">Cohort</th>
+                        <th className="py-1.5 px-3">N (Count)</th>
+                        <th className="py-1.5 px-3">Mean</th>
+                        <th className="py-1.5 px-3">Median</th>
+                        <th className="py-1.5 px-3">Std Dev</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
+                      {Object.entries(result.groups).map(([gName, gStat]: [string, any]) => (
+                        <tr key={gName}>
+                          <td className="py-1.5 px-3 font-bold" style={{ color: "var(--txt)" }}>{gName}</td>
+                          <td className="py-1.5 px-3" style={{ color: "var(--txt-m)" }}>{gStat.count}</td>
+                          <td className="py-1.5 px-3 font-bold" style={{ color: "var(--accent)" }}>{gStat.mean}</td>
+                          <td className="py-1.5 px-3" style={{ color: "var(--txt)" }}>{gStat.median}</td>
+                          <td className="py-1.5 px-3" style={{ color: "var(--txt-m)" }}>{gStat.std}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -- Main Tab --
 export function InsightsTab() {
   const { profile, uploadId } = useWorkspace();
   const [insightTopN,       setInsightTopN]       = useState("9");
@@ -892,7 +1104,7 @@ export function InsightsTab() {
     }
   };
 
-  // ── Empty state ─────────────────────────────────────────────────────────────
+  // -- Empty state --
   if (!insightCards.length && !isRunning) return (
     <div className="tab-panel px-4 py-6 md:px-6">
       <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
@@ -927,7 +1139,7 @@ export function InsightsTab() {
     </div>
   );
 
-  // ── Loading skeleton ─────────────────────────────────────────────────────────
+  // -- Loading skeleton --
   if (isRunning && !insightCards.length) return (
     <div className="tab-panel px-4 py-6 md:px-6 space-y-6 animate-pulse">
       <div className="h-8 w-48 rounded-xl" style={{ background: "rgba(255,255,255,0.07)" }} />
@@ -944,7 +1156,7 @@ export function InsightsTab() {
     </div>
   );
 
-  // ── Results ──────────────────────────────────────────────────────────────────
+  // -- Results --
   return (
     <div className="tab-panel space-y-6 px-4 py-4 md:px-6 md:py-6">
       {/* Header */}
@@ -1002,6 +1214,9 @@ export function InsightsTab() {
       {insightError && (
         <div className="p-4 rounded-xl font-mono text-sm text-red-400" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>{insightError}</div>
       )}
+
+      {/* Statistical Hypothesis Testing & Significance Lab */}
+      <HypothesisLab uploadId={uploadId || ""} columns={profile?.columns || []} />
 
       {/* Cards — forecast cards rendered full-width first, then regular grid */}
       {insightCards.filter(ins => ins.type === "forecast").map((ins, i) => (

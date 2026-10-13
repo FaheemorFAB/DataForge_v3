@@ -13,6 +13,7 @@ from fastapi.responses import RedirectResponse
 from dataforge.api.config import get_settings
 from dataforge.api.deps import CurrentUser
 from dataforge.api.services.auth import auth_service
+from dataforge.db import User
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["auth"])
@@ -33,20 +34,30 @@ def _set_auth_cookie(response: Response, token: str):
 
 # ── Google OAuth ──────────────────────────────────────────────────────────────
 
+def get_google_redirect_uri() -> str:
+    if settings.GOOGLE_REDIRECT_URI:
+        return settings.GOOGLE_REDIRECT_URI
+    base_url = settings.FRONTEND_URL.rstrip("/")
+    return f"{base_url}/api/auth/google/callback"
+
+
 @router.get("/login/google", summary="Initiate Google OAuth flow")
+@router.get("/api/auth/login/google", summary="Initiate Google OAuth flow (alias)")
+@router.get("/auth/login/google", summary="Initiate Google OAuth flow (alias)")
 async def login_google(request: Request, next: str = "/"):
     if not settings.GOOGLE_AUTH_ENABLED:
         return RedirectResponse(url="/?login=1")
 
     from authlib.integrations.starlette_client import OAuth
     oauth = request.app.state.oauth
-    base_url = settings.FRONTEND_URL.rstrip("/")
-    redirect_uri = f"{base_url}/api/auth/google/callback"
+    redirect_uri = get_google_redirect_uri()
     request.session["next_url"] = next if next.startswith("/") else "/"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
 @router.get("/login/mock", summary="Dev-only mock login bypass")
+@router.get("/api/auth/login/mock", summary="Dev-only mock login bypass (alias)")
+@router.get("/api/login/mock", summary="Dev-only mock login bypass (alias)")
 async def login_mock(email: str = "dev@example.com", name: str = "Dev User"):
     # Create or retrieve a dev user
     user_info = {
@@ -68,8 +79,57 @@ async def login_mock(email: str = "dev@example.com", name: str = "Dev User"):
     return response
 
 
+from typing import Optional
+from pydantic import BaseModel, Field
+
+class MockLoginRequest(BaseModel):
+    email: Optional[str] = "analyst@dataforge.app"
+    name: Optional[str] = "DataForge Analyst"
+    role: Optional[str] = "Analyst"
+
+
+@router.post("/api/v1/auth/mock", summary="Dev-only instant mock login returning JSON")
+async def login_mock_post(
+    response: Response,
+    payload: Optional[MockLoginRequest] = None,
+    email: Optional[str] = None,
+    name: Optional[str] = None,
+    role: Optional[str] = None,
+):
+    target_email = (payload.email if payload and payload.email else email) or "analyst@dataforge.app"
+    target_name = (payload.name if payload and payload.name else name) or "DataForge Analyst"
+    target_role = (payload.role if payload and payload.role else role) or "Analyst"
+
+    user_info = {
+        "sub": f"mock-{target_email.replace('@', '-').replace('.', '-')}",
+        "email": target_email,
+        "name": target_name,
+        "picture": "https://api.dicebear.com/7.x/pixel-art/svg"
+    }
+    user = auth_service.get_or_create_google_user(user_info)
+    if not user:
+        user = User(id=1, email=target_email, name=target_name, avatar="https://api.dicebear.com/7.x/pixel-art/svg", role=target_role)
+    else:
+        user.role = target_role
+
+    jwt_token = auth_service.create_token_for_user(user)
+    _set_auth_cookie(response, jwt_token)
+    return {
+        "ok": True,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "avatar": user.avatar,
+            "role": target_role,
+        }
+    }
+
+
 
 @router.get("/auth/google/callback", name="auth_google_callback", summary="Google OAuth callback")
+@router.get("/api/auth/google/callback", summary="Google OAuth callback alias")
+@router.get("/auth/callback/google", summary="Legacy Google OAuth callback alias")
 async def auth_google_callback(request: Request):
     if not settings.GOOGLE_AUTH_ENABLED:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/?login=1&error=oauth_disabled")
@@ -88,8 +148,7 @@ async def auth_google_callback(request: Request):
             try:
                 log.info("State mismatch caught — attempting direct token exchange with code...")
                 oauth = request.app.state.oauth
-                base_url = settings.FRONTEND_URL.rstrip("/")
-                redirect_uri = f"{base_url}/api/auth/google/callback"
+                redirect_uri = get_google_redirect_uri()
                 token = await oauth.google.fetch_token(
                     redirect_uri=redirect_uri,
                     code=code,
@@ -142,11 +201,16 @@ async def logout():
 # ── Current user info ─────────────────────────────────────────────────────────
 
 @router.get("/api/v1/auth/me", summary="Get current user info")
+@router.get("/v1/auth/me", summary="Get current user info (alias)")
+@router.get("/api/auth/me", summary="Get current user info (alias)")
+@router.get("/auth/me", summary="Get current user info (alias)")
 async def me(current_user: CurrentUser):
     return {
         "id": current_user.id,
         "email": current_user.email,
         "name": current_user.name,
         "avatar": current_user.avatar,
+        "role": getattr(current_user, "role", "Analyst"),
         "created_at": current_user.created_at,
     }
+

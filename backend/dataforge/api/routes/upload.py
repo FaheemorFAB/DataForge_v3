@@ -21,6 +21,8 @@ from dataforge.api.jobs.manager import JobManager
 from dataforge.api.schemas.upload import (
     DuplicateCheckRequest,
     SheetsUploadRequest,
+    ExcelOnlineUploadRequest,
+    JSONUrlUploadRequest,
     DBTestConnectionRequest,
     DBListTablesRequest,
     DBPreviewRequest,
@@ -35,7 +37,7 @@ router = APIRouter(tags=["upload"])
 settings = get_settings()
 
 
-@router.post("/upload", summary="Upload a CSV or Excel file")
+@router.post("/upload", summary="Upload a CSV, Excel, Parquet or JSON file")
 async def api_upload(
     current_user: CurrentUser,
     job_manager: JobManager = Depends(get_job_manager_dep),
@@ -46,7 +48,7 @@ async def api_upload(
     filename = file.filename or "upload.csv"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "csv"
 
-    if ext not in {"csv", "xls", "xlsx", "parquet"}:
+    if ext not in {"csv", "xls", "xlsx", "parquet", "json", "jsonl", "ndjson"}:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: .{ext}")
 
     raw = await file.read()
@@ -70,6 +72,24 @@ async def api_upload(
             df = pd.read_excel(io.BytesIO(raw))
         elif ext == "parquet":
             df = pd.read_parquet(io.BytesIO(raw))
+        elif ext in ("json", "jsonl", "ndjson"):
+            import json as pyjson
+            try:
+                content_str = raw.decode("utf-8")
+                parsed = pyjson.loads(content_str)
+                if isinstance(parsed, list):
+                    df = pd.json_normalize(parsed)
+                elif isinstance(parsed, dict):
+                    for key in ("data", "items", "records", "rows", "results"):
+                        if key in parsed and isinstance(parsed[key], list):
+                            df = pd.json_normalize(parsed[key])
+                            break
+                    else:
+                        df = pd.json_normalize([parsed])
+                else:
+                    raise ValueError("JSON must be a list of records or dictionary object")
+            except Exception:
+                df = pd.read_json(io.BytesIO(raw), lines=True)
         else:
             raise ValueError(f"Unsupported extension: {ext}")
     except Exception as exc:
@@ -77,10 +97,19 @@ async def api_upload(
 
     if df.empty:
         raise HTTPException(status_code=400, detail="Uploaded file is empty")
-    if len(df) > 2_000_000:
-        raise HTTPException(status_code=400, detail="Dataset exceeds 2M rows limit")
 
-    result = upload_service.process_dataframe(df, filename, "csv", current_user)
+    from dataforge.api.services.entitlements import EntitlementService
+    size_mb = len(raw) / (1024 * 1024)
+    allowed_storage, storage_reason = EntitlementService.check_entitlement(current_user.id, "storage_mb", size_mb)
+    if not allowed_storage:
+        raise HTTPException(status_code=402, detail=storage_reason)
+
+    allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
+    if not allowed_rows:
+        raise HTTPException(status_code=402, detail=rows_reason)
+
+    result = upload_service.process_dataframe(df, filename, ext if ext in ("json", "parquet") else "csv", current_user)
+    EntitlementService.record_usage(current_user.id, "storage_mb", size_mb)
 
     return JSONResponse(content=safe_jsonable({
         "ok": True,
@@ -105,27 +134,175 @@ async def api_upload_sheets(
     req: SheetsUploadRequest,
     current_user: CurrentUser,
 ):
-    """Fetch a public Google Sheet and load it as a DataFrame."""
-    import re
+    """Fetch a public Google Sheet or online spreadsheet and load it as a DataFrame."""
+    from dataforge.sheets_connector import SheetsConnector
+    from dataforge.excel_online_connector import ExcelOnlineConnector
+    from dataforge.api.services.entitlements import EntitlementService
 
-    match = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", req.url)
-    if not match:
-        raise HTTPException(status_code=400, detail="Invalid Google Sheets URL")
-    sheet_id = match.group(1)
+    url = req.url.strip()
+
+    # Automatic routing if an Excel Online / OneDrive / SharePoint link was pasted
+    if ExcelOnlineConnector.is_excel_online_url(url) and "docs.google.com" not in url:
+        try:
+            df, meta = ExcelOnlineConnector.load_url(url)
+            filename = f"excel_online_{meta.get('final_url', url).split('/')[-1].split('?')[0] or 'workbook'}.csv"
+            if not filename.endswith(".csv"):
+                filename += ".csv"
+            allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
+            if not allowed_rows:
+                raise HTTPException(status_code=402, detail=rows_reason)
+            result = upload_service.process_dataframe(df, filename, "excel_online", current_user, meta)
+            return JSONResponse(content=safe_jsonable({
+                "ok": True,
+                "upload_id": result["upload_id"],
+                "profile": result["profile"],
+                "source_type": "excel_online",
+            }))
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Could not load Excel Online workbook: {exc}")
 
     try:
-        from dataforge.sheets_connector import SheetsConnector
-        df = SheetsConnector().load_public(sheet_id)
+        conn = SheetsConnector()
+        df = conn.load_from_url(url)
+        sheet_id, gid = conn.parse_sheet_url(url)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Could not load Google Sheet: {exc}")
 
     if df.empty:
         raise HTTPException(status_code=400, detail="Google Sheet is empty")
 
-    filename = f"sheet_{sheet_id[:8]}.csv"
-    source_config = {"sheet_id": sheet_id, "url": req.url}
+    allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
+    if not allowed_rows:
+        raise HTTPException(status_code=402, detail=rows_reason)
+
+    clean_id = (sheet_id or "sheet").replace("pub:", "")[:12]
+    filename = f"sheet_{clean_id}.csv"
+    source_config = {"sheet_id": sheet_id, "gid": gid, "url": url}
     result = upload_service.process_dataframe(df, filename, "sheets", current_user, source_config)
 
+    return JSONResponse(content=safe_jsonable({
+        "ok": True,
+        "upload_id": result["upload_id"],
+        "profile": result["profile"],
+        "source_type": "sheets",
+    }))
+
+
+@router.post("/upload/excel-online", summary="Load dataset from Microsoft Excel Online, OneDrive or SharePoint")
+async def api_upload_excel_online(
+    req: ExcelOnlineUploadRequest,
+    current_user: CurrentUser,
+):
+    """Fetch an online Excel workbook from OneDrive, SharePoint, Office 365, or direct cloud link."""
+    from dataforge.excel_online_connector import ExcelOnlineConnector
+    from dataforge.sheets_connector import SheetsConnector
+    from dataforge.api.services.entitlements import EntitlementService
+
+    url = req.url.strip()
+
+    # Automatic routing if a Google Sheet link was provided
+    if "docs.google.com/spreadsheets" in url:
+        try:
+            conn = SheetsConnector()
+            df = conn.load_from_url(url)
+            sheet_id, gid = conn.parse_sheet_url(url)
+            allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
+            if not allowed_rows:
+                raise HTTPException(status_code=402, detail=rows_reason)
+            clean_id = (sheet_id or "sheet").replace("pub:", "")[:12]
+            filename = f"sheet_{clean_id}.csv"
+            source_config = {"sheet_id": sheet_id, "gid": gid, "url": url}
+            result = upload_service.process_dataframe(df, filename, "sheets", current_user, source_config)
+            return JSONResponse(content=safe_jsonable({
+                "ok": True,
+                "upload_id": result["upload_id"],
+                "profile": result["profile"],
+                "source_type": "sheets",
+            }))
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Could not load Google Sheet: {exc}")
+
+    try:
+        df, meta = ExcelOnlineConnector.load_url(url, sheet_name=req.sheet_name)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not load Microsoft Excel Online spreadsheet: {exc}")
+
+    if df.empty:
+        raise HTTPException(status_code=400, detail="Downloaded Excel workbook is empty")
+
+    allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
+    if not allowed_rows:
+        raise HTTPException(status_code=402, detail=rows_reason)
+
+    raw_name = req.dataset_name or meta.get("final_url", url).split("/")[-1].split("?")[0] or "excel_online"
+    clean_name = raw_name.replace(".xlsx", "").replace(".xls", "")
+    filename = f"{clean_name}.csv"
+
+    result = upload_service.process_dataframe(df, filename, "excel_online", current_user, meta)
+
+    return JSONResponse(content=safe_jsonable({
+        "ok": True,
+        "upload_id": result["upload_id"],
+        "profile": result["profile"],
+        "source_type": "excel_online",
+        "sheets": meta.get("sheets", []),
+    }))
+
+
+
+@router.post("/upload/json-url", summary="Load dataset from a public JSON URL or REST API")
+async def api_upload_json_url(
+    req: JSONUrlUploadRequest,
+    current_user: CurrentUser,
+):
+    import urllib.request
+    import json as pyjson
+
+    try:
+        request_obj = urllib.request.Request(
+            req.url,
+            headers=req.headers or {"User-Agent": "DataForge/2.0", "Accept": "application/json"}
+        )
+        with urllib.request.urlopen(request_obj, timeout=15) as resp:
+            raw_data = resp.read().decode("utf-8")
+            parsed = pyjson.loads(raw_data)
+            
+            if req.root_key and isinstance(parsed, dict) and req.root_key in parsed:
+                data_target = parsed[req.root_key]
+            else:
+                data_target = parsed
+
+            if isinstance(data_target, list):
+                df = pd.json_normalize(data_target)
+            elif isinstance(data_target, dict):
+                for key in ("data", "items", "records", "rows", "results"):
+                    if key in data_target and isinstance(data_target[key], list):
+                        df = pd.json_normalize(data_target[key])
+                        break
+                else:
+                    df = pd.json_normalize([data_target])
+            else:
+                raise ValueError("JSON payload must contain an array or object structure")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch or parse JSON URL: {exc}")
+
+    if df.empty:
+        raise HTTPException(status_code=400, detail="Fetched JSON dataset is empty")
+
+    from dataforge.api.services.entitlements import EntitlementService
+    allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
+    if not allowed_rows:
+        raise HTTPException(status_code=402, detail=rows_reason)
+
+    filename = req.dataset_name or (req.url.split("/")[-1].split("?")[0] or "api_feed.json")
+    if not filename.endswith((".json", ".csv")):
+        filename += ".json"
+
+    result = upload_service.process_dataframe(df, filename, "json", current_user, {"url": req.url})
     return JSONResponse(content=safe_jsonable({
         "ok": True,
         "upload_id": result["upload_id"],
@@ -212,8 +389,11 @@ async def api_ingest_db(
 
     if df.empty:
         raise HTTPException(status_code=400, detail="Queried database table is empty")
-    if len(df) > 2_000_000:
-        raise HTTPException(status_code=400, detail="Dataset exceeds 2M rows limit")
+
+    from dataforge.api.services.entitlements import EntitlementService
+    allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
+    if not allowed_rows:
+        raise HTTPException(status_code=402, detail=rows_reason)
 
     filename = req.dataset_name or (f"{req.table_name}.csv" if req.table_name else "db_query.csv")
     source_config = {

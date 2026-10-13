@@ -89,9 +89,35 @@ class Settings(BaseSettings):
     def JWT_SECRET(self) -> str:
         return self.FLASK_SECRET_KEY
 
+    def validate_production_environment(self) -> None:
+        """
+        Invoked during lifespan startup. Fails fast if mandatory production
+        settings are missing or insecure, preventing silent development fallbacks in production.
+        """
+        if not self.PRODUCTION:
+            return
+
+        if self.FLASK_SECRET_KEY == "change-me-in-production" or len(self.FLASK_SECRET_KEY) < 32:
+            raise RuntimeError(
+                "CRITICAL: PRODUCTION=True requires a strong, randomly-generated FLASK_SECRET_KEY "
+                "(minimum 32 characters). Refusing to start with insecure secret."
+            )
+
+        if not self.SUPABASE_URL or not self.SUPABASE_ANON_KEY:
+            raise RuntimeError(
+                "CRITICAL: PRODUCTION=True requires an authoritative remote database "
+                "(SUPABASE_URL and SUPABASE_SERVICE_KEY). Local offline storage fallback is disabled."
+            )
+
+        if "localhost" in self.FRONTEND_URL:
+            raise RuntimeError(
+                f"CRITICAL: PRODUCTION=True requires a valid production FRONTEND_URL, got '{self.FRONTEND_URL}'."
+            )
+
     # ── Google OAuth ──────────────────────────────────────────────────────────
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_REDIRECT_URI: Optional[str] = None
 
     @property
     def GOOGLE_AUTH_ENABLED(self) -> bool:
@@ -160,6 +186,26 @@ class Settings(BaseSettings):
     RATE_LIMIT_QUERY: str = "30/minute"
     RATE_LIMIT_AUTOML: str = "2/2minutes"
     RATE_LIMIT_AUTH: str = "10/minute"
+
+    # ── Paddle & Payment Provider ─────────────────────────────────────────────
+    PAYMENT_PROVIDER: str = "mock"
+    PADDLE_VENDOR_ID: Optional[str] = None
+    PADDLE_API_KEY: Optional[str] = None
+    PADDLE_WEBHOOK_SECRET: Optional[str] = None
+
+    # ── Clerk Authentication ──────────────────────────────────────────────────
+    CLERK_PUBLISHABLE_KEY: Optional[str] = None
+    CLERK_SECRET_KEY: Optional[str] = None
+    CLERK_JWT_KEY: Optional[str] = None
+
+    # ── Email & Notification Dispatch (Resend / SMTP) ─────────────────────────
+    RESEND_API_KEY: Optional[str] = None
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASS: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+    MAIL_FROM: str = "notifications@dataforge.app"
 
 
 @lru_cache(maxsize=1)

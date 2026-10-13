@@ -5,213 +5,214 @@
 :root {
     --bg: #FAF9F6;
     --surface: #FFFFFF;
-    --border: #E7E3D6;
+    --border: #D6D3D1;
     --accent: #FF4310;
     --accent-ink: #7A1F09;
-    --glow: rgba(255, 67, 16, 0.10);
-    --txt: #17150F;
-    --txt-m: #63604F;
-    --txt-f: #9C9985;
-    --card: rgba(255, 255, 255, 0.8);
-    --nav: rgba(255, 255, 255, 0.92);
-    --inp-bg: #F3EFE0;
-    --row-h: rgba(23, 21, 15, 0.03);
-    --row-head: rgba(23, 21, 15, 0.015);
+    --glow: rgba(255, 67, 16, 0.15);
+    --txt: #0C0A09;
+    --txt-m: #292524;
+    --txt-f: #57534E;
+    --card: rgba(255, 255, 255, 0.95);
+    --card-bg: rgba(255, 255, 255, 0.95);
+    --nav: rgba(255, 255, 255, 0.96);
+    --inp-bg: #F5F5F4;
+    --row-h: rgba(12, 10, 9, 0.04);
+    --row-head: rgba(12, 10, 9, 0.02);
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 /* ==========================================================================
-   COLOR PALETTES (THEMES)
+   COLOR PALETTES (HIGH CONTRAST THEMES)
    ========================================================================== */
 
-/* 1. Dark Default */
+/* 1. Dark Default - High Contrast */
 html[data-theme="dark"] {
-    --bg: #050505;
-    --surface: #0A0A0B;
-    --border: #1A1A1C;
+    --bg: #08080A;
+    --surface: #111116;
+    --border: #2D2E36;
     --accent: #FF4310;
-    --accent-ink: #7A1F09;
-    --glow: rgba(255, 67, 16, 0.15);
-    --txt: #ffffff;
-    --txt-m: #666666;
-    --txt-f: #2e2e30;
-    --card: rgba(10, 10, 11, 0.75);
-    --nav: rgba(5, 5, 5, 0.92);
-    --inp-bg: #0A0A0B;
-    --row-h: rgba(255, 255, 255, 0.03);
-    --row-head: rgba(255, 255, 255, 0.02);
+    --accent-ink: #FF8F70;
+    --glow: rgba(255, 67, 16, 0.20);
+    --txt: #FFFFFF;
+    --txt-m: #D1D5DB;
+    --txt-f: #9CA3AF;
+    --card: rgba(17, 17, 22, 0.92);
+    --nav: rgba(8, 8, 10, 0.96);
+    --inp-bg: #16161D;
+    --row-h: rgba(255, 255, 255, 0.05);
+    --row-head: rgba(255, 255, 255, 0.03);
 }
 
-/* 2. Light Default (Warm Cream) */
+/* 2. Light Default - High Contrast Warm Cream */
 html[data-theme="light"] {
     --bg: #FAF9F6;
     --surface: #FFFFFF;
-    --border: #E7E3D6;
+    --border: #D6D3D1;
     --accent: #FF4310;
     --accent-ink: #7A1F09;
     --accent-soft: #FFE9DE;
-    --glow: rgba(255, 67, 16, 0.10);
-    --txt: #17150F;
-    --txt-m: #63604F;
-    --txt-f: #9C9985;
-    --card: rgba(255, 255, 255, 0.85);
-    --nav: rgba(255, 255, 255, 0.92);
-    --inp-bg: #F3EFE0;
-    --row-h: rgba(23, 21, 15, 0.03);
-    --row-head: rgba(23, 21, 15, 0.015);
+    --glow: rgba(255, 67, 16, 0.15);
+    --txt: #0C0A09;
+    --txt-m: #292524;
+    --txt-f: #57534E;
+    --card: rgba(255, 255, 255, 0.95);
+    --nav: rgba(255, 255, 255, 0.96);
+    --inp-bg: #F5F5F4;
+    --row-h: rgba(12, 10, 9, 0.04);
+    --row-head: rgba(12, 10, 9, 0.02);
 }
 
-/* 3. Dracula */
+/* 3. Dracula - High Contrast */
 html[data-theme="dracula"] {
-    --bg: #282a36;
-    --surface: #1e1f29;
-    --border: #44475a;
-    --accent: #bd93f9;
-    --glow: rgba(189, 147, 249, 0.2);
-    --txt: #f8f8f2;
-    --txt-m: #6272a4;
-    --txt-f: #44475a;
-    --card: rgba(30, 31, 41, 0.8);
-    --nav: rgba(40, 42, 54, 0.92);
-    --inp-bg: #1e1f29;
-    --row-h: rgba(255, 255, 255, 0.04);
-    --row-head: rgba(255, 255, 255, 0.02);
+    --bg: #21222C;
+    --surface: #282A36;
+    --border: #6272A4;
+    --accent: #BD93F9;
+    --glow: rgba(189, 147, 249, 0.25);
+    --txt: #F8F8F2;
+    --txt-m: #E2E8F0;
+    --txt-f: #FF79C6;
+    --card: rgba(40, 42, 54, 0.92);
+    --nav: rgba(33, 34, 44, 0.96);
+    --inp-bg: #1E1F29;
+    --row-h: rgba(255, 255, 255, 0.06);
+    --row-head: rgba(255, 255, 255, 0.03);
 }
 
-/* 4. Slate Blue */
+/* 4. Slate Blue - High Contrast */
 html[data-theme="slate"] {
-    --bg: #1e222b;
-    --surface: #252a34;
-    --border: #303643;
-    --accent: #38bdf8;
-    --glow: rgba(56, 189, 248, 0.15);
-    --txt: #f1f5f9;
-    --txt-m: #94a3b8;
-    --txt-f: #475569;
-    --card: rgba(37, 42, 52, 0.8);
-    --nav: rgba(30, 34, 43, 0.92);
-    --inp-bg: #252a34;
-    --row-h: rgba(255, 255, 255, 0.03);
-    --row-head: rgba(255, 255, 255, 0.02);
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --border: #334155;
+    --accent: #38BDF8;
+    --glow: rgba(56, 189, 248, 0.22);
+    --txt: #F8FAFC;
+    --txt-m: #CBD5E1;
+    --txt-f: #94A3B8;
+    --card: rgba(30, 41, 59, 0.92);
+    --nav: rgba(15, 23, 42, 0.96);
+    --inp-bg: #152033;
+    --row-h: rgba(255, 255, 255, 0.05);
+    --row-head: rgba(255, 255, 255, 0.025);
 }
 
-/* 5. Emerald Sage */
+/* 5. Emerald Sage - High Contrast */
 html[data-theme="emerald"] {
-    --bg: #141e1b;
-    --surface: #1b2824;
-    --border: #273a34;
-    --accent: #10b981;
-    --glow: rgba(16, 185, 129, 0.15);
-    --txt: #e6f4f1;
-    --txt-m: #8fa8a2;
-    --txt-f: #3c544d;
-    --card: rgba(27, 40, 36, 0.8);
-    --nav: rgba(20, 30, 27, 0.92);
-    --inp-bg: #1b2824;
-    --row-h: rgba(255, 255, 255, 0.03);
-    --row-head: rgba(255, 255, 255, 0.02);
+    --bg: #061A14;
+    --surface: #0D2820;
+    --border: #1B4337;
+    --accent: #10B981;
+    --glow: rgba(16, 185, 129, 0.22);
+    --txt: #F0FDF4;
+    --txt-m: #BBF7D0;
+    --txt-f: #86EFAC;
+    --card: rgba(13, 40, 32, 0.92);
+    --nav: rgba(6, 26, 20, 0.96);
+    --inp-bg: #081F19;
+    --row-h: rgba(255, 255, 255, 0.05);
+    --row-head: rgba(255, 255, 255, 0.025);
 }
 
-/* 6. Nord */
+/* 6. Nord - High Contrast */
 html[data-theme="nord"] {
-    --bg: #2e3440;
-    --surface: #3b4252;
-    --border: #4c566a;
-    --accent: #88c0d0;
-    --glow: rgba(136, 192, 208, 0.2);
-    --txt: #eceff4;
-    --txt-m: #d8dee9;
-    --txt-f: #434c5e;
-    --card: rgba(59, 66, 82, 0.8);
-    --nav: rgba(46, 52, 64, 0.92);
-    --inp-bg: #3b4252;
-    --row-h: rgba(255, 255, 255, 0.03);
-    --row-head: rgba(255, 255, 255, 0.02);
+    --bg: #242933;
+    --surface: #2E3440;
+    --border: #4C566A;
+    --accent: #88C0D0;
+    --glow: rgba(136, 192, 208, 0.25);
+    --txt: #ECEFF4;
+    --txt-m: #E5E9F0;
+    --txt-f: #D8DEE9;
+    --card: rgba(46, 52, 64, 0.92);
+    --nav: rgba(36, 41, 51, 0.96);
+    --inp-bg: #1E222A;
+    --row-h: rgba(255, 255, 255, 0.05);
+    --row-head: rgba(255, 255, 255, 0.025);
 }
 
-/* 7. Luxury */
+/* 7. Luxury - High Contrast Dark & Gold */
 html[data-theme="luxury"] {
-    --bg: #09090b;
-    --surface: #18181b;
-    --border: #27272a;
-    --accent: #d4af37;
-    --glow: rgba(212, 175, 55, 0.2);
-    --txt: #f4f4f5;
-    --txt-m: #a1a1aa;
-    --txt-f: #3f3f46;
-    --card: rgba(24, 24, 27, 0.8);
-    --nav: rgba(9, 9, 11, 0.92);
-    --inp-bg: #18181b;
-    --row-h: rgba(255, 255, 255, 0.03);
-    --row-head: rgba(255, 255, 255, 0.02);
+    --bg: #09090B;
+    --surface: #18181B;
+    --border: #3F3F46;
+    --accent: #EAB308;
+    --glow: rgba(234, 179, 8, 0.25);
+    --txt: #FAFAFA;
+    --txt-m: #E4E4E7;
+    --txt-f: #A1A1AA;
+    --card: rgba(24, 24, 27, 0.92);
+    --nav: rgba(9, 9, 11, 0.96);
+    --inp-bg: #121215;
+    --row-h: rgba(255, 255, 255, 0.05);
+    --row-head: rgba(255, 255, 255, 0.025);
 }
 
-/* 8. Cupcake */
+/* 8. Cupcake - High Contrast Pastel */
 html[data-theme="cupcake"] {
-    --bg: #fafaf9;
-    --surface: #ffffff;
-    --border: #e7e5e4;
-    --accent: #ec4899;
-    --glow: rgba(236, 72, 153, 0.15);
+    --bg: #FDF4F8;
+    --surface: #FFFFFF;
+    --border: #FBCFE8;
+    --accent: #DB2777;
+    --glow: rgba(219, 39, 119, 0.20);
     --txt: #291334;
-    --txt-m: #8d779b;
-    --txt-f: #bfaec6;
-    --card: rgba(255, 255, 255, 0.8);
-    --nav: rgba(250, 247, 245, 0.92);
-    --inp-bg: #f5f2f0;
-    --row-h: rgba(41, 19, 52, 0.03);
-    --row-head: rgba(41, 19, 52, 0.015);
+    --txt-m: #4A044E;
+    --txt-f: #701A75;
+    --card: rgba(255, 255, 255, 0.95);
+    --nav: rgba(253, 244, 248, 0.96);
+    --inp-bg: #FCE7F3;
+    --row-h: rgba(41, 19, 52, 0.05);
+    --row-head: rgba(41, 19, 52, 0.025);
 }
 
-/* 9. Solarized Light */
+/* 9. Solarized Light - High Contrast */
 html[data-theme="solarized"] {
-    --bg: #fdf6e3;
-    --surface: #eee8d5;
-    --border: #d5c4a1;
-    --accent: #2aa198;
-    --glow: rgba(42, 161, 152, 0.15);
-    --txt: #002b36;
-    --txt-m: #586e75;
-    --txt-f: #93a1a1;
-    --card: rgba(238, 232, 213, 0.8);
-    --nav: rgba(253, 246, 227, 0.92);
-    --inp-bg: #fdf6e3;
-    --row-h: rgba(0, 43, 54, 0.03);
-    --row-head: rgba(0, 43, 54, 0.015);
+    --bg: #FDF6E3;
+    --surface: #EEE8D5;
+    --border: #B58900;
+    --accent: #2AA198;
+    --glow: rgba(42, 161, 152, 0.20);
+    --txt: #002B36;
+    --txt-m: #073642;
+    --txt-f: #586E75;
+    --card: rgba(238, 232, 213, 0.95);
+    --nav: rgba(253, 246, 227, 0.96);
+    --inp-bg: #FDF6E3;
+    --row-h: rgba(0, 43, 54, 0.05);
+    --row-head: rgba(0, 43, 54, 0.025);
 }
 
-/* 10. Lavender Mint */
+/* 10. Lavender - High Contrast Purple */
 html[data-theme="lavender"] {
-    --bg: #f5f3ff;
-    --surface: #ffffff;
-    --border: #e9d5ff;
-    --accent: #7c3aed;
-    --glow: rgba(124, 58, 237, 0.15);
-    --txt: #1e1b4b;
-    --txt-m: #5b21b6;
-    --txt-f: #a78bfa;
-    --card: rgba(255, 255, 255, 0.8);
-    --nav: rgba(245, 243, 255, 0.92);
-    --inp-bg: #faf5ff;
-    --row-h: rgba(30, 27, 75, 0.03);
-    --row-head: rgba(30, 27, 75, 0.015);
+    --bg: #F5F3FF;
+    --surface: #FFFFFF;
+    --border: #DDD6FE;
+    --accent: #7C3AED;
+    --glow: rgba(124, 58, 237, 0.20);
+    --txt: #1E1B4B;
+    --txt-m: #312E81;
+    --txt-f: #4C1D95;
+    --card: rgba(255, 255, 255, 0.95);
+    --nav: rgba(245, 243, 255, 0.96);
+    --inp-bg: #EDE9FE;
+    --row-h: rgba(30, 27, 75, 0.05);
+    --row-head: rgba(30, 27, 75, 0.025);
 }
 
-/* 11. Mint Matcha */
+/* 11. Mint Matcha - High Contrast Green */
 html[data-theme="matcha"] {
-    --bg: #f4f8f5;
-    --surface: #ffffff;
-    --border: #d1e7dd;
-    --accent: #15803d;
-    --glow: rgba(21, 128, 61, 0.15);
-    --txt: #0f291b;
-    --txt-m: #2d6a4f;
-    --txt-f: #74a88e;
-    --card: rgba(255, 255, 255, 0.8);
-    --nav: rgba(244, 248, 245, 0.92);
-    --inp-bg: #f0f7f2;
-    --row-h: rgba(15, 41, 27, 0.03);
-    --row-head: rgba(15, 41, 27, 0.015);
+    --bg: #F2F8F4;
+    --surface: #FFFFFF;
+    --border: #BBF7D0;
+    --accent: #15803D;
+    --glow: rgba(21, 128, 61, 0.20);
+    --txt: #052E16;
+    --txt-m: #14532D;
+    --txt-f: #166534;
+    --card: rgba(255, 255, 255, 0.95);
+    --nav: rgba(242, 248, 244, 0.96);
+    --inp-bg: #DCFCE7;
+    --row-h: rgba(5, 46, 22, 0.05);
+    --row-head: rgba(5, 46, 22, 0.025);
 }
 
 /* ==========================================================================

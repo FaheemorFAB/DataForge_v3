@@ -71,7 +71,10 @@ export default function ThemeSwitcher() {
       </button>
       
       {isOpen && (
-        <div className="absolute right-0 bg-base-200 text-base-content rounded-xl top-full max-h-96 w-64 overflow-hidden shadow-2xl mt-2 border border-base-300 flex flex-col z-[10000]">
+        <div 
+          className="absolute right-0 rounded-xl top-full max-h-96 w-64 overflow-hidden shadow-2xl mt-2 border flex flex-col z-[10000]"
+          style={{ background: "var(--card)", color: "var(--txt)", borderColor: "var(--border)" }}
+        >
         
         {/* Toggle Tabs */}
         <div className="flex gap-1.5 p-1 mx-3 mt-3 mb-1 shrink-0 rounded-lg" style={{ background: "var(--border)" }}>
@@ -79,7 +82,7 @@ export default function ThemeSwitcher() {
             className={`flex-1 text-[11px] font-bold py-1.5 rounded-md transition-all duration-300 ${activeTab === 'themes' ? 'shadow-sm' : 'hover:opacity-80'}`}
             style={activeTab === 'themes'
               ? { background: 'var(--accent)', color: '#fff' }
-              : { background: 'transparent', color: 'rgba(128,128,128,0.7)' }}
+              : { background: 'transparent', color: 'var(--txt-m)' }}
             onClick={(e) => { e.preventDefault(); setActiveTab('themes'); }}
           >
             THEMES
@@ -88,7 +91,7 @@ export default function ThemeSwitcher() {
             className={`flex-1 text-[11px] font-bold py-1.5 rounded-md transition-all duration-300 ${activeTab === 'fonts' ? 'shadow-sm' : 'hover:opacity-80'}`}
             style={activeTab === 'fonts'
               ? { background: 'var(--accent)', color: '#fff' }
-              : { background: 'transparent', color: 'rgba(128,128,128,0.7)' }}
+              : { background: 'transparent', color: 'var(--txt-m)' }}
             onClick={(e) => { e.preventDefault(); setActiveTab('fonts'); }}
           >
             TYPOGRAPHY
@@ -104,31 +107,30 @@ export default function ThemeSwitcher() {
               {THEMES.map((theme) => (
                 <button
                   key={theme}
-                  className="outline-base-content overflow-hidden rounded-lg text-left"
+                  className="overflow-hidden rounded-lg text-left border transition-all"
+                  style={{
+                    borderColor: currentTheme === theme ? 'var(--accent)' : 'var(--border)',
+                    background: currentTheme === theme ? 'var(--hover)' : 'transparent',
+                  }}
                   onClick={() => setTheme(theme)}
                 >
-                  <div
-                    data-theme={theme}
-                    className="bg-base-100 text-base-content w-full cursor-pointer font-sans transition-all hover:brightness-110"
-                  >
-                    <div className="flex items-center gap-3 px-3 py-2.5">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        className={`shrink-0 ${currentTheme === theme ? '' : 'invisible'}`}
-                      >
-                        <path d="M20.285 2l-11.285 11.567-5.286-5.011-3.714 3.716 9 8.728 15-15.285z" />
-                      </svg>
-                      <span className="flex-grow text-[12px] capitalize font-bold" style={{ textAlign: "left" }}>{theme}</span>
-                      <div className="flex h-full shrink-0 flex-wrap gap-1">
-                        <div className="bg-primary w-1.5 h-3 rounded-full"></div>
-                        <div className="bg-secondary w-1.5 h-3 rounded-full"></div>
-                        <div className="bg-accent w-1.5 h-3 rounded-full"></div>
-                        <div className="bg-neutral w-1.5 h-3 rounded-full"></div>
-                      </div>
+                  <div className="flex items-center gap-3 px-3 py-2.5">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      style={{ color: "var(--accent)" }}
+                      className={`shrink-0 ${currentTheme === theme ? '' : 'invisible'}`}
+                    >
+                      <path d="M20.285 2l-11.285 11.567-5.286-5.011-3.714 3.716 9 8.728 15-15.285z" />
+                    </svg>
+                    <span className="flex-grow text-[12px] capitalize font-bold" style={{ textAlign: "left", color: "var(--txt)" }}>{theme}</span>
+                    <div className="flex h-full shrink-0 flex-wrap gap-1">
+                      <div className="w-2 h-3 rounded-full" style={{ background: "var(--accent)" }}></div>
+                      <div className="w-2 h-3 rounded-full" style={{ background: "var(--txt-m)" }}></div>
+                      <div className="w-2 h-3 rounded-full" style={{ background: "var(--border)" }}></div>
                     </div>
                   </div>
                 </button>
@@ -143,7 +145,12 @@ export default function ThemeSwitcher() {
                 <button
                   key={font.id}
                   onClick={() => setFont(font.id)}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-colors hover:bg-base-300 ${currentFont === font.id ? 'bg-base-300 font-bold text-base-content' : 'text-base-content/80'}`}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors border"
+                  style={{
+                    background: currentFont === font.id ? 'var(--hover)' : 'transparent',
+                    color: currentFont === font.id ? 'var(--accent)' : 'var(--txt)',
+                    borderColor: currentFont === font.id ? 'var(--accent)' : 'transparent',
+                  }}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -151,12 +158,12 @@ export default function ThemeSwitcher() {
                     height="12"
                     viewBox="0 0 24 24"
                     fill="currentColor"
+                    style={{ color: "var(--accent)" }}
                     className={`shrink-0 ${currentFont === font.id ? '' : 'invisible'}`}
                   >
                     <path d="M20.285 2l-11.285 11.567-5.286-5.011-3.714 3.716 9 8.728 15-15.285z" />
                   </svg>
-                  {/* Provide a visual font preview by applying the font family inline */}
-                  <span className="text-[14px]" style={{ fontFamily: `var(--font-${font.id}, ${font.name})` }}>{font.name}</span>
+                  <span className="text-[13px] font-bold" style={{ fontFamily: `var(--font-${font.id}, ${font.name})` }}>{font.name}</span>
                 </button>
               ))}
             </div>

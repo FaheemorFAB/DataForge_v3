@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "./api";
+import { supabase } from "./supabase";
 
 const CACHE_KEY = "df_user_cache";
 
@@ -26,49 +27,133 @@ function setCachedUser(user: any | null) {
 }
 
 export function useAuth() {
-  // Always start with null so the server and client render the same initial HTML.
-  // The cached user is loaded in useEffect (client-only) to avoid hydration mismatches.
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Hydrate from localStorage cache immediately (client-only) so the UI
-    // shows the correct state before the API call resolves.
+    // 1. Initial cached user hydration
     const cached = getCachedUser();
     if (cached) {
       setUser(cached);
       setLoading(false);
     }
 
-    const checkAuth = async () => {
+    // 2. Check Supabase session first
+    let mounted = true;
+    async function initAuth() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user && mounted) {
+          const supaUser = {
+            id: session.user.id,
+            email: session.user.email,
+            name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split("@")[0] || "User",
+            avatar: session.user.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/pixel-art/svg",
+            provider: "supabase",
+          };
+          setUser(supaUser);
+          setCachedUser(supaUser);
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        // Supabase client may not have credentials configured yet
+      }
+
+      // 3. Fallback to DataForge backend /v1/auth/me
       try {
         const res = await apiFetch("/v1/auth/me");
-        if (res.ok) {
+        if (res.ok && mounted) {
           const data = await res.json();
           setUser(data);
           setCachedUser(data);
-        } else {
-          setUser(null);
-          setCachedUser(null);
+        } else if (mounted) {
+          if (!cached) setUser(null);
         }
       } catch (e) {
-        // Network error — keep cached user to avoid flash,
-        // but don't clear it (might just be backend restarting)
+        // Keep cached user on network error
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
+    }
+
+    initAuth();
+
+    // 4. Supabase auth state change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const supaUser = {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split("@")[0] || "User",
+          avatar: session.user.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/pixel-art/svg",
+          provider: "supabase",
+        };
+        setUser(supaUser);
+        setCachedUser(supaUser);
+      } else {
+        // check backend before clearing
+      }
+    });
+
+    return () => {
+      mounted = false;
+      authListener.subscription.unsubscribe();
     };
-    checkAuth();
   }, []);
+
+  const loginWithSupabase = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    if (data.user) {
+      const supaUser = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "User",
+        avatar: data.user.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/pixel-art/svg",
+        provider: "supabase",
+      };
+      setUser(supaUser);
+      setCachedUser(supaUser);
+    }
+    return data;
+  };
+
+  const signupWithSupabase = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+    return data;
+  };
+
+  const loginWithOAuth = async (provider: "google" | "github") => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: typeof window !== "undefined" ? `${window.location.origin}/workspace` : undefined,
+      },
+    });
+    if (error) throw error;
+    return data;
+  };
 
   const logout = async () => {
     try {
+      await supabase.auth.signOut();
+    } catch {}
+    try {
       await apiFetch("/v1/auth/logout", { method: "POST" });
-    } catch (e) {}
+    } catch {}
     setUser(null);
     setCachedUser(null);
     window.location.href = "/";
   };
 
-  return { user, loading, logout };
+  return {
+    user,
+    loading,
+    logout,
+    loginWithSupabase,
+    signupWithSupabase,
+    loginWithOAuth,
+  };
 }
