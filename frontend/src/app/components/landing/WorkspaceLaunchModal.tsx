@@ -222,8 +222,7 @@ function validateConnectorInput(
 ): { valid: boolean; error?: string } {
   if (category === "files") {
     if (!file) {
-      // Allowed: fallback to built-in sample dataset
-      return { valid: true };
+      return { valid: false, error: "Please select or drop a dataset file (.csv, .xlsx, .parquet, or .json) to upload." };
     }
     const ext = file.name.split(".").pop()?.toLowerCase();
     const allowed = ["csv", "xlsx", "xls", "parquet", "json"];
@@ -310,9 +309,9 @@ export default function WorkspaceLaunchModal({
   const [selectedCategory, setSelectedCategory] = useState<"all" | ConnectorCategory>("all");
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
 
-  // Connection inputs
-  const [connUri, setConnUri] = useState(selectedConnector.defaultUri);
-  const [targetTable, setTargetTable] = useState(selectedConnector.targetTable);
+  // Connection inputs (start empty so user is required to enter valid input)
+  const [connUri, setConnUri] = useState("");
+  const [targetTable, setTargetTable] = useState("");
 
   // Test Connection status
   const [isTesting, setIsTesting] = useState(false);
@@ -333,8 +332,8 @@ export default function WorkspaceLaunchModal({
       const match = ALL_CONNECTORS.find((c) => c.id === initialConnectorId);
       if (match) {
         setSelectedConnector(match);
-        setConnUri(match.defaultUri);
-        setTargetTable(match.targetTable);
+        setConnUri("");
+        setTargetTable("");
         setSelectedCategory(match.category);
       }
     }
@@ -344,30 +343,14 @@ export default function WorkspaceLaunchModal({
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("df_user_role", "Admin");
-      const cached = localStorage.getItem("df_user_cache");
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          parsed.role = "Admin";
-          localStorage.setItem("df_user_cache", JSON.stringify(parsed));
-        } catch {}
-      } else {
-        localStorage.setItem(
-          "df_user_cache",
-          JSON.stringify({
-            name: user?.email ? user.email.split("@")[0] : "Admin",
-            email: user?.email || "admin@dataforge.app",
-            role: "Admin",
-          })
-        );
-      }
     }
-  }, [isOpen, user]);
+  }, [isOpen]);
 
   const handleSelectConnector = (connector: ConnectorDef) => {
     setSelectedConnector(connector);
-    setConnUri(connector.defaultUri);
-    setTargetTable(connector.targetTable);
+    setConnUri("");
+    setTargetTable("");
+    setSelectedFile(null);
     setTestResult(null);
     setDbTables([]);
     setErrorMsg("");
@@ -467,15 +450,12 @@ export default function WorkspaceLaunchModal({
           uploadId = data.upload_id;
         }
       } else if (selectedConnector.category === "files") {
-        let fileToUpload = selectedFile;
-        if (!fileToUpload) {
-          const sample = SAMPLE_DATASETS[0];
-          const blob = new Blob([sample.csvContent], { type: "text/csv" });
-          fileToUpload = new File([blob], sample.filename, { type: "text/csv" });
+        if (!selectedFile) {
+          throw new Error("No file selected. Please choose or drag a dataset file (.csv, .xlsx, .parquet, or .json).");
         }
 
         const formData = new FormData();
-        formData.append("file", fileToUpload);
+        formData.append("file", selectedFile);
         const res = await apiFetch("/upload", {
           method: "POST",
           body: formData,
@@ -483,7 +463,7 @@ export default function WorkspaceLaunchModal({
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-          throw new Error(err.detail || "File processing failed");
+          throw new Error(err.detail || "File processing failed. Please verify file integrity.");
         }
         const data = await res.json();
         uploadId = data.upload_id;
@@ -501,26 +481,11 @@ export default function WorkspaceLaunchModal({
         });
 
         if (!res.ok) {
-          // Fallback to sample for instant live demo experience
-          const sample = SAMPLE_DATASETS[0];
-          const blob = new Blob([sample.csvContent], { type: "text/csv" });
-          const file = new File(
-            [blob],
-            `${selectedConnector.name.toLowerCase()}_${cleanTable || "export"}.csv`,
-            { type: "text/csv" }
-          );
-          const formData = new FormData();
-          formData.append("file", file);
-          const fallbackRes = await apiFetch("/upload", {
-            method: "POST",
-            body: formData,
-          });
-          const fbData = await fallbackRes.json();
-          uploadId = fbData.upload_id;
-        } else {
-          const data = await res.json();
-          uploadId = data.upload_id;
+          const err = await res.json().catch(() => ({ detail: "Database connection failed" }));
+          throw new Error(err.detail || err.error || "Database ingestion failed. Check your connection string and credentials.");
         }
+        const data = await res.json();
+        uploadId = data.upload_id;
       }
 
       // Default role is Admin
@@ -617,23 +582,11 @@ export default function WorkspaceLaunchModal({
               <Zap size={16} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
-                  Ingestion Hub
-                </h3>
-                <span
-                  className="text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider"
-                  style={{
-                    background: "rgba(139, 92, 246, 0.12)",
-                    borderColor: "rgba(139, 92, 246, 0.3)",
-                    color: "#a78bfa",
-                  }}
-                >
-                  Admin Mode
-                </span>
-              </div>
+              <h3 className="text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
+                Ingestion Hub
+              </h3>
               <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
-                Select a data source and launch your workspace.
+                Connect your data source or upload a dataset to launch your workspace.
               </p>
             </div>
           </div>
@@ -941,11 +894,6 @@ export default function WorkspaceLaunchModal({
                       {selectedConnector.subtitle}
                     </p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 text-[11px] font-mono" style={{ color: "var(--accent)" }}>
-                  <ShieldCheck size={13} />
-                  <span>Admin Access</span>
                 </div>
               </div>
 

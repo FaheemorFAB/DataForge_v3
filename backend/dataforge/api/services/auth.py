@@ -45,6 +45,7 @@ class AuthService:
                 "email": email,
                 "name": userinfo.get("name"),
                 "avatar": userinfo.get("picture"),
+                "role": "Admin",
             }
             res = user_repo.create(new_data)
             if not res:
@@ -90,14 +91,16 @@ class AuthService:
         data = user_repo.get_by_id(user_id)
         if data:
             return User(**data)
-        return User(id=user_id or 1, email="analyst@dataforge.app", name="DataForge Analyst", avatar="https://api.dicebear.com/7.x/pixel-art/svg")
+        if user_id:
+            return User(id=user_id, email=f"user_{user_id}@dataforge.app", name=f"User {user_id}", role="Admin")
+        return None
 
     def get_mock_user(self) -> Optional[User]:
         """Dev-only: return user with id=1."""
         data = user_repo.get_by_id(1)
         if data:
             return User(**data)
-        return User(id=1, email="analyst@dataforge.app", name="DataForge Analyst", avatar="https://api.dicebear.com/7.x/pixel-art/svg")
+        return None
 
 
 auth_service = AuthService()

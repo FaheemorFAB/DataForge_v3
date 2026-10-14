@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     # ── Google OAuth ──────────────────────────────────────────────────────────
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
-    GOOGLE_REDIRECT_URI: Optional[str] = None
+    GOOGLE_REDIRECT_URI: str = "http://localhost:5000/auth/google/callback"
 
     @property
     def GOOGLE_AUTH_ENABLED(self) -> bool:

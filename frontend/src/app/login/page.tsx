@@ -89,11 +89,10 @@ export default function LoginPage() {
 
         {/* OAuth Buttons */}
         <div className="space-y-2 mb-4">
-          <button
-            type="button"
-            onClick={() => handleOAuth("google")}
-            disabled={loading}
+          <a
+            href="/api/auth/login/google"
             className={styles.googleBtn}
+            style={{ textDecoration: "none" }}
           >
             <svg width="18" height="18" viewBox="0 0 48 48">
               <path
@@ -114,7 +113,7 @@ export default function LoginPage() {
               />
             </svg>
             Continue with Google
-          </button>
+          </a>
         </div>
 
         <div className="flex items-center gap-3 my-4">
@@ -188,16 +187,6 @@ export default function LoginPage() {
           >
             {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up with Supabase"}
           </button>
-        </div>
-
-        {/* Direct Workspace Bypass for Dev/Testing */}
-        <div className="mt-6 pt-4 border-t border-white/10 text-center">
-          <Link
-            href="/workspace"
-            className="text-[11px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
-          >
-            Continue as Guest / Enter Workspace Directly →
-          </Link>
         </div>
       </div>
     </div>

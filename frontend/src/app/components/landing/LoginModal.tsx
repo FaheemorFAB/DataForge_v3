@@ -35,32 +35,11 @@ export default function LoginModal({ onClose }: LoginModalProps) {
               </svg>
               <span>Continue with Google</span>
             </a>
-
-            <div className="relative flex py-1 items-center">
-              <div className="flex-grow border-t border-white/10"></div>
-              <span className="flex-shrink mx-2 text-[10px] uppercase font-bold text-slate-500 tracking-wider">or local dev</span>
-              <div className="flex-grow border-t border-white/10"></div>
-            </div>
-
-            <a
-              href="/api/auth/login/mock"
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 text-xs font-semibold transition"
-            >
-              <span>⚡ Quick Dev Sign In (Bypass OAuth)</span>
-            </a>
           </div>
         ) : (
-          <div className="p-4 rounded-xl flex flex-col gap-3" style={{ background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.2)" }}>
-            <div>
-              <p className="text-xs font-bold text-amber-400 mb-1">⚠ Google OAuth not configured</p>
-              <p className="text-xs" style={{ color: "var(--txt-m)" }}>Add Google credentials to your env and restart.</p>
-            </div>
-            <a
-              href="/api/auth/login/mock"
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 text-xs font-semibold transition"
-            >
-              <span>⚡ Quick Dev Sign In</span>
-            </a>
+          <div className="p-4 rounded-xl flex flex-col gap-2" style={{ background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.2)" }}>
+            <p className="text-xs font-bold text-amber-400 mb-1">⚠ Google OAuth not configured</p>
+            <p className="text-xs" style={{ color: "var(--txt-m)" }}>Add Google credentials to your env and restart.</p>
           </div>
         )}
         <p className="text-center text-[10px] mt-5" style={{ color: "var(--txt-m)" }}>

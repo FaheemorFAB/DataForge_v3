@@ -37,8 +37,7 @@ def _set_auth_cookie(response: Response, token: str):
 def get_google_redirect_uri() -> str:
     if settings.GOOGLE_REDIRECT_URI:
         return settings.GOOGLE_REDIRECT_URI
-    base_url = settings.FRONTEND_URL.rstrip("/")
-    return f"{base_url}/api/auth/google/callback"
+    return "http://localhost:5000/auth/google/callback"
 
 
 @router.get("/login/google", summary="Initiate Google OAuth flow")
@@ -173,7 +172,7 @@ async def auth_google_callback(request: Request):
 
     # Redirect to configured frontend URL
     separator = "&" if "?" in next_url else "?"
-    frontend_url = f"{settings.FRONTEND_URL}{next_url}{separator}login_success=1"
+    frontend_url = f"{settings.FRONTEND_URL}{next_url}{separator}login_success=1&token={jwt_token}"
     response = RedirectResponse(url=frontend_url, status_code=302)
     _set_auth_cookie(response, jwt_token)
     log.info("Google OAuth login success: user_id=%d email=%s", user.id, user.email)
@@ -210,7 +209,7 @@ async def me(current_user: CurrentUser):
         "email": current_user.email,
         "name": current_user.name,
         "avatar": current_user.avatar,
-        "role": getattr(current_user, "role", "Analyst"),
+        "role": getattr(current_user, "role", "Admin") or "Admin",
         "created_at": current_user.created_at,
     }
 
