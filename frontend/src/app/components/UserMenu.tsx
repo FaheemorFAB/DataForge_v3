@@ -1,14 +1,17 @@
 "use client";
-
 import React, { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
+import { resolveAvatarUrl } from "@/lib/avatars";
 
 export default function UserMenu() {
   const { user, loading, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   if (loading || !user) return null;
+
+  const avatarSrc = resolveAvatarUrl(user?.avatar);
 
   return (
     <div className="relative">
@@ -16,9 +19,15 @@ export default function UserMenu() {
         onClick={() => setIsMenuOpen(!isMenuOpen)} 
         className="flex items-center gap-1.5 p-1 rounded-full border transition-all hover:border-[var(--accent)]" 
         style={{ borderColor: "var(--border)" }}
+        title={user?.name || "User Account"}
       >
-        {user?.avatar ? (
-          <img src={user.avatar} className="w-7 h-7 rounded-full object-cover shrink-0" alt="" />
+        {!imgError && avatarSrc ? (
+          <img
+            src={avatarSrc}
+            className="w-7 h-7 rounded-full object-cover shrink-0"
+            alt={user?.name || "User"}
+            onError={() => setImgError(true)}
+          />
         ) : (
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0" style={{ background: "var(--accent)", color: "#fff" }}>
             {(user?.name || 'U')[0].toUpperCase()}

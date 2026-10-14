@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg-avatar-9" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#7e22ce" />
+    </linearGradient>
+    <clipPath id="clip-avatar-9">
+      <circle cx="60" cy="60" r="58" />
+    </clipPath>
+    <filter id="shadow-avatar-9" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <circle cx="60" cy="60" r="58" fill="url(#bg-avatar-9)" />
+  <g clip-path="url(#clip-avatar-9)">
+    <path d="M30 40 C30 20 90 20 90 40 C95 65 98 90 98 120 L22 120 C22 90 25 65 30 40 Z" fill="#581c87" />
+    <!-- Shoulders -->
+    <path d="M18 120 C20 98 38 90 60 90 C82 90 100 98 102 120 Z" fill="#581c87" />
+    <path d="M46 90 L60 108 L74 90 C70 98 50 98 46 90 Z" fill="#c084fc" opacity="0.9"/>
+    <path d="M52 90 L60 102 L68 90 Z" fill="#deb887" />
+    <!-- Neck -->
+    <rect x="52" y="72" width="16" height="20" rx="3" fill="#c49a68" />
+    <path d="M52 82 Q60 88 68 82 L68 92 L52 92 Z" fill="#c49a68" opacity="0.6"/>
+    <!-- Ears -->
+    <circle cx="36" cy="62" r="6" fill="#deb887" />
+    <circle cx="84" cy="62" r="6" fill="#deb887" />
+    <circle cx="36" cy="62" r="3" fill="#c49a68" />
+    <circle cx="84" cy="62" r="3" fill="#c49a68" />
+    <!-- Head -->
+    <ellipse cx="60" cy="60" rx="24" ry="29" fill="#deb887" />
+    <path d="M44 74 Q60 90 76 74 Q60 86 44 74 Z" fill="#c49a68" opacity="0.5"/>
+    <!-- Eyebrows -->
+    <path d="M43 49 Q50 47 54 49" stroke="#18181b" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <path d="M66 49 Q70 47 77 49" stroke="#18181b" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <!-- Eyes -->
+    <circle cx="48" cy="56" r="3.6" fill="#1c1917" />
+    <circle cx="72" cy="56" r="3.6" fill="#1c1917" />
+    <circle cx="47" cy="55" r="1.3" fill="#ffffff" />
+    <circle cx="71" cy="55" r="1.3" fill="#ffffff" />
+    <path d="M43 53 Q48 51 53 53" stroke="#18181b" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M67 53 Q72 51 77 53" stroke="#18181b" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <!-- Nose -->
+    <path d="M60 55 L58 64 Q60 66 63 64" stroke="#c49a68" stroke-width="2" stroke-linecap="round" fill="none"/>
+    <circle cx="43" cy="65" r="4" fill="#c49a68" opacity="0.3" />
+    <circle cx="77" cy="65" r="4" fill="#c49a68" opacity="0.3" />
+    <!-- Mouth -->
+    <path d="M53 74 Q60 78 67 74" stroke="#c49a68" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+    <!-- Front Hair -->
+    <!-- Hijab drape -->
+    <path d="M36 54 C36 32 50 30 60 30 C70 30 84 32 84 54 C84 76 76 86 60 86 C44 86 36 76 36 54 Z" stroke="#581c87" stroke-width="6" fill="none"/>
+    <path d="M36 50 C36 30 84 30 84 50 L84 65 C84 80 75 90 60 90 C45 90 36 80 36 65 Z" fill="none" stroke="#c084fc" stroke-width="2" opacity="0.6"/>
+  </g>
+  <circle cx="60" cy="60" r="57.5" stroke="rgba(255,255,255,0.2)" stroke-width="2" fill="none" />
+</svg>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg-avatar-12" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <clipPath id="clip-avatar-12">
+      <circle cx="60" cy="60" r="58" />
+    </clipPath>
+    <filter id="shadow-avatar-12" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <circle cx="60" cy="60" r="58" fill="url(#bg-avatar-12)" />
+  <g clip-path="url(#clip-avatar-12)">
+    <!-- Shoulders -->
+    <path d="M18 120 C20 98 38 90 60 90 C82 90 100 98 102 120 Z" fill="#0c4a6e" />
+    <path d="M46 90 L60 108 L74 90 C70 98 50 98 46 90 Z" fill="#7dd3fc" opacity="0.9"/>
+    <path d="M52 90 L60 102 L68 90 Z" fill="#fedcb6" />
+    <!-- Neck -->
+    <rect x="52" y="72" width="16" height="20" rx="3" fill="#ecbf94" />
+    <path d="M52 82 Q60 88 68 82 L68 92 L52 92 Z" fill="#ecbf94" opacity="0.6"/>
+    <!-- Ears -->
+    <circle cx="36" cy="62" r="6" fill="#fedcb6" />
+    <circle cx="84" cy="62" r="6" fill="#fedcb6" />
+    <circle cx="36" cy="62" r="3" fill="#ecbf94" />
+    <circle cx="84" cy="62" r="3" fill="#ecbf94" />
+    <!-- Head -->
+    <ellipse cx="60" cy="60" rx="24" ry="29" fill="#fedcb6" />
+    <path d="M44 74 Q60 90 76 74 Q60 86 44 74 Z" fill="#ecbf94" opacity="0.5"/>
+    <!-- Eyebrows -->
+    <path d="M43 49 Q50 47 54 49" stroke="#171717" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <path d="M66 49 Q70 47 77 49" stroke="#171717" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <!-- Eyes -->
+    <circle cx="48" cy="56" r="3.6" fill="#1c1917" />
+    <circle cx="72" cy="56" r="3.6" fill="#1c1917" />
+    <circle cx="47" cy="55" r="1.3" fill="#ffffff" />
+    <circle cx="71" cy="55" r="1.3" fill="#ffffff" />
+    <!-- Nose -->
+    <path d="M60 55 L58 64 Q60 66 63 64" stroke="#ecbf94" stroke-width="2" stroke-linecap="round" fill="none"/>
+    <circle cx="43" cy="65" r="4" fill="#ecbf94" opacity="0.3" />
+    <circle cx="77" cy="65" r="4" fill="#ecbf94" opacity="0.3" />
+    <!-- Mouth -->
+    <path d="M53 74 Q60 78 67 74" stroke="#ecbf94" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+    <path d="M44 68 C44 82 50 88 60 88 C70 88 76 82 76 68 C73 74 68 80 60 80 C52 80 47 74 44 68 Z" fill="#171717" opacity="0.35"/>
+    <!-- Front Hair -->
+    <path d="M35 46 C34 26 50 24 60 24 C70 24 86 26 85 46 C80 34 70 30 60 30 C48 30 40 34 35 46 Z" fill="#171717" />
+    <path d="M44 26 L48 20 L52 25 L58 19 L64 25 L70 21 L74 27" fill="#171717" />
+  </g>
+  <circle cx="60" cy="60" r="57.5" stroke="rgba(255,255,255,0.2)" stroke-width="2" fill="none" />
+</svg>

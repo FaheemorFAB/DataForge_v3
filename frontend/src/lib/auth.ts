@@ -14,6 +14,10 @@ function getCachedUser(): any | null {
       localStorage.removeItem(CACHE_KEY);
       return null;
     }
+    if (parsed?.avatar && parsed.avatar.includes("dicebear")) {
+      parsed.avatar = "/avatars/avatar-1.svg";
+      localStorage.setItem(CACHE_KEY, JSON.stringify(parsed));
+    }
     return parsed;
   } catch {
     return null;
@@ -65,7 +69,7 @@ export function useAuth() {
             id: session.user.id,
             email: session.user.email,
             name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split("@")[0] || "User",
-            avatar: session.user.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/pixel-art/svg",
+            avatar: session.user.user_metadata?.avatar_url || "/avatars/avatar-1.svg",
             provider: "supabase",
             role: "Admin",
           };
@@ -83,6 +87,9 @@ export function useAuth() {
         const res = await apiFetch("/v1/auth/me");
         if (res.ok && mounted) {
           const data = await res.json();
+          if (data?.avatar && data.avatar.includes("dicebear")) {
+            data.avatar = "/avatars/avatar-1.svg";
+          }
           setUser(data);
           setCachedUser(data);
         } else if (mounted) {
@@ -105,7 +112,7 @@ export function useAuth() {
           id: session.user.id,
           email: session.user.email,
           name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split("@")[0] || "User",
-          avatar: session.user.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/pixel-art/svg",
+          avatar: session.user.user_metadata?.avatar_url || "/avatars/avatar-1.svg",
           provider: "supabase",
         };
         setUser(supaUser);
@@ -129,7 +136,7 @@ export function useAuth() {
         id: data.user.id,
         email: data.user.email,
         name: data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "User",
-        avatar: data.user.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/pixel-art/svg",
+        avatar: data.user.user_metadata?.avatar_url || "/avatars/avatar-1.svg",
         provider: "supabase",
       };
       setUser(supaUser);

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg-avatar-7" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <clipPath id="clip-avatar-7">
+      <circle cx="60" cy="60" r="58" />
+    </clipPath>
+    <filter id="shadow-avatar-7" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <circle cx="60" cy="60" r="58" fill="url(#bg-avatar-7)" />
+  <g clip-path="url(#clip-avatar-7)">
+    <path d="M30 50 C26 78 28 100 32 120 L88 120 C92 100 94 78 90 50 Z" fill="#09090b" />
+    <path d="M34 58 Q33 85 34 120" stroke="#27272a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <path d="M38 58 Q37 85 38 120" stroke="#27272a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <path d="M42 58 Q41 85 42 120" stroke="#27272a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <path d="M78 58 Q77 85 78 120" stroke="#27272a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <path d="M82 58 Q81 85 82 120" stroke="#27272a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <path d="M86 58 Q85 85 86 120" stroke="#27272a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <!-- Shoulders -->
+    <path d="M18 120 C20 98 38 90 60 90 C82 90 100 98 102 120 Z" fill="#451a03" />
+    <path d="M46 90 L60 108 L74 90 C70 98 50 98 46 90 Z" fill="#fbbf24" opacity="0.9"/>
+    <path d="M52 90 L60 102 L68 90 Z" fill="#4b2d17" />
+    <!-- Neck -->
+    <rect x="52" y="72" width="16" height="20" rx="3" fill="#331c0d" />
+    <path d="M52 82 Q60 88 68 82 L68 92 L52 92 Z" fill="#331c0d" opacity="0.6"/>
+    <!-- Ears -->
+    <circle cx="36" cy="62" r="6" fill="#4b2d17" />
+    <circle cx="84" cy="62" r="6" fill="#4b2d17" />
+    <circle cx="36" cy="62" r="3" fill="#331c0d" />
+    <circle cx="84" cy="62" r="3" fill="#331c0d" />
+    <circle cx="35" cy="70" r="5" stroke="#facc15" stroke-width="2" fill="none" />
+    <circle cx="85" cy="70" r="5" stroke="#facc15" stroke-width="2" fill="none" />
+    <!-- Head -->
+    <ellipse cx="60" cy="60" rx="24" ry="29" fill="#4b2d17" />
+    <path d="M44 74 Q60 90 76 74 Q60 86 44 74 Z" fill="#331c0d" opacity="0.5"/>
+    <!-- Eyebrows -->
+    <path d="M43 49 Q50 47 54 49" stroke="#09090b" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <path d="M66 49 Q70 47 77 49" stroke="#09090b" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <!-- Eyes -->
+    <circle cx="48" cy="56" r="3.6" fill="#1c1917" />
+    <circle cx="72" cy="56" r="3.6" fill="#1c1917" />
+    <circle cx="47" cy="55" r="1.3" fill="#ffffff" />
+    <circle cx="71" cy="55" r="1.3" fill="#ffffff" />
+    <path d="M43 53 Q48 51 53 53" stroke="#09090b" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <path d="M67 53 Q72 51 77 53" stroke="#09090b" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <!-- Nose -->
+    <path d="M60 55 L58 64 Q60 66 63 64" stroke="#331c0d" stroke-width="2" stroke-linecap="round" fill="none"/>
+    <circle cx="43" cy="65" r="4" fill="#331c0d" opacity="0.3" />
+    <circle cx="77" cy="65" r="4" fill="#331c0d" opacity="0.3" />
+    <!-- Mouth -->
+    <path d="M53 74 Q60 78 67 74" stroke="#331c0d" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+    <!-- Front Hair -->
+    <path d="M35 48 C35 28 50 25 60 25 C70 25 85 28 85 48 C80 36 72 34 60 34 C48 34 40 36 35 48 Z" fill="#09090b" />
+    <line x1="45" y1="26" x2="43" y2="36" stroke="#27272a" stroke-width="1.5"/>
+    <line x1="52" y1="26" x2="50" y2="36" stroke="#27272a" stroke-width="1.5"/>
+    <line x1="60" y1="26" x2="58" y2="36" stroke="#27272a" stroke-width="1.5"/>
+    <line x1="68" y1="26" x2="66" y2="36" stroke="#27272a" stroke-width="1.5"/>
+    <line x1="75" y1="26" x2="73" y2="36" stroke="#27272a" stroke-width="1.5"/>
+  </g>
+  <circle cx="60" cy="60" r="57.5" stroke="rgba(255,255,255,0.2)" stroke-width="2" fill="none" />
+</svg>

@@ -63,7 +63,7 @@ async def login_mock(email: str = "dev@example.com", name: str = "Dev User"):
         "sub": "mock-sub-12345",
         "email": email,
         "name": name,
-        "picture": "https://api.dicebear.com/7.x/pixel-art/svg"
+        "picture": "/avatars/avatar-1.svg"
     }
     user = auth_service.get_or_create_google_user(user_info)
     if not user:
@@ -103,7 +103,7 @@ async def login_mock_post(
         "sub": f"mock-{target_email.replace('@', '-').replace('.', '-')}",
         "email": target_email,
         "name": target_name,
-        "picture": "https://api.dicebear.com/7.x/pixel-art/svg"
+        "picture": "/avatars/avatar-1.svg"
     }
     user = auth_service.get_or_create_google_user(user_info)
     if not user:

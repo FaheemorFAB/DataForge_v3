@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 import UserMenu from "../components/UserMenu";
 import Logo from "../components/Logo";
+import { HUMAN_AVATARS, getAvatarById, resolveAvatarUrl } from "@/lib/avatars";
 import {
   Shield,
   Database,
@@ -62,7 +63,8 @@ export interface TeamMember {
   name: string;
   email: string;
   role: TeamRole;
-  avatarEmoji?: string;
+  avatarId?: string;
+  avatarUrl?: string;
   avatarBg?: string;
 }
 
@@ -72,24 +74,6 @@ export interface TeamItem {
   myRole: TeamRole;
   members: TeamMember[];
 }
-
-export interface AvatarOption {
-  id: string;
-  emoji: string;
-  label: string;
-  bg: string;
-}
-
-const AVATAR_OPTIONS: AvatarOption[] = [
-  { id: "avatar-1", emoji: "⚡", label: "Cyber Spark", bg: "linear-gradient(135deg, #3b82f6, #06b6d4)" },
-  { id: "avatar-2", emoji: "🔮", label: "Quantum Violet", bg: "linear-gradient(135deg, #8b5cf6, #ec4899)" },
-  { id: "avatar-3", emoji: "🌿", label: "Emerald Matrix", bg: "linear-gradient(135deg, #10b981, #059669)" },
-  { id: "avatar-4", emoji: "🪐", label: "Solar Amber", bg: "linear-gradient(135deg, #f59e0b, #ef4444)" },
-  { id: "avatar-5", emoji: "💎", label: "Diamond Ice", bg: "linear-gradient(135deg, #06b6d4, #3b82f6)" },
-  { id: "avatar-6", emoji: "🦊", label: "Crimson Ember", bg: "linear-gradient(135deg, #ef4444, #f97316)" },
-  { id: "avatar-7", emoji: "🚀", label: "Apollo Indigo", bg: "linear-gradient(135deg, #6366f1, #3b82f6)" },
-  { id: "avatar-8", emoji: "👑", label: "Royal Gold", bg: "linear-gradient(135deg, #eab308, #ca8a04)" },
-];
 
 const ROLE_BADGES: Record<TeamRole, { label: string; color: string; glow: string }> = {
   Admin: { label: "Admin", color: "#8b5cf6", glow: "rgba(139,92,246,0.15)" },
@@ -146,9 +130,9 @@ export default function DashboardPage() {
       name: "Core Analytics Studio",
       myRole: "Admin",
       members: [
-        { id: "m-1", name: "Alex Morgan", email: "alex.morgan@dataforge.internal", role: "Admin", avatarEmoji: "⚡", avatarBg: "linear-gradient(135deg, #3b82f6, #06b6d4)" },
-        { id: "m-2", name: "Sarah Chen", email: "sarah.chen@dataforge.internal", role: "Data Engineer", avatarEmoji: "🌿", avatarBg: "linear-gradient(135deg, #10b981, #059669)" },
-        { id: "m-3", name: "Marcus Vance", email: "marcus.v@dataforge.internal", role: "Analyst", avatarEmoji: "🔮", avatarBg: "linear-gradient(135deg, #8b5cf6, #ec4899)" },
+        { id: "m-1", name: "Alex Morgan", email: "alex.morgan@dataforge.internal", role: "Admin", avatarId: "avatar-6", avatarUrl: "/avatars/avatar-6.svg" },
+        { id: "m-2", name: "Sarah Chen", email: "sarah.chen@dataforge.internal", role: "Data Engineer", avatarId: "avatar-3", avatarUrl: "/avatars/avatar-3.svg" },
+        { id: "m-3", name: "Marcus Vance", email: "marcus.v@dataforge.internal", role: "Analyst", avatarId: "avatar-2", avatarUrl: "/avatars/avatar-2.svg" },
       ],
     },
     {
@@ -156,9 +140,9 @@ export default function DashboardPage() {
       name: "Production Data Platform",
       myRole: "Data Engineer",
       members: [
-        { id: "m-4", name: "David Kim", email: "david.kim@dataforge.internal", role: "Admin", avatarEmoji: "👑", avatarBg: "linear-gradient(135deg, #eab308, #ca8a04)" },
-        { id: "m-5", name: "Alex Morgan", email: "alex.morgan@dataforge.internal", role: "Data Engineer", avatarEmoji: "⚡", avatarBg: "linear-gradient(135deg, #3b82f6, #06b6d4)" },
-        { id: "m-6", name: "Elena Rostova", email: "elena.r@dataforge.internal", role: "Data Engineer", avatarEmoji: "💎", avatarBg: "linear-gradient(135deg, #06b6d4, #3b82f6)" },
+        { id: "m-4", name: "David Kim", email: "david.kim@dataforge.internal", role: "Admin", avatarId: "avatar-4", avatarUrl: "/avatars/avatar-4.svg" },
+        { id: "m-5", name: "Liam O'Connor", email: "liam.oc@dataforge.internal", role: "Data Engineer", avatarId: "avatar-8", avatarUrl: "/avatars/avatar-8.svg" },
+        { id: "m-6", name: "Elena Rostova", email: "elena.r@dataforge.internal", role: "Data Engineer", avatarId: "avatar-1", avatarUrl: "/avatars/avatar-1.svg" },
       ],
     },
     {
@@ -166,8 +150,8 @@ export default function DashboardPage() {
       name: "Growth & Revenue Quants",
       myRole: "Analyst",
       members: [
-        { id: "m-7", name: "Maya Patel", email: "maya.patel@dataforge.internal", role: "Admin", avatarEmoji: "🦊", avatarBg: "linear-gradient(135deg, #ef4444, #f97316)" },
-        { id: "m-8", name: "Alex Morgan", email: "alex.morgan@dataforge.internal", role: "Analyst", avatarEmoji: "⚡", avatarBg: "linear-gradient(135deg, #3b82f6, #06b6d4)" },
+        { id: "m-7", name: "Maya Patel", email: "maya.patel@dataforge.internal", role: "Admin", avatarId: "avatar-5", avatarUrl: "/avatars/avatar-5.svg" },
+        { id: "m-8", name: "Amara Okafor", email: "amara.o@dataforge.internal", role: "Analyst", avatarId: "avatar-7", avatarUrl: "/avatars/avatar-7.svg" },
       ],
     },
   ]);
@@ -439,13 +423,14 @@ export default function DashboardPage() {
       return;
     }
 
-    const randomAvatar = AVATAR_OPTIONS[Math.floor(Math.random() * AVATAR_OPTIONS.length)];
+    const randomAvatar = HUMAN_AVATARS[Math.floor(Math.random() * HUMAN_AVATARS.length)];
     const newMember: TeamMember = {
       id: `m-${Date.now()}`,
       name: inviteName.trim(),
       email: inviteEmail.trim(),
       role: inviteRole,
-      avatarEmoji: randomAvatar.emoji,
+      avatarId: randomAvatar.id,
+      avatarUrl: randomAvatar.url,
       avatarBg: randomAvatar.bg,
     };
 
@@ -494,7 +479,7 @@ export default function DashboardPage() {
     setTimeout(() => setSaveSuccessMsg(""), 3000);
   };
 
-  const currentAvatar = AVATAR_OPTIONS.find((a) => a.id === userAvatarId) || AVATAR_OPTIONS[0];
+  const currentAvatar = getAvatarById(userAvatarId);
   const currentRoleMeta = ROLE_BADGES[userRole] || ROLE_BADGES["Admin"];
   const currentTierInfo = TIER_LIMITS[userTier] || TIER_LIMITS["pro"];
 
@@ -580,7 +565,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-4">
               {/* Selected Avatar with Glow */}
               <div
-                className="w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center text-2xl shadow-md shrink-0 border relative group cursor-pointer"
+                className="w-14 h-14 md:w-16 md:h-16 rounded-2xl flex items-center justify-center shadow-md shrink-0 border relative group cursor-pointer overflow-hidden p-0.5"
                 onClick={handleOpenEditProfile}
                 style={{
                   background: currentAvatar.bg,
@@ -589,7 +574,14 @@ export default function DashboardPage() {
                 }}
                 title="Click to edit avatar"
               >
-                <span>{currentAvatar.emoji}</span>
+                <img
+                  src={resolveAvatarUrl(userAvatarId)}
+                  className="w-full h-full rounded-[14px] object-cover"
+                  alt={userName}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "/avatars/avatar-1.svg";
+                  }}
+                />
                 <div className="absolute inset-0 rounded-2xl bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] font-bold">
                   Edit
                 </div>
@@ -767,13 +759,15 @@ export default function DashboardPage() {
                               borderColor: "var(--border)",
                             }}
                           >
-                            <div className="flex items-center gap-1.5 truncate">
-                              <span
-                                className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0"
-                                style={{ background: m.avatarBg || "var(--accent)" }}
-                              >
-                                {m.avatarEmoji || "👤"}
-                              </span>
+                            <div className="flex items-center gap-2 truncate">
+                              <img
+                                src={resolveAvatarUrl(m.avatarUrl || m.avatarId)}
+                                className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/20"
+                                alt={m.name}
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = "/avatars/avatar-1.svg";
+                                }}
+                              />
                               <span className="truncate font-medium" style={{ color: "var(--txt)" }}>
                                 {m.name}
                               </span>
@@ -1365,32 +1359,40 @@ export default function DashboardPage() {
             <form onSubmit={handleSaveProfile} className="space-y-4">
               {/* Avatar Selector */}
               <div>
-                <label className="block text-xs font-semibold mb-2" style={{ color: "var(--txt)" }}>
-                  Select Avatar
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {AVATAR_OPTIONS.map((av) => {
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold" style={{ color: "var(--txt)" }}>
+                    Select Avatar
+                  </label>
+                  <span className="text-[11px] font-mono opacity-60">12 Human Faces</span>
+                </div>
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  {HUMAN_AVATARS.map((av) => {
                     const isSelected = editAvatarId === av.id;
                     return (
                       <button
                         key={av.id}
                         type="button"
                         onClick={() => setEditAvatarId(av.id)}
-                        className="p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all"
+                        className="p-1.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all hover:scale-105"
                         style={{
                           background: isSelected ? "var(--glow)" : "var(--surface)",
                           borderColor: isSelected ? "var(--accent)" : "var(--border)",
                           boxShadow: isSelected ? "0 0 10px var(--glow)" : "none",
                         }}
+                        title={`${av.name} (${av.role})`}
                       >
-                        <span
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-sm"
+                        <div
+                          className="w-10 h-10 rounded-full p-0.5 shadow-sm overflow-hidden"
                           style={{ background: av.bg }}
                         >
-                          {av.emoji}
-                        </span>
+                          <img
+                            src={av.url}
+                            className="w-full h-full rounded-full object-cover"
+                            alt={av.name}
+                          />
+                        </div>
                         <span className="text-[10px] font-medium truncate w-full text-center" style={{ color: "var(--txt)" }}>
-                          {av.label}
+                          {av.name.split(" ")[0]}
                         </span>
                       </button>
                     );

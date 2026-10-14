@@ -77,7 +77,7 @@ class AuthService:
             new_data = {
                 "email": email,
                 "name": name or email.split("@")[0],
-                "avatar": avatar or "https://api.dicebear.com/7.x/pixel-art/svg",
+                "avatar": avatar or "/avatars/avatar-1.svg",
                 "last_login": now_iso,
             }
             res = user_repo.create(new_data)
