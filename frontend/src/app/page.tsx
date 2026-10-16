@@ -1047,7 +1047,7 @@ export default function Home() {
                 className="flex flex-col items-start"
               >
                 <h1
-                  className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[1.05] mb-5 transition-colors duration-300"
+                  className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] mb-5 transition-colors duration-300"
                   style={{ color: "var(--txt)" }}
                 >
                   Turning Messy Data
