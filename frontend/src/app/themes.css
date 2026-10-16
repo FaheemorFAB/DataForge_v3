@@ -34,9 +34,10 @@ html[data-theme="dark"] {
     --accent-ink: #FF8F70;
     --glow: rgba(255, 67, 16, 0.20);
     --txt: #FFFFFF;
-    --txt-m: #D1D5DB;
+    --txt-m: #E2E8F0;
     --txt-f: #9CA3AF;
     --card: rgba(17, 17, 22, 0.92);
+    --card-bg: rgba(17, 17, 22, 0.92);
     --nav: rgba(8, 8, 10, 0.96);
     --inp-bg: #16161D;
     --row-h: rgba(255, 255, 255, 0.05);
@@ -52,10 +53,11 @@ html[data-theme="light"] {
     --accent-ink: #7A1F09;
     --accent-soft: #FFE9DE;
     --glow: rgba(255, 67, 16, 0.15);
-    --txt: #0C0A09;
-    --txt-m: #292524;
-    --txt-f: #57534E;
+    --txt: #09090B;
+    --txt-m: #18181B;
+    --txt-f: #3F3F46;
     --card: rgba(255, 255, 255, 0.95);
+    --card-bg: rgba(255, 255, 255, 0.95);
     --nav: rgba(255, 255, 255, 0.96);
     --inp-bg: #F5F5F4;
     --row-h: rgba(12, 10, 9, 0.04);
@@ -73,6 +75,7 @@ html[data-theme="dracula"] {
     --txt-m: #E2E8F0;
     --txt-f: #FF79C6;
     --card: rgba(40, 42, 54, 0.92);
+    --card-bg: rgba(40, 42, 54, 0.92);
     --nav: rgba(33, 34, 44, 0.96);
     --inp-bg: #1E1F29;
     --row-h: rgba(255, 255, 255, 0.06);
@@ -87,9 +90,10 @@ html[data-theme="slate"] {
     --accent: #38BDF8;
     --glow: rgba(56, 189, 248, 0.22);
     --txt: #F8FAFC;
-    --txt-m: #CBD5E1;
+    --txt-m: #E2E8F0;
     --txt-f: #94A3B8;
     --card: rgba(30, 41, 59, 0.92);
+    --card-bg: rgba(30, 41, 59, 0.92);
     --nav: rgba(15, 23, 42, 0.96);
     --inp-bg: #152033;
     --row-h: rgba(255, 255, 255, 0.05);
@@ -104,9 +108,10 @@ html[data-theme="emerald"] {
     --accent: #10B981;
     --glow: rgba(16, 185, 129, 0.22);
     --txt: #F0FDF4;
-    --txt-m: #BBF7D0;
+    --txt-m: #E2E8F0;
     --txt-f: #86EFAC;
     --card: rgba(13, 40, 32, 0.92);
+    --card-bg: rgba(13, 40, 32, 0.92);
     --nav: rgba(6, 26, 20, 0.96);
     --inp-bg: #081F19;
     --row-h: rgba(255, 255, 255, 0.05);
@@ -124,6 +129,7 @@ html[data-theme="nord"] {
     --txt-m: #E5E9F0;
     --txt-f: #D8DEE9;
     --card: rgba(46, 52, 64, 0.92);
+    --card-bg: rgba(46, 52, 64, 0.92);
     --nav: rgba(36, 41, 51, 0.96);
     --inp-bg: #1E222A;
     --row-h: rgba(255, 255, 255, 0.05);
@@ -141,6 +147,7 @@ html[data-theme="luxury"] {
     --txt-m: #E4E4E7;
     --txt-f: #A1A1AA;
     --card: rgba(24, 24, 27, 0.92);
+    --card-bg: rgba(24, 24, 27, 0.92);
     --nav: rgba(9, 9, 11, 0.96);
     --inp-bg: #121215;
     --row-h: rgba(255, 255, 255, 0.05);
@@ -154,10 +161,11 @@ html[data-theme="cupcake"] {
     --border: #FBCFE8;
     --accent: #DB2777;
     --glow: rgba(219, 39, 119, 0.20);
-    --txt: #291334;
-    --txt-m: #4A044E;
-    --txt-f: #701A75;
+    --txt: #1E1024;
+    --txt-m: #2D1537;
+    --txt-f: #5C2766;
     --card: rgba(255, 255, 255, 0.95);
+    --card-bg: rgba(255, 255, 255, 0.95);
     --nav: rgba(253, 244, 248, 0.96);
     --inp-bg: #FCE7F3;
     --row-h: rgba(41, 19, 52, 0.05);
@@ -173,8 +181,9 @@ html[data-theme="solarized"] {
     --glow: rgba(42, 161, 152, 0.20);
     --txt: #002B36;
     --txt-m: #073642;
-    --txt-f: #586E75;
+    --txt-f: #35535C;
     --card: rgba(238, 232, 213, 0.95);
+    --card-bg: rgba(238, 232, 213, 0.95);
     --nav: rgba(253, 246, 227, 0.96);
     --inp-bg: #FDF6E3;
     --row-h: rgba(0, 43, 54, 0.05);
@@ -188,10 +197,11 @@ html[data-theme="lavender"] {
     --border: #DDD6FE;
     --accent: #7C3AED;
     --glow: rgba(124, 58, 237, 0.20);
-    --txt: #1E1B4B;
-    --txt-m: #312E81;
-    --txt-f: #4C1D95;
+    --txt: #110E38;
+    --txt-m: #1E1B4B;
+    --txt-f: #3B2D71;
     --card: rgba(255, 255, 255, 0.95);
+    --card-bg: rgba(255, 255, 255, 0.95);
     --nav: rgba(245, 243, 255, 0.96);
     --inp-bg: #EDE9FE;
     --row-h: rgba(30, 27, 75, 0.05);
@@ -205,14 +215,26 @@ html[data-theme="matcha"] {
     --border: #BBF7D0;
     --accent: #15803D;
     --glow: rgba(21, 128, 61, 0.20);
-    --txt: #052E16;
-    --txt-m: #14532D;
-    --txt-f: #166534;
+    --txt: #042110;
+    --txt-m: #0A3A1C;
+    --txt-f: #14532D;
     --card: rgba(255, 255, 255, 0.95);
+    --card-bg: rgba(255, 255, 255, 0.95);
     --nav: rgba(242, 248, 244, 0.96);
     --inp-bg: #DCFCE7;
     --row-h: rgba(5, 46, 22, 0.05);
     --row-head: rgba(5, 46, 22, 0.025);
+}
+
+/* Strict Rule: Always Dark Text Over Light Surfaces */
+.light-surface,
+[data-light="true"],
+html[data-theme="light"] .card,
+html[data-theme="cupcake"] .card,
+html[data-theme="solarized"] .card,
+html[data-theme="lavender"] .card,
+html[data-theme="matcha"] .card {
+    color: #09090B !important;
 }
 
 /* ==========================================================================

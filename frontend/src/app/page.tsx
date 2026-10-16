@@ -14,6 +14,7 @@ import CTABanner from "./components/landing/CTABanner";
 import Scratch from "./components/ui/Scratch";
 import WorkspaceLaunchModal from "./components/landing/WorkspaceLaunchModal";
 import HomepagePricingSection from "./components/landing/HomepagePricingSection";
+import ThreeHeroVisual from "./components/landing/ThreeHeroVisual";
 import { useAuth } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 
@@ -101,7 +102,7 @@ function SparkBar({ heights }: { heights: number[] }) {
 function IngestVisual() {
   const rows = [
     ["customer_id", "age", "income", "churn"],
-    ["C001", "34", "72000", "—"],
+    ["C001", "34", "72000", "null"],
     ["C002", "null", "null", "1"],
     ["C003", "28", "55000", "0"],
     ["C004", "null", "88000", "1"],
@@ -263,7 +264,7 @@ function CleanVisual() {
       >
         <CheckCircle2 size={16} style={{ color: "#22c55e" }} />
         <span className="text-xs font-bold" style={{ color: "#22c55e" }}>
-          Dataset sanitized — 0 issues remaining
+          Dataset sanitized · 0 issues remaining
         </span>
       </motion.div>
     </div>
@@ -1046,7 +1047,7 @@ export default function Home() {
                 className="flex flex-col items-start"
               >
                 <h1
-                  className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[1.05] mb-6 transition-colors duration-300"
+                  className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-[1.05] mb-5 transition-colors duration-300"
                   style={{ color: "var(--txt)" }}
                 >
                   Turning Messy Data
@@ -1055,13 +1056,11 @@ export default function Home() {
                   <span style={{ color: "var(--accent)" }}>Clear Decisions.</span>
                 </h1>
                 <p
-                  className="max-w-xl text-lg sm:text-xl leading-relaxed transition-colors duration-300"
+                  className="max-w-lg text-lg sm:text-xl leading-relaxed transition-colors duration-300"
                   style={{ color: "var(--txt-m)" }}
                 >
-                  DataForge takes any raw spreadsheet and delivers statistical
-                  insights, AI-generated answers, predictive models and executive
-                  reports —{" "}
-                  <Scratch>without writing a single line of code.</Scratch>
+                  Transform raw spreadsheets into statistical insights,
+                  predictive models, and executive reports without code.
                 </p>
               </motion.div>
 
@@ -1093,65 +1092,15 @@ export default function Home() {
               </motion.div>
             </div>
 
-            {/* Right side: Metrics Grid */}
+            {/* Right side: Three.js & GSAP 3D Hero Visual (Pie Chart, Database, Flow, Charts) */}
             <motion.div
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
               variants={fadeUp}
-              className="w-full grid grid-cols-2 gap-4"
+              className="w-full flex items-center justify-center relative"
             >
-              {[
-                {
-                  label: "Pipeline Speed",
-                  val: 10,
-                  suffix: "×",
-                  bars: [30, 45, 60, 50, 75, 65, 90, 80, 100, 95],
-                },
-                {
-                  label: "Data Quality Auto",
-                  val: 100,
-                  suffix: "%",
-                  bars: [40, 55, 70, 80, 75, 90, 85, 95, 100, 100],
-                },
-                {
-                  label: "Insight Plugins",
-                  val: 14,
-                  suffix: "",
-                  bars: [20, 30, 40, 50, 60, 70, 80, 85, 90, 100],
-                },
-                {
-                  label: "Chart Types",
-                  val: 6,
-                  suffix: "",
-                  bars: [50, 60, 70, 80, 75, 85, 90, 95, 100, 95],
-                },
-              ].map((m, i) => (
-                <div
-                  key={i}
-                  className="flex flex-col items-center justify-center gap-3 p-6 sm:p-8 rounded-2xl border shadow-xl hover:-translate-y-1 transition-transform duration-300"
-                  style={{
-                    background: "var(--card-bg)",
-                    borderColor: "var(--border)",
-                  }}
-                >
-                  <SparkBar heights={m.bars} />
-                  <div className="flex flex-col items-center mt-2">
-                    <span
-                      className="text-4xl sm:text-5xl font-black transition-colors duration-300"
-                      style={{ color: "var(--accent)" }}
-                    >
-                      <Counter to={m.val} suffix={m.suffix} />
-                    </span>
-                    <span
-                      className="text-sm font-bold text-center mt-1 transition-colors duration-300"
-                      style={{ color: "var(--txt-m)" }}
-                    >
-                      {m.label}
-                    </span>
-                  </div>
-                </div>
-              ))}
+              <ThreeHeroVisual />
             </motion.div>
           </div>
         </section>
@@ -1186,13 +1135,13 @@ export default function Home() {
                 <p>
                   Every day, organisations, researchers and students drown in
                   spreadsheets. Turning raw rows into meaningful answers is still
-                  a tedious, error-prone chore — traditional tools demand manual
-                  formulas; advanced platforms demand Python expertise.
+                  a tedious, error-prone chore: traditional tools demand manual
+                  formulas, while advanced platforms require programming expertise.
                 </p>
                 <p>
                   We built DataForge to close that gap. By automating the entire
-                  analytical lifecycle — from missing-value imputation and outlier
-                  detection to FLAML model training and PDF generation — DataForge
+                  analytical lifecycle (from missing-value imputation and outlier
+                  detection to AutoML model training and PDF generation), DataForge
                   delivers{" "}
                   <Scratch>enterprise-grade insights in seconds.</Scratch>
                 </p>
