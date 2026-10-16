@@ -259,34 +259,42 @@ async def api_upload_json_url(
     req: JSONUrlUploadRequest,
     current_user: CurrentUser,
 ):
-    import urllib.request
     import json as pyjson
+    from dataforge.api.utils.ssrf import safe_fetch_url, SSRFSecurityError
 
     try:
-        request_obj = urllib.request.Request(
+        status_code, resp_headers, raw_bytes = safe_fetch_url(
             req.url,
-            headers=req.headers or {"User-Agent": "DataForge/2.0", "Accept": "application/json"}
+            headers=req.headers,
+            timeout=15,
+            max_bytes=settings.MAX_UPLOAD_BYTES,
         )
-        with urllib.request.urlopen(request_obj, timeout=15) as resp:
-            raw_data = resp.read().decode("utf-8")
-            parsed = pyjson.loads(raw_data)
-            
-            if req.root_key and isinstance(parsed, dict) and req.root_key in parsed:
-                data_target = parsed[req.root_key]
-            else:
-                data_target = parsed
+        if status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Remote server responded with HTTP {status_code}")
 
-            if isinstance(data_target, list):
-                df = pd.json_normalize(data_target)
-            elif isinstance(data_target, dict):
-                for key in ("data", "items", "records", "rows", "results"):
-                    if key in data_target and isinstance(data_target[key], list):
-                        df = pd.json_normalize(data_target[key])
-                        break
-                else:
-                    df = pd.json_normalize([data_target])
+        raw_data = raw_bytes.decode("utf-8")
+        parsed = pyjson.loads(raw_data)
+        
+        if req.root_key and isinstance(parsed, dict) and req.root_key in parsed:
+            data_target = parsed[req.root_key]
+        else:
+            data_target = parsed
+
+        if isinstance(data_target, list):
+            df = pd.json_normalize(data_target)
+        elif isinstance(data_target, dict):
+            for key in ("data", "items", "records", "rows", "results"):
+                if key in data_target and isinstance(data_target[key], list):
+                    df = pd.json_normalize(data_target[key])
+                    break
             else:
-                raise ValueError("JSON payload must contain an array or object structure")
+                df = pd.json_normalize([data_target])
+        else:
+            raise ValueError("JSON payload must contain an array or object structure")
+    except SSRFSecurityError as sec_err:
+        raise HTTPException(status_code=403, detail=f"Security violation: {sec_err}")
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Failed to fetch or parse JSON URL: {exc}")
 

@@ -146,18 +146,17 @@ def create_app() -> FastAPI:
     from dataforge.api.middleware.security import SecurityHeadersMiddleware
     app.add_middleware(SecurityHeadersMiddleware)
 
-    # Proxy Headers (trust X-Forwarded-Proto from Render)
+    # Proxy Headers (trust X-Forwarded-Proto only from configured reverse proxies)
     from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.TRUSTED_PROXIES)
 
     # Rate limiting (slowapi)
     try:
-        from slowapi import Limiter, _rate_limit_exceeded_handler
+        from slowapi import _rate_limit_exceeded_handler
         from slowapi.errors import RateLimitExceeded
         from slowapi.middleware import SlowAPIMiddleware
-        from dataforge.api.deps import get_remote_addr
+        from dataforge.api.limiter import limiter
 
-        limiter = Limiter(key_func=get_remote_addr, default_limits=["200/minute"])
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
         app.add_middleware(SlowAPIMiddleware)

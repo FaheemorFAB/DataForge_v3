@@ -56,10 +56,45 @@ class DBConnector:
             return self._engine
         try:
             from sqlalchemy import create_engine
+            from sqlalchemy.engine import make_url
+            from dataforge.api.utils.ssrf import validate_and_resolve_host, SSRFSecurityError
+
             conn_str = self.connection_string
             if conn_str.startswith("supabase://"):
                 conn_str = "postgresql://" + conn_str[len("supabase://"):]
-            self._engine = create_engine(conn_str, pool_pre_ping=True)
+
+            try:
+                url = make_url(conn_str)
+            except Exception as e:
+                raise ValueError(f"Invalid connection string format: {e}")
+
+            # 1. Strictly forbid file-backed/local dialects (e.g. SQLite, local DuckDB)
+            backend = (url.drivername or "").split("+")[0].lower()
+            if backend in ("sqlite", "duckdb", "") or not url.host:
+                raise ValueError(
+                    f"Database dialect '{backend or 'unknown'}' or local file storage is prohibited. "
+                    "Only remote network database services (PostgreSQL, MySQL, Snowflake, BigQuery, etc.) are permitted."
+                )
+
+            # 2. Prevent query-parameter bypasses (e.g. ?host=/var/run/postgresql, ?sslkey=/etc/passwd)
+            ALLOWED_QUERY_PARAMS = {"sslmode", "connect_timeout", "application_name", "charset"}
+            for param_key in url.query:
+                if param_key.lower() not in ALLOWED_QUERY_PARAMS:
+                    raise ValueError(
+                        f"Prohibited database connection parameter '{param_key}'. "
+                        f"Allowed parameters: {sorted(ALLOWED_QUERY_PARAMS)}"
+                    )
+
+            # 3. SSRF / Private IP protection & DNS Rebinding Elimination
+            port = url.port or (3306 if "mysql" in backend else 5432)
+            try:
+                pinned_ip = validate_and_resolve_host(url.host, port)
+            except SSRFSecurityError as sec_err:
+                raise ValueError(f"Database connection prohibited for security: {sec_err}")
+
+            # Rewrite URL using validated pinned IP to eliminate DNS rebinding window
+            pinned_url = url.set(host=pinned_ip)
+            self._engine = create_engine(pinned_url, pool_pre_ping=True)
             return self._engine
         except ImportError:
             raise RuntimeError("sqlalchemy not installed. Run: pip install sqlalchemy")

@@ -92,10 +92,32 @@ def _load_from_remote(upload_id: str, key: str):
 
 
 def _upath(upload_id: str, key: str) -> Path:
-    """Return the base path for a given upload_id / key pair."""
-    d = STORE_DIR / str(upload_id)
+    """Return the base path for a given upload_id / key pair with path traversal guards."""
+    import re
+    import uuid
+
+    uid_str = str(upload_id).strip()
+    key_str = str(key).strip()
+
+    # 1. Validate upload_id: must be integer, valid UUID, or safe identifier
+    # Strictly blocks path traversal (..), path separators (/ and \), null bytes, and shell characters
+    if not re.match(r"^[a-zA-Z0-9_\-]+$", uid_str) or ".." in uid_str:
+        raise ValueError(f"Invalid upload_id format (must be integer, UUID, or safe identifier): {upload_id!r}")
+
+    # 2. Validate key: alphanumeric, hyphen, underscore, and simple extension only
+    if not re.match(r"^[a-zA-Z0-9_\-\.]+$", key_str) or ".." in key_str or "/" in key_str or "\\" in key_str:
+        raise ValueError(f"Invalid storage key format: {key!r}")
+
+    d = STORE_DIR / uid_str
+    target = (d / key_str).resolve()
+    store_resolved = STORE_DIR.resolve()
+
+    # 3. Defensive boundary check
+    if not target.is_relative_to(store_resolved):
+        raise ValueError(f"Path traversal detected: {upload_id}/{key}")
+
     d.mkdir(parents=True, exist_ok=True)
-    return d / key
+    return d / key_str
 
 
 def _lock_path(path: Path) -> Path:

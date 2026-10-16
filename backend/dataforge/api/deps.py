@@ -230,9 +230,52 @@ def get_ws_manager_dep() -> ConnectionManager:
 
 # ── Rate limiting (via slowapi) ───────────────────────────────────────────────
 
+import ipaddress
+from functools import lru_cache
+
+@lru_cache(maxsize=32)
+def _is_trusted_proxy_ip(ip_str: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(ip_str.strip())
+        for proxy_spec in settings.TRUSTED_PROXIES:
+            try:
+                if "/" in proxy_spec:
+                    if ip in ipaddress.ip_network(proxy_spec, strict=False):
+                        return True
+                elif ip == ipaddress.ip_address(proxy_spec):
+                    return True
+            except ValueError:
+                continue
+    except ValueError:
+        pass
+    return False
+
+
 def get_remote_addr(request: Request) -> str:
-    """Extract client IP for rate limiting (proxy-aware)."""
+    """
+    Extract client IP for rate limiting and security auditing.
+    Prevents X-Forwarded-For spoofing:
+      1. If direct peer (client.host) is NOT a trusted proxy, return peer IP directly.
+      2. If direct peer IS a trusted proxy:
+         - Check Cloudflare CF-Connecting-IP first.
+         - Otherwise, walk X-Forwarded-For from right to left and return the
+           first untrusted hop.
+    """
+    peer_ip = request.client.host if request.client else "unknown"
+    if peer_ip == "unknown" or not _is_trusted_proxy_ip(peer_ip):
+        return peer_ip
+
+    # Peer is a verified reverse proxy — check CDN-specific header first
+    cf_connecting_ip = request.headers.get("CF-Connecting-IP")
+    if cf_connecting_ip and not _is_trusted_proxy_ip(cf_connecting_ip):
+        return cf_connecting_ip.strip()
+
+    # Walk X-Forwarded-For backwards to extract the true client IP
     xff = request.headers.get("X-Forwarded-For")
     if xff:
-        return xff.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+        hops = [h.strip() for h in xff.split(",") if h.strip()]
+        for hop in reversed(hops):
+            if not _is_trusted_proxy_ip(hop):
+                return hop
+
+    return peer_ip

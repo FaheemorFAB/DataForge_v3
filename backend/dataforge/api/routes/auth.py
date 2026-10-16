@@ -7,11 +7,12 @@ Authentication routes: Google OAuth, mock login, logout.
 from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from dataforge.api.config import get_settings
 from dataforge.api.deps import CurrentUser
+from dataforge.api.limiter import limiter
 from dataforge.api.services.auth import auth_service
 from dataforge.db import User
 
@@ -43,6 +44,7 @@ def get_google_redirect_uri() -> str:
 @router.get("/login/google", summary="Initiate Google OAuth flow")
 @router.get("/api/auth/login/google", summary="Initiate Google OAuth flow (alias)")
 @router.get("/auth/login/google", summary="Initiate Google OAuth flow (alias)")
+@limiter.limit("20/minute")
 async def login_google(request: Request, next: str = "/"):
     if not settings.GOOGLE_AUTH_ENABLED:
         return RedirectResponse(url="/?login=1")
@@ -57,7 +59,13 @@ async def login_google(request: Request, next: str = "/"):
 @router.get("/login/mock", summary="Dev-only mock login bypass")
 @router.get("/api/auth/login/mock", summary="Dev-only mock login bypass (alias)")
 @router.get("/api/login/mock", summary="Dev-only mock login bypass (alias)")
-async def login_mock(email: str = "dev@example.com", name: str = "Dev User"):
+@limiter.limit("10/minute")
+async def login_mock(request: Request, email: str = "dev@example.com", name: str = "Dev User"):
+    if not settings.ENABLE_DEV_AUTH or settings.PRODUCTION:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Endpoint not found",
+        )
     # Create or retrieve a dev user
     user_info = {
         "sub": "mock-sub-12345",
@@ -88,13 +96,20 @@ class MockLoginRequest(BaseModel):
 
 
 @router.post("/api/v1/auth/mock", summary="Dev-only instant mock login returning JSON")
+@limiter.limit("10/minute")
 async def login_mock_post(
+    request: Request,
     response: Response,
     payload: Optional[MockLoginRequest] = None,
     email: Optional[str] = None,
     name: Optional[str] = None,
     role: Optional[str] = None,
 ):
+    if not settings.ENABLE_DEV_AUTH or settings.PRODUCTION:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Endpoint not found",
+        )
     target_email = (payload.email if payload and payload.email else email) or "analyst@dataforge.app"
     target_name = (payload.name if payload and payload.name else name) or "DataForge Analyst"
     target_role = (payload.role if payload and payload.role else role) or "Analyst"
@@ -129,6 +144,7 @@ async def login_mock_post(
 @router.get("/auth/google/callback", name="auth_google_callback", summary="Google OAuth callback")
 @router.get("/api/auth/google/callback", summary="Google OAuth callback alias")
 @router.get("/auth/callback/google", summary="Legacy Google OAuth callback alias")
+@limiter.limit("20/minute")
 async def auth_google_callback(request: Request):
     if not settings.GOOGLE_AUTH_ENABLED:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/?login=1&error=oauth_disabled")

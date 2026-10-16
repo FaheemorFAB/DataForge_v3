@@ -58,13 +58,16 @@ class Settings(BaseSettings):
         """Effective CORS origins — always includes FRONTEND_URL."""
         origins = list(self.ALLOWED_ORIGINS)  # from env var
         if not origins:
-            # Default: allow frontend + common local ports
-            origins = [
-                self.FRONTEND_URL,
-                "http://localhost:3000",
-                "http://localhost:8000",
-                "http://127.0.0.1:8000",
-            ]
+            if self.PRODUCTION:
+                origins = [self.FRONTEND_URL]
+            else:
+                # Default: allow frontend + common local ports in development
+                origins = [
+                    self.FRONTEND_URL,
+                    "http://localhost:3000",
+                    "http://localhost:8000",
+                    "http://127.0.0.1:8000",
+                ]
         # Always make sure FRONTEND_URL is included
         if self.FRONTEND_URL not in origins:
             origins.append(self.FRONTEND_URL)
@@ -83,7 +86,10 @@ class Settings(BaseSettings):
     # ── Security ──────────────────────────────────────────────────────────────
     FLASK_SECRET_KEY: str = Field(default="change-me-in-production")  # kept name for .env compat
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    JWT_EXPIRE_MINUTES: int = 60  # Short-lived access token: 60 minutes
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Refresh token lifetime: 7 days
+    ENABLE_DEV_AUTH: bool = False  # Fail-closed: Must be explicitly enabled in non-production environments
+    TRUSTED_PROXIES: list[str] = ["127.0.0.1", "::1"]  # CIDRs or IPs of trusted reverse proxies
 
     @property
     def JWT_SECRET(self) -> str:
@@ -96,6 +102,11 @@ class Settings(BaseSettings):
         """
         if not self.PRODUCTION:
             return
+
+        if self.ENABLE_DEV_AUTH:
+            raise RuntimeError(
+                "CRITICAL: ENABLE_DEV_AUTH must never be True when PRODUCTION=True. Refusing to start."
+            )
 
         if self.FLASK_SECRET_KEY == "change-me-in-production" or len(self.FLASK_SECRET_KEY) < 32:
             raise RuntimeError(
@@ -112,6 +123,12 @@ class Settings(BaseSettings):
         if "localhost" in self.FRONTEND_URL:
             raise RuntimeError(
                 f"CRITICAL: PRODUCTION=True requires a valid production FRONTEND_URL, got '{self.FRONTEND_URL}'."
+            )
+
+        if self.JWT_EXPIRE_MINUTES > 1440:
+            raise RuntimeError(
+                f"CRITICAL: PRODUCTION=True requires short-lived JWT access tokens (<= 1440 min), "
+                f"got {self.JWT_EXPIRE_MINUTES} min."
             )
 
     # ── Google OAuth ──────────────────────────────────────────────────────────
