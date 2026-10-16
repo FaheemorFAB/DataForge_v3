@@ -1,34 +1,166 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import * as THREE from "three";
 import gsap from "gsap";
 
+interface ThemePalette {
+  name: string;
+  isLight: boolean;
+  accent: string;
+  palette: [string, string, string, string, string]; // [primary, secondary, tertiary, highlight, glassTint]
+  bgGlow: string;
+  cardGlassColor: number;
+  cardGlassOpacity: number;
+}
+
+const THEME_PALETTES: Record<string, ThemePalette> = {
+  dark: {
+    name: "dark",
+    isLight: false,
+    accent: "#FF4310",
+    palette: ["#FF4310", "#00F0FF", "#A855F7", "#10B981", "#FBBF24"],
+    bgGlow: "rgba(255, 67, 16, 0.22)",
+    cardGlassColor: 0x111118,
+    cardGlassOpacity: 0.65,
+  },
+  light: {
+    name: "light",
+    isLight: true,
+    accent: "#FF4310",
+    palette: ["#FF4310", "#0284C7", "#7C3AED", "#059669", "#F59E0B"],
+    bgGlow: "rgba(255, 67, 16, 0.16)",
+    cardGlassColor: 0xffffff,
+    cardGlassOpacity: 0.85,
+  },
+  dracula: {
+    name: "dracula",
+    isLight: false,
+    accent: "#BD93F9",
+    palette: ["#BD93F9", "#FF79C6", "#8BE9FD", "#50FA7B", "#FFB86C"],
+    bgGlow: "rgba(189, 147, 249, 0.26)",
+    cardGlassColor: 0x282a36,
+    cardGlassOpacity: 0.7,
+  },
+  slate: {
+    name: "slate",
+    isLight: false,
+    accent: "#38BDF8",
+    palette: ["#38BDF8", "#818CF8", "#34D399", "#C084FC", "#FB7185"],
+    bgGlow: "rgba(56, 189, 248, 0.24)",
+    cardGlassColor: 0x1e293b,
+    cardGlassOpacity: 0.7,
+  },
+  emerald: {
+    name: "emerald",
+    isLight: false,
+    accent: "#10B981",
+    palette: ["#10B981", "#34D399", "#06B6D4", "#F59E0B", "#6EE7B7"],
+    bgGlow: "rgba(16, 185, 129, 0.24)",
+    cardGlassColor: 0x0d2820,
+    cardGlassOpacity: 0.7,
+  },
+  nord: {
+    name: "nord",
+    isLight: false,
+    accent: "#88C0D0",
+    palette: ["#88C0D0", "#81A1C1", "#8FBCBB", "#A3BE8C", "#EBCB8B"],
+    bgGlow: "rgba(136, 192, 208, 0.25)",
+    cardGlassColor: 0x2e3440,
+    cardGlassOpacity: 0.7,
+  },
+  luxury: {
+    name: "luxury",
+    isLight: false,
+    accent: "#EAB308",
+    palette: ["#EAB308", "#F59E0B", "#FDE047", "#CA8A04", "#FFFFFF"],
+    bgGlow: "rgba(234, 179, 8, 0.26)",
+    cardGlassColor: 0x18181b,
+    cardGlassOpacity: 0.75,
+  },
+  cupcake: {
+    name: "cupcake",
+    isLight: true,
+    accent: "#DB2777",
+    palette: ["#DB2777", "#F43F5E", "#8B5CF6", "#0284C7", "#F59E0B"],
+    bgGlow: "rgba(219, 39, 119, 0.2)",
+    cardGlassColor: 0xffffff,
+    cardGlassOpacity: 0.88,
+  },
+  solarized: {
+    name: "solarized",
+    isLight: true,
+    accent: "#2AA198",
+    palette: ["#2AA198", "#B58900", "#268BD2", "#D33682", "#859900"],
+    bgGlow: "rgba(42, 161, 152, 0.2)",
+    cardGlassColor: 0xeee8d5,
+    cardGlassOpacity: 0.88,
+  },
+  lavender: {
+    name: "lavender",
+    isLight: true,
+    accent: "#7C3AED",
+    palette: ["#7C3AED", "#6366F1", "#EC4899", "#06B6D4", "#F59E0B"],
+    bgGlow: "rgba(124, 58, 237, 0.2)",
+    cardGlassColor: 0xffffff,
+    cardGlassOpacity: 0.88,
+  },
+  matcha: {
+    name: "matcha",
+    isLight: true,
+    accent: "#15803D",
+    palette: ["#15803D", "#059669", "#65A30D", "#0D9488", "#10B981"],
+    bgGlow: "rgba(21, 128, 61, 0.2)",
+    cardGlassColor: 0xffffff,
+    cardGlassOpacity: 0.88,
+  },
+};
+
+function createRoundedRectShape(width: number, height: number, radius: number) {
+  const shape = new THREE.Shape();
+  const x = -width / 2;
+  const y = -height / 2;
+  shape.moveTo(x, y + radius);
+  shape.lineTo(x, y + height - radius);
+  shape.quadraticCurveTo(x, y + height, x + radius, y + height);
+  shape.lineTo(x + width - radius, y + height);
+  shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+  shape.lineTo(x + width, y + radius);
+  shape.quadraticCurveTo(x + width, y, x + width - radius, y);
+  shape.lineTo(x + radius, y);
+  shape.quadraticCurveTo(x, y, x, y + radius);
+  return shape;
+}
+
+function createPieSliceGeometry(startAngle: number, endAngle: number, radius: number, depth: number) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.absarc(0, 0, radius, startAngle, endAngle, false);
+  shape.lineTo(0, 0);
+  return new THREE.ExtrudeGeometry(shape, {
+    depth,
+    bevelEnabled: true,
+    bevelSegments: 2,
+    steps: 1,
+    bevelSize: 0.04,
+    bevelThickness: 0.04,
+  });
+}
+
 export default function ThreeHeroVisual() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const glareRef = useRef<HTMLDivElement>(null);
+  const [currentTheme, setCurrentTheme] = useState<string>("dark");
 
-  const [themeMode, setThemeMode] = useState<"light" | "dark">("dark");
-
-  // Synchronize with active theme
+  // Track theme changes dynamically
   useEffect(() => {
-    const updateTheme = () => {
-      const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
-      const isLight = [
-        "light",
-        "cupcake",
-        "solarized",
-        "lavender",
-        "matcha",
-      ].includes(currentTheme);
-      setThemeMode(isLight ? "light" : "dark");
+    const readTheme = () => {
+      const t = document.documentElement.getAttribute("data-theme") || "dark";
+      setCurrentTheme(t);
     };
 
-    updateTheme();
-    const observer = new MutationObserver(updateTheme);
+    readTheme();
+    const observer = new MutationObserver(readTheme);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["data-theme"],
@@ -37,25 +169,21 @@ export default function ThreeHeroVisual() {
     return () => observer.disconnect();
   }, []);
 
-  // Three.js interactive ambient particle constellation behind 3D artwork
+  // Main Three.js real-time 3D Analytics scene
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
 
-    let animationFrameId: number;
-    let renderer: THREE.WebGLRenderer;
-    let scene: THREE.Scene;
-    let camera: THREE.PerspectiveCamera;
-
+    let animId: number;
     const width = container.clientWidth || 560;
     const height = container.clientHeight || 560;
-    const isLight = themeMode === "light";
 
-    scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 100);
-    camera.position.z = 24;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+    camera.position.set(0, 0, 15);
 
+    let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
         canvas,
@@ -66,117 +194,472 @@ export default function ThreeHeroVisual() {
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     } catch (e) {
-      console.warn("Three.js fallback:", e);
+      console.warn("WebGL initialization fallback:", e);
       return;
     }
 
-    // Particle constellation
-    const particleCount = 45;
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(particleCount * 3);
-    const velocities: { x: number; y: number; z: number }[] = [];
+    const activeTheme = THEME_PALETTES[currentTheme] || THEME_PALETTES.dark;
+    const p = activeTheme.palette;
 
-    for (let i = 0; i < particleCount; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 32;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 32;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 12;
+    // Root Master Group for GSAP Parallax Tilt
+    const masterGroup = new THREE.Group();
+    scene.add(masterGroup);
 
-      velocities.push({
-        x: (Math.random() - 0.5) * 0.03,
-        y: (Math.random() - 0.5) * 0.03,
-        z: (Math.random() - 0.5) * 0.02,
+    // Dynamic Lights
+    const ambientLight = new THREE.AmbientLight(
+      0xffffff,
+      activeTheme.isLight ? 1.9 : 1.3
+    );
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.2);
+    dirLight.position.set(6, 8, 12);
+    scene.add(dirLight);
+
+    const rimLight = new THREE.DirectionalLight(new THREE.Color(p[0]), 1.4);
+    rimLight.position.set(-6, -6, -6);
+    scene.add(rimLight);
+
+    const cursorPointLight = new THREE.PointLight(new THREE.Color(p[1]), 2.0, 18);
+    cursorPointLight.position.set(0, 0, 8);
+    scene.add(cursorPointLight);
+
+    // ==========================================
+    // 1. CENTRAL 3D PIE CHART WITH EXPLODED SLICE
+    // ==========================================
+    const centerGroup = new THREE.Group();
+    centerGroup.position.set(0, 0, 0);
+    masterGroup.add(centerGroup);
+
+    // Central Frosted Glass Stage / Backing Plaque
+    const centerStageGeo = new THREE.ExtrudeGeometry(
+      createRoundedRectShape(3.8, 3.8, 0.65),
+      {
+        depth: 0.12,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        steps: 1,
+        bevelSize: 0.04,
+        bevelThickness: 0.04,
+      }
+    );
+    centerStageGeo.center();
+
+    const centerStageMat = new THREE.MeshPhysicalMaterial({
+      color: activeTheme.cardGlassColor,
+      roughness: 0.12,
+      metalness: 0.05,
+      transmission: 0.85,
+      transparent: true,
+      opacity: activeTheme.cardGlassOpacity,
+      ior: 1.5,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.08,
+      reflectivity: 0.9,
+    });
+    const centerStage = new THREE.Mesh(centerStageGeo, centerStageMat);
+    centerStage.position.z = -0.15;
+    centerGroup.add(centerStage);
+
+    // Central Inner Glowing Core Ring
+    const coreRingGeo = new THREE.TorusGeometry(0.35, 0.05, 16, 32);
+    const coreRingMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(p[0]),
+      emissive: new THREE.Color(p[0]),
+      emissiveIntensity: 0.8,
+      roughness: 0.2,
+      metalness: 0.4,
+    });
+    const coreRing = new THREE.Mesh(coreRingGeo, coreRingMat);
+    coreRing.position.z = 0.42;
+    centerGroup.add(coreRing);
+
+    // 4 Pie Slices
+    const pieRadius = 1.65;
+    const pieDepth = 0.42;
+
+    const sliceMats = [
+      new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(p[0]),
+        emissive: new THREE.Color(p[0]),
+        emissiveIntensity: 0.25,
+        roughness: 0.15,
+        metalness: 0.15,
+        clearcoat: 0.9,
+        clearcoatRoughness: 0.1,
+      }),
+      new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(p[1]),
+        emissive: new THREE.Color(p[1]),
+        emissiveIntensity: 0.25,
+        roughness: 0.15,
+        metalness: 0.15,
+        clearcoat: 0.9,
+        clearcoatRoughness: 0.1,
+      }),
+      new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(p[2]),
+        emissive: new THREE.Color(p[2]),
+        emissiveIntensity: 0.25,
+        roughness: 0.15,
+        metalness: 0.15,
+        clearcoat: 0.9,
+        clearcoatRoughness: 0.1,
+      }),
+      new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(p[3]),
+        emissive: new THREE.Color(p[3]),
+        emissiveIntensity: 0.35,
+        roughness: 0.15,
+        metalness: 0.15,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.08,
+      }),
+    ];
+
+    // Slice 0
+    const slice0Geo = createPieSliceGeometry(0.08, 1.85, pieRadius, pieDepth);
+    const slice0 = new THREE.Mesh(slice0Geo, sliceMats[0]);
+    centerGroup.add(slice0);
+
+    // Slice 1
+    const slice1Geo = createPieSliceGeometry(1.95, 3.42, pieRadius, pieDepth);
+    const slice1 = new THREE.Mesh(slice1Geo, sliceMats[1]);
+    centerGroup.add(slice1);
+
+    // Slice 2
+    const slice2Geo = createPieSliceGeometry(3.52, 4.92, pieRadius, pieDepth);
+    const slice2 = new THREE.Mesh(slice2Geo, sliceMats[2]);
+    centerGroup.add(slice2);
+
+    // Slice 3: The Exploded Highlight Slice
+    const slice3Geo = createPieSliceGeometry(5.02, 6.2, pieRadius, pieDepth);
+    const slice3 = new THREE.Mesh(slice3Geo, sliceMats[3]);
+    const slice3Angle = (5.02 + 6.2) / 2;
+    slice3.position.x = Math.cos(slice3Angle) * 0.38;
+    slice3.position.y = Math.sin(slice3Angle) * 0.38;
+    slice3.position.z = 0.22;
+    centerGroup.add(slice3);
+
+    // ==========================================
+    // 2. FLOATING BADGE 1: 3D BAR CHART (TOP-LEFT)
+    // ==========================================
+    const barWidget = new THREE.Group();
+    barWidget.position.set(-3.4, 2.2, 0.7);
+    masterGroup.add(barWidget);
+
+    const widgetPlateGeo = new THREE.ExtrudeGeometry(
+      createRoundedRectShape(2.2, 1.8, 0.32),
+      {
+        depth: 0.08,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        steps: 1,
+        bevelSize: 0.03,
+        bevelThickness: 0.03,
+      }
+    );
+    widgetPlateGeo.center();
+
+    const widgetPlateMat = new THREE.MeshPhysicalMaterial({
+      color: activeTheme.cardGlassColor,
+      roughness: 0.14,
+      metalness: 0.05,
+      transmission: 0.85,
+      transparent: true,
+      opacity: activeTheme.cardGlassOpacity,
+      ior: 1.5,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.1,
+    });
+
+    const barPlate = new THREE.Mesh(widgetPlateGeo, widgetPlateMat);
+    barPlate.position.z = -0.05;
+    barWidget.add(barPlate);
+
+    // 4 Animated Vertical Bars
+    const barHeights = [0.55, 1.25, 0.85, 1.45];
+    const barMeshes: THREE.Mesh[] = [];
+    for (let i = 0; i < 4; i++) {
+      const bh = barHeights[i];
+      const barGeo = new THREE.BoxGeometry(0.24, bh, 0.2);
+      barGeo.translate(0, bh / 2, 0); // anchor at bottom
+      const barMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(p[i % p.length]),
+        emissive: new THREE.Color(p[i % p.length]),
+        emissiveIntensity: 0.3,
+        roughness: 0.2,
+        metalness: 0.3,
       });
+      const barMesh = new THREE.Mesh(barGeo, barMat);
+      barMesh.position.set(-0.6 + i * 0.4, -0.7, 0.08);
+      barWidget.add(barMesh);
+      barMeshes.push(barMesh);
     }
 
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    // ==========================================
+    // 3. FLOATING BADGE 2: 3D TREND LINE (TOP-RIGHT)
+    // ==========================================
+    const trendWidget = new THREE.Group();
+    trendWidget.position.set(3.4, 2.1, 0.6);
+    masterGroup.add(trendWidget);
 
-    const material = new THREE.PointsMaterial({
-      color: isLight ? 0x0284c7 : 0x38bdf8,
-      size: isLight ? 0.45 : 0.65,
-      transparent: true,
-      opacity: isLight ? 0.45 : 0.75,
-      blending: isLight ? THREE.NormalBlending : THREE.AdditiveBlending,
+    const trendPlate = new THREE.Mesh(widgetPlateGeo, widgetPlateMat.clone());
+    trendPlate.position.z = -0.05;
+    trendWidget.add(trendPlate);
+
+    // 3D Neon Tube Spline Curve
+    const trendCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.75, -0.45, 0.1),
+      new THREE.Vector3(-0.35, -0.15, 0.14),
+      new THREE.Vector3(0.05, -0.28, 0.12),
+      new THREE.Vector3(0.42, 0.22, 0.18),
+      new THREE.Vector3(0.75, 0.55, 0.22),
+    ]);
+    const trendGeo = new THREE.TubeGeometry(trendCurve, 32, 0.045, 12, false);
+    const trendMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(p[1]),
+      emissive: new THREE.Color(p[1]),
+      emissiveIntensity: 0.85,
+      roughness: 0.15,
+      metalness: 0.4,
     });
+    const trendMesh = new THREE.Mesh(trendGeo, trendMat);
+    trendWidget.add(trendMesh);
 
-    const particles = new THREE.Points(geometry, material);
+    // Glowing Peak Beacon
+    const beaconGeo = new THREE.SphereGeometry(0.1, 16, 16);
+    const beaconMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(p[3]),
+      emissive: new THREE.Color(p[3]),
+      emissiveIntensity: 1.0,
+      roughness: 0.1,
+    });
+    const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
+    beaconMesh.position.set(0.75, 0.55, 0.22);
+    trendWidget.add(beaconMesh);
+
+    // ==========================================
+    // 4. FLOATING BADGE 3: 3D POLYGLOT DB (BOTTOM-LEFT)
+    // ==========================================
+    const dbWidget = new THREE.Group();
+    dbWidget.position.set(-3.3, -2.1, 0.65);
+    masterGroup.add(dbWidget);
+
+    const dbPlate = new THREE.Mesh(widgetPlateGeo, widgetPlateMat.clone());
+    dbPlate.position.z = -0.05;
+    dbWidget.add(dbPlate);
+
+    // 3 Stacked Cylindrical Database Platters
+    const dbDisks: THREE.Mesh[] = [];
+    const dbDiskY = [-0.4, 0.0, 0.4];
+    for (let i = 0; i < 3; i++) {
+      const diskGeo = new THREE.CylinderGeometry(0.58, 0.58, 0.2, 32);
+      const diskMat = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color(p[i === 1 ? 0 : 1]),
+        emissive: new THREE.Color(p[i === 1 ? 0 : 1]),
+        emissiveIntensity: 0.35,
+        roughness: 0.18,
+        metalness: 0.25,
+        clearcoat: 0.9,
+      });
+      const disk = new THREE.Mesh(diskGeo, diskMat);
+      disk.rotation.x = 0.35;
+      disk.position.set(0, dbDiskY[i], 0.12);
+      dbWidget.add(disk);
+      dbDisks.push(disk);
+    }
+
+    // ==========================================
+    // 5. FLOATING BADGE 4: 3D DATA MATRIX (BOTTOM-RIGHT)
+    // ==========================================
+    const matrixWidget = new THREE.Group();
+    matrixWidget.position.set(3.3, -2.1, 0.7);
+    masterGroup.add(matrixWidget);
+
+    const matrixPlate = new THREE.Mesh(widgetPlateGeo, widgetPlateMat.clone());
+    matrixPlate.position.z = -0.05;
+    matrixWidget.add(matrixPlate);
+
+    // 3 rows x 4 columns of glowing mini tiles
+    const matrixCells: THREE.Mesh[] = [];
+    const matrixMats: THREE.MeshStandardMaterial[] = [];
+    const rows = 3;
+    const cols = 4;
+    const cellW = 0.32;
+    const cellH = 0.24;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cellGeo = new THREE.BoxGeometry(cellW, cellH, 0.08);
+        const paletteIdx = (r * cols + c) % p.length;
+        const cMat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color(p[paletteIdx]),
+          emissive: new THREE.Color(p[paletteIdx]),
+          emissiveIntensity: 0.35 + ((r + c) % 3) * 0.2,
+          roughness: 0.2,
+          metalness: 0.2,
+        });
+        const cellMesh = new THREE.Mesh(cellGeo, cMat);
+        const xPos = -0.6 + c * (cellW + 0.08);
+        const yPos = 0.36 - r * (cellH + 0.1);
+        cellMesh.position.set(xPos, yPos, 0.1);
+        matrixWidget.add(cellMesh);
+        matrixCells.push(cellMesh);
+        matrixMats.push(cMat);
+      }
+    }
+
+    // ==========================================
+    // 6. 3D ORBITAL RINGS & ENERGY SPARKS
+    // ==========================================
+    const orbitGroup = new THREE.Group();
+    masterGroup.add(orbitGroup);
+
+    const ring1Geo = new THREE.TorusGeometry(4.7, 0.02, 16, 120);
+    const ring1Mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(p[1]),
+      transparent: true,
+      opacity: activeTheme.isLight ? 0.35 : 0.65,
+    });
+    const ring1 = new THREE.Mesh(ring1Geo, ring1Mat);
+    ring1.rotation.set(1.15, 0.35, 0.2);
+    orbitGroup.add(ring1);
+
+    const ring2Geo = new THREE.TorusGeometry(4.3, 0.018, 16, 120);
+    const ring2Mat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(p[2]),
+      transparent: true,
+      opacity: activeTheme.isLight ? 0.3 : 0.6,
+    });
+    const ring2 = new THREE.Mesh(ring2Geo, ring2Mat);
+    ring2.rotation.set(-0.95, -0.55, 0.45);
+    orbitGroup.add(ring2);
+
+    // Glowing energy nodes traveling on the orbits
+    const sparkGeo = new THREE.SphereGeometry(0.11, 16, 16);
+    const spark1Mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(p[0]),
+      emissive: new THREE.Color(p[0]),
+      emissiveIntensity: 1.2,
+    });
+    const spark1 = new THREE.Mesh(sparkGeo, spark1Mat);
+    orbitGroup.add(spark1);
+
+    const spark2Mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(p[3]),
+      emissive: new THREE.Color(p[3]),
+      emissiveIntensity: 1.2,
+    });
+    const spark2 = new THREE.Mesh(sparkGeo, spark2Mat);
+    orbitGroup.add(spark2);
+
+    // ==========================================
+    // 7. AMBIENT PARTICLES
+    // ==========================================
+    const particleCount = 42;
+    const partGeo = new THREE.BufferGeometry();
+    const partPositions = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i++) {
+      partPositions[i * 3] = (Math.random() - 0.5) * 16;
+      partPositions[i * 3 + 1] = (Math.random() - 0.5) * 14;
+      partPositions[i * 3 + 2] = (Math.random() - 0.5) * 8 - 1;
+    }
+    partGeo.setAttribute("position", new THREE.BufferAttribute(partPositions, 3));
+    const partMat = new THREE.PointsMaterial({
+      color: new THREE.Color(p[0]),
+      size: activeTheme.isLight ? 0.35 : 0.5,
+      transparent: true,
+      opacity: activeTheme.isLight ? 0.4 : 0.7,
+      blending: activeTheme.isLight ? THREE.NormalBlending : THREE.AdditiveBlending,
+    });
+    const particles = new THREE.Points(partGeo, partMat);
     scene.add(particles);
 
-    // Glowing connecting line segments between nearby particles
-    const lineMat = new THREE.LineBasicMaterial({
-      color: isLight ? 0x0284c7 : 0xa855f7,
-      transparent: true,
-      opacity: isLight ? 0.15 : 0.25,
-      blending: isLight ? THREE.NormalBlending : THREE.AdditiveBlending,
-    });
-
-    const lineGeo = new THREE.BufferGeometry();
-    const maxLineSegments = particleCount * 4;
-    const linePositions = new Float32Array(maxLineSegments * 6);
-    lineGeo.setAttribute("position", new THREE.BufferAttribute(linePositions, 3));
-    const lines = new THREE.LineSegments(lineGeo, lineMat);
-    scene.add(lines);
-
+    // ==========================================
+    // INTERACTION & ANIMATION LOOP
+    // ==========================================
     let mouseX = 0;
     let mouseY = 0;
+    let targetRotX = 0;
+    let targetRotY = 0;
 
-    const onPointerMove = (e: MouseEvent) => {
+    const onMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
-      mouseX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouseY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+      const normX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      const normY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+
+      mouseX = normX;
+      mouseY = normY;
+
+      targetRotY = normX * 0.28;
+      targetRotX = -normY * 0.28;
+
+      cursorPointLight.position.x = normX * 5;
+      cursorPointLight.position.y = normY * 5;
     };
 
-    window.addEventListener("mousemove", onPointerMove);
+    const onMouseLeave = () => {
+      targetRotX = 0;
+      targetRotY = 0;
+      cursorPointLight.position.set(0, 0, 8);
+    };
+
+    container.addEventListener("mousemove", onMouseMove);
+    container.addEventListener("mouseleave", onMouseLeave);
 
     const clock = new THREE.Clock();
 
     const animate = () => {
-      animationFrameId = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      animId = requestAnimationFrame(animate);
+      const time = clock.getElapsedTime();
 
-      // Smooth particle drift
-      const posAttr = geometry.attributes.position as THREE.BufferAttribute;
-      const posArr = posAttr.array as Float32Array;
+      // Smooth GSAP / Lerp parallax
+      masterGroup.rotation.y += (targetRotY - masterGroup.rotation.y) * 0.08;
+      masterGroup.rotation.x += (targetRotX - masterGroup.rotation.x) * 0.08;
 
-      let lineIdx = 0;
-      const linePosArr = (lineGeo.attributes.position as THREE.BufferAttribute).array as Float32Array;
+      // Center Group & Exploded Slice floating levitation
+      centerGroup.position.y = Math.sin(time * 1.2) * 0.06;
+      centerGroup.rotation.z = Math.sin(time * 0.4) * 0.03;
+      slice3.position.z = 0.22 + Math.sin(time * 2.0) * 0.06;
 
-      for (let i = 0; i < particleCount; i++) {
-        posArr[i * 3] += velocities[i].x;
-        posArr[i * 3 + 1] += velocities[i].y;
-        posArr[i * 3 + 2] += velocities[i].z;
+      // Widget independent floating levitation
+      barWidget.position.y = 2.2 + Math.sin(time * 1.5) * 0.08;
+      trendWidget.position.y = 2.1 + Math.sin(time * 1.3 + 1.2) * 0.08;
+      dbWidget.position.y = -2.1 + Math.sin(time * 1.6 + 2.4) * 0.08;
+      matrixWidget.position.y = -2.1 + Math.sin(time * 1.4 + 3.6) * 0.08;
 
-        // Boundary wrap
-        if (posArr[i * 3] > 16) posArr[i * 3] = -16;
-        if (posArr[i * 3] < -16) posArr[i * 3] = 16;
-        if (posArr[i * 3 + 1] > 16) posArr[i * 3 + 1] = -16;
-        if (posArr[i * 3 + 1] < -16) posArr[i * 3 + 1] = 16;
-
-        // Connect lines
-        for (let j = i + 1; j < particleCount; j++) {
-          const dx = posArr[i * 3] - posArr[j * 3];
-          const dy = posArr[i * 3 + 1] - posArr[j * 3 + 1];
-          const dz = posArr[i * 3 + 2] - posArr[j * 3 + 2];
-          const distSq = dx * dx + dy * dy + dz * dz;
-
-          if (distSq < 36 && lineIdx < maxLineSegments * 6 - 6) {
-            linePosArr[lineIdx++] = posArr[i * 3];
-            linePosArr[lineIdx++] = posArr[i * 3 + 1];
-            linePosArr[lineIdx++] = posArr[i * 3 + 2];
-            linePosArr[lineIdx++] = posArr[j * 3];
-            linePosArr[lineIdx++] = posArr[j * 3 + 1];
-            linePosArr[lineIdx++] = posArr[j * 3 + 2];
-          }
-        }
+      // Animate Bar Heights subtly
+      for (let i = 0; i < 4; i++) {
+        const pulse = 1.0 + Math.sin(time * 2.2 + i * 0.9) * 0.12;
+        barMeshes[i].scale.y = pulse;
       }
 
-      posAttr.needsUpdate = true;
-      lineGeo.setDrawRange(0, lineIdx / 3);
-      (lineGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+      // Animate Database Disk rotation
+      for (let i = 0; i < 3; i++) {
+        dbDisks[i].rotation.y = time * 0.4 * (i % 2 === 0 ? 1 : -1);
+      }
 
-      // Gentle camera reaction
-      camera.position.x += (mouseX * 1.5 - camera.position.x) * 0.05;
-      camera.position.y += (mouseY * 1.5 - camera.position.y) * 0.05;
-      camera.lookAt(scene.position);
+      // Animate Matrix Heatmap Cells luminescence
+      for (let idx = 0; idx < matrixMats.length; idx++) {
+        const intensity = 0.35 + Math.sin(time * 2.5 + idx * 0.45) * 0.25;
+        matrixMats[idx].emissiveIntensity = Math.max(0.1, intensity);
+      }
+
+      // Orbiting Sparks along tilted ellipses
+      const sparkAngle1 = time * 0.8;
+      const v1 = new THREE.Vector3(Math.cos(sparkAngle1) * 4.7, Math.sin(sparkAngle1) * 4.7, 0);
+      v1.applyEuler(ring1.rotation);
+      spark1.position.copy(v1);
+
+      const sparkAngle2 = -time * 0.65 + 1.8;
+      const v2 = new THREE.Vector3(Math.cos(sparkAngle2) * 4.3, Math.sin(sparkAngle2) * 4.3, 0);
+      v2.applyEuler(ring2.rotation);
+      spark2.position.copy(v2);
+
+      // Slow drift of background particles
+      particles.rotation.y = time * 0.02;
+      particles.rotation.x = Math.sin(time * 0.015) * 0.05;
 
       renderer.render(scene, camera);
     };
@@ -195,140 +678,47 @@ export default function ThreeHeroVisual() {
     window.addEventListener("resize", handleResize);
 
     return () => {
-      window.removeEventListener("mousemove", onPointerMove);
       window.removeEventListener("resize", handleResize);
-      cancelAnimationFrame(animationFrameId);
+      container.removeEventListener("mousemove", onMouseMove);
+      container.removeEventListener("mouseleave", onMouseLeave);
+      cancelAnimationFrame(animId);
+
+      // Clean up Three.js resources
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m) => m.dispose());
+          } else if (obj.material) {
+            obj.material.dispose();
+          }
+        }
+      });
       renderer.dispose();
     };
-  }, [themeMode]);
+  }, [currentTheme]);
 
-  // GSAP 3D Interactive Parallax & Subtle Levitation on the 3D card
-  useEffect(() => {
-    const card = cardRef.current;
-    const container = containerRef.current;
-    const glare = glareRef.current;
-    if (!card || !container) return;
-
-    // Continuous floating levitation
-    const floatTween = gsap.to(card, {
-      y: -10,
-      duration: 3.2,
-      ease: "sine.inOut",
-      yoyo: true,
-      repeat: -1,
-    });
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      const normX = (x / rect.width) * 2 - 1;
-      const normY = (y / rect.height) * 2 - 1;
-
-      // GSAP smooth 3D tilt
-      gsap.to(card, {
-        rotateY: normX * 14,
-        rotateX: -normY * 14,
-        scale: 1.02,
-        duration: 0.8,
-        ease: "power2.out",
-        transformPerspective: 1200,
-        transformOrigin: "center center",
-      });
-
-      // Specular glare position
-      if (glare) {
-        const glareX = (x / rect.width) * 100;
-        const glareY = (y / rect.height) * 100;
-        gsap.to(glare, {
-          background: `radial-gradient(circle 350px at ${glareX}% ${glareY}%, ${
-            themeMode === "light"
-              ? "rgba(255, 255, 255, 0.45)"
-              : "rgba(56, 189, 248, 0.18)"
-          }, transparent 70%)`,
-          duration: 0.3,
-        });
-      }
-    };
-
-    const handleMouseLeave = () => {
-      gsap.to(card, {
-        rotateX: 0,
-        rotateY: 0,
-        scale: 1,
-        duration: 1.2,
-        ease: "power2.out",
-      });
-      if (glare) {
-        gsap.to(glare, {
-          background: "transparent",
-          duration: 0.8,
-        });
-      }
-    };
-
-    container.addEventListener("mousemove", handleMouseMove);
-    container.addEventListener("mouseleave", handleMouseLeave);
-
-    return () => {
-      floatTween.kill();
-      container.removeEventListener("mousemove", handleMouseMove);
-      container.removeEventListener("mouseleave", handleMouseLeave);
-    };
-  }, [themeMode]);
-
-  const isLight = themeMode === "light";
+  const activeTheme = THEME_PALETTES[currentTheme] || THEME_PALETTES.dark;
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full max-w-[540px] aspect-square flex items-center justify-center select-none"
+      className="relative w-full max-w-[560px] aspect-square flex items-center justify-center select-none"
     >
-      {/* 1. Three.js Background Particle Constellation */}
+      {/* 1. Theme-Reactive Ambient Radial Glow */}
+      <div
+        className="absolute w-[440px] h-[440px] rounded-full blur-[130px] pointer-events-none transition-all duration-700 opacity-60 z-0"
+        style={{
+          background: `radial-gradient(circle, ${activeTheme.bgGlow} 0%, transparent 70%)`,
+        }}
+      />
+
+      {/* 2. Interactive 3D WebGL Canvas (No fixed JPEG box, seamless alpha transparency) */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full pointer-events-none z-0"
+        className="relative z-10 w-full h-full cursor-grab active:cursor-grabbing outline-none"
+        style={{ background: "transparent" }}
       />
-
-      {/* 2. Ambient Glow Orb */}
-      <div
-        className="absolute w-[360px] h-[360px] rounded-full blur-[110px] pointer-events-none transition-all duration-700 opacity-60 z-0"
-        style={{
-          background: isLight
-            ? "radial-gradient(circle, rgba(56, 189, 248, 0.25) 0%, rgba(244, 63, 94, 0.15) 100%)"
-            : "radial-gradient(circle, rgba(56, 189, 248, 0.35) 0%, rgba(168, 85, 247, 0.25) 100%)",
-        }}
-      />
-
-      {/* 3. Central 3D Glassmorphic Masterpiece Card with GSAP Parallax */}
-      <div
-        ref={cardRef}
-        className="relative z-10 w-[88%] aspect-square rounded-[2.5rem] p-1.5 transition-shadow duration-500 overflow-hidden"
-        style={{
-          boxShadow: isLight
-            ? "0 30px 60px -15px rgba(0, 0, 0, 0.12), 0 0 40px rgba(56, 189, 248, 0.15)"
-            : "0 30px 70px -15px rgba(0, 0, 0, 0.65), 0 0 50px rgba(56, 189, 248, 0.25)",
-        }}
-      >
-        {/* Specular Interactive Glass Glare */}
-        <div
-          ref={glareRef}
-          className="absolute inset-0 pointer-events-none z-20 rounded-[2.5rem] transition-opacity duration-300"
-        />
-
-        {/* 3D Image Artwork: Switches seamlessly between Light and Dark */}
-        <div className="relative w-full h-full rounded-[2.2rem] overflow-hidden">
-          <Image
-            src={isLight ? "/hero_3d_light.jpg" : "/hero_3d_dark.jpg"}
-            alt="DataForge 3D Analytics Ecosystem"
-            fill
-            priority
-            sizes="(max-width: 768px) 100vw, 540px"
-            className="object-cover transition-opacity duration-500"
-          />
-        </div>
-      </div>
     </div>
   );
 }
