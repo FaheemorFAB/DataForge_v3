@@ -58,10 +58,10 @@ export default function FeatureGrid() {
     {
       title: "Generative AI Insights",
       eyebrow: "STEP 03 / REASONING",
-      desc: "Gemini 2.5 synthesis translates raw distributions and cross-correlations into executive summaries, key drivers, and actionable strategic takeaways.",
+      desc: "Automated synthesis translates raw distributions and cross-correlations into executive summaries, key drivers, and actionable strategic takeaways.",
       icon: Sparkles,
       accent: "#a855f7",
-      tag: "Gemini 2.5 Flash",
+      tag: "DataForge AI",
       gridSpan: "col-span-1 md:col-span-1 lg:col-span-1",
     },
     {

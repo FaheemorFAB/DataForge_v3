@@ -373,7 +373,7 @@ function AIVisual() {
           className="text-[10px] font-bold uppercase tracking-wider"
           style={{ color: "var(--txt-m)" }}
         >
-          Gemini 2.5 Flash · AI Chat
+          DataForge AI · Instant Chat
         </span>
         <div className="ml-auto flex gap-1">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -640,7 +640,7 @@ const PIPELINE_STAGES = [
     label: "Ask AI",
     icon: MessageSquareCode,
     color: "#6366F1",
-    desc: "Query your dataset in plain English. Google Gemini 2.5 Flash returns instant, data-backed answers.",
+    desc: "Query your dataset in plain English. The DataForge AI engine returns instant, data-backed answers.",
     Visual: AIVisual,
   },
   {
@@ -910,7 +910,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
 const TECH = [
   { category: "Frontend", name: "Next.js + React", icon: Globe },
   { category: "Backend API", name: "FastAPI + Python", icon: Server },
-  { category: "AI", name: "Google Gemini 2.5", icon: Bot },
+  { category: "AI", name: "DataForge Copilot", icon: Bot },
   { category: "AutoML", name: "FLAML + SHAP", icon: Cpu },
   { category: "Auth + DB", name: "Supabase + OAuth 2.0", icon: Key },
   { category: "Storage", name: "Supabase + Redis", icon: HardDrive },

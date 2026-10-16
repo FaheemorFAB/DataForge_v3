@@ -32,7 +32,7 @@ export default function Footer() {
               </span>
               <span>•</span>
               <span className="flex items-center gap-1">
-                <Zap size={12} className="text-orange-400" /> FLAML & Gemini 2.5
+                <Zap size={12} className="text-orange-400" /> FLAML & DuckDB Engine
               </span>
             </div>
           </div>
