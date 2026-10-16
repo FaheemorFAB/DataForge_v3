@@ -12,7 +12,6 @@ export default function ThreeHeroVisual() {
   const glareRef = useRef<HTMLDivElement>(null);
 
   const [themeMode, setThemeMode] = useState<"light" | "dark">("dark");
-  const [activeBadge, setActiveBadge] = useState<string | null>(null);
 
   // Synchronize with active theme
   useEffect(() => {
@@ -281,33 +280,6 @@ export default function ThreeHeroVisual() {
 
   const isLight = themeMode === "light";
 
-  const badges = [
-    {
-      id: "ingest",
-      label: "✦ Ingest",
-      desc: "Fast streaming of CSV, Excel, Parquet & SQL",
-      pos: "top-4 left-1/2 -translate-x-1/2",
-    },
-    {
-      id: "structure",
-      label: "✦ Structure",
-      desc: "Instant schema inference & anomaly detection",
-      pos: "top-1/3 left-2 sm:left-4",
-    },
-    {
-      id: "predict",
-      label: "✦ Predict",
-      desc: "AutoML models & predictive forecasting",
-      pos: "top-1/3 right-2 sm:right-4",
-    },
-    {
-      id: "insight",
-      label: "✦ Insight",
-      desc: "Executive visual dashboards & AI reports",
-      pos: "bottom-4 left-1/2 -translate-x-1/2",
-    },
-  ];
-
   return (
     <div
       ref={containerRef}
@@ -357,42 +329,6 @@ export default function ThreeHeroVisual() {
           />
         </div>
       </div>
-
-      {/* 4. Interactive Floating Pills along the Orbit */}
-      {badges.map((b) => {
-        const isHovered = activeBadge === b.id;
-        return (
-          <div
-            key={b.id}
-            onMouseEnter={() => setActiveBadge(b.id)}
-            onMouseLeave={() => setActiveBadge(null)}
-            className={`absolute z-30 ${b.pos} cursor-pointer transition-all duration-300`}
-          >
-            <div
-              className={`px-3.5 py-1.5 rounded-full text-xs font-black tracking-wide border shadow-xl backdrop-blur-xl transition-all duration-300 hover:scale-108 ${
-                isLight
-                  ? "bg-white/95 text-slate-900 border-slate-300 shadow-slate-300/50 hover:border-sky-500"
-                  : "bg-slate-900/85 text-cyan-300 border-cyan-500/40 shadow-cyan-500/25 hover:border-cyan-400"
-              }`}
-            >
-              {b.label}
-            </div>
-
-            {/* Hover Tooltip explaining the node */}
-            {isHovered && (
-              <div
-                className={`absolute left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap shadow-2xl border backdrop-blur-2xl transition-all duration-200 z-40 ${
-                  isLight
-                    ? "bg-slate-900 text-white border-slate-700"
-                    : "bg-white text-slate-950 border-slate-200"
-                }`}
-              >
-                {b.desc}
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
