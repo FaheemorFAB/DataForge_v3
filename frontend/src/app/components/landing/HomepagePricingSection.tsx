@@ -116,11 +116,7 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
         </div>
 
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-3 border border-[var(--border)] bg-[var(--card-bg)] text-[var(--accent)]">
-            <Sparkles size={13} />
-            <span>Transparent Public Pricing</span>
-          </div>
+        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-12">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-[var(--txt)] mb-3">
             Predictable plans. Built for data teams.
           </h2>
@@ -159,7 +155,7 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
         </div>
 
         {/* 3 Paid Pricing Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-7 items-stretch">
           {plans.map((plan) => {
             const currentPrice = billingCycle === "annually" ? plan.annualPrice : plan.price;
             return (
@@ -167,7 +163,7 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
                 key={plan.id}
                 whileHover={{ y: -4 }}
                 transition={{ duration: 0.2 }}
-                className={`relative rounded-3xl p-7 flex flex-col justify-between border transition-all ${
+                className={`relative rounded-3xl p-5 sm:p-6 lg:p-7 flex flex-col justify-between border transition-all ${
                   plan.popular
                     ? "border-[var(--accent)] bg-[var(--card-bg)] shadow-2xl ring-2 ring-[var(--accent)]/30"
                     : "border-[var(--border)] bg-[var(--card-bg)] shadow-lg"

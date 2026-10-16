@@ -181,10 +181,6 @@ export default function ThreeHeroVisual() {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
 
-    // Initial camera position & responsive scale
-    const isMobile = width < 560;
-    camera.position.set(0, 0, isMobile ? 16.5 : 15.0);
-
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
@@ -196,18 +192,41 @@ export default function ThreeHeroVisual() {
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     } catch (e) {
-      console.warn("WebGL initialization fallback:", e);
+      console.warn("WebGL not supported", e);
       return;
     }
 
     const activeTheme = THEME_PALETTES[currentTheme] || THEME_PALETTES.dark;
     const p = activeTheme.palette;
 
-    // Root Master Group for Parallax Tilt & Mobile Scale Fitting
+    // Root Master Group for Parallax Tilt & Responsive Fitting
     const masterGroup = new THREE.Group();
-    const initialScale = isMobile ? Math.min(1.0, Math.max(0.66, width / 510)) : 1.0;
-    masterGroup.scale.set(initialScale, initialScale, initialScale);
     scene.add(masterGroup);
+
+    // Dynamic responsive scale & camera depth for phones, tablets & desktops
+    const updateResponsiveLayout = (w: number) => {
+      if (w < 480) {
+        // Small smartphones
+        const s = Math.min(1.0, Math.max(0.65, w / 480));
+        masterGroup.scale.set(s, s, s);
+        camera.position.z = 16.5;
+      } else if (w < 640) {
+        // Large smartphones / phablets
+        const s = Math.min(1.0, Math.max(0.75, w / 520));
+        masterGroup.scale.set(s, s, s);
+        camera.position.z = 15.8;
+      } else if (w < 1024) {
+        // Tablets (iPad, 768px - 1024px)
+        const s = Math.min(1.0, Math.max(0.85, w / 540));
+        masterGroup.scale.set(s, s, s);
+        camera.position.z = 15.2;
+      } else {
+        // Desktops
+        masterGroup.scale.set(1.0, 1.0, 1.0);
+        camera.position.z = 15.0;
+      }
+    };
+    updateResponsiveLayout(width);
 
     // Dynamic Lights
     const ambientLight = new THREE.AmbientLight(
@@ -615,7 +634,22 @@ export default function ThreeHeroVisual() {
       cursorPointLight.position.set(0, 0, 8);
     };
 
-    // Smartphone Touch Interaction (Fluid thumb tilt)
+    // Touch Interaction for Tablets & Smartphones (Fluid drag tilt)
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches && e.touches.length > 0) {
+        const touch = e.touches[0];
+        const rect = container.getBoundingClientRect();
+        const normX = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+        const normY = -(((touch.clientY - rect.top) / rect.height) * 2 - 1);
+
+        targetRotY = normX * 0.3;
+        targetRotX = -normY * 0.3;
+
+        cursorPointLight.position.x = normX * 5;
+        cursorPointLight.position.y = normY * 5;
+      }
+    };
+
     const onTouchMove = (e: TouchEvent) => {
       if (e.touches && e.touches.length > 0) {
         const touch = e.touches[0];
@@ -623,8 +657,8 @@ export default function ThreeHeroVisual() {
         const normX = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
         const normY = -(((touch.clientY - rect.top) / rect.height) * 2 - 1);
 
-        targetRotY = normX * 0.32;
-        targetRotX = -normY * 0.32;
+        targetRotY = normX * 0.3;
+        targetRotX = -normY * 0.3;
 
         cursorPointLight.position.x = normX * 5;
         cursorPointLight.position.y = normY * 5;
@@ -639,6 +673,7 @@ export default function ThreeHeroVisual() {
 
     container.addEventListener("mousemove", onMouseMove);
     container.addEventListener("mouseleave", onMouseLeave);
+    container.addEventListener("touchstart", onTouchStart, { passive: true });
     container.addEventListener("touchmove", onTouchMove, { passive: true });
     container.addEventListener("touchend", onTouchEnd, { passive: true });
 
@@ -710,11 +745,8 @@ export default function ThreeHeroVisual() {
       const h = container.clientHeight;
       camera.aspect = w / h;
 
-      // Dynamically fit all 3D assets inside mobile smartphones
-      const isMob = w < 560;
-      const scaleVal = isMob ? Math.min(1.0, Math.max(0.66, w / 510)) : 1.0;
-      masterGroup.scale.set(scaleVal, scaleVal, scaleVal);
-      camera.position.z = isMob ? 16.5 : 15.0;
+      // Responsive scale & camera depth for phones, tablets & desktops
+      updateResponsiveLayout(w);
 
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
@@ -726,6 +758,7 @@ export default function ThreeHeroVisual() {
       window.removeEventListener("resize", handleResize);
       container.removeEventListener("mousemove", onMouseMove);
       container.removeEventListener("mouseleave", onMouseLeave);
+      container.removeEventListener("touchstart", onTouchStart);
       container.removeEventListener("touchmove", onTouchMove);
       container.removeEventListener("touchend", onTouchEnd);
       visibilityObserver.disconnect();
@@ -751,12 +784,12 @@ export default function ThreeHeroVisual() {
   return (
     <div
       ref={containerRef}
-      className="relative w-full max-w-[540px] aspect-square max-h-[380px] xs:max-h-[440px] sm:max-h-none flex items-center justify-center select-none"
+      className="relative w-full max-w-[480px] md:max-w-[540px] lg:max-w-[560px] aspect-square max-h-[360px] xs:max-h-[420px] md:max-h-none flex items-center justify-center select-none mx-auto"
       style={{ touchAction: "pan-y" }}
     >
       {/* 1. Theme-Reactive Ambient Radial Glow */}
       <div
-        className="absolute w-[280px] sm:w-[440px] h-[280px] sm:h-[440px] rounded-full blur-[80px] sm:blur-[130px] pointer-events-none transition-all duration-700 opacity-60 z-0"
+        className="absolute w-[260px] sm:w-[380px] md:w-[440px] h-[260px] sm:h-[380px] md:h-[440px] rounded-full blur-[70px] sm:blur-[100px] md:blur-[130px] pointer-events-none transition-all duration-700 opacity-60 z-0"
         style={{
           background: `radial-gradient(circle, ${activeTheme.bgGlow} 0%, transparent 70%)`,
         }}

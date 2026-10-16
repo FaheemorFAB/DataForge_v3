@@ -710,9 +710,9 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
           </div>
 
           {/* Split */}
-          <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+          <div className="flex flex-col md:flex-row gap-6 md:gap-8 lg:gap-12 items-start">
             {/* Left — timeline */}
-            <div className="lg:w-2/5 relative flex flex-col gap-0">
+            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0">
               <div
                 className="absolute left-6 top-0 bottom-0 w-px"
                 style={{ background: "var(--border)", zIndex: 0 }}
@@ -805,7 +805,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
             </div>
 
             {/* Right — visual panel */}
-            <div className="lg:w-3/5">
+            <div className="w-full md:w-7/12 lg:w-3/5">
               <div
                 className="rounded-2xl border overflow-hidden shadow-2xl transition-all duration-500"
                 style={{
@@ -1037,7 +1037,7 @@ export default function Home() {
             />
           </div>
 
-          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-8 items-center">
+          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center">
             {/* Left side: Text & CTA */}
             <div className="flex flex-col items-start text-left gap-6 sm:gap-8 w-full">
               <motion.div
@@ -1047,7 +1047,7 @@ export default function Home() {
                 className="flex flex-col items-start w-full"
               >
                 <h1
-                  className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.12] sm:leading-[1.1] mb-4 sm:mb-5 transition-colors duration-300"
+                  className="text-3xl sm:text-4xl md:text-[2.6rem] lg:text-5xl xl:text-6xl font-black tracking-tight leading-[1.12] sm:leading-[1.1] mb-4 sm:mb-5 transition-colors duration-300"
                   style={{ color: "var(--txt)" }}
                 >
                   Turning Messy Data
@@ -1106,8 +1106,8 @@ export default function Home() {
         </section>
 
         {/* ══════════════ ORIGIN STORY ══════════════ */}
-        <section id="origin" className="py-20 px-5 sm:px-8">
-          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center">
+        <section id="origin" className="py-14 sm:py-20 px-4 sm:px-8">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-8 lg:gap-12 items-center">
             {/* Left side: Text */}
             <motion.div
               initial="hidden"

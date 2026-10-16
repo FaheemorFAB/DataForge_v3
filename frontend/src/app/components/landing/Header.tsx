@@ -51,7 +51,7 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
         </div>
 
         {/* Desktop Navigation links */}
-        <nav className="hidden md:flex items-center gap-6 text-xs font-semibold">
+        <nav className="hidden md:flex items-center gap-4 lg:gap-6 text-xs font-semibold">
           {navLinks.map((link) => (
             <Link
               key={link.label}
