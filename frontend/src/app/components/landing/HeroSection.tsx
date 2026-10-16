@@ -361,7 +361,7 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
             className="text-base sm:text-lg leading-relaxed font-normal max-w-xl"
             style={{ color: "var(--txt-m)" }}
           >
-            Instant auto-cleaning, distribution profiling, Gemini-powered insights, and multi-model AutoML leaderboards. Zero setup, zero boilerplate.
+            Instant auto-cleaning, distribution profiling, AI-powered insights, and multi-model AutoML leaderboards. Zero setup, zero boilerplate.
           </p>
 
           {/* Quick Pillars */}
@@ -370,7 +370,7 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
               { icon: Zap, label: "Zero-Config Clean" },
               { icon: BarChart3, label: "Statistical EDA" },
               { icon: Brain, label: "FLAML AutoML" },
-              { icon: Sparkles, label: "Gemini Insights" },
+              { icon: Sparkles, label: "AI Insights" },
             ].map((p, idx) => {
               const Icon = p.icon;
               return (
