@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import gsap from "gsap";
 
 interface ThemePalette {
   name: string;
@@ -169,19 +168,22 @@ export default function ThreeHeroVisual() {
     return () => observer.disconnect();
   }, []);
 
-  // Main Three.js real-time 3D Analytics scene
+  // Main Three.js real-time 3D Analytics scene with full Mobile Responsiveness
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
 
     let animId: number;
-    const width = container.clientWidth || 560;
-    const height = container.clientHeight || 560;
+    const width = container.clientWidth || 540;
+    const height = container.clientHeight || 540;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 0, 15);
+
+    // Initial camera position & responsive scale
+    const isMobile = width < 560;
+    camera.position.set(0, 0, isMobile ? 16.5 : 15.0);
 
     let renderer: THREE.WebGLRenderer;
     try {
@@ -201,14 +203,16 @@ export default function ThreeHeroVisual() {
     const activeTheme = THEME_PALETTES[currentTheme] || THEME_PALETTES.dark;
     const p = activeTheme.palette;
 
-    // Root Master Group for GSAP Parallax Tilt
+    // Root Master Group for Parallax Tilt & Mobile Scale Fitting
     const masterGroup = new THREE.Group();
+    const initialScale = isMobile ? Math.min(1.0, Math.max(0.66, width / 510)) : 1.0;
+    masterGroup.scale.set(initialScale, initialScale, initialScale);
     scene.add(masterGroup);
 
     // Dynamic Lights
     const ambientLight = new THREE.AmbientLight(
       0xffffff,
-      activeTheme.isLight ? 1.9 : 1.3
+      activeTheme.isLight ? 2.0 : 1.3
     );
     scene.add(ambientLight);
 
@@ -220,7 +224,7 @@ export default function ThreeHeroVisual() {
     rimLight.position.set(-6, -6, -6);
     scene.add(rimLight);
 
-    const cursorPointLight = new THREE.PointLight(new THREE.Color(p[1]), 2.0, 18);
+    const cursorPointLight = new THREE.PointLight(new THREE.Color(p[1]), 2.2, 18);
     cursorPointLight.position.set(0, 0, 8);
     scene.add(cursorPointLight);
 
@@ -577,20 +581,26 @@ export default function ThreeHeroVisual() {
     scene.add(particles);
 
     // ==========================================
-    // INTERACTION & ANIMATION LOOP
+    // INTERACTION & ANIMATION LOOP (MOUSE & TOUCH)
     // ==========================================
-    let mouseX = 0;
-    let mouseY = 0;
     let targetRotX = 0;
     let targetRotY = 0;
+    let isVisible = true;
 
+    // Viewport IntersectionObserver: Pause rendering when off-screen to save mobile battery
+    const visibilityObserver = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry.isIntersecting;
+      },
+      { threshold: 0.05 }
+    );
+    visibilityObserver.observe(container);
+
+    // Mouse Interaction
     const onMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
       const normX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       const normY = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
-
-      mouseX = normX;
-      mouseY = normY;
 
       targetRotY = normX * 0.28;
       targetRotX = -normY * 0.28;
@@ -605,13 +615,41 @@ export default function ThreeHeroVisual() {
       cursorPointLight.position.set(0, 0, 8);
     };
 
+    // Smartphone Touch Interaction (Fluid thumb tilt)
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches && e.touches.length > 0) {
+        const touch = e.touches[0];
+        const rect = container.getBoundingClientRect();
+        const normX = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+        const normY = -(((touch.clientY - rect.top) / rect.height) * 2 - 1);
+
+        targetRotY = normX * 0.32;
+        targetRotX = -normY * 0.32;
+
+        cursorPointLight.position.x = normX * 5;
+        cursorPointLight.position.y = normY * 5;
+      }
+    };
+
+    const onTouchEnd = () => {
+      targetRotX = 0;
+      targetRotY = 0;
+      cursorPointLight.position.set(0, 0, 8);
+    };
+
     container.addEventListener("mousemove", onMouseMove);
     container.addEventListener("mouseleave", onMouseLeave);
+    container.addEventListener("touchmove", onTouchMove, { passive: true });
+    container.addEventListener("touchend", onTouchEnd, { passive: true });
 
     const clock = new THREE.Clock();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
+
+      // Only perform heavy WebGL render if visible on screen
+      if (!isVisible) return;
+
       const time = clock.getElapsedTime();
 
       // Smooth GSAP / Lerp parallax
@@ -671,6 +709,13 @@ export default function ThreeHeroVisual() {
       const w = container.clientWidth;
       const h = container.clientHeight;
       camera.aspect = w / h;
+
+      // Dynamically fit all 3D assets inside mobile smartphones
+      const isMob = w < 560;
+      const scaleVal = isMob ? Math.min(1.0, Math.max(0.66, w / 510)) : 1.0;
+      masterGroup.scale.set(scaleVal, scaleVal, scaleVal);
+      camera.position.z = isMob ? 16.5 : 15.0;
+
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
@@ -681,6 +726,9 @@ export default function ThreeHeroVisual() {
       window.removeEventListener("resize", handleResize);
       container.removeEventListener("mousemove", onMouseMove);
       container.removeEventListener("mouseleave", onMouseLeave);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      visibilityObserver.disconnect();
       cancelAnimationFrame(animId);
 
       // Clean up Three.js resources
@@ -703,21 +751,22 @@ export default function ThreeHeroVisual() {
   return (
     <div
       ref={containerRef}
-      className="relative w-full max-w-[560px] aspect-square flex items-center justify-center select-none"
+      className="relative w-full max-w-[540px] aspect-square max-h-[380px] xs:max-h-[440px] sm:max-h-none flex items-center justify-center select-none"
+      style={{ touchAction: "pan-y" }}
     >
       {/* 1. Theme-Reactive Ambient Radial Glow */}
       <div
-        className="absolute w-[440px] h-[440px] rounded-full blur-[130px] pointer-events-none transition-all duration-700 opacity-60 z-0"
+        className="absolute w-[280px] sm:w-[440px] h-[280px] sm:h-[440px] rounded-full blur-[80px] sm:blur-[130px] pointer-events-none transition-all duration-700 opacity-60 z-0"
         style={{
           background: `radial-gradient(circle, ${activeTheme.bgGlow} 0%, transparent 70%)`,
         }}
       />
 
-      {/* 2. Interactive 3D WebGL Canvas (No fixed JPEG box, seamless alpha transparency) */}
+      {/* 2. Interactive 3D WebGL Canvas */}
       <canvas
         ref={canvasRef}
         className="relative z-10 w-full h-full cursor-grab active:cursor-grabbing outline-none"
-        style={{ background: "transparent" }}
+        style={{ background: "transparent", touchAction: "pan-y" }}
       />
     </div>
   );

@@ -87,12 +87,12 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
       <div className="max-w-7xl mx-auto">
         {/* Free Starter subtle banner */}
         <div
-          className="mb-10 max-w-2xl mx-auto p-3 rounded-2xl border flex items-center justify-between text-xs text-center sm:text-left shadow-sm"
+          className="mb-10 max-w-2xl mx-auto p-3 sm:p-3.5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-center sm:text-left shadow-sm"
           style={{ background: "var(--card-bg)", borderColor: "var(--border)" }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-center gap-2">
             <span
-              className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border"
+              className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border shrink-0"
               style={{
                 background: "rgba(16, 185, 129, 0.1)",
                 borderColor: "rgba(16, 185, 129, 0.3)",
@@ -108,7 +108,7 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
           <button
             type="button"
             onClick={() => onSelectPlan("free")}
-            className="font-bold underline cursor-pointer shrink-0"
+            className="font-bold underline cursor-pointer shrink-0 hover:opacity-80 transition-opacity"
             style={{ color: "var(--accent)" }}
           >
             Launch Free →

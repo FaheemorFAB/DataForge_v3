@@ -1029,25 +1029,25 @@ export default function Home() {
 
       <main className="flex-1 w-full flex flex-col">
         {/* ══════════════ HERO ══════════════ */}
-        <section className="relative overflow-hidden min-h-[calc(100vh-80px)] flex items-center py-20 px-5 sm:px-8">
+        <section className="relative overflow-hidden min-h-[calc(100vh-80px)] flex items-center py-10 sm:py-20 px-4 sm:px-8">
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div
-              className="w-[600px] h-[600px] rounded-full filter blur-[140px] opacity-[0.12] transition-colors duration-500"
+              className="w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] rounded-full filter blur-[100px] sm:blur-[140px] opacity-[0.14] transition-colors duration-500"
               style={{ background: "var(--accent)" }}
             />
           </div>
 
-          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center">
+          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 lg:gap-8 items-center">
             {/* Left side: Text & CTA */}
-            <div className="flex flex-col items-start text-left gap-8">
+            <div className="flex flex-col items-start text-left gap-6 sm:gap-8 w-full">
               <motion.div
                 initial="hidden"
                 animate="visible"
                 variants={fadeUp}
-                className="flex flex-col items-start"
+                className="flex flex-col items-start w-full"
               >
                 <h1
-                  className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] mb-5 transition-colors duration-300"
+                  className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.12] sm:leading-[1.1] mb-4 sm:mb-5 transition-colors duration-300"
                   style={{ color: "var(--txt)" }}
                 >
                   Turning Messy Data
@@ -1056,7 +1056,7 @@ export default function Home() {
                   <span style={{ color: "var(--accent)" }}>Clear Decisions.</span>
                 </h1>
                 <p
-                  className="max-w-lg text-lg sm:text-xl leading-relaxed transition-colors duration-300"
+                  className="max-w-lg text-base sm:text-lg lg:text-xl leading-relaxed transition-colors duration-300"
                   style={{ color: "var(--txt-m)" }}
                 >
                   Transform raw spreadsheets into statistical insights,
@@ -1068,19 +1068,19 @@ export default function Home() {
                 initial="hidden"
                 animate="visible"
                 variants={fadeUp}
-                className="flex items-center gap-3 flex-wrap"
+                className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto"
               >
                 <button
                   type="button"
                   onClick={() => handleLaunchWorkspace()}
-                  className="px-6 py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg hover:scale-105 transition-transform duration-200 cursor-pointer"
+                  className="w-full sm:w-auto justify-center px-6 py-3.5 sm:py-3 rounded-xl text-sm font-bold flex items-center gap-2 shadow-lg hover:scale-105 active:scale-[0.98] transition-all duration-200 cursor-pointer"
                   style={{ background: "var(--accent)", color: "#fff" }}
                 >
                   Launch Workspace <ArrowRight size={16} />
                 </button>
                 <a
                   href="#pipeline"
-                  className="px-5 py-3 rounded-xl text-sm font-bold border hover:border-[var(--accent)] transition-colors duration-200"
+                  className="w-full sm:w-auto justify-center text-center px-5 py-3.5 sm:py-3 rounded-xl text-sm font-bold border hover:border-[var(--accent)] active:scale-[0.98] transition-all duration-200"
                   style={{
                     borderColor: "var(--border)",
                     background: "var(--card-bg)",

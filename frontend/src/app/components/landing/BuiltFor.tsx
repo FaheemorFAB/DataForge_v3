@@ -87,7 +87,7 @@ export default function BuiltFor() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{ delay: idx * 0.08, duration: 0.4 }}
-                className="audience-row group flex items-center justify-between p-5 sm:p-6 rounded-2xl border transition-all duration-300 hover:border-[var(--accent)] hover:-translate-y-0.5 hover:shadow-xl relative overflow-hidden"
+                className="audience-row group flex items-start sm:items-center justify-between p-4 sm:p-6 rounded-2xl border transition-all duration-300 hover:border-[var(--accent)] hover:-translate-y-0.5 hover:shadow-xl relative overflow-hidden"
                 style={{
                   borderColor: "var(--border)",
                   background: "var(--card-bg, var(--card))",
@@ -101,20 +101,20 @@ export default function BuiltFor() {
                   }}
                 />
 
-                <div className="flex items-center gap-5 flex-1 min-w-0 relative z-10">
+                <div className="flex items-start sm:items-center gap-3.5 sm:gap-5 flex-1 min-w-0 relative z-10">
                   <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 border transition-transform duration-300 group-hover:scale-105"
+                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center flex-shrink-0 border transition-transform duration-300 group-hover:scale-105"
                     style={{
                       background: "rgba(255, 67, 16, 0.08)",
                       borderColor: "rgba(255, 67, 16, 0.25)",
                       color: "var(--accent)",
                     }}
                   >
-                    <Icon size={20} />
+                    <Icon size={18} className="sm:w-5 sm:h-5" />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-1.5 md:gap-5 flex-1 items-center">
-                    <span className="text-base font-bold md:col-span-4 group-hover:text-[var(--accent)] transition-colors" style={{ color: "var(--txt)" }}>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-1 md:gap-5 flex-1 items-start sm:items-center">
+                    <span className="text-sm sm:text-base font-bold md:col-span-4 group-hover:text-[var(--accent)] transition-colors" style={{ color: "var(--txt)" }}>
                       {p.role}
                     </span>
                     <span className="text-xs sm:text-sm md:col-span-8 leading-relaxed" style={{ color: "var(--txt-m)" }}>
@@ -123,11 +123,11 @@ export default function BuiltFor() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 pl-4 flex-shrink-0 relative z-10">
+                <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 flex-shrink-0 relative z-10">
                   <span className="text-xs font-mono font-bold opacity-40 group-hover:opacity-100 group-hover:text-[var(--accent)] transition-all" style={{ color: "var(--txt-m)" }}>
                     {p.num}
                   </span>
-                  <ArrowRight size={16} className="opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0" style={{ color: "var(--accent)" }} />
+                  <ArrowRight size={15} className="opacity-0 group-hover:opacity-100 transition-all -translate-x-1 group-hover:translate-x-0 hidden sm:block" style={{ color: "var(--accent)" }} />
                 </div>
               </motion.div>
             );
