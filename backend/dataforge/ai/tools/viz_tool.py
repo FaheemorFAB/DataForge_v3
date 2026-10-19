@@ -42,6 +42,7 @@ def build_chart_tool(
     x_col: Optional[str] = None,
     y_col: Optional[str] = None,
     top_n: Optional[int] = 10,
+    allow_type_switch: bool = True,
 ) -> Optional[Dict[str, Any]]:
     """
     Transforms analytical outputs into full-featured, structured Chart.js specifications.
@@ -68,6 +69,7 @@ def build_chart_tool(
                     "y_label": y,
                     "color": "#6366f1",
                     "total_points": len(pts),
+                    "allow_type_switch": False,
                 }
 
         # 2. Categorical & Continuous Charts (Pie, Doughnut, Bar, Histogram, Line)
@@ -120,6 +122,7 @@ def build_chart_tool(
                 "x_label": lx,
                 "y_label": ly,
                 "title": f"{ly} by {lx}" if lx != ly else lx,
+                "allow_type_switch": allow_type_switch,
             }
 
         # 3. Table

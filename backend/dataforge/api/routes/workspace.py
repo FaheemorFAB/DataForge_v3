@@ -1038,6 +1038,7 @@ async def api_query(
 
     result["chat_sessions"] = chat_data["sessions"]
     result["active_session_id"] = session_id
+    result["chat_history"] = session["messages"]
     result["reply"] = msg
 
     return JSONResponse(content=safe_jsonable(result))

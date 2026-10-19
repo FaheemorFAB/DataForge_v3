@@ -116,7 +116,7 @@ def test_supervisor_identity_typos_and_smart_suggestions(sample_df):
     """Verify typos like 'waht is ur name' return official persona and never suggest plotting ID columns."""
     res = supervisor.execute("waht is ur name", sample_df)
     assert res["ok"] is True
-    assert "DataForge Analyst" in res["answer"]
+    assert "DataForge AI Analyst" in res["answer"]
     suggestions = res.get("suggested_actions", [])
     assert len(suggestions) > 0
     for s in suggestions:
@@ -138,4 +138,66 @@ def test_dataset_summary_with_preview_table(sample_df):
     assert res["result"] is not None
     assert res["result"]["type"] == "table"
     assert len(res["result"]["rows"]) == 5
+
+
+def test_identity_variations_persona(sample_df):
+    """Verify variations of identity questions respond with DataForge AI Analyst persona."""
+    queries = [
+        "what are u",
+        "what is ur name",
+        "who are u",
+        "who r u",
+        "tell me about yourself",
+        "who made you",
+    ]
+    for q in queries:
+        res = supervisor.execute(q, sample_df)
+        assert res["ok"] is True, f"Failed on query: {q}"
+        assert "DataForge AI Analyst" in res["answer"], f"Expected 'DataForge AI Analyst' in response to '{q}', got: {res['answer']}"
+
+
+def test_specific_chart_lock_vs_generic(sample_df):
+    """Verify specific chart types lock switching, whereas generic graph queries allow switching."""
+    from dataforge.ai.router.patterns import is_specific_chart_request
+
+    # 1. Specific queries lock options
+    is_spec, chart_type = is_specific_chart_request("make the pie")
+    assert is_spec is True
+    assert chart_type == "pie_chart"
+
+    is_spec, chart_type = is_specific_chart_request("show bar chart of revenue by region")
+    assert is_spec is True
+    assert chart_type == "bar_chart"
+
+    # 2. Generic queries do not lock
+    is_spec, chart_type = is_specific_chart_request("make its graph")
+    assert is_spec is False
+    assert chart_type is None
+
+    is_spec, chart_type = is_specific_chart_request("visualize revenue by region")
+    assert is_spec is False
+    assert chart_type is None
+
+    # 3. Test build_chart_tool allow_type_switch propagation
+    series = sample_df.groupby("region")["revenue"].sum()
+    chart_locked = build_chart_tool(
+        intent="pie_chart",
+        raw_result=series,
+        df=sample_df,
+        x_col="region",
+        y_col="revenue",
+        allow_type_switch=False,
+    )
+    assert chart_locked["allow_type_switch"] is False
+
+    chart_generic = build_chart_tool(
+        intent="bar_chart",
+        raw_result=series,
+        df=sample_df,
+        x_col="region",
+        y_col="revenue",
+        allow_type_switch=True,
+    )
+    assert chart_generic["allow_type_switch"] is True
+
 

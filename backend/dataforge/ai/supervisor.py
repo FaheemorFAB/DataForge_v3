@@ -108,20 +108,25 @@ class DataForgeSupervisor:
         )
 
         # 6. Interactive Visual Rendering via VisualizerAgent
+        from .router.patterns import is_specific_chart_request
+        is_spec, specific_type = is_specific_chart_request(clean_query)
+        effective_intent = specific_type if is_spec else corrected_intent
+
         chart_spec = build_chart_tool(
-            intent=corrected_intent,
+            intent=effective_intent,
             raw_result=raw_result,
             df=df,
             x_col=analysis.x_col,
             y_col=analysis.y_col,
             top_n=analysis.top_n or 10,
+            allow_type_switch=not is_spec,
         )
         if chart_spec:
             agent_actions.append(AgentAction(
                 agent="VisualizerAgent",
                 tool="build_chart_tool",
                 status="completed",
-                message=f"Rendered interactive {corrected_intent.replace('_', ' ')}.",
+                message=f"Rendered interactive {effective_intent.replace('_', ' ')}.",
             ))
 
         # 7. Follow-Up Suggested Actions (Intelligent, contextual, non-ID questions)

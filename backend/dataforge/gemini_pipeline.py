@@ -25,7 +25,17 @@ GEMINI_OK        = True
 
 # ── Identity intercept — questions about what model / who you are ─────────────
 _IDENTITY_PATTERNS = re.compile(
-    r"(who\s+(are|r)\s+you|w[ha]{2,4}t\s+(is|s)?\s*(yo?u?r)?\s*name|what\s+are\s+you|your\s+name|ur\s+name|what.*model|are\s+you\s+(an?\s+)?(ai|bot|chatbot|gpt|gemini|claude|llm)|tell\s+me\s+about\s+yourself|introduce\s+yourself|who\s+made\s+you|who\s+created\s+you)",
+    r"\b("
+    r"who\s+(are|r)\s+(you|u)|"
+    r"what\s+(are|r)\s+(you|u)|"
+    r"w[ha]{1,4}t(\s+i?s|\'s)?\s+(yo?u?r|ur)\s*name|"
+    r"yo?u?r\s+name|ur\s+name|"
+    r"what\s+is\s+this(\s+ai)?|"
+    r"who\s+(made|created|built)\s+(you|u)|"
+    r"tell\s+me\s+about\s+yourself|"
+    r"introduce\s+yourself|"
+    r"are\s+you\s+(an?\s+)?(ai|bot|chatbot|gpt|gemini|claude|llm)"
+    r")\b",
     re.IGNORECASE
 )
 
@@ -248,9 +258,19 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "", u
         from dataforge.ai.router.query_router import generate_smart_dataset_suggestions
         return {
             "error":   None,
-            "answer":  "I am DataForge Analyst, your enterprise AI data science and analytics assistant. I coordinate specialized data agents to analyze distributions, detect anomalies, train predictive models, clean dirty records, and build interactive visualizations for your dataset.",
-            "result":  {"type": "summary", "text": "I am DataForge Analyst, your enterprise AI data science and analytics assistant."},
-            "insight": "DataForge Analyst is ready to explore your dataset.",
+            "answer":  (
+                f"I am the **DataForge AI Analyst**, your intelligent data science and analytics assistant (powered by DataForge Autonomous Analytics Intelligence).\n\n"
+                f"I coordinate specialized domain agents to analyze distributions, detect anomalies, train predictive models, "
+                f"clean dirty records, and build interactive visualizations for your dataset ({len(df):,} records across {len(df.columns)} columns).\n\n"
+                f"- **Statistical Analytics**: Instant metric calculations, aggregations, and distributions.\n"
+                f"- **Visual Intelligence**: Interactive charts (bar, pie, donut, line) and data tables.\n"
+                f"- **Data Quality & Sanitization**: Detecting nulls, outliers, and anomalies.\n"
+                f"- **Machine Learning**: Predictive modeling, classification, and regression via AutoML.\n"
+                f"- **Pipeline Engineering**: Exporting automated ETL workflows for Python and Airflow.\n\n"
+                f"How can I help you analyze your data today?"
+            ),
+            "result":  {"type": "summary", "text": "I am the DataForge AI Analyst."},
+            "insight": "DataForge AI Analyst is ready to explore your dataset.",
             "intent":  {"type": "summary"},
             "engine":  "identity",
             "suggested_actions": generate_smart_dataset_suggestions(df, current_query=query),
@@ -300,7 +320,18 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "", u
 
             result = None
             if intent != "summary":
-                result = build_chart_tool(intent=intent, raw_result=raw, df=df, x_col=x_col, y_col=y_col, top_n=top_n)
+                from dataforge.ai.router.patterns import is_specific_chart_request
+                is_spec, spec_type = is_specific_chart_request(query)
+                effective_intent = spec_type if is_spec else intent
+                result = build_chart_tool(
+                    intent=effective_intent,
+                    raw_result=raw,
+                    df=df,
+                    x_col=x_col,
+                    y_col=y_col,
+                    top_n=top_n,
+                    allow_type_switch=not is_spec,
+                )
             if result is None:
                 result = {"type": "summary", "text": answer or "No result."}
 

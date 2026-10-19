@@ -18,7 +18,7 @@ import {
   Filler,
 } from "chart.js";
 import { Scatter, Line, Bar, Pie, Doughnut } from "react-chartjs-2";
-import { Check, X, Loader2, Copy, AlertTriangle, Sparkles, Download, Info, Cpu, GitFork, BarChart3, Wrench } from "lucide-react";
+import { Check, X, Loader2, Copy, AlertTriangle, Download, Info, Cpu, GitFork, BarChart3, Wrench, Compass, Bot } from "lucide-react";
 
 ChartJS.register(
   CategoryScale,
@@ -38,6 +38,10 @@ function ChatMessageChart({ chartData }: { chartData: any }) {
   const chartRef = useRef<any>(null);
   const initialType = (chartData.type || "bar_chart").toLowerCase();
   const [currentType, setCurrentType] = useState<string>(initialType);
+
+  useEffect(() => {
+    setCurrentType((chartData.type || "bar_chart").toLowerCase());
+  }, [chartData.type]);
 
   const downloadChartImage = () => {
     if (!chartRef.current) return;
@@ -183,8 +187,8 @@ function ChatMessageChart({ chartData }: { chartData: any }) {
         )}
       </div>
 
-      {/* Quick Chart Type Switcher */}
-      {labels.length > 0 && currentType !== "scatter_chart" && (
+      {/* Quick Chart Type Switcher - only rendered for generic graph queries */}
+      {chartData.allow_type_switch !== false && labels.length > 0 && currentType !== "scatter_chart" && (
         <div
           className="flex items-center justify-end gap-1 pt-1.5 border-t text-[10px]"
           style={{ borderColor: "var(--border)" }}
@@ -288,35 +292,38 @@ function renderInlineMarkdown(text: string) {
 function renderTextParagraphs(rawText: string, keyPrefix: string) {
   const lines = rawText.split("\n");
   return (
-    <div key={keyPrefix} className="space-y-1">
+    <div key={keyPrefix} className="space-y-1.5">
       {lines.map((line, lIdx) => {
         const trimmed = line.trim();
         if (!trimmed) {
           return <div key={lIdx} className="h-1" />;
         }
-        // Heading 3
-        if (trimmed.startsWith("### ")) {
-          return (
-            <h4
-              key={lIdx}
-              className="text-xs font-black tracking-wider uppercase pt-2 pb-0.5 border-b"
-              style={{ color: "var(--accent)", borderColor: "var(--border)" }}
-            >
-              {trimmed.slice(4)}
-            </h4>
-          );
-        }
-        // Heading 2
-        if (trimmed.startsWith("## ")) {
-          return (
-            <h3
-              key={lIdx}
-              className="text-sm font-black tracking-tight pt-2 pb-0.5"
-              style={{ color: "var(--txt)" }}
-            >
-              {trimmed.slice(3)}
-            </h3>
-          );
+        // Markdown headings (# to ######, handles ### with or without trailing space)
+        const headingMatch = trimmed.match(/^(#{1,6})\s*(.*)$/);
+        if (headingMatch) {
+          const level = headingMatch[1].length;
+          const headingContent = headingMatch[2].trim();
+          if (level <= 2) {
+            return (
+              <h3
+                key={lIdx}
+                className="text-sm font-extrabold tracking-tight pt-2 pb-0.5"
+                style={{ color: "var(--txt)" }}
+              >
+                {renderInlineMarkdown(headingContent)}
+              </h3>
+            );
+          } else {
+            return (
+              <h4
+                key={lIdx}
+                className="text-xs font-bold tracking-wider uppercase pt-1.5 pb-0.5 border-b"
+                style={{ color: "var(--accent)", borderColor: "var(--border)" }}
+              >
+                {renderInlineMarkdown(headingContent)}
+              </h4>
+            );
+          }
         }
         // Bullet point
         if (trimmed.startsWith("• ") || trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
@@ -332,10 +339,11 @@ function renderTextParagraphs(rawText: string, keyPrefix: string) {
             </div>
           );
         }
-        // Regular line
+        // Regular line: sanitize any stray inline '###'
+        const cleanRegular = line.replace(/#{2,6}\s*/g, "");
         return (
           <p key={lIdx} className="text-xs leading-relaxed" style={{ color: "var(--txt)" }}>
-            {renderInlineMarkdown(line)}
+            {renderInlineMarkdown(cleanRegular)}
           </p>
         );
       })}
@@ -387,13 +395,6 @@ export function ChatSidebar() {
   const threadRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const quickActions = [
-    "Summarize the key trends",
-    "Show a correlation matrix",
-    "What are the top 5 anomalies?",
-    "Show summary of dataset",
-    "Identify data quality issues",
-  ];
 
   // Contextual smart suggestions derived from the latest assistant response
   const latestSuggestions = React.useMemo(() => {
@@ -438,7 +439,7 @@ export function ChatSidebar() {
           setMessages(st.chat_history);
         } else if (sessions.length > 0) {
           const matched = sessions.find((s: any) => s.id === activeId) || sessions[0];
-          if (matched && Array.isArray(matched.messages)) {
+          if (matched && Array.isArray(matched.messages) && matched.messages.length > 0) {
             setMessages(matched.messages);
           }
         }
@@ -568,8 +569,9 @@ export function ChatSidebar() {
   const runQuery = async (q: string = query) => {
     if (!q.trim() || isAnalyzing || !uploadId) return;
 
+    const queryText = q.trim();
     const targetSessionId = activeSessionId || "default";
-    const newMessage = { role: "user", content: q.trim(), ts: Date.now() };
+    const newMessage = { role: "user", content: queryText, ts: Date.now() };
 
     setMessages((prev) => [...prev, newMessage]);
     setQuery("");
@@ -581,7 +583,7 @@ export function ChatSidebar() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: q.trim(),
+          query: queryText,
           session_id: targetSessionId,
           upload_id: uploadId,
         }),
@@ -594,9 +596,13 @@ export function ChatSidebar() {
         if (data.active_session_id) {
           setActiveSessionId(data.active_session_id);
         }
-        if (data.reply) {
+        if (Array.isArray(data.chat_history) && data.chat_history.length > 0) {
+          setMessages(data.chat_history);
+        } else if (data.reply) {
           setMessages((prev) => {
-            const nextMsgs = [...prev, data.reply];
+            const hasUser = prev.some((m) => m.role === "user" && m.content === queryText);
+            const base = hasUser ? prev : [...prev, newMessage];
+            const nextMsgs = [...base, data.reply];
             setChatSessions((prevSessions) =>
               prevSessions.map((s) =>
                 s.id === targetSessionId ? { ...s, messages: nextMsgs } : s
@@ -831,36 +837,23 @@ export function ChatSidebar() {
           {/* Thread */}
           <div id="chat-thread" ref={threadRef}>
             {!messages.length && (
-              <div className="flex flex-col items-center justify-center py-12 gap-4 text-center">
+              <div className="flex flex-col items-center justify-center py-16 px-4 gap-4 text-center my-auto">
                 <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black italic"
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-xl"
                   style={{
-                    background: "linear-gradient(135deg,var(--accent),rgba(99,102,241,.8))",
-                    color: "#fff",
-                    boxShadow: "0 8px 24px rgba(46,91,255,.3)",
+                    background: "linear-gradient(135deg, var(--accent, #6366f1), #8b5cf6)",
+                    boxShadow: "0 10px 28px rgba(99,102,241,.28)",
                   }}
                 >
-                  AI
+                  <Bot size={30} />
                 </div>
-                <div>
-                  <p className="font-black text-base uppercase tracking-tight" style={{ color: "var(--txt)" }}>
-                    DataForge Analyst
+                <div className="space-y-1.5 max-w-sm">
+                  <h3 className="font-extrabold text-base tracking-tight" style={{ color: "var(--txt)" }}>
+                    DataForge AI Analyst
+                  </h3>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                    Your autonomous analytics intelligence assistant. Ask questions about your dataset to discover trends, uncover anomalies, inspect correlations, or generate high-fidelity visualizations.
                   </p>
-                  <p className="text-xs mt-1 max-w-xs" style={{ color: "var(--txt-m)" }}>
-                    Ask me anything about your dataset — trends, stats, correlations, or custom queries.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2 justify-center max-w-sm">
-                  {quickActions.map((action) => (
-                    <button
-                      key={action}
-                      onClick={() => runQuery(action)}
-                      className="chat-quick-chip"
-                      disabled={isAnalyzing}
-                    >
-                      {action}
-                    </button>
-                  ))}
                 </div>
               </div>
             )}
@@ -982,21 +975,6 @@ export function ChatSidebar() {
                         </div>
                       )}
 
-                      {/* Interactive Suggested Actions / Cross-Questioning Option Chips */}
-                      {msg.suggested_actions && msg.suggested_actions.length > 0 && (
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          {msg.suggested_actions.map((act: any, aIdx: number) => (
-                            <button
-                              key={aIdx}
-                              type="button"
-                              onClick={() => runQuery(act.query || act.label)}
-                              className="chat-action-pill"
-                            >
-                              <span>{act.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
 
                       {msg.tableData && msg.tableData.rows && msg.tableData.rows.length > 0 && (
                         <div
@@ -1067,12 +1045,18 @@ export function ChatSidebar() {
 
           {/* Pinned Suggested Follow-up Questions directly ABOVE the typing bar */}
           {latestSuggestions && latestSuggestions.length > 0 && !isAnalyzing && (
-            <div className="px-4 pt-2.5 pb-1 border-t" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
-              <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-semibold" style={{ color: "var(--txt-m)" }}>
-                <Sparkles size={12} className="text-amber-400" />
-                <span>Suggested Questions:</span>
+            <div
+              className="px-4 py-2 border-t backdrop-blur-xs transition-all"
+              style={{
+                borderColor: "var(--border)",
+                background: "var(--surface)",
+              }}
+            >
+              <div className="flex items-center gap-1.5 mb-2 text-[11px] font-bold tracking-wide" style={{ color: "var(--txt-m)" }}>
+                <Compass size={13} className="text-indigo-500 shrink-0" />
+                <span>Suggested Questions</span>
               </div>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {latestSuggestions.map((act: any, idx: number) => {
                   const qText = act.query || act.label;
                   return (
@@ -1080,20 +1064,16 @@ export function ChatSidebar() {
                       key={idx}
                       type="button"
                       onClick={() => runQuery(qText)}
-                      className="chat-action-pill text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                      className="group flex items-center gap-2 px-3 py-1.5 rounded-full text-left text-xs font-medium border transition-all duration-200 cursor-pointer shrink-0 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
                       style={{
-                        fontSize: "11px",
-                        lineHeight: "1.4",
-                        padding: "5px 10px",
-                        borderRadius: "10px",
-                        background: "var(--surface)",
+                        background: "var(--bg)",
                         borderColor: "var(--border)",
-                        borderWidth: "1px",
                         color: "var(--txt)",
-                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
                       }}
+                      title={qText}
                     >
-                      <span>{act.label || act.query}</span>
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0 group-hover:scale-125 transition-transform" style={{ background: "var(--accent)" }} />
+                      <span className="truncate max-w-[280px]">{act.label || act.query}</span>
                     </button>
                   );
                 })}

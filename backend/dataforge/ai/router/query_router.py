@@ -185,12 +185,14 @@ def check_intercept_queries(query: str, df: pd.DataFrame) -> Optional[Dict[str, 
         return {
             "ok": True,
             "answer": (
-                "I am **DataForge Analyst**, the **DataForge Autonomous Analytics Intelligence** assistant. "
-                "I coordinate specialized domain agents to compute statistics (AnalyticsAgent), "
-                "clean dirty records and impute nulls (CleanerAgent), train machine learning models (AutoMLAgent), "
-                "render interactive visualizations (VisualizerAgent), and export production pipelines (PipelineAgent) "
-                f"for your active dataset ({df.shape[0]:,} records across {df.shape[1]} columns).\n\n"
-                "How can I help you analyze your data today?"
+                f"I am the **DataForge AI Analyst**, your intelligent data science and analytics assistant (powered by DataForge Autonomous Analytics Intelligence).\n\n"
+                f"I coordinate specialized domain agents to analyze, transform, and extract actionable insights for your active dataset ({df.shape[0]:,} records across {df.shape[1]} columns):\n\n"
+                f"- **Statistical Analytics**: Instant metric calculations, aggregations, distributions, and correlation matrices.\n"
+                f"- **Visual Intelligence**: Automated generation of interactive charts (bar, pie, donut, line) and preview tables.\n"
+                f"- **Data Sanitization**: Detecting and repairing nulls, anomalies, duplicate records, and outliers.\n"
+                f"- **Machine Learning**: Predictive modeling, classification, and regression via AutoML.\n"
+                f"- **Pipeline Engineering**: Exporting automated ETL workflows for Python, Airflow DAGs, and dbt models.\n\n"
+                f"How would you like to explore your data today?"
             ),
             "intent": "summary",
             "result": None,

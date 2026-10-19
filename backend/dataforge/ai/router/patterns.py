@@ -5,7 +5,7 @@ Centralized regex definitions for multi-agent dispatch and query classification.
 
 import re
 import difflib
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import pandas as pd
 
 GREETING_PATTERNS = re.compile(
@@ -14,9 +14,43 @@ GREETING_PATTERNS = re.compile(
 )
 
 IDENTITY_PATTERNS = re.compile(
-    r"(who\s+(are|r)\s+you|w[ha]{2,4}t\s+(is|s)?\s*(yo?u?r)?\s*name|what\s+are\s+you|your\s+name|ur\s+name|what.*model|are\s+you\s+(an?\s+)?(ai|bot|chatbot|gpt|gemini|claude|llm)|tell\s+me\s+about\s+yourself|introduce\s+yourself|who\s+made\s+you|who\s+created\s+you)",
+    r"\b("
+    r"who\s+(are|r)\s+(you|u)|"
+    r"what\s+(are|r)\s+(you|u)|"
+    r"w[ha]{1,4}t(\s+i?s|\'s)?\s+(yo?u?r|ur)\s*name|"
+    r"yo?u?r\s+name|ur\s+name|"
+    r"what\s+is\s+this(\s+ai)?|"
+    r"who\s+(made|created|built)\s+(you|u)|"
+    r"tell\s+me\s+about\s+yourself|"
+    r"introduce\s+yourself|"
+    r"are\s+you\s+(an?\s+)?(ai|bot|chatbot|gpt|gemini|claude|llm)"
+    r")\b",
     re.IGNORECASE
 )
+
+SPECIFIC_CHART_PATTERNS = [
+    (re.compile(r"\b(pie\s*chart|as\s*a\s*pie|in\s*a\s*pie|the\s*pie|pie)\b", re.IGNORECASE), "pie_chart"),
+    (re.compile(r"\b(donut\s*chart|doughnut\s*chart|donut|doughnut)\b", re.IGNORECASE), "doughnut_chart"),
+    (re.compile(r"\b(bar\s*chart|bar\s*graph|horizontal\s*bar)\b", re.IGNORECASE), "bar_chart"),
+    (re.compile(r"\b(line\s*chart|line\s*graph|trend\s*line|time\s*series\s*plot)\b", re.IGNORECASE), "line_chart"),
+    (re.compile(r"\b(scatter\s*plot|scatter\s*chart|scatter)\b", re.IGNORECASE), "scatter_chart"),
+    (re.compile(r"\b(histogram|distribution\s*plot)\b", re.IGNORECASE), "histogram"),
+    (re.compile(r"\b(box\s*plot|box\s*and\s*whisker)\b", re.IGNORECASE), "box_plot"),
+]
+
+
+def is_specific_chart_request(query: str) -> Tuple[bool, Optional[str]]:
+    """
+    Determines if the user explicitly requested a specific chart type.
+    Returns (True, chart_type) if explicit (e.g. 'make the pie', 'bar chart of...').
+    Returns (False, None) if generic (e.g. 'make its graph', 'plot this', 'visualize').
+    """
+    q = query.strip()
+    for pattern, chart_type in SPECIFIC_CHART_PATTERNS:
+        if pattern.search(q):
+            return True, chart_type
+    return False, None
+
 
 CLEAN_KEYWORDS = re.compile(
     r"\b(clean|fix|impute|missing|nan|null|blanks|outlier|outliers|dedup|duplicate|duplicates|mask|pii|sanitize|undo|rollback|revert|drop\s+column|remove\s+column|delete\s+column)\b|^[123]$|^option\s*[123]$",
