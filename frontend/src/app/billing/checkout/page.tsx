@@ -26,49 +26,54 @@ interface PlanConfig {
   id: string;
   name: string;
   priceMonthly: number;
-  priceAnnual: number;
   rowLimit: string;
   description: string;
   features: string[];
-  paddlePriceIdMonthly?: string;
-  paddlePriceIdAnnual?: string;
+  dodoProductId?: string;
 }
 
 const PLANS: Record<string, PlanConfig> = {
   pro: {
     id: "pro",
     name: "Pro Analyst",
-    priceMonthly: 49,
-    priceAnnual: 39,
-    rowLimit: "Up to 10,000,000 Rows",
-    description: "For senior data analysts, quants, and engineering teams requiring SQL pipelines and AutoML.",
+    priceMonthly: 29,
+    rowLimit: "Up to 250,000 Rows • 5 GB Storage",
+    description: "For solo data analysts & practitioners requiring advanced exports, EDA slides & AutoML Docker containers.",
+    dodoProductId: "pdt_pro_monthly_29",
     features: [
-      "10,000,000 rows out-of-core DuckDB engine",
-      "DuckDB Relational Join Studio (Inner, Left, Outer, Anti)",
-      "Automated Stored Procedure Engine (DF-SPE v1)",
-      "AutoML Tournament (LightGBM, XGBoost, CatBoost)",
-      "Benjamini-Hochberg & BY Multiple-Testing FDR control",
-      "Executive Slide Deck & automated business report export",
-      "Standalone Python, dbt SQL, and Airflow DAG export",
-      "Priority customer and security support",
+      "Unlimited Data Ingestion (no file count or monthly ingest caps)",
+      "250,000 rows in-memory DuckDB processing (10x Free)",
+      "Cloud Storage: 5 GB workspace storage (20x Free)",
+      "Data Ingestion: Local CSV/Excel, Google Sheets & OneDrive/M365",
+      "Full File Downloads: CSV, Excel (.xlsx), Parquet & JSON",
+      "Executive EDA presentation slides export (PPTX & PDF)",
+      "AutoML production Docker containers & deployment files",
+      "Pipeline Code Export: Standalone Python & dbt models",
+      "50 AutoML tournaments / month (10x Free)",
+      "250 AI natural-language queries / month (10x Free)",
+      "Relational Join Studio & multi-table merge",
+      "Priority email support",
     ],
   },
   team: {
     id: "team",
-    name: "Enterprise Team",
-    priceMonthly: 199,
-    priceAnnual: 169,
-    rowLimit: "Up to 50,000,000 Rows",
-    description: "For analytics organizations requiring multi-tenant workspaces, team governance, and model registry.",
+    name: "Team Collaboration",
+    priceMonthly: 79,
+    rowLimit: "Up to 1,000,000 Rows • 25 GB Storage",
+    description: "For analytics teams requiring shared datasets, collaboration with 3 roles and database connections.",
+    dodoProductId: "pdt_team_monthly_79",
     features: [
-      "50,000,000 rows distributed and cached in Parquet",
-      "Shared organization workspaces & 4-tier RBAC",
-      "Centralized Model Registry with Docker microservice deployment",
+      "Multi-user team collaboration with 3 roles: Viewer, Analyst, Admin",
+      "Up to 5 team member seats with role permissions",
+      "Shared Database Connection Vault (PostgreSQL, MySQL, SQLite, DuckDB)",
+      "1,000,000 rows processing with out-of-core streaming (4x Pro, 40x Free)",
+      "25 GB shared organization storage (5x Pro)",
+      "Unlimited Team Data Ingestion & Pipeline Uploads",
+      "Apache Airflow production DAG exports & pipeline code",
+      "Direct Database Push & Cross-team exports",
+      "200 AutoML tournaments / month & Model Registry REST API (4x Pro)",
+      "1,000 AI natural-language queries / month (4x Pro)",
       "Immutable governance audit logs & compliance trail",
-      "Google Sheets-style live collaborator sharing & invitations",
-      "Custom Stored Procedure recipes with automated assertion gates",
-      "Dedicated Slack / Teams support channel with 1h SLA",
-      "SOC2 Type II compliance controls & custom agreements",
     ],
   },
 };
@@ -80,7 +85,6 @@ function BillingCheckoutContent() {
   const selectedPlanKey = initialPlan in PLANS ? initialPlan : "pro";
 
   const [activePlan, setActivePlan] = useState<string>(selectedPlanKey);
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
   const [isLoading, setIsLoading] = useState(false);
   const [isSandboxActivating, setIsSandboxActivating] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -88,7 +92,7 @@ function BillingCheckoutContent() {
 
   const { user } = useAuth();
   const plan = PLANS[activePlan] || PLANS.pro;
-  const currentPrice = billingCycle === "monthly" ? plan.priceMonthly : plan.priceAnnual;
+  const currentPrice = plan.priceMonthly;
 
   const handleActivatePlan = async () => {
     setIsLoading(true);
@@ -171,12 +175,12 @@ function BillingCheckoutContent() {
             <span
               className="px-2.5 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider"
               style={{
-                background: "rgba(99, 102, 241, 0.12)",
-                color: "#818cf8",
-                border: "1px solid rgba(99, 102, 241, 0.25)",
+                background: "var(--glow)",
+                color: "var(--accent)",
+                border: "1px solid var(--accent)",
               }}
             >
-              Paddle Merchant of Record
+              Dodo Payments Merchant of Record
             </span>
           </div>
         </div>
@@ -189,29 +193,6 @@ function BillingCheckoutContent() {
           <p className="text-sm mt-2 max-w-lg mx-auto" style={{ color: "var(--txt-m)" }}>
             Unlock out-of-core DuckDB relational queries, Stored Procedure automation, and leak-free AutoML.
           </p>
-
-          {/* Billing Cycle Toggle */}
-          <div className="inline-flex items-center p-1 rounded-xl border mt-6" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <button
-              onClick={() => setBillingCycle("monthly")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                billingCycle === "monthly" ? "bg-[var(--accent)] text-white shadow-md" : "text-[var(--txt-m)]"
-              }`}
-            >
-              Monthly Billing
-            </button>
-            <button
-              onClick={() => setBillingCycle("annual")}
-              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                billingCycle === "annual" ? "bg-[var(--accent)] text-white shadow-md" : "text-[var(--txt-m)]"
-              }`}
-            >
-              <span>Annual Billing</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500 text-white font-mono">
-                Save 20%
-              </span>
-            </button>
-          </div>
         </div>
 
         {/* Main Checkout Card Grid */}
@@ -224,7 +205,7 @@ function BillingCheckoutContent() {
 
             {Object.values(PLANS).map((p) => {
               const isSelected = activePlan === p.id;
-              const price = billingCycle === "monthly" ? p.priceMonthly : p.priceAnnual;
+              const price = p.priceMonthly;
               return (
                 <div
                   key={p.id}
@@ -261,10 +242,10 @@ function BillingCheckoutContent() {
             >
               <div className="flex items-center gap-2 font-bold text-emerald-500">
                 <ShieldCheck size={16} />
-                <span>Paddle Certified Checkout</span>
+                <span>Dodo Payments Certified Checkout</span>
               </div>
               <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
-                Payments, sales tax, VAT, and invoices are handled securely by Paddle.com. Cancel anytime with 1-click.
+                Payments, sales tax, VAT, and invoices are handled securely by Dodo Payments (Merchant of Record). Cancel anytime with 1-click.
               </p>
               <div className="flex items-center gap-2 pt-1 font-mono text-[10px]" style={{ color: "var(--txt-m)" }}>
                 <Lock size={11} />
@@ -299,15 +280,41 @@ function BillingCheckoutContent() {
                   </span>
                 </div>
                 <span className="text-[10px] font-mono text-emerald-500 font-bold">
-                  {billingCycle === "annual" ? "Billed Annually ($" + currentPrice * 12 + "/yr)" : "Billed Monthly"}
+                  Billed Monthly via Dodo Payments
                 </span>
               </div>
             </div>
 
             {/* Included Features */}
             <div>
+              {plan.id === "pro" && (
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3.5 shadow-sm"
+                  style={{
+                    background: "var(--surface)",
+                    borderColor: "var(--accent)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  <Sparkles size={13} className="shrink-0" />
+                  <span>Everything in Free Starter, plus:</span>
+                </div>
+              )}
+              {plan.id === "team" && (
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3.5 shadow-sm"
+                  style={{
+                    background: "var(--surface)",
+                    borderColor: "var(--accent)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  <Sparkles size={13} className="shrink-0" />
+                  <span>Everything in Pro Analyst, plus:</span>
+                </div>
+              )}
               <h4 className="text-xs font-mono uppercase font-bold mb-3" style={{ color: "var(--txt-m)" }}>
-                Included Capabilities & Entitlements:
+                Exclusive Capabilities & Entitlements:
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {plan.features.map((feat, i) => (
@@ -362,7 +369,7 @@ function BillingCheckoutContent() {
 
       {/* Footer */}
       <footer className="mt-16 text-center text-xs border-t pt-6" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
-        <p>DataForge Inc. · Powered by Paddle (Merchant of Record)</p>
+        <p>DataForge Inc. · Powered by Dodo Payments (Merchant of Record)</p>
       </footer>
     </div>
   );

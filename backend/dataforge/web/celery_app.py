@@ -52,7 +52,7 @@ def make_celery(app):
 
         def on_failure(self, exc, task_id, args, kwargs, einfo):
             """Update the Job row on hard failure (unhandled exception)."""
-            from datetime import datetime
+            from datetime import datetime, timezone
             try:
                 with app.app_context():
                     from dataforge.db import db_get, db_update
@@ -61,7 +61,7 @@ def make_celery(app):
                         db_update("jobs", task_id, {
                             "status": "failure",
                             "error": str(exc)[:2000],
-                            "finished_at": datetime.utcnow().isoformat()
+                            "finished_at": datetime.now(timezone.utc).isoformat()
                         })
             except Exception:
                 pass  # best-effort; don't crash the worker

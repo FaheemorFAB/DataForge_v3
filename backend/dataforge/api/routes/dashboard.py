@@ -639,6 +639,27 @@ async def api_reports_list(current_user: CurrentUser):
     } for r in reps]))
 
 
+@router.delete("/reports/{report_id}", summary="Delete a saved report")
+async def api_report_delete(
+    current_user: CurrentUser,
+    report_id: int = Path(...),
+):
+    rep = report_repo.get_by_id(report_id)
+    if not rep or rep.get("user_id") != current_user.id:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    success = report_repo.delete(report_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete report")
+
+    return JSONResponse(content=safe_jsonable({
+        "ok": True,
+        "report_id": report_id,
+        "message": "Report deleted successfully"
+    }))
+
+
+
 # ── Alerts ────────────────────────────────────────────────────────────────────
 
 @router.get("/alerts", summary="List unresolved alerts for current user")

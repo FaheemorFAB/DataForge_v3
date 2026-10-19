@@ -11,6 +11,7 @@ import LoginModal from "@/app/components/landing/LoginModal";
 import { useAuth } from "@/lib/auth";
 import {
   Check,
+  X,
   Sparkles,
   Zap,
   Shield,
@@ -21,58 +22,95 @@ import {
   ChevronUp,
 } from "lucide-react";
 
-type BillingCycle = "monthly" | "annually";
-
 interface PricingTier {
-  id: "pro" | "team" | "enterprise";
+  id: "free" | "pro" | "team" | "enterprise";
   name: string;
   badge?: string;
   description: string;
   monthlyPrice: number;
-  annualPrice: number;
   rowLimit: string;
   storageLimit: string;
   teamSeats: string;
   popular?: boolean;
   ctaText: string;
   highlights: string[];
+  nonFeatures?: string[];
 }
 
 export default function PricingPage() {
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>("annually");
   const [launchModalOpen, setLaunchModalOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const { user } = useAuth();
 
-  const handleCtaClick = (action: "pro" | "team" | "enterprise") => {
-    if (action === "pro" || action === "team") {
+  const handleCtaClick = (action: "free" | "pro" | "team" | "enterprise") => {
+    if (action === "free") {
+      setLaunchModalOpen(true);
+    } else if (action === "pro" || action === "team") {
       window.location.href = `/billing/checkout?plan=${action}`;
     } else if (action === "enterprise") {
       window.location.href = "mailto:sales@dataforge.internal?subject=DataForge%20Enterprise%20Inquiry";
     }
   };
 
-  // Exactly 3 Paid Tiers
-  const paidTiers: PricingTier[] = [
+  // 3 Subscription Tiers: Free Starter, Pro Analyst, Team Collaboration
+  const tiers: PricingTier[] = [
+    {
+      id: "free",
+      name: "Free Starter",
+      description: "For students, researchers & solo analysts exploring automated analytics in-browser.",
+      monthlyPrice: 0,
+      rowLimit: "25,000 Rows (Capped)",
+      storageLimit: "250 MB Storage",
+      teamSeats: "1 solo user",
+      ctaText: "Get Started Free",
+      highlights: [
+        "Data Ingestion: Local CSV, Excel & Google Sheets only",
+        "Ingestion Limit: Capped at 25,000 rows / dataset (3 projects max)",
+        "25,000 rows in-memory DuckDB processing",
+        "1-Click automated data cleaning (nulls, duplicates, outliers)",
+        "Automated statistical EDA reports & missing value heatmap",
+        "Interactive chart builder (Bar, Line, Scatter, Box, Histogram)",
+        "2-table relational join preview",
+        "5 AutoML tournaments / month in workspace",
+        "25 AI assistant natural-language queries / month",
+        "In-browser exploratory workspace & profiling",
+      ],
+      nonFeatures: [
+        "Unlimited data ingestion (Pro & Team only)",
+        "OneDrive / Microsoft 365 Excel Online links",
+        "Shared Database Connection Vault (SQL DBs)",
+        "Dataset file exports & downloads (Locked in Free)",
+        "Executive EDA presentation slides & Docker downloads",
+      ],
+    },
     {
       id: "pro",
       name: "Pro Analyst",
-      description: "For individual analysts & quants requiring relational joins & AutoML.",
+      description: "For solo data analysts & practitioners requiring advanced exports, EDA slides & AutoML Docker containers.",
       monthlyPrice: 29,
-      annualPrice: 24,
-      rowLimit: "1,000,000 Rows",
-      storageLimit: "10 GB Cloud Storage",
-      teamSeats: "Up to 5 team seats",
-      ctaText: "Upgrade to Pro",
+      rowLimit: "250,000 Rows / file",
+      storageLimit: "5 GB Cloud Storage",
+      teamSeats: "1 solo user",
+      ctaText: "Upgrade to Pro Analyst",
       highlights: [
-        "1M rows out-of-core DuckDB streaming",
-        "DuckDB Relational Join Studio (Inner/Left/Full)",
-        "8 Enterprise Visualizations & Heatmaps",
-        "Hypothesis Testing Suite (ANOVA, t-test, Chi-Sq)",
-        "AutoML Tournament (LightGBM, XGBoost)",
-        "Slide deck generator & presentation mode",
+        "Unlimited Data Ingestion (upload & analyze as much as you need)",
+        "250,000 rows processing with fast DuckDB streaming (10x Free)",
+        "Cloud Storage: 5 GB workspace storage (20x Free)",
+        "Ingestion Sources: Local CSV, Excel, Google Sheets & OneDrive/M365",
+        "Full Dataset Downloads: CSV, Excel (.xlsx), Parquet & JSON",
+        "Executive EDA presentation slides export (PowerPoint / PDF)",
+        "AutoML production Docker containers (Dockerfile + inference API)",
+        "Pipeline Code Export: Standalone Python & dbt SQL models",
+        "Multi-table DuckDB Relational Join Studio",
+        "50 AutoML tournaments / month (10x Free)",
+        "250 AI natural-language queries / month (10x Free)",
         "Priority email support",
+      ],
+      nonFeatures: [
+        "Shared Database Connection Vault (PostgreSQL, MySQL, SQLite, DuckDB)",
+        "Apache Airflow production DAG exports & database push",
+        "Multi-user team collaboration & 3-tier roles",
       ],
     },
     {
@@ -80,73 +118,61 @@ export default function PricingPage() {
       name: "Team Collaboration",
       badge: "MOST POPULAR",
       popular: true,
-      description: "For analytics teams needing cloud warehouses & shared governance.",
+      description: "For analytics teams needing shared datasets, collaboration with 3 roles and database connections.",
       monthlyPrice: 79,
-      annualPrice: 69,
-      rowLimit: "5,000,000 Rows",
-      storageLimit: "50 GB Shared Storage",
-      teamSeats: "Up to 25 team seats",
+      rowLimit: "1,000,000 Rows / file",
+      storageLimit: "25 GB Shared Storage",
+      teamSeats: "Up to 5 team seats",
       ctaText: "Deploy Team Workspace",
       highlights: [
-        "5M rows out-of-core streaming",
-        "Live Warehouses (Snowflake, BigQuery, ClickHouse, Postgres)",
-        "Multi-tenant team workspaces with 4-tier RBAC",
-        "1-Click Exporter: dbt SQL models & Airflow DAGs",
-        "Model Registry with online REST inference API",
-        "Immutable governance audit logs & compliance trail",
-        "Dedicated engineer support (4h SLA)",
+        "Multi-user team collaboration with 3 roles: Viewer, Analyst, Admin",
+        "Up to 5 team member seats with role permissions",
+        "Shared Database Connection Vault (PostgreSQL, MySQL, SQLite, DuckDB)",
+        "1,000,000 rows processing with out-of-core streaming (4x Pro, 40x Free)",
+        "25 GB shared organization cloud storage (5x Pro)",
+        "Unlimited Team Data Ingestion & Pipeline Uploads",
+        "Apache Airflow production DAG exports & pipeline code",
+        "Direct Database Push & Cross-team exports",
+        "Immutable team audit logs & compliance trail",
+        "Secret link sharing (Restricted or Anyone with link)",
+        "200 AutoML tournaments / month & Model Registry REST API (4x Pro)",
+        "1,000 AI natural-language queries / month (4x Pro)",
+        "Priority team support & onboarding",
       ],
-    },
-    {
-      id: "enterprise",
-      name: "Enterprise Scale",
-      badge: "CUSTOM DEPLOYMENT",
-      description: "For enterprises requiring high volume, private VPC, or air-gapped security.",
-      monthlyPrice: 249,
-      annualPrice: 199,
-      rowLimit: "20,000,000+ Rows",
-      storageLimit: "500 GB Organization Storage",
-      teamSeats: "Unlimited team seats",
-      ctaText: "Contact Solutions",
-      highlights: [
-        "20M+ rows or unlimited warehouse streaming",
-        "Private VPC deployment or Zero Cloud Egress",
-        "Enterprise SSO via SAML 2.0, Okta, & Azure AD",
-        "Customer-Managed Encryption Keys (CMEK)",
-        "Role-based column/row masking & dynamic PII scrubbing",
-        "Custom Connector SDKs & dedicated SLA (99.99%)",
-        "24/7 dedicated solutions architect",
-      ],
+      nonFeatures: [],
     },
   ];
 
   const quickSpecs = [
-    { spec: "Row Limit per Dataset", pro: "1,000,000", team: "5,000,000", enterprise: "20,000,000+" },
-    { spec: "Cloud Storage Quota", pro: "10 GB", team: "50 GB", enterprise: "500 GB" },
-    { spec: "Team Seats", pro: "Up to 5", team: "Up to 25", enterprise: "Unlimited" },
-    { spec: "AutoML Jobs / Month", pro: "50 tournaments", team: "200 tournaments", enterprise: "1,000 tournaments" },
-    { spec: "Cloud Warehouses & Lakehouses", pro: "Read-only dump", team: "Full live pushdown", enterprise: "Full live pushdown" },
-    { spec: "1-Click Pipeline Exporters (dbt, Airflow)", pro: "Standard export", team: "Included", enterprise: "Included" },
-    { spec: "Security & Governance", pro: "Standard RBAC", team: "4-Tier RBAC + Audit Logs", enterprise: "SAML SSO + CMEK + Air-Gap" },
-    { spec: "Support SLA", pro: "Priority Email", team: "Dedicated Slack (4h SLA)", enterprise: "Dedicated Architect (99.99%)" },
+    { spec: "Data Ingestion Quota", free: "Capped (3 projects, 25K rows)", pro: "Unlimited Data Ingestion", team: "Unlimited Team Ingestion" },
+    { spec: "Supported Ingestion Sources", free: "Local CSV/Excel + Google Sheets only", free_sub: "", pro: "Local, Google Sheets & OneDrive/M365", team: "All Sources + Database Connection Vault" },
+    { spec: "Row Limit per Dataset", free: "25,000", pro: "250,000", team: "1,000,000" },
+    { spec: "Cloud Storage Quota", free: "250 MB", pro: "5 GB", team: "25 GB" },
+    { spec: "Team Seats & Roles", free: "1 solo user", pro: "1 solo user", team: "Up to 5 (Viewer, Analyst, Admin)" },
+    { spec: "AutoML Tournaments", free: "5 / mo (in-app)", pro: "50 / mo + Docker download", team: "200 / mo + Registry" },
+    { spec: "AI Natural Language Queries", free: "25 / mo", pro: "250 / mo", team: "1,000 / mo" },
+    { spec: "DuckDB Join Canvas", free: "Up to 2 tables", pro: "Multi-table visual join", team: "Multi-table + Database joins" },
+    { spec: "Exports & Deliverables", free: "No downloads (In-browser only)", pro: "Full Export (CSV, XLSX, Parquet, Slides, Docker, dbt)", team: "All Pro + Airflow DAGs, DB Push & Audit Logs" },
+    { spec: "Security & Governance", free: "Local Workspace Auth", pro: "Encrypted Storage", team: "3-Tier Roles + Audit Logs" },
+    { spec: "Support & Onboarding", free: "Community Docs", pro: "Priority Email", team: "Priority Team Support" },
   ];
 
   const faqs = [
     {
       q: "Can I get started completely free?",
-      a: "Yes! Our Free Starter plan includes 100,000 rows, 500 MB storage, and 5 AutoML runs per month with zero credit card required.",
+      a: "Yes! Our Free Starter plan includes 25,000 rows, 250 MB storage, and 5 AutoML runs per month with zero credit card required. Note: File exports and model downloads are unlocked on Pro Analyst and Team Collaboration.",
     },
     {
-      q: "How does the annual billing discount work?",
-      a: "When you select annual billing, you receive an automatic 20% discount on all plans, effectively giving you more than two months free every year.",
+      q: "How does monthly billing work?",
+      a: "All DataForge subscriptions are billed monthly with zero long-term commitments via Dodo Payments, our global Merchant of Record. Invoices, sales tax, VAT, and card payments are handled securely. You can cancel anytime with 1-click.",
     },
     {
       q: "How do team seats work?",
-      a: "Pro Analyst supports up to 5 collaborators. Team Collaboration supports up to 25 collaborators with 4-tier RBAC (Admin, Data Engineer, Analyst, Viewer). Enterprise Scale offers unlimited team seats.",
+      a: "Pro Analyst is designed for individual solo practitioners. Team Collaboration supports up to 5 team members with 3 clear roles: Admin, Analyst, and Viewer.",
     },
     {
       q: "Does my data leave our network or get stored on external servers?",
-      a: "For Pro and Team tiers, queries push down into your connected warehouse with secure credential encryption. For Enterprise Scale, DataForge can deploy 100% inside your private VPC with an absolute Zero Cloud Egress guarantee.",
+      a: "DataForge processes datasets locally or within your private instance with secure credential encryption and zero unauthorized data egress.",
     },
     {
       q: "Can I change or cancel my plan at any time?",
@@ -170,102 +196,38 @@ export default function PricingPage() {
         <div className="noise" />
         <div className="mesh" />
 
-        {/* Free Starter Callout Banner */}
-        <div
-          className="mb-10 p-3 sm:p-3.5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm transition-all"
-          style={{
-            background: "var(--card-bg)",
-            borderColor: "var(--border)",
-          }}
-        >
-          <div className="flex items-center gap-2.5 text-xs text-center sm:text-left">
-            <span
-              className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shrink-0"
-              style={{
-                background: "rgba(16, 185, 129, 0.12)",
-                borderColor: "rgba(16, 185, 129, 0.3)",
-                color: "#10b981",
-              }}
-            >
-              Free Forever
-            </span>
-            <span style={{ color: "var(--txt)" }}>
-              Solo analyst or student? Try our <strong style={{ color: "var(--txt)" }}>Free Starter</strong> plan (up to 100k rows, 500 MB storage).
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setLaunchModalOpen(true)}
-            className="text-xs font-bold underline flex items-center gap-1 cursor-pointer shrink-0"
-            style={{ color: "var(--accent)" }}
-          >
-            <span>Launch Free Workspace</span>
-            <ArrowRight size={12} />
-          </button>
-        </div>
-
         {/* Header Block */}
         <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-3 border border-[var(--border)] bg-[var(--card-bg)] text-[var(--accent)]">
-            <Sparkles size={13} />
-            <span>Transparent Pricing</span>
-          </div>
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-3" style={{ color: "var(--txt)" }}>
             Predictable plans. Built for data teams.
           </h1>
           <p className="text-sm sm:text-base max-w-xl mx-auto" style={{ color: "var(--txt-m)" }}>
             Simple, honest pricing with out-of-core DuckDB performance. Choose the plan that fits your dataset volume.
           </p>
-
-          {/* Billing Cycle Toggle */}
-          <div className="inline-flex items-center gap-3 p-1 rounded-full border border-[var(--border)] bg-[var(--card-bg)] shadow-sm mt-6">
-            <button
-              type="button"
-              onClick={() => setBillingCycle("monthly")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                billingCycle === "monthly"
-                  ? "bg-[var(--accent)] text-white shadow-md"
-                  : "text-[var(--txt-m)] hover:text-[var(--txt)]"
-              }`}
-            >
-              Monthly billing
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingCycle("annually")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                billingCycle === "annually"
-                  ? "bg-[var(--accent)] text-white shadow-md"
-                  : "text-[var(--txt-m)] hover:text-[var(--txt)]"
-              }`}
-            >
-              <span>Annual billing</span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
-                Save 20%
-              </span>
-            </button>
-          </div>
         </div>
 
-        {/* ── 3 PAID TIERS GRID ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 items-stretch">
-          {paidTiers.map((tier) => {
-            const price = billingCycle === "annually" ? tier.annualPrice : tier.monthlyPrice;
+        {/* ── 3 TIERS GRID (FREE, PRO, TEAM) ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 items-stretch max-w-6xl mx-auto">
+          {tiers.map((tier) => {
+            const price = tier.monthlyPrice;
 
             return (
               <div
                 key={tier.id}
-                className={`relative rounded-3xl p-6 sm:p-7 flex flex-col justify-between border transition-all ${
-                  tier.popular
+                className={`relative rounded-3xl p-6 flex flex-col justify-between border transition-all ${tier.popular
                     ? "border-[var(--accent)] bg-[var(--card-bg)] shadow-2xl ring-2 ring-[var(--accent)]/30"
                     : "border-[var(--border)] bg-[var(--card-bg)] shadow-lg"
-                }`}
+                  }`}
               >
-                {/* Popular Pill */}
+                {/* Popular / Free Pill */}
                 {tier.badge && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[var(--accent)] text-white shadow-md">
                     {tier.badge}
+                  </div>
+                )}
+                {tier.id === "free" && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow-md">
+                    100% Free
                   </div>
                 )}
 
@@ -282,11 +244,11 @@ export default function PricingPage() {
                   {/* Price */}
                   <div className="mb-5 pb-5 border-b" style={{ borderColor: "var(--border)" }}>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-4xl sm:text-5xl font-black" style={{ color: "var(--txt)" }}>
+                      <span className="text-4xl font-black" style={{ color: "var(--txt)" }}>
                         ${price}
                       </span>
                       <span className="text-xs font-semibold" style={{ color: "var(--txt-m)" }}>
-                        / month
+                        {tier.id === "free" ? "forever" : "/ month"}
                       </span>
                     </div>
 
@@ -302,8 +264,34 @@ export default function PricingPage() {
 
                   {/* Features list */}
                   <div className="space-y-2.5 mb-6">
+                    {tier.id === "pro" && (
+                      <div
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3 shadow-sm"
+                        style={{
+                          background: "var(--surface)",
+                          borderColor: "var(--accent)",
+                          color: "var(--accent)",
+                        }}
+                      >
+                        <Sparkles size={12} className="shrink-0" />
+                        <span>Everything in Free Starter, plus:</span>
+                      </div>
+                    )}
+                    {tier.id === "team" && (
+                      <div
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3 shadow-sm"
+                        style={{
+                          background: "var(--surface)",
+                          borderColor: "var(--accent)",
+                          color: "var(--accent)",
+                        }}
+                      >
+                        <Sparkles size={12} className="shrink-0" />
+                        <span>Everything in Pro Analyst, plus:</span>
+                      </div>
+                    )}
                     <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-                      Included Features:
+                      {tier.id === "free" ? "Included Features:" : "Exclusive Tier Capabilities:"}
                     </p>
                     {tier.highlights.map((feat, i) => (
                       <div key={i} className="flex items-start gap-2 text-xs" style={{ color: "var(--txt)" }}>
@@ -313,6 +301,20 @@ export default function PricingPage() {
                         <span className="leading-tight">{feat}</span>
                       </div>
                     ))}
+
+                    {/* Excluded Features with Cross Sign */}
+                    {tier.nonFeatures && tier.nonFeatures.length > 0 && (
+                      <div className="pt-2.5 border-t border-[var(--border)]/50 space-y-2.5">
+                        {tier.nonFeatures.map((feat, i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs opacity-50" style={{ color: "var(--txt-m)" }}>
+                            <div className="w-4 h-4 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center shrink-0 mt-0.5 border border-red-500/25">
+                              <X size={10} strokeWidth={2.5} />
+                            </div>
+                            <span className="leading-tight">{feat}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -321,11 +323,12 @@ export default function PricingPage() {
                   <button
                     type="button"
                     onClick={() => handleCtaClick(tier.id)}
-                    className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                      tier.popular
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${tier.popular
                         ? "bg-[var(--accent)] text-white hover:opacity-95 shadow-lg shadow-[var(--accent)]/20"
-                        : "bg-[var(--border)] text-[var(--txt)] hover:bg-[var(--accent)] hover:text-white"
-                    }`}
+                        : tier.id === "free"
+                          ? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-md"
+                          : "bg-[var(--border)] text-[var(--txt)] hover:bg-[var(--accent)] hover:text-white"
+                      }`}
                   >
                     <span>{tier.ctaText}</span>
                     <ArrowRight size={13} />
@@ -336,6 +339,19 @@ export default function PricingPage() {
           })}
         </div>
 
+        {/* ── MINIMAL INLINE CTA BANNER (Compact Shape) ── */}
+        <div className="mb-16 max-w-4xl mx-auto">
+          <CTABanner
+            variant="compact"
+            title="Want to test DataForge with your dataset first?"
+            subtitle="Start on the Free Starter plan — zero setup, instant automated EDA."
+            buttonText="Launch Free Workspace"
+            onAction={() => setLaunchModalOpen(true)}
+            secondaryButtonText="Explore Architecture"
+            secondaryHref="/#about"
+          />
+        </div>
+
         {/* ── CONCISE SPECS COMPARISON SUMMARY ── */}
         <div className="mb-16">
           <div className="text-center mb-8">
@@ -343,7 +359,7 @@ export default function PricingPage() {
               Plan Specifications Comparison
             </h2>
             <p className="text-xs mt-1" style={{ color: "var(--txt-m)" }}>
-              Transparent feature breakdown across the 3 paid tiers.
+              Transparent feature breakdown across Free, Pro, Team, and Enterprise tiers.
             </p>
           </div>
 
@@ -366,9 +382,9 @@ export default function PricingPage() {
                     }}
                   >
                     <th className="p-3.5 sm:px-6">Capacity &amp; Engine</th>
+                    <th className="p-3.5 text-center text-emerald-400">Free Starter</th>
                     <th className="p-3.5 text-center">Pro Analyst</th>
                     <th className="p-3.5 text-center" style={{ color: "var(--accent)" }}>Team Collaboration</th>
-                    <th className="p-3.5 text-center">Enterprise Scale</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -380,14 +396,14 @@ export default function PricingPage() {
                       <td className="p-3.5 sm:px-6 font-semibold" style={{ color: "var(--txt)" }}>
                         {row.spec}
                       </td>
+                      <td className="p-3.5 text-center font-mono text-emerald-400">
+                        {row.free}
+                      </td>
                       <td className="p-3.5 text-center font-mono" style={{ color: "var(--txt-m)" }}>
                         {row.pro}
                       </td>
                       <td className="p-3.5 text-center font-mono font-bold" style={{ color: "var(--accent)" }}>
                         {row.team}
-                      </td>
-                      <td className="p-3.5 text-center font-mono" style={{ color: "var(--txt-m)" }}>
-                        {row.enterprise}
                       </td>
                     </tr>
                   ))}
@@ -455,13 +471,6 @@ export default function PricingPage() {
           </div>
         </div>
 
-        {/* CTA Banner */}
-        <CTABanner
-          title="Ready to supercharge your data analysis?"
-          subtitle="Ingest spreadsheets, relational databases, or cloud warehouses in seconds with out-of-core performance."
-          buttonText="Launch Workspace Now"
-          onAction={() => setLaunchModalOpen(true)}
-        />
       </main>
 
       {/* Global Ingestion Hub Launch Modal */}

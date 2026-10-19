@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Logo from "../Logo";
 
 interface LoginModalProps {
@@ -9,6 +9,21 @@ interface LoginModalProps {
 
 export default function LoginModal({ onClose }: LoginModalProps) {
   const googleEnabled = true;
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const err = params.get("error");
+      if (err === "db") {
+        setErrorMsg("Database connection error. Please try signing in again.");
+      } else if (err === "oauth") {
+        setErrorMsg("Google authorization was cancelled or failed. Please try again.");
+      } else if (err) {
+        setErrorMsg(`Sign in error: ${err}`);
+      }
+    }
+  }, []);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -24,6 +39,12 @@ export default function LoginModal({ onClose }: LoginModalProps) {
         </div>
         <h2 className="text-2xl font-black tracking-tight mb-1" style={{ color: "var(--txt)" }}>Sign in to continue</h2>
         <p className="text-xs mb-7 leading-relaxed" style={{ color: "var(--txt-m)" }}>Create an account or sign in to upload your dataset and start analysing.</p>
+
+        {errorMsg && (
+          <div className="mb-4 p-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 text-xs text-center font-medium">
+            {errorMsg}
+          </div>
+        )}
         {googleEnabled ? (
           <div className="flex flex-col gap-3 w-full">
             <a href="/api/auth/login/google" className="google-btn">

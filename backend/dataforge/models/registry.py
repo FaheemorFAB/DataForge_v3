@@ -49,10 +49,9 @@ class ModelRegistry:
     @classmethod
     def _write_data(cls, data: Dict[str, Any]) -> None:
         p = cls._get_store_file()
-        temp_file = p.with_suffix(".tmp")
-        with open(temp_file, "w", encoding="utf-8") as f:
+        with open(p, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
-        temp_file.replace(p)
+
 
     @classmethod
     def ensure_seed_models(cls, org_id: str = "default") -> None:
@@ -206,6 +205,20 @@ class ModelRegistry:
 
             cls._write_data(data)
             return updated
+
+    @classmethod
+    def delete_model(cls, model_id: str) -> bool:
+        """Permanently deletes a model record from the registry."""
+        with _LOCK:
+            data = cls._read_data()
+            models = data.get("models", [])
+            initial_len = len(models)
+            remaining = [m for m in models if m.get("id") != model_id]
+            if len(remaining) == initial_len:
+                return False
+            data["models"] = remaining
+            cls._write_data(data)
+            return True
 
     @classmethod
     def predict(cls, model_id: str, input_features: Dict[str, Any]) -> Dict[str, Any]:

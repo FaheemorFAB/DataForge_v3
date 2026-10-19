@@ -19,10 +19,9 @@ from dataforge.api.storage.manager import STORE_DIR
 
 log = logging.getLogger(__name__)
 
-# Role hierarchy: Admin (4) > Data Engineer (3) > Analyst (2) > Viewer (1)
+# Role hierarchy: Admin (3) > Analyst (2) > Viewer (1)
 ROLE_HIERARCHY: Dict[str, int] = {
-    "Admin": 4,
-    "Data Engineer": 3,
+    "Admin": 3,
     "Analyst": 2,
     "Viewer": 1,
 }
@@ -31,33 +30,27 @@ ROLE_CAPABILITIES: Dict[str, List[str]] = {
     "Admin": [
         "Manage Team & Billing",
         "Invite & Remove Members",
-        "Role Assignment",
-        "Production Model Deployment",
+        "Role Assignment & Permissions",
         "Database Connection Vault",
-        "Full Data Ingestion & Joins",
+        "Full Data Ingestion, Joins & Cleaning",
+        "Production Model Deployment & Docker Export",
         "AutoML & Pipeline Execution",
         "View All Workspaces & Audit Logs",
     ],
-    "Data Engineer": [
-        "Database Connection Vault",
-        "Multi-Table Relational Joins",
-        "Granular Cleaning & Preprocessing",
-        "Pipeline Code Export",
-        "AutoML Execution",
-        "Model Registry Staging",
-    ],
     "Analyst": [
         "Exploratory Data Analysis (EDA)",
-        "AutoML Tournament Training",
-        "Model Evaluation & Inference",
+        "Build & Save Interactive Charts",
+        "AutoML Tournament Training & Evaluation",
         "Dashboard & Report Authoring",
-        "DuckDB SQL Analytics",
+        "DuckDB SQL Analytics & Filtering",
+        "Export Reports & Presentation Slides",
+        "Ask AI Assistant / Chat Queries",
     ],
     "Viewer": [
         "Read-Only Workspace Access",
         "View Dashboards & Reports",
         "Inspect Model Leaderboards",
-        "Export Visual Charts",
+        "Export Visual Charts & Data Summary",
     ],
 }
 
@@ -141,7 +134,7 @@ class TeamManager:
                     "user_id": 901,
                     "user_email": "sarah.chen@company.com",
                     "user_name": "Sarah Chen",
-                    "role": "Data Engineer",
+                    "role": "Analyst",
                     "joined_at": now_iso,
                 },
                 {

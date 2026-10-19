@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     # ── Google OAuth ──────────────────────────────────────────────────────────
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
-    GOOGLE_REDIRECT_URI: str = "http://localhost:5000/auth/google/callback"
+    GOOGLE_REDIRECT_URI: Optional[str] = None
 
     @property
     def GOOGLE_AUTH_ENABLED(self) -> bool:
@@ -204,8 +204,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_AUTOML: str = "2/2minutes"
     RATE_LIMIT_AUTH: str = "10/minute"
 
-    # ── Paddle & Payment Provider ─────────────────────────────────────────────
-    PAYMENT_PROVIDER: str = "mock"
+    # ── Dodo Payments & Payment Provider ───────────────────────────────────────
+    PAYMENT_PROVIDER: str = "dodo"
+    DODO_PAYMENTS_API_KEY: Optional[str] = None
+    DODO_PAYMENTS_WEBHOOK_KEY: Optional[str] = None
+    DODO_PAYMENTS_ENVIRONMENT: str = "test_mode"  # "test_mode" or "live_mode"
+    DODO_PRODUCT_PRO_MONTHLY: str = "pdt_pro_monthly_29"
+    DODO_PRODUCT_TEAM_MONTHLY: str = "pdt_team_monthly_79"
     PADDLE_VENDOR_ID: Optional[str] = None
     PADDLE_API_KEY: Optional[str] = None
     PADDLE_WEBHOOK_SECRET: Optional[str] = None

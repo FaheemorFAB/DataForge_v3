@@ -99,8 +99,8 @@ async def api_root_cause(
         raise HTTPException(400, "upload_id required")
     await require_upload_with_data(target_upload_id, current_user)
 
-    df_clean = load(upload_id, "df_clean")
-    df = df_clean if df_clean is not None else load(upload_id, "df_raw")
+    df_clean = load(target_upload_id, "df_clean")
+    df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
     if df is None:
         raise HTTPException(400, "No dataset loaded")
 
@@ -123,7 +123,7 @@ async def api_root_cause(
 async def api_forecast(
     body: ForecastRequest,
     current_user: CurrentUser,
-    upload_id_q: Optional[int] = Query(default=None, alias="upload_id"),
+    upload_id_q: Optional[str] = Query(default=None, alias="upload_id"),
 ):
     """
     Run the full forecasting pipeline (Holt-Winters, ARIMA, Ridge-Lag ensemble)

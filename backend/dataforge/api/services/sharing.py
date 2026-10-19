@@ -21,16 +21,23 @@ from dataforge.db import User
 
 log = logging.getLogger(__name__)
 
-# Numeric rank for comparison: Owner (5) > Admin (4) > Editor (3) > Analyst (2) > Viewer (1)
+# Numeric rank for comparison: Owner/Admin (3) > Analyst (2) > Viewer (1)
 ROLE_RANKS: Dict[str, int] = {
-    "Owner": 5,
-    "Admin": 4,
-    "Editor": 3,
-    "Data Engineer": 3,
+    "Owner": 3,
+    "Admin": 3,
     "Analyst": 2,
-    "Commenter": 2,
+    "Editor": 2,  # legacy compatibility for Analyst
     "Viewer": 1,
 }
+
+# Legacy role normalizer ensuring only the 3 canonical platform roles are assigned
+def normalize_share_role(role: str) -> str:
+    r = (role or "").strip().title()
+    if r in ("Owner", "Admin"):
+        return "Admin"
+    elif r in ("Editor", "Data Engineer", "Analyst"):
+        return "Analyst"
+    return "Viewer"
 
 _LOCK = threading.RLock()
 
@@ -45,6 +52,84 @@ class DatasetSharingService:
         return target_dir / "_shares.json"
 
     @classmethod
+    def _enrich_manifest(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Enriches the manifest with human-readable names, real avatar URLs, and canonical roles."""
+        from dataforge.api.repositories.user import user_repo
+
+        # Helper to compute fallback avatar deterministically
+        def _get_avatar(key: str, existing_avatar: Optional[str] = None) -> str:
+            if existing_avatar and existing_avatar.startswith("/avatars/"):
+                return existing_avatar
+            idx = (abs(hash(str(key))) % 12) + 1
+            return f"/avatars/avatar-{idx}.svg"
+
+        # Helper to compute display name
+        def _get_name(email_or_user: str, existing_name: Optional[str] = None) -> str:
+            if existing_name and existing_name.strip():
+                return existing_name.strip()
+            local = (email_or_user or "").split("@")[0]
+            clean = local.replace(".", " ").replace("_", " ").replace("-", " ")
+            return clean.title() if clean else "Team Member"
+
+        # 1. Owner Profile
+        owner_id = data.get("owner_id")
+        owner_email = data.get("owner_email") or ""
+        owner_user = None
+        if owner_id:
+            try:
+                owner_user = user_repo.get_by_id(owner_id)
+            except Exception:
+                pass
+        if not owner_user and owner_email and not str(owner_email).startswith("user_"):
+            try:
+                owner_user = user_repo.get_by_email(owner_email)
+            except Exception:
+                pass
+
+        if owner_user:
+            real_email = owner_user.get("email")
+            if real_email and not str(real_email).startswith("user_"):
+                data["owner_email"] = real_email
+            data["owner_name"] = owner_user.get("name") or _get_name(data.get("owner_email") or "owner")
+            data["owner_avatar"] = owner_user.get("avatar") or _get_avatar(data.get("owner_email") or str(owner_id))
+        else:
+            data["owner_name"] = data.get("owner_name") or _get_name(owner_email or "owner")
+            data["owner_avatar"] = data.get("owner_avatar") or _get_avatar(owner_email or str(owner_id))
+
+        # 2. General access & link role canonicalization
+        if data.get("link_role") not in ("Viewer", "Analyst"):
+            data["link_role"] = "Viewer"
+
+        # 3. Collaborators Profile enrichment
+        collabs = data.get("collaborators", [])
+        enriched_collabs = []
+        for c in collabs:
+            c_email = (c.get("email") or "").strip().lower()
+            if not c_email:
+                continue
+            u = None
+            try:
+                u = user_repo.get_by_email(c_email)
+            except Exception:
+                pass
+
+            c_name = (u.get("name") if u else None) or c.get("name") or _get_name(c_email)
+            c_avatar = (u.get("avatar") if u else None) or c.get("avatar") or _get_avatar(c_email)
+            c_role = normalize_share_role(c.get("role", "Viewer"))
+
+            enriched_c = {
+                **c,
+                "email": c_email,
+                "name": c_name,
+                "avatar": c_avatar,
+                "role": c_role,
+            }
+            enriched_collabs.append(enriched_c)
+
+        data["collaborators"] = enriched_collabs
+        return data
+
+    @classmethod
     def get_shares(cls, upload_id: str, owner_id: Optional[int] = None, owner_email: Optional[str] = None) -> Dict[str, Any]:
         """Loads dataset sharing manifest, initializing default restricted settings if missing."""
         path = cls._shares_path(upload_id)
@@ -55,19 +140,32 @@ class DatasetSharingService:
                         data = json.load(f)
                         if owner_id and not data.get("owner_id"):
                             data["owner_id"] = owner_id
-                        if owner_email and not data.get("owner_email"):
+                        if owner_email and (not data.get("owner_email") or str(data.get("owner_email")).startswith("user_")):
                             data["owner_email"] = owner_email
-                        return data
+                        enriched = cls._enrich_manifest(data)
+                        if enriched.get("owner_email") != data.get("owner_email"):
+                            cls._save_shares(upload_id, enriched)
+                        return enriched
                 except Exception as e:
                     log.warning("[sharing] Failed to read shares manifest for %s: %s", upload_id, e)
 
-            # Initialize fresh manifest
+            # Initialize fresh manifest with authentic email
+            real_owner_email = owner_email
+            if (not real_owner_email or str(real_owner_email).startswith("user_")) and owner_id:
+                try:
+                    from dataforge.api.repositories.user import user_repo
+                    u = user_repo.get_by_id(owner_id)
+                    if u and u.get("email"):
+                        real_owner_email = u["email"]
+                except Exception:
+                    pass
+
             default_manifest: Dict[str, Any] = {
                 "upload_id": str(upload_id),
                 "owner_id": owner_id,
-                "owner_email": owner_email or f"user_{owner_id or 'unknown'}@dataforge.app",
+                "owner_email": real_owner_email or f"user_{owner_id or 'unknown'}@dataforge.app",
                 "general_access": "restricted",  # "restricted" | "anyone_with_link"
-                "link_role": "Viewer",           # "Viewer" | "Analyst" | "Editor"
+                "link_role": "Viewer",           # "Viewer" | "Analyst"
                 "share_token": f"sh_{secrets.token_urlsafe(16)}",
                 "collaborators": [],
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -81,7 +179,7 @@ class DatasetSharingService:
             except Exception as e:
                 log.error("[sharing] Could not write default shares manifest for %s: %s", upload_id, e)
 
-            return default_manifest
+            return cls._enrich_manifest(default_manifest)
 
     @classmethod
     def _save_shares(cls, upload_id: str, manifest: Dict[str, Any]) -> None:
@@ -157,12 +255,19 @@ class DatasetSharingService:
                 if op_role not in ("Admin", "Owner"):
                     raise PermissionError("Only the Owner or Admin can manage dataset permissions.")
 
+            # Tier check: Adding collaborators with custom roles requires Team Collaboration
+            from dataforge.api.services.entitlements import EntitlementService
+            sub = EntitlementService.get_subscription(operator_id)
+            if not sub.get("has_team_collaboration", False):
+                raise PermissionError("Adding individual collaborators with custom roles (Admin, Analyst, Viewer) is exclusive to the Team Collaboration plan.")
+
             cleaned_email = email.strip().lower()
             if not cleaned_email or "@" not in cleaned_email:
                 raise ValueError("Invalid collaborator email address.")
 
-            if role not in ROLE_RANKS:
-                raise ValueError(f"Invalid role: {role}. Choose from: Viewer, Analyst, Editor, Admin.")
+            canonical_role = normalize_share_role(role)
+            if canonical_role not in ("Viewer", "Analyst", "Admin"):
+                raise ValueError(f"Invalid role: {role}. Choose from: Viewer, Analyst, Admin.")
 
             # Prevent downgrading the owner
             if shares.get("owner_email", "").lower() == cleaned_email:
@@ -173,13 +278,13 @@ class DatasetSharingService:
 
             now_iso = datetime.now(timezone.utc).isoformat()
             if existing:
-                existing["role"] = role
+                existing["role"] = canonical_role
                 existing["updated_at"] = now_iso
                 existing["updated_by"] = operator_id
             else:
                 collaborators.append({
                     "email": cleaned_email,
-                    "role": role,
+                    "role": canonical_role,
                     "invited_at": now_iso,
                     "invited_by": operator_id,
                 })
@@ -258,8 +363,14 @@ class DatasetSharingService:
             if general_access not in ("restricted", "anyone_with_link"):
                 raise ValueError("general_access must be 'restricted' or 'anyone_with_link'")
 
-            if link_role not in ("Viewer", "Analyst", "Editor"):
-                raise ValueError("link_role must be Viewer, Analyst, or Editor")
+            # Solo and Pro plans can only share read-only Viewer links
+            from dataforge.api.services.entitlements import EntitlementService
+            sub = EntitlementService.get_subscription(operator_id)
+            if not sub.get("has_team_collaboration", False):
+                link_role = "Viewer"
+
+            if link_role not in ("Viewer", "Analyst"):
+                raise ValueError("link_role must be Viewer or Analyst")
 
             shares["general_access"] = general_access
             shares["link_role"] = link_role

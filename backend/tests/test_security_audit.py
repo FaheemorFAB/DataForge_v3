@@ -103,13 +103,22 @@ def test_db_connector_rejects_sqlite():
     assert "prohibited" in msg
 
 
-def test_db_connector_rejects_internal_host():
+def test_db_connector_rejects_internal_host(monkeypatch):
+    monkeypatch.setenv("ALLOW_LOCAL_DATABASE", "false")
+    monkeypatch.setenv("ALLOW_LOCAL_DB", "false")
     conn = DBConnector("postgresql://user:pass@127.0.0.1:5432/testdb")
     with pytest.raises(ValueError, match="Database connection prohibited for security"):
         conn._get_engine()
     ok, msg = conn.test()
     assert not ok
     assert "prohibited" in msg
+
+
+def test_db_connector_allows_local_in_dev_when_flag_enabled(monkeypatch):
+    monkeypatch.setenv("ALLOW_LOCAL_DATABASE", "true")
+    conn = DBConnector("postgresql://user:pass@127.0.0.1:5432/testdb")
+    eng = conn._get_engine()
+    assert eng is not None
 
 
 def test_db_connector_rejects_unauthorized_query_params():

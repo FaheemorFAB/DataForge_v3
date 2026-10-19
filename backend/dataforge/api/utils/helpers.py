@@ -82,10 +82,6 @@ def safe_json_value(v: Any) -> Any:
 
 def df_profile(df: pd.DataFrame, filename: str = "") -> dict:
     """Compute a lightweight profile summary for a DataFrame."""
-    for col in df.columns:
-        if df[col].dtype == "object":
-            df[col] = df[col].apply(lambda x: str(x) if pd.notna(x) else None)
-
     missing     = int(df.isnull().sum().sum())
     numeric_cnt = int(len(df.select_dtypes(include=np.number).columns))
     total_cells = df.shape[0] * df.shape[1]
@@ -94,7 +90,7 @@ def df_profile(df: pd.DataFrame, filename: str = "") -> dict:
     for col, dtype in zip(df.columns, df.dtypes):
         null_pct = round(df[col].isnull().mean() * 100, 1)
         columns.append({
-            "name": col, "dtype": str(dtype),
+            "name": str(col), "dtype": str(dtype),
             "null_pct": null_pct, "quality": round(100 - null_pct, 1)
         })
     return {

@@ -31,9 +31,10 @@ _IDENTITY_PATTERNS = re.compile(
 
 def is_available() -> bool:
     api_key = (os.getenv("GEMINI_API_KEY") or "").strip("'\"")
-    return bool(api_key)
+    return bool(api_key) and GEMINI_OK
 
 def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 60) -> str:
+    global GEMINI_OK
     import requests
     api_key = (os.getenv("GEMINI_API_KEY") or "").strip("'\"")
     if not api_key:
@@ -52,6 +53,8 @@ def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 60) -> str:
     }
     response = requests.post(url, headers=headers, json=payload, timeout=timeout)
     if response.status_code != 200:
+        if response.status_code in (401, 402, 403, 429):
+            GEMINI_OK = False
         logger.error("Gemini API error %s: %s", response.status_code, response.text[:300])
         raise RuntimeError(f"Gemini API error {response.status_code}: {response.text[:300]}")
     data = response.json()
@@ -211,12 +214,34 @@ def _build_chart(intent, x_col, y_col, top_n, raw, df):
 
 # ── Main pipeline ─────────────────────────────────────────────────────────────
 
-def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "") -> dict:
-    """Gemini-first, deterministic fallback. Single API call, ~2-4s.
+def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "", upload_id: str = None) -> dict:
+    """Multi-Agent ADK-first with automatic fallback to single-call pipeline.
     
     metric_context: optional block of user-defined metric definitions
-    (e.g. "revenue = price * units") injected into the Gemini prompt.
+    (e.g. "revenue = price * units") injected into the prompt.
     """
+    global GEMINI_OK
+
+    # 1. Try ADK Multi-Agent Supervisor first
+    try:
+        from dataforge.ai.supervisor import supervisor
+        res = supervisor.execute(query=query, df=df, upload_id=upload_id, metric_context=metric_context)
+        if res and res.get("ok"):
+            return {
+                "error": None,
+                "answer": res.get("answer"),
+                "result": res.get("result"),
+                "code": res.get("code"),
+                "insight": res.get("insight") or "",
+                "intent": {"type": res.get("intent", "summary")},
+                "engine": "adk_multi_agent",
+                "agent_actions": res.get("agent_actions", []),
+                "system_notice": res.get("system_notice"),
+                "suggested_actions": res.get("suggested_actions", []),
+                "download_links": res.get("download_links"),
+            }
+    except Exception as exc:
+        logger.warning("[gemini_pipeline] ADK Supervisor exception: %s. Falling back to legacy handler.", exc)
 
     # ── Identity intercept ───────────────────────────────────────────────────
     if _IDENTITY_PATTERNS.search(query):
@@ -256,12 +281,24 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "") -
                         else:
                             logger.warning("[gemini_pipeline] code exec failed after retries: %s", err)
 
-            if not answer and raw is not None:
-                answer = str(raw)[:500]
+            # Ground truth synchronization to prevent hallucinations and sync chart with text
+            from dataforge.ai.reasoning import synchronize_ground_truth
+            from dataforge.ai.tools.viz_tool import build_chart_tool
+
+            answer, intent, insight = synchronize_ground_truth(
+                query=query,
+                raw_result=raw,
+                df=df,
+                proposed_answer=answer,
+                proposed_intent=intent,
+                proposed_insight="",
+                x_col=x_col,
+                y_col=y_col,
+            )
 
             result = None
             if intent != "summary":
-                result = _build_chart(intent, x_col, y_col, top_n, raw, df)
+                result = build_chart_tool(intent=intent, raw_result=raw, df=df, x_col=x_col, y_col=y_col, top_n=top_n)
             if result is None:
                 result = {"type": "summary", "text": answer or "No result."}
 
@@ -269,13 +306,15 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "") -
                 "error":   None,
                 "answer":  answer or "No result.",
                 "result":  result,
-                "insight": "",
+                "insight": insight,
                 "intent":  {"type": intent},
                 "engine":  "llm",
             }
 
         except Exception as exc:
             logger.error("[gemini_pipeline] Gemini failed, falling back: %s", exc, exc_info=True)
+            if "402" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc) or "credits are depleted" in str(exc):
+                GEMINI_OK = False
 
     # Deterministic fallback
     try:
@@ -290,7 +329,41 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "") -
     except Exception as e:
         logger.error("[gemini_pipeline] deterministic failed: %s", e)
 
-    return {"error": "Query failed. Check GEMINI_API_KEY in backend/.env."}
+    # Conversational fallback with actionable query suggestions and dataset summary
+    row_count = len(df)
+    col_count = len(df.columns)
+    sample_cols = ", ".join([f"`{c}`" for c in list(df.columns)[:8]])
+    if col_count > 8:
+        sample_cols += f", and {col_count - 8} more"
+
+    num_cols = list(df.select_dtypes(include="number").columns)
+    first_num = num_cols[0] if num_cols else "values"
+
+    fallback_answer = (
+        f"I analyzed your dataset with {row_count:,} rows and {col_count} columns ({sample_cols}).\n\n"
+        f"I couldn't identify a direct calculation for \"{query}\". Try asking:\n"
+        f"• Summary: \"Summarize the dataset\"\n"
+        f"• Rankings: \"What are the top 5 by {first_num}?\"\n"
+        f"• Distribution: \"Show distribution of {first_num}\"\n"
+        f"• Correlation: \"Show correlation matrix\"\n"
+        f"• Anomalies: \"What are the top anomalies?\""
+    )
+
+    try:
+        det = _load_det()
+        summary_dr = det.run_deterministic_pipeline("summary", df)
+        res_payload = summary_dr.get("result") or {"type": "summary", "text": fallback_answer}
+    except Exception:
+        res_payload = {"type": "summary", "text": fallback_answer}
+
+    return {
+        "error": None,
+        "answer": fallback_answer,
+        "result": res_payload,
+        "insight": f"Dataset profile: {row_count:,} rows, {col_count} columns.",
+        "intent": {"type": "summary"},
+        "engine": "deterministic_fallback"
+    }
 
 
 # ── Deterministic engine loader ───────────────────────────────────────────────

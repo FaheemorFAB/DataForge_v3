@@ -298,49 +298,20 @@ def api_workspace_state():
 
     from datetime import datetime
 
-    # Migrate and structure chat history
-    chat_data = chat_history
-    if isinstance(chat_data, list):
-        if len(chat_data) > 0:
-            default_session = {
-                "id": "default",
-                "name": "Previous Chat",
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat(),
-                "messages": chat_data
-            }
-            chat_data = {
-                "active_session_id": "default",
-                "sessions": [default_session]
-            }
-        else:
-            chat_data = {
-                "active_session_id": "default",
-                "sessions": [{
-                    "id": "default",
-                    "name": "New Chat",
-                    "created_at": datetime.now().isoformat(),
-                    "updated_at": datetime.now().isoformat(),
-                    "messages": []
-                }]
-            }
-
-    if not isinstance(chat_data, dict) or "sessions" not in chat_data or not chat_data.get("sessions"):
-        chat_data = {
-            "active_session_id": "default",
-            "sessions": [{
-                "id": "default",
-                "name": "New Chat",
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat(),
-                "messages": []
-            }]
-        }
+    # Migrate and structure chat history safely
+    from ..helpers import normalize_chat_data
+    chat_data, was_migrated = normalize_chat_data(chat_history)
+    if was_migrated:
         _save(upload_id, "chat_history", chat_data)
 
     active_session_id = chat_data.get("active_session_id", "default")
     chat_sessions = chat_data.get("sessions", [])
-    active_history = next((s["messages"] for s in chat_sessions if s["id"] == active_session_id), [])
+    active_sess = next((s for s in chat_sessions if s["id"] == active_session_id), None)
+    if not active_sess and chat_sessions:
+        active_sess = chat_sessions[0]
+        active_session_id = active_sess.get("id", "default")
+        chat_data["active_session_id"] = active_session_id
+    active_history = active_sess.get("messages", []) if active_sess else []
     ai_consent = bool(_load(upload_id, "ai_consent"))
 
     if df_raw is None and df_clean is None:
@@ -491,18 +462,63 @@ def api_workspace_sync_sheets():
     except Exception as e:
         return jsonify({"error": f"Could not sync with Google Sheets: {e}"}), 400
 
+    # Snapshot state before sync to compute deltas
+    old_df = _load(upload_id, "df_raw")
+    old_rows = int(len(old_df)) if old_df is not None else int(up_row.get("rows") or 0)
+    old_cols = int(len(old_df.columns)) if old_df is not None else int(up_row.get("cols") or 0)
+    old_cols_set = set(str(c) for c in (old_df.columns if old_df is not None else []))
+
     filename = up_row.get("filename", "sheet.csv")
     profile = _df_profile(df, filename)
 
-    for key in ("df_clean", "clean_meta", "automl_meta", "eda_html"):
-        p = _upath(upload_id, key)
-        for suffix in (".parquet", ".json", ".joblib", ".html", ""):
-            f = p.with_suffix(suffix) if suffix else p
-            if f.exists() and not f.is_dir():
-                try:
-                    f.unlink()
-                except Exception:
-                    pass
+    new_rows = int(len(df))
+    new_cols = int(len(df.columns))
+    new_cols_set = set(str(c) for c in df.columns)
+
+    rows_delta = new_rows - old_rows
+    cols_delta = new_cols - old_cols
+    added_cols = [str(c) for c in df.columns if str(c) not in old_cols_set]
+    removed_cols = [str(c) for c in (old_df.columns if old_df is not None else []) if str(c) not in new_cols_set]
+
+    values_changed = False
+    if old_df is not None:
+        try:
+            values_changed = not old_df.equals(df)
+        except Exception:
+            values_changed = True
+    else:
+        values_changed = True
+
+    has_changes = (rows_delta != 0) or (cols_delta != 0) or bool(added_cols) or bool(removed_cols) or values_changed
+
+    if not has_changes:
+        summary_msg = "Google Sheet is already in sync. No changes detected."
+    else:
+        change_parts = []
+        if rows_delta > 0:
+            change_parts.append(f"{rows_delta:,} row{'s' if rows_delta != 1 else ''} added")
+        elif rows_delta < 0:
+            change_parts.append(f"{abs(rows_delta):,} row{'s' if abs(rows_delta) != 1 else ''} removed")
+
+        if cols_delta > 0:
+            change_parts.append(f"{cols_delta} column{'s' if cols_delta != 1 else ''} added")
+        elif cols_delta < 0:
+            change_parts.append(f"{abs(cols_delta)} column{'s' if abs(cols_delta) != 1 else ''} removed")
+
+        if not change_parts and values_changed:
+            change_parts.append("Cell values updated")
+
+        summary_msg = f"Synced with Google Sheets: {', '.join(change_parts)}."
+
+        for key in ("df_clean", "clean_meta", "automl_meta", "eda_html"):
+            p = _upath(upload_id, key)
+            for suffix in (".parquet", ".json", ".joblib", ".html", ""):
+                f = p.with_suffix(suffix) if suffix else p
+                if f.exists() and not f.is_dir():
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
 
     try:
         _save(upload_id, "df_raw", df)
@@ -525,7 +541,23 @@ def api_workspace_sync_sheets():
     except Exception:
         pass
 
-    return jsonify({"ok": True, "profile": profile})
+    changes_info = {
+        "has_changes": has_changes,
+        "old_rows": old_rows,
+        "new_rows": new_rows,
+        "rows_delta": rows_delta,
+        "rows_added": max(0, rows_delta),
+        "rows_removed": max(0, -rows_delta),
+        "old_cols": old_cols,
+        "new_cols": new_cols,
+        "cols_delta": cols_delta,
+        "added_cols": added_cols,
+        "removed_cols": removed_cols,
+        "values_changed": values_changed,
+        "summary": summary_msg,
+    }
+
+    return jsonify({"ok": True, "profile": profile, "changes": changes_info})
 
 
 @workspace_bp.route("/api/preview")
@@ -1906,12 +1938,16 @@ def api_query():
     session["messages"].append({"role": "user", "content": query})
     msg = {"role": "assistant", "content": result.get("answer", "")}
     r = result.get("result") or {}
-    if r.get("type") in ("bar_chart", "line_chart", "histogram", "scatter_chart"):
+    if r.get("type") in ("bar_chart", "line_chart", "histogram", "scatter_chart", "pie_chart", "doughnut_chart", "box_plot"):
         msg["chartData"] = r
     elif r.get("type") == "table":
         msg["tableData"] = r
     if result.get("insight"):
         msg["insight"] = result["insight"]
+    if result.get("suggested_actions"):
+        msg["suggested_actions"] = result["suggested_actions"]
+    if result.get("download_links"):
+        msg["download_links"] = result["download_links"]
     session["messages"].append(msg)
     session["updated_at"] = datetime.now().isoformat()
     
@@ -2054,9 +2090,9 @@ def api_chat_session_new():
     if err:
         return err
 
-    chat_data = _load(upload_id, "chat_history") or {}
-    if not isinstance(chat_data, dict) or "sessions" not in chat_data:
-        chat_data = {"active_session_id": "default", "sessions": []}
+    from ..helpers import normalize_chat_data
+    chat_raw = _load(upload_id, "chat_history")
+    chat_data, _ = normalize_chat_data(chat_raw)
 
     new_id = str(uuid.uuid4())
     new_sess = {
@@ -2087,7 +2123,7 @@ def api_chat_session_new():
 def api_chat_session_select():
     import json
     from ..storage import _save, _load
-    from ..helpers import _get_upload_id, _get_upload_or_403
+    from ..helpers import _get_upload_id, _get_upload_or_403, normalize_chat_data
     from dataforge.db import db_update
 
     upload_id = _get_upload_id()
@@ -2102,13 +2138,18 @@ def api_chat_session_select():
     if not session_id:
         return jsonify({"error": "session_id required"}), 400
 
-    chat_data = _load(upload_id, "chat_history")
-    if not isinstance(chat_data, dict) or "sessions" not in chat_data:
-        return jsonify({"error": "Chat data not initialized"}), 400
+    chat_raw = _load(upload_id, "chat_history")
+    chat_data, _ = normalize_chat_data(chat_raw)
 
     session_ids = [s["id"] for s in chat_data["sessions"]]
     if session_id not in session_ids:
-        return jsonify({"error": "Session not found"}), 404
+        chat_data["sessions"].append({
+            "id": session_id,
+            "name": "New Chat",
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "messages": []
+        })
 
     chat_data["active_session_id"] = session_id
     _save(upload_id, "chat_history", chat_data)
@@ -2132,7 +2173,7 @@ def api_chat_session_select():
 def api_chat_session_rename():
     import json
     from ..storage import _save, _load
-    from ..helpers import _get_upload_id, _get_upload_or_403
+    from ..helpers import _get_upload_id, _get_upload_or_403, normalize_chat_data
     from dataforge.db import db_update
 
     upload_id = _get_upload_id()
@@ -2148,9 +2189,8 @@ def api_chat_session_rename():
     if not session_id or not name:
         return jsonify({"error": "session_id and non-empty name required"}), 400
 
-    chat_data = _load(upload_id, "chat_history")
-    if not isinstance(chat_data, dict) or "sessions" not in chat_data:
-        return jsonify({"error": "Chat data not initialized"}), 400
+    chat_raw = _load(upload_id, "chat_history")
+    chat_data, _ = normalize_chat_data(chat_raw)
 
     session = None
     for s in chat_data["sessions"]:
@@ -2181,7 +2221,7 @@ def api_chat_session_delete():
     import json
     from datetime import datetime
     from ..storage import _save, _load
-    from ..helpers import _get_upload_id, _get_upload_or_403
+    from ..helpers import _get_upload_id, _get_upload_or_403, normalize_chat_data
     from dataforge.db import db_update
 
     upload_id = _get_upload_id()
@@ -2196,9 +2236,8 @@ def api_chat_session_delete():
     if not session_id:
         return jsonify({"error": "session_id required"}), 400
 
-    chat_data = _load(upload_id, "chat_history")
-    if not isinstance(chat_data, dict) or "sessions" not in chat_data:
-        return jsonify({"error": "Chat data not initialized"}), 400
+    chat_raw = _load(upload_id, "chat_history")
+    chat_data, _ = normalize_chat_data(chat_raw)
 
     chat_data["sessions"] = [s for s in chat_data["sessions"] if s["id"] != session_id]
 

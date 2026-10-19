@@ -90,14 +90,17 @@ export default function IngestionPage() {
         </div>
       </main>
 
-      <CTABanner 
-        title="Ready to start importing?"
-        subtitle="Upload your raw dataset now. No complex setup."
-        buttonText="Upload Your Dataset"
-        href="/?login=1"
-        bgColor="linear-gradient(to top right, #3b82f6, #a855f7)"
-        btnTextColor="#3b82f6"
-      />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 mb-16">
+        <CTABanner 
+          variant="compact"
+          title="Ready to start importing?"
+          subtitle="Connect CSV, Excel, SQLite, PostgreSQL, Snowflake, and Google Sheets with zero configuration."
+          buttonText="Upload Your Dataset"
+          href="/?login=1"
+          secondaryButtonText="Clean & Transform"
+          secondaryHref="/products/cleaning"
+        />
+      </div>
 
       <Footer />
     </div>

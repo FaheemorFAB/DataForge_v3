@@ -240,3 +240,38 @@ async def export_docker_package(model_id: str):
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Container export error: {str(e)}")
+
+
+@router.delete("/{model_id}", summary="Delete a model from the enterprise registry")
+async def delete_model(
+    model_id: str,
+    current_user: CurrentUser,
+):
+    """Permanently deletes a registered model from the catalog."""
+    m = ModelRegistry.get_model(model_id)
+    if not m:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found.")
+
+    deleted = ModelRegistry.delete_model(model_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' could not be deleted.")
+
+    creator = _resolve_user_email(current_user)
+    try:
+        TeamManager.record_audit(
+            org_id=m.get("org_id", "default"),
+            user_id=getattr(current_user, "id", 1) if current_user else 1,
+            user_email=creator,
+            action="DELETE_MODEL",
+            target=m.get("model_name", model_id),
+            metadata={"model_id": model_id, "algorithm": m.get("algorithm")},
+        )
+    except Exception as e:
+        log.warning("Audit log write failed on model deletion: %s", e)
+
+    return JSONResponse(content=safe_jsonable({
+        "ok": True,
+        "model_id": model_id,
+        "message": f"Model '{m.get('model_name', model_id)}' successfully deleted from registry."
+    }))
+

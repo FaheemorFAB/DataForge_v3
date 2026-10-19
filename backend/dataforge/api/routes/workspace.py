@@ -37,51 +37,105 @@ log = logging.getLogger(__name__)
 router = APIRouter(tags=["workspace"])
 
 
+def _normalize_chat_data(raw_data) -> tuple[dict, bool]:
+    """
+    Normalizes any chat_history format into a multi-session structure.
+    Returns (normalized_dict, was_migrated_bool).
+    Ensures previous messages are never lost or wiped out.
+    """
+    now_iso = datetime.now(timezone.utc).isoformat()
+    migrated = False
+
+    if isinstance(raw_data, list):
+        migrated = True
+        has_msgs = len(raw_data) > 0
+        first_q = ""
+        for m in raw_data:
+            if isinstance(m, dict) and m.get("role") == "user" and m.get("content"):
+                first_q = m["content"][:28] + ("..." if len(m["content"]) > 28 else "")
+                break
+        sess_name = first_q or ("Previous Chat" if has_msgs else "New Chat")
+        return {
+            "active_session_id": "default",
+            "sessions": [{
+                "id": "default",
+                "name": sess_name,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+                "messages": raw_data,
+            }],
+        }, migrated
+
+    if isinstance(raw_data, dict):
+        sessions = raw_data.get("sessions")
+        if isinstance(sessions, list) and len(sessions) > 0:
+            active_id = raw_data.get("active_session_id")
+            if not any(s.get("id") == active_id for s in sessions):
+                raw_data["active_session_id"] = sessions[0].get("id", "default")
+                migrated = True
+            return raw_data, migrated
+        elif "messages" in raw_data and isinstance(raw_data["messages"], list):
+            migrated = True
+            msgs = raw_data["messages"]
+            return {
+                "active_session_id": "default",
+                "sessions": [{
+                    "id": "default",
+                    "name": raw_data.get("name") or "Previous Chat",
+                    "created_at": raw_data.get("created_at") or now_iso,
+                    "updated_at": raw_data.get("updated_at") or now_iso,
+                    "messages": msgs,
+                }],
+            }, migrated
+
+    return {
+        "active_session_id": "default",
+        "sessions": [{
+            "id": "default",
+            "name": "New Chat",
+            "created_at": now_iso,
+            "updated_at": now_iso,
+            "messages": [],
+        }],
+    }, False
+
+
 # ── Workspace state ───────────────────────────────────────────────────────────
 
 @router.get("/workspace/state", summary="Return full workspace state for an upload")
 async def api_workspace_state(
     current_user: CurrentUser,
     upload_id: Optional[str] = Query(default=None),
+    share_token: Optional[str] = Query(default=None),
 ):
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    up = await require_upload_with_data(upload_id, current_user)
+    up = await require_upload_with_data(upload_id, current_user, share_token=share_token)
 
     profile      = load(upload_id, "profile") or {}
     df_raw       = load(upload_id, "df_raw")
     df_clean     = load(upload_id, "df_clean")
     clean_meta   = load(upload_id, "clean_meta")
     automl_meta  = load(upload_id, "automl_meta")
-    chat_history = load(upload_id, "chat_history") or []
+    from dataforge.settings import PROJECTS_DIR
     has_eda      = (upath(upload_id, "eda_html").exists()
-                   or upath(upload_id, "eda_html").with_suffix(".json").exists())
+                   or upath(upload_id, "eda_html").with_suffix(".json").exists()
+                   or (PROJECTS_DIR / str(upload_id) / "eda_html").exists())
     ai_consent   = bool(load(upload_id, "ai_consent"))
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-
-    # Normalise chat history structure
-    if isinstance(chat_history, list):
-        chat_data = {
-            "active_session_id": "default",
-            "sessions": [{
-                "id": "default", "name": "Previous Chat" if chat_history else "New Chat",
-                "created_at": now_iso, "updated_at": now_iso,
-                "messages": chat_history,
-            }],
-        }
-    elif isinstance(chat_history, dict) and "sessions" in chat_history:
-        chat_data = chat_history
-    else:
-        chat_data = {
-            "active_session_id": "default",
-            "sessions": [{"id": "default", "name": "New Chat",
-                          "created_at": now_iso, "updated_at": now_iso, "messages": []}],
-        }
+    chat_raw = load(upload_id, "chat_history")
+    chat_data, was_migrated = _normalize_chat_data(chat_raw)
+    if was_migrated:
+        save(upload_id, "chat_history", chat_data)
 
     active_session_id = chat_data.get("active_session_id", "default")
     chat_sessions = chat_data.get("sessions", [])
-    active_msgs = next((s["messages"] for s in chat_sessions if s["id"] == active_session_id), [])
+    active_sess = next((s for s in chat_sessions if s["id"] == active_session_id), None)
+    if not active_sess and chat_sessions:
+        active_sess = chat_sessions[0]
+        active_session_id = active_sess.get("id", "default")
+        chat_data["active_session_id"] = active_session_id
+    active_msgs = active_sess.get("messages", []) if active_sess else []
 
     clean_profile = None
     if df_clean is not None:
@@ -126,12 +180,32 @@ async def api_workspace_state(
     version_id = SnapshotManager.get_version(upload_id)
     snapshot_id = load(upload_id, "active_snapshot_id")
 
+    # Compute shared access & owner profile metadata
+    owner_id = up.get("user_id") if isinstance(up, dict) else None
+    shares = DatasetSharingService.get_shares(upload_id, owner_id=owner_id)
+    _, eff_role = DatasetSharingService.check_access(
+        upload_id=upload_id,
+        user=current_user,
+        owner_id=owner_id,
+        share_token=share_token,
+    )
+    is_shared = bool(owner_id is not None and owner_id != current_user.id)
+    share_meta = {
+        "is_shared": is_shared,
+        "effective_role": eff_role,
+        "general_access": shares.get("general_access", "restricted"),
+        "link_role": shares.get("link_role", "Viewer"),
+        "owner_name": shares.get("owner_name", "Dataset Owner"),
+        "owner_email": shares.get("owner_email", ""),
+        "owner_avatar": shares.get("owner_avatar", "/avatars/avatar-6.svg"),
+    }
+
     return JSONResponse(
         content=safe_jsonable({
             "has_df": df_raw is not None,
             "has_clean": df_clean is not None,
             "has_eda": has_eda,
-            "has_biz_report": exists(upload_id, "report_html") or exists(upload_id, "data_report_html"),
+            "has_biz_report": exists(upload_id, "report_html") or exists(upload_id, "data_report_html") or (PROJECTS_DIR / str(upload_id) / "report_html").exists(),
             "profile": profile,
             "clean_profile": clean_profile,
             "columns": profile.get("columns", []),
@@ -148,6 +222,7 @@ async def api_workspace_state(
             "source_type": src,
             "version_id": version_id,
             "snapshot_id": snapshot_id,
+            "share_meta": share_meta,
         }),
         headers={"ETag": f'"{version_id}"'},
     )
@@ -237,8 +312,64 @@ async def api_sync_sheets(
     except Exception as exc:
         raise HTTPException(400, f"Could not sync with Google Sheets: {exc}")
 
+    # ── Snapshot state before sync to compute deltas ──────────────────────────
+    old_df = load(upload_id, "df_raw")
+    old_rows = int(len(old_df)) if old_df is not None else int(up_row.get("rows") or 0)
+    old_cols = int(len(old_df.columns)) if old_df is not None else int(up_row.get("cols") or 0)
+    old_cols_set = set(str(c) for c in (old_df.columns if old_df is not None else []))
+
     filename = up_row.get("filename", "sheet.csv")
     profile = df_profile(df, filename)
+
+    new_rows = int(len(df))
+    new_cols = int(len(df.columns))
+    new_cols_set = set(str(c) for c in df.columns)
+
+    rows_delta = new_rows - old_rows
+    cols_delta = new_cols - old_cols
+    added_cols = [str(c) for c in df.columns if str(c) not in old_cols_set]
+    removed_cols = [str(c) for c in (old_df.columns if old_df is not None else []) if str(c) not in new_cols_set]
+
+    values_changed = False
+    if old_df is not None:
+        try:
+            values_changed = not old_df.equals(df)
+        except Exception:
+            values_changed = True
+    else:
+        values_changed = True
+
+    has_changes = (rows_delta != 0) or (cols_delta != 0) or bool(added_cols) or bool(removed_cols) or values_changed
+
+    if not has_changes:
+        summary_msg = "Google Sheet is already in sync. No changes detected."
+    else:
+        change_parts = []
+        if rows_delta > 0:
+            change_parts.append(f"{rows_delta:,} row{'s' if rows_delta != 1 else ''} added")
+        elif rows_delta < 0:
+            change_parts.append(f"{abs(rows_delta):,} row{'s' if abs(rows_delta) != 1 else ''} removed")
+
+        if cols_delta > 0:
+            change_parts.append(f"{cols_delta} column{'s' if cols_delta != 1 else ''} added")
+        elif cols_delta < 0:
+            change_parts.append(f"{abs(cols_delta)} column{'s' if abs(cols_delta) != 1 else ''} removed")
+
+        if not change_parts and values_changed:
+            change_parts.append("Cell values updated")
+
+        summary_msg = f"Synced with Google Sheets: {', '.join(change_parts)}."
+
+        # Invalidate stale clean/automl caches when raw dataset changes
+        for key in ("df_clean", "clean_meta", "automl_meta", "eda_html"):
+            p = upath(upload_id, key)
+            for suffix in (".parquet", ".json", ".joblib", ".html", ""):
+                f = p.with_suffix(suffix) if suffix else p
+                if f.exists() and not f.is_dir():
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
 
     save(upload_id, "df_raw", df)
     save(upload_id, "profile", profile)
@@ -256,7 +387,38 @@ async def api_sync_sheets(
     except Exception:
         pass
 
-    return JSONResponse(content=safe_jsonable({"ok": True, "profile": profile}))
+    if has_changes:
+        try:
+            author_name = getattr(current_user, "name", None) or getattr(current_user, "email", "User")
+            SnapshotManager.commit_snapshot(
+                upload_id=upload_id,
+                description=f"Synced Google Sheet: {summary_msg}",
+                author=author_name,
+            )
+        except Exception:
+            pass
+
+    changes_info = {
+        "has_changes": has_changes,
+        "old_rows": old_rows,
+        "new_rows": new_rows,
+        "rows_delta": rows_delta,
+        "rows_added": max(0, rows_delta),
+        "rows_removed": max(0, -rows_delta),
+        "old_cols": old_cols,
+        "new_cols": new_cols,
+        "cols_delta": cols_delta,
+        "added_cols": added_cols,
+        "removed_cols": removed_cols,
+        "values_changed": values_changed,
+        "summary": summary_msg,
+    }
+
+    return JSONResponse(content=safe_jsonable({
+        "ok": True,
+        "profile": profile,
+        "changes": changes_info,
+    }))
 
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
@@ -270,7 +432,7 @@ async def api_clean(
     upload_id = body.upload_id
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user, min_role="Editor")
+    await require_upload_with_data(upload_id, current_user, min_role="Analyst")
 
     df_raw = load(upload_id, "df_raw")
     if df_raw is None:
@@ -373,7 +535,7 @@ async def api_clean_dynamic(
     rules = body.get("rules", [])
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user, min_role="Editor")
+    await require_upload_with_data(upload_id, current_user, min_role="Analyst")
 
     df_raw = load(upload_id, "df_raw")
     if df_raw is None:
@@ -556,13 +718,27 @@ async def api_eda_report(
     from dataforge.api.storage.manager import load as _load
     from dataforge.settings import PROJECTS_DIR
 
-    # Try file path first (large HTML), then disk storage
+    # Try file path first (large HTML), then disk storage, then database
     html = None
     html_path = PROJECTS_DIR / str(upload_id) / "eda_html"
     if html_path.exists():
-        html = html_path.read_text(encoding="utf-8")
+        try:
+            html = html_path.read_text(encoding="utf-8")
+        except Exception:
+            pass
     if not html:
         html = _load(upload_id, "eda_html")
+    if not html:
+        try:
+            from dataforge.db import db_query
+            rows = db_query("reports", {"upload_id": upload_id})
+            if rows:
+                for r in reversed(rows):
+                    if r.get("eda_html"):
+                        html = r.get("eda_html")
+                        break
+        except Exception:
+            pass
     if not html:
         raise HTTPException(404, "No EDA report generated yet")
 
@@ -619,11 +795,45 @@ async def api_reports_latest(
     await require_upload_with_data(upload_id, current_user)
 
     from dataforge.api.storage.manager import load as _load
-    html = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
+    from dataforge.settings import PROJECTS_DIR
+
+    html = None
+    html_path = PROJECTS_DIR / str(upload_id) / "report_html"
+    if html_path.exists():
+        try:
+            html = html_path.read_text(encoding="utf-8")
+        except Exception:
+            pass
+    if not html:
+        html = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
+    if not html:
+        try:
+            from dataforge.db import db_query
+            rows = db_query("reports", {"upload_id": upload_id})
+            if rows:
+                for r in reversed(rows):
+                    if r.get("report_html"):
+                        html = r.get("report_html")
+                        break
+        except Exception:
+            pass
     if not html:
         raise HTTPException(404, "No business report generated yet. Please generate one first.")
     
-    return Response(content=html, media_type="text/html")
+    _ancestors = ["'self'"]
+    if settings.FRONTEND_URL:
+        _ancestors.append(settings.FRONTEND_URL.rstrip("/"))
+    if settings.BACKEND_URL:
+        _ancestors.append(settings.BACKEND_URL.rstrip("/"))
+    _ancestors.extend(["http://localhost:3000", "http://localhost:5000"])
+    _csp = f"frame-ancestors {' '.join(dict.fromkeys(_ancestors))}"
+
+    headers = {
+        "Content-Disposition": "inline; filename=business_report.html",
+        "X-Frame-Options": "SAMEORIGIN",
+        "Content-Security-Policy": _csp,
+    }
+    return Response(content=html, media_type="text/html", headers=headers)
 
 
 @router.get("/data-report/download", summary="Download the business report as PDF or Printable Document")
@@ -637,7 +847,28 @@ async def api_data_report_download(
     await require_upload_with_data(upload_id, current_user)
 
     from dataforge.api.storage.manager import load as _load
-    html = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
+    from dataforge.settings import PROJECTS_DIR
+
+    html = None
+    html_path = PROJECTS_DIR / str(upload_id) / "report_html"
+    if html_path.exists():
+        try:
+            html = html_path.read_text(encoding="utf-8")
+        except Exception:
+            pass
+    if not html:
+        html = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
+    if not html:
+        try:
+            from dataforge.db import db_query
+            rows = db_query("reports", {"upload_id": upload_id})
+            if rows:
+                for r in reversed(rows):
+                    if r.get("report_html"):
+                        html = r.get("report_html")
+                        break
+        except Exception:
+            pass
     if not html:
         raise HTTPException(404, "No report generated yet")
 
@@ -671,17 +902,33 @@ async def api_data_report_download(
         else:
             printable_html += print_script
 
+    _ancestors = ["'self'"]
+    if settings.FRONTEND_URL:
+        _ancestors.append(settings.FRONTEND_URL.rstrip("/"))
+    if settings.BACKEND_URL:
+        _ancestors.append(settings.BACKEND_URL.rstrip("/"))
+    _ancestors.extend(["http://localhost:3000", "http://localhost:5000"])
+    _csp = f"frame-ancestors {' '.join(dict.fromkeys(_ancestors))}"
+
     if print_pdf or not pdf:
         return Response(
             content=printable_html,
             media_type="text/html",
-            headers={"Content-Disposition": f"inline; filename=business_report_{upload_id}.html"}
+            headers={
+                "Content-Disposition": f"inline; filename=business_report_{upload_id}.html",
+                "X-Frame-Options": "SAMEORIGIN",
+                "Content-Security-Policy": _csp,
+            }
         )
 
     return Response(
         content=printable_html,
         media_type="text/html",
-        headers={"Content-Disposition": f"attachment; filename=business_report_{upload_id}.html"},
+        headers={
+            "Content-Disposition": f"attachment; filename=business_report_{upload_id}.html",
+            "X-Frame-Options": "SAMEORIGIN",
+            "Content-Security-Policy": _csp,
+        },
     )
 
 
@@ -707,44 +954,9 @@ async def api_query(
     if not query_str:
         raise HTTPException(400, "Empty query")
 
-    # Load/update chat session structure
-    chat_data = load(target_upload_id, "chat_history")
-    if isinstance(chat_data, list):
-        if len(chat_data) > 0:
-            default_session = {
-                "id": "default",
-                "name": "Previous Chat",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-                "messages": chat_data,
-            }
-            chat_data = {
-                "active_session_id": "default",
-                "sessions": [default_session],
-            }
-        else:
-            chat_data = {
-                "active_session_id": "default",
-                "sessions": [{
-                    "id": "default",
-                    "name": "New Chat",
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "updated_at": datetime.now(timezone.utc).isoformat(),
-                    "messages": [],
-                }],
-            }
-
-    if not isinstance(chat_data, dict) or "sessions" not in chat_data or not chat_data.get("sessions"):
-        chat_data = {
-            "active_session_id": "default",
-            "sessions": [{
-                "id": "default",
-                "name": "New Chat",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-                "messages": [],
-            }],
-        }
+    # Load/update chat session structure safely
+    chat_raw = load(target_upload_id, "chat_history")
+    chat_data, _ = _normalize_chat_data(chat_raw)
 
     session_id = body.session_id or chat_data.get("active_session_id") or "default"
     session = next((s for s in chat_data["sessions"] if s["id"] == session_id), None)
@@ -786,7 +998,7 @@ async def api_query(
 
     def _run():
         from dataforge.gemini_pipeline import run_query_pipeline
-        return run_query_pipeline(query_str, df, metric_context=metric_context)
+        return run_query_pipeline(query_str, df, metric_context=metric_context, upload_id=target_upload_id)
 
     try:
         result = await run_in_executor(_run)
@@ -795,14 +1007,23 @@ async def api_query(
         return JSONResponse(content={"error": str(exc)}, status_code=500)
 
     session["messages"].append({"role": "user", "content": query_str})
-    msg = {"role": "assistant", "content": result.get("answer", "")}
+    msg_text = result.get("answer") or result.get("error") or "Analysis complete."
+    msg = {"role": "assistant", "content": msg_text}
     r = result.get("result") or {}
-    if r.get("type") in ("bar_chart", "line_chart", "histogram", "scatter_chart"):
+    if r.get("type") in ("bar_chart", "line_chart", "histogram", "scatter_chart", "pie_chart", "doughnut_chart", "box_plot"):
         msg["chartData"] = r
     elif r.get("type") == "table":
         msg["tableData"] = r
     if result.get("insight"):
         msg["insight"] = result["insight"]
+    if result.get("agent_actions"):
+        msg["agent_actions"] = result["agent_actions"]
+    if result.get("system_notice"):
+        msg["system_notice"] = result["system_notice"]
+    if result.get("suggested_actions"):
+        msg["suggested_actions"] = result["suggested_actions"]
+    if result.get("download_links"):
+        msg["download_links"] = result["download_links"]
     session["messages"].append(msg)
     session["updated_at"] = datetime.now(timezone.utc).isoformat()
 
@@ -841,56 +1062,211 @@ async def api_ai_consent(
 # ── Chat sessions ─────────────────────────────────────────────────────────────
 
 @router.post("/workspace/chat/session", summary="Create a new chat session")
+@router.post("/workspace/chat/session/new", summary="Create a new chat session (alias)")
 async def api_chat_session_create(
-    body: ChatSessionRequest,
     current_user: CurrentUser,
+    body: Optional[ChatSessionRequest] = None,
+    upload_id: Optional[str] = Query(default=None),
 ):
     import uuid
-    upload_id = body.upload_id
-    if not upload_id:
+    target_upload_id = (body.upload_id if body else None) or upload_id
+    if not target_upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    await require_upload_with_data(target_upload_id, current_user)
 
-    chat_data = load(upload_id, "chat_history")
-    if not isinstance(chat_data, dict):
-        chat_data = {"active_session_id": "default", "sessions": []}
+    chat_raw = load(target_upload_id, "chat_history")
+    chat_data, _ = _normalize_chat_data(chat_raw)
 
     new_session = {
         "id": str(uuid.uuid4()),
-        "name": body.name,
+        "name": (body.name if body and body.name else "New Chat"),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "messages": [],
     }
     chat_data["sessions"].append(new_session)
     chat_data["active_session_id"] = new_session["id"]
-    save(upload_id, "chat_history", chat_data)
-    return {"ok": True, "session": new_session}
+    save(target_upload_id, "chat_history", chat_data)
+
+    try:
+        db_update("uploads", target_upload_id, {
+            "chat_history": json.dumps(chat_data, default=str)
+        })
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "session": new_session,
+        "chat_sessions": chat_data["sessions"],
+        "active_session": new_session["id"],
+        "active_session_id": new_session["id"],
+        "chat_history": []
+    }
+
+
+@router.post("/workspace/chat/session/select", summary="Select active chat session")
+async def api_chat_session_select(
+    current_user: CurrentUser,
+    upload_id: Optional[str] = Query(default=None),
+    id: Optional[str] = Query(default=None),
+    session_id: Optional[str] = Query(default=None),
+    body: Optional[dict] = None,
+):
+    target_upload_id = (body.get("upload_id") if isinstance(body, dict) else None) or upload_id
+    target_session_id = (
+        (body.get("session_id") if isinstance(body, dict) else None)
+        or (body.get("id") if isinstance(body, dict) else None)
+        or session_id
+        or id
+    )
+
+    if not target_upload_id:
+        raise HTTPException(400, "upload_id required")
+    if not target_session_id:
+        raise HTTPException(400, "session_id required")
+    await require_upload_with_data(target_upload_id, current_user)
+
+    chat_raw = load(target_upload_id, "chat_history")
+    chat_data, _ = _normalize_chat_data(chat_raw)
+
+    session_ids = [s["id"] for s in chat_data["sessions"]]
+    if target_session_id not in session_ids:
+        chat_data["sessions"].append({
+            "id": target_session_id,
+            "name": "New Chat",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "messages": [],
+        })
+
+    chat_data["active_session_id"] = target_session_id
+    save(target_upload_id, "chat_history", chat_data)
+
+    try:
+        db_update("uploads", target_upload_id, {
+            "chat_history": json.dumps(chat_data, default=str)
+        })
+    except Exception:
+        pass
+
+    active_history = next((s["messages"] for s in chat_data["sessions"] if s["id"] == target_session_id), [])
+
+    return {
+        "ok": True,
+        "chat_sessions": chat_data["sessions"],
+        "active_session": target_session_id,
+        "active_session_id": target_session_id,
+        "chat_history": active_history,
+    }
+
+
+@router.post("/workspace/chat/session/rename", summary="Rename a chat session")
+async def api_chat_session_rename(
+    current_user: CurrentUser,
+    upload_id: Optional[str] = Query(default=None),
+    id: Optional[str] = Query(default=None),
+    session_id: Optional[str] = Query(default=None),
+    body: Optional[dict] = None,
+):
+    target_upload_id = (body.get("upload_id") if isinstance(body, dict) else None) or upload_id
+    target_session_id = (
+        (body.get("session_id") if isinstance(body, dict) else None)
+        or (body.get("id") if isinstance(body, dict) else None)
+        or session_id
+        or id
+    )
+    name = (body.get("name") if isinstance(body, dict) else None) or ""
+
+    if not target_upload_id:
+        raise HTTPException(400, "upload_id required")
+    if not target_session_id:
+        raise HTTPException(400, "session_id required")
+    if not name.strip():
+        raise HTTPException(400, "name required")
+    await require_upload_with_data(target_upload_id, current_user)
+
+    chat_raw = load(target_upload_id, "chat_history")
+    chat_data, _ = _normalize_chat_data(chat_raw)
+
+    target_sess = next((s for s in chat_data["sessions"] if s["id"] == target_session_id), None)
+    if not target_sess:
+        raise HTTPException(404, "Session not found")
+
+    target_sess["name"] = name.strip()
+    target_sess["updated_at"] = datetime.now(timezone.utc).isoformat()
+    save(target_upload_id, "chat_history", chat_data)
+
+    try:
+        db_update("uploads", target_upload_id, {
+            "chat_history": json.dumps(chat_data, default=str)
+        })
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "chat_sessions": chat_data["sessions"],
+        "active_session": chat_data.get("active_session_id"),
+        "active_session_id": chat_data.get("active_session_id"),
+    }
 
 
 @router.delete("/workspace/chat/session/{session_id}", summary="Delete a chat session")
+@router.post("/workspace/chat/session/delete", summary="Delete a chat session (POST alias)")
 async def api_chat_session_delete(
-    session_id: str,
     current_user: CurrentUser,
+    session_id: Optional[str] = None,
     upload_id: Optional[str] = Query(default=None),
+    body: Optional[dict] = None,
 ):
-    if not upload_id:
-        raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    target_upload_id = (body.get("upload_id") if isinstance(body, dict) else None) or upload_id
+    target_session_id = (
+        session_id
+        or (body.get("session_id") if isinstance(body, dict) else None)
+        or (body.get("id") if isinstance(body, dict) else None)
+    )
 
-    chat_data = load(upload_id, "chat_history")
-    if not isinstance(chat_data, dict):
-        raise HTTPException(404, "No chat history found")
+    if not target_upload_id:
+        raise HTTPException(400, "upload_id required")
+    if not target_session_id:
+        raise HTTPException(400, "session_id required")
+    await require_upload_with_data(target_upload_id, current_user)
+
+    chat_raw = load(target_upload_id, "chat_history")
+    chat_data, _ = _normalize_chat_data(chat_raw)
 
     sessions = chat_data.get("sessions", [])
     if len(sessions) <= 1:
-        raise HTTPException(400, "Cannot delete the only chat session")
+        # Reset the only session rather than breaking the workspace
+        sessions[0]["messages"] = []
+        sessions[0]["name"] = "New Chat"
+        sessions[0]["updated_at"] = datetime.now(timezone.utc).isoformat()
+        chat_data["active_session_id"] = sessions[0]["id"]
+    else:
+        chat_data["sessions"] = [s for s in sessions if s["id"] != target_session_id]
+        if chat_data.get("active_session_id") == target_session_id:
+            chat_data["active_session_id"] = chat_data["sessions"][0]["id"]
 
-    chat_data["sessions"] = [s for s in sessions if s["id"] != session_id]
-    if chat_data.get("active_session_id") == session_id:
-        chat_data["active_session_id"] = chat_data["sessions"][0]["id"]
-    save(upload_id, "chat_history", chat_data)
-    return {"ok": True}
+    save(target_upload_id, "chat_history", chat_data)
+
+    try:
+        db_update("uploads", target_upload_id, {
+            "chat_history": json.dumps(chat_data, default=str)
+        })
+    except Exception:
+        pass
+
+    active_id = chat_data.get("active_session_id", "default")
+    active_history = next((s["messages"] for s in chat_data["sessions"] if s["id"] == active_id), [])
+
+    return {
+        "ok": True,
+        "chat_sessions": chat_data["sessions"],
+        "active_session": active_id,
+        "active_session_id": active_id,
+        "chat_history": active_history,
+    }
 
 
 # ── Transform ─────────────────────────────────────────────────────────────────
@@ -905,7 +1281,7 @@ async def api_transform(
     target_upload_id = body.upload_id or upload_id
     if not target_upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(target_upload_id, current_user, min_role="Editor")
+    await require_upload_with_data(target_upload_id, current_user, min_role="Analyst")
 
     df_clean = load(target_upload_id, "df_clean")
     df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
@@ -1050,23 +1426,37 @@ async def api_custom_chart_delete(
 async def api_get_dataset_share(
     upload_id: str,
     current_user: CurrentUser,
+    share_token: Optional[str] = Query(default=None),
 ):
-    upload = await require_upload_with_data(upload_id, current_user, min_role="Viewer")
+    upload = await require_upload_with_data(upload_id, current_user, min_role="Viewer", share_token=share_token)
     owner_id = upload.get("user_id")
-    shares = DatasetSharingService.get_shares(upload_id, owner_id=owner_id)
+    owner_email = upload.get("user_email")
+    if current_user and current_user.id == owner_id and getattr(current_user, "email", None):
+        owner_email = current_user.email
+    shares = DatasetSharingService.get_shares(upload_id, owner_id=owner_id, owner_email=owner_email)
     
     # Calculate caller's effective role
     _, eff_role = DatasetSharingService.check_access(
         upload_id=upload_id,
         user=current_user,
         owner_id=owner_id,
+        share_token=share_token,
     )
     
+    from dataforge.api.services.entitlements import EntitlementService
+    target_user_id = owner_id or current_user.id
+    target_email = owner_email or getattr(current_user, "email", None)
+    sub = EntitlementService.get_subscription(target_user_id, email=target_email)
+    user_tier = sub.get("plan", "free")
+    has_team_collaboration = sub.get("has_team_collaboration", False)
+
     return JSONResponse(content=safe_jsonable({
         "ok": True,
         "shares": shares,
         "current_user_role": eff_role,
         "is_owner": eff_role in ("Owner", "Admin"),
+        "user_tier": user_tier,
+        "has_team_collaboration": has_team_collaboration,
     }))
 
 

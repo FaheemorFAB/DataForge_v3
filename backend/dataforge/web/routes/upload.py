@@ -136,7 +136,7 @@ def api_upload_sheets():
         if not m:
             return jsonify({"error": "Invalid Google Sheets URL"}), 400
         sheet_id = m.group(1)
-        df = conn.load_public(sheet_id)
+        df = conn.load_from_url(url, sheet_name=body.get("sheet_name"), gid=body.get("gid"))
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 

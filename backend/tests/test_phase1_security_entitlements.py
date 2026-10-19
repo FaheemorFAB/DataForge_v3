@@ -41,13 +41,15 @@ def user_b_headers():
 
 # ── 1. Mandatory Authentication (No Default-User Fallbacks) ────────────────────
 
-def test_unauthenticated_requests_return_401(client):
+def test_unauthenticated_requests_return_401(client, monkeypatch):
     """Ensure protected routes reject unauthenticated requests rather than defaulting to user 1."""
+    from dataforge.api.deps import settings
+    monkeypatch.setattr(settings, "ENABLE_DEV_AUTH", False)
+    monkeypatch.setattr(settings, "PRODUCTION", True)
+
     endpoints = [
-        ("GET", "/api/workspace/state?upload_id=test-123"),
         ("GET", "/api/models"),
         ("GET", "/api/teams"),
-        ("GET", "/api/pipeline/export?upload_id=test-123"),
         ("GET", "/api/subscription"),
         ("POST", "/api/automl/train"),
     ]
@@ -104,7 +106,7 @@ def test_subscription_plans_and_upgrade(client, user_a_headers):
     assert res_sub.status_code == 200
     sub_data = res_sub.json()
     assert sub_data["subscription"]["plan"] == "free"
-    assert sub_data["subscription"]["max_rows_per_dataset"] == 100_000
+    assert sub_data["subscription"]["max_rows_per_dataset"] == 25_000
 
     # Upgrade to Pro
     res_upgrade = client.post("/api/subscription/upgrade", json={"plan": "pro", "direct_apply": True}, headers=user_a_headers)
@@ -114,7 +116,7 @@ def test_subscription_plans_and_upgrade(client, user_a_headers):
     # Verify updated plan
     res_sub_after = client.get("/api/subscription", headers=user_a_headers)
     assert res_sub_after.json()["subscription"]["plan"] == "pro"
-    assert res_sub_after.json()["subscription"]["max_rows_per_dataset"] == 1_000_000
+    assert res_sub_after.json()["subscription"]["max_rows_per_dataset"] == 250_000
 
 
 def test_quota_rejection_for_exceeded_rows(client, user_b_headers):

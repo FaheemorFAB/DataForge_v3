@@ -43,7 +43,7 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
 
   // Database connector states
   const [dbDialect, setDbDialect] = useState<"postgresql" | "mysql" | "sqlite" | "snowflake" | "bigquery" | "clickhouse">("postgresql");
-  const [dbConnStr, setDbConnStr] = useState("postgresql://postgres:password@localhost:5432/postgres");
+  const [dbConnStr, setDbConnStr] = useState("postgresql://postgres:password@db.project-ref.supabase.co:5432/postgres");
   const [isDbTesting, setIsDbTesting] = useState(false);
   const [dbTestResult, setDbTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [dbTables, setDbTables] = useState<string[]>([]);
@@ -228,12 +228,26 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
         body: JSON.stringify({ connection_string: dbConnStr.trim() }),
       });
       const data = await res.json();
-      setDbTestResult({ ok: data.ok, message: data.message });
+      if (!res.ok) {
+        const errMsg = data.detail || data.message || `Database test failed (HTTP ${res.status})`;
+        setDbTestResult({ ok: false, message: errMsg });
+        setDbError(errMsg);
+        return;
+      }
+      setDbTestResult({
+        ok: Boolean(data.ok),
+        message: data.message || (data.ok ? "Connection successful" : "Database connection failed"),
+      });
       if (data.ok) {
+        setDbError("");
         loadDbTables();
+      } else {
+        setDbError(data.message || "Connection test failed.");
       }
     } catch (err: any) {
-      setDbTestResult({ ok: false, message: err.message || "Failed to reach database server." });
+      const msg = err.message || "Failed to reach database server.";
+      setDbTestResult({ ok: false, message: msg });
+      setDbError(msg);
     } finally {
       setIsDbTesting(false);
     }
@@ -247,13 +261,42 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
         body: JSON.stringify({ connection_string: dbConnStr.trim() }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data.detail || data.message || "Failed to load database tables.";
+        setDbError(errMsg);
+        return;
+      }
       if (data.ok && Array.isArray(data.tables)) {
         setDbTables(data.tables);
         if (data.tables.length > 0 && !selectedDbTable) {
           setSelectedDbTable(data.tables[0]);
         }
       }
-    } catch (err) {}
+    } catch (err: any) {
+      setDbError(err.message || "Failed to inspect database schema.");
+    }
+  };
+
+  const handleUpgradePlan = async (targetPlan = "team") => {
+    try {
+      const res = await apiFetch('/subscription/upgrade', {
+        method: 'POST',
+        body: JSON.stringify({ plan: targetPlan, direct_apply: true }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setDbError("");
+        setDbTestResult(null);
+        // Automatically re-test database connection with new entitlements
+        testDbConnection();
+      } else if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        router.push('/pricing');
+      }
+    } catch {
+      router.push('/pricing');
+    }
   };
 
   const previewDbData = async () => {
@@ -445,6 +488,7 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
             handleDrop={handleDrop}
             handleFileSelect={handleFileSelect}
             fileInputRef={fileInputRef}
+            onUpgradePlan={handleUpgradePlan}
           />
         </div>
 

@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { 
   Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders, 
   Cpu, Check, Download, Play, RefreshCw, Search, Filter, 
-  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight
+  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle
 } from "lucide-react";
 
 interface FeatureInfo {
@@ -62,11 +62,13 @@ export function AutoMLTab() {
   const [showDeploySnippet, setShowDeploySnippet] = useState(false);
   const [isDeployingModel, setIsDeployingModel] = useState(false);
   const [deploySuccessMsg, setDeploySuccessMsg] = useState("");
+  const [deployErrorMsg, setDeployErrorMsg] = useState("");
 
   const deployChampionToRegistry = async () => {
     if (!automlResult) return;
     setIsDeployingModel(true);
     setDeploySuccessMsg("");
+    setDeployErrorMsg("");
     try {
       const modelName = `${automlTarget || "Target"}_${automlResult.best_estimator || "Champion"}`.replace(/[^a-zA-Z0-9_]/g, "_");
       const payload = {
@@ -90,10 +92,10 @@ export function AutoMLTab() {
         setDeploySuccessMsg(`Successfully deployed ${modelName} (ID: ${d.model?.id || "REG-01"}) to Enterprise Model Registry!`);
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(`Deployment failed: ${err.detail || err.error || res.statusText}`);
+        setDeployErrorMsg(`Deployment failed: ${err.detail || err.error || res.statusText}`);
       }
     } catch (err: any) {
-      alert(`Deployment failed: ${err.message || String(err)}`);
+      setDeployErrorMsg(`Deployment failed: ${err.message || String(err)}`);
     } finally {
       setIsDeployingModel(false);
     }
@@ -1030,6 +1032,11 @@ print("Predicted Output:", predictions)
                       <span>Open in Model Registry</span>
                       <ArrowRight size={12} />
                     </button>
+                  </div>
+                )}
+                {deployErrorMsg && (
+                  <div className="mt-2 flex items-center gap-2 text-[11px] font-bold text-red-400">
+                    <AlertCircle size={13} /> {deployErrorMsg}
                   </div>
                 )}
               </div>

@@ -84,12 +84,12 @@ async def run_insights_task(
             if db_client:
                 db_client.table("insight_records").delete().eq("upload_id", upload_id).execute()
                 insert_data = [{
-                    "upload_id": upload_id, "user_id": user_id,
-                    "type": ins.get("type", ""), "title": ins.get("title", ""),
+                    "upload_id": upload_id,
+                    "user_id": user_id,
+                    "type": ins.get("type", ""),
+                    "title": ins.get("title", ""),
                     "description": ins.get("description", ""),
-                    "importance": ins.get("importance", 0.0),
-                    "chart_type": ins.get("chart"),
-                    "metric": ins.get("metric", ""),
+                    "importance": float(ins.get("importance", 0.0) or 0.0),
                     "chart_data": json.dumps(ins.get("chart_data")) if ins.get("chart_data") else None,
                 } for ins in insights]
                 if insert_data:
@@ -239,11 +239,9 @@ async def run_eda_task(
             return generate_eda_report(df, minimal=minimal, sample_n=sample_n)
 
         report_res = await run_in_executor(_generate)
-        if report_res.get("error"):
-            raise RuntimeError(report_res["error"])
         html = report_res.get("html")
         if not html:
-            raise RuntimeError("EDA report returned empty HTML")
+            raise RuntimeError(report_res.get("error") or "EDA report returned empty HTML")
 
         d = PROJECTS_DIR / str(upload_id)
         d.mkdir(exist_ok=True)
@@ -390,7 +388,12 @@ Write 4 sections:
                 log.warning("Failed to insert report to DB: %s", exc)
                 report_id = None
 
+            from dataforge.settings import PROJECTS_DIR
+            d = PROJECTS_DIR / str(upload_id)
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "report_html").write_text(html, encoding="utf-8")
             save(upload_id, "report_html", html)
+            save(upload_id, "data_report_html", html)
             return html, report_id, filename
 
         html, report_id, filename = await run_in_executor(_build_report)

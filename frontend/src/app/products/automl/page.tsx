@@ -90,14 +90,17 @@ export default function AutoMLPage() {
         </div>
       </main>
 
-      <CTABanner 
-        title="Ready to train your first model?"
-        subtitle="Upload your dataset and launch AutoML now."
-        buttonText="Upload Your Dataset"
-        href="/?login=1"
-        bgColor="linear-gradient(to top right, #ec4899, #f97316)"
-        btnTextColor="#ec4899"
-      />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 mb-16">
+        <CTABanner 
+          variant="compact"
+          title="Ready to train your first model?"
+          subtitle="Benchmark LightGBM, XGBoost, and Random Forest with automated leaderboard scoring in minutes."
+          buttonText="Upload Your Dataset"
+          href="/?login=1"
+          secondaryButtonText="Executive Reports"
+          secondaryHref="/products/reports"
+        />
+      </div>
 
       <Footer />
     </div>

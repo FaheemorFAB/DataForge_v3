@@ -6,7 +6,7 @@ import ThemeSwitcher from "../ThemeSwitcher";
 import Logo from "../Logo";
 import { useAuth } from "@/lib/auth";
 import UserMenu from "../UserMenu";
-import { LogIn, Menu, X, ArrowRight, Zap } from "lucide-react";
+import { LogIn, Menu, X, ArrowRight } from "lucide-react";
 
 interface HeaderProps {
   onLoginClick: () => void;
@@ -19,12 +19,43 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
+    { label: "About", href: "/#about" },
     { label: "Pipeline", href: "/#pipeline" },
     { label: "Users", href: "/#audiences" },
-    { label: "Architecture", href: "/#platform-architecture" },
-    { label: "About", href: "/#origin" },
-    { label: "Team", href: "/#meet-the-builders" },
+    { label: "Docs", href: "/docs" },
+    { label: "Team", href: "/#team" },
+    { label: "Pricing", href: "/pricing" },
   ];
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href.includes("#")) {
+      const hash = href.split("#")[1];
+      if (typeof window !== "undefined") {
+        if (window.location.pathname === "/" || window.location.pathname === "") {
+          e.preventDefault();
+          const element = document.getElementById(hash);
+          if (element) {
+            // Prevent PipelineShowcase re-renders from cancelling the smooth scroll
+            (window as any).__isProgrammaticScrolling = true;
+            const headerOffset = 72;
+            const targetY = element.getBoundingClientRect().top + window.pageYOffset - headerOffset;
+
+            window.scrollTo({
+              top: Math.max(0, targetY),
+              behavior: "smooth",
+            });
+            window.history.pushState(null, "", `/#${hash}`);
+
+            setTimeout(() => {
+              (window as any).__isProgrammaticScrolling = false;
+            }, 850);
+          } else {
+            window.location.hash = hash;
+          }
+        }
+      }
+    }
+  };
 
   const handleLaunch = () => {
     if (onLaunchWorkspace) {
@@ -56,6 +87,7 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
             <Link
               key={link.label}
               href={link.href}
+              onClick={(e) => handleNavClick(e, link.href)}
               className="transition-colors hover:text-[var(--accent)]"
               style={{ color: "var(--txt-m)" }}
             >
@@ -67,19 +99,6 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
         {/* Right CTA / Theme / Auth */}
         <div className="flex items-center gap-2.5 sm:gap-3">
           <ThemeSwitcher />
-
-          {/* Solid Non-Gradient Pricing CTA Button */}
-          <Link
-            href="/pricing"
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
-            style={{
-              background: "var(--accent)",
-              color: "#ffffff",
-              boxShadow: "0 2px 8px var(--glow)",
-            }}
-          >
-            <span>Pricing</span>
-          </Link>
 
           {!authLoading && isLoggedIn ? (
             <UserMenu />
@@ -123,24 +142,15 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
             borderColor: "var(--border)",
           }}
         >
-          <Link
-            href="/pricing"
-            onClick={() => setMobileMenuOpen(false)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all mb-2"
-            style={{
-              background: "var(--accent)",
-              color: "#ffffff",
-            }}
-          >
-            <span>Pricing</span>
-          </Link>
-
           <div className="flex flex-col space-y-2">
             {navLinks.map((link) => (
               <Link
                 key={link.label}
                 href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  handleNavClick(e, link.href);
+                }}
                 className="px-3 py-2 rounded-lg text-sm font-semibold transition-colors hover:bg-orange-500/10 hover:text-[var(--accent)] flex items-center justify-between"
                 style={{ color: "var(--txt)" }}
               >

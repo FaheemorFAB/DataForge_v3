@@ -129,9 +129,13 @@ async def payment_webhook(request: Request):
     from dataforge.api.services.payments import get_payment_provider
     raw_body = await request.body()
     signature_header = (
-        request.headers.get("stripe-signature")
+        request.headers.get("webhook-signature")
+        or request.headers.get("x-dodo-signature")
+        or request.headers.get("stripe-signature")
+        or request.headers.get("paddle-signature")
         or request.headers.get("x-razorpay-signature")
         or request.headers.get("x-signature")
+        or request.headers.get("signature")
         or ""
     )
     provider = get_payment_provider()

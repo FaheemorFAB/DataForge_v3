@@ -173,6 +173,6 @@ async def get_audit_logs(
 ):
     """Retrieves chronological governance audit trail for regulatory compliance."""
     uid, _, _ = _resolve_user_ctx(current_user)
-    _require_org_member(org_id, uid, min_role="Data Engineer")
+    _require_org_member(org_id, uid, min_role="Analyst")
     logs = TeamManager.get_audit_logs(org_id=org_id, limit=limit)
     return JSONResponse(content=safe_jsonable({"ok": True, "logs": logs}))

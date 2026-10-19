@@ -30,3 +30,14 @@ def test_security_headers_present_on_endpoints(client):
         assert headers.get("x-xss-protection") == "1; mode=block", "Missing X-XSS-Protection"
         assert headers.get("referrer-policy") == "strict-origin-when-cross-origin", "Missing Referrer-Policy"
         assert "camera=()" in headers.get("permissions-policy", ""), "Missing Permissions-Policy"
+
+
+def test_report_endpoints_allow_framing(client):
+    """Verify that report endpoints permit SAMEORIGIN framing for embedded workspace views."""
+    report_endpoints = ["/api/eda/report", "/api/reports/latest", "/api/data-report/download"]
+    for path in report_endpoints:
+        res = client.get(path)
+        headers = res.headers
+        assert headers.get("x-frame-options") == "SAMEORIGIN", f"Path {path} should allow SAMEORIGIN"
+        assert "frame-ancestors 'self' http://localhost:3000 http://localhost:5000" in headers.get("content-security-policy", ""), f"Path {path} missing CSP frame-ancestors"
+

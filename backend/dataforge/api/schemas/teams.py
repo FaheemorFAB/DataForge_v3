@@ -18,11 +18,11 @@ class CreateTeamRequest(BaseModel):
 class InviteMemberRequest(BaseModel):
     email: str = Field(..., description="Corporate email address of the invitee")
     name: Optional[str] = Field(None, description="Full name or display handle")
-    role: str = Field("Analyst", description="Role: Admin, Data Engineer, Analyst, Viewer")
+    role: str = Field("Analyst", description="Role: Admin, Analyst, Viewer")
 
 
 class UpdateRoleRequest(BaseModel):
-    new_role: str = Field(..., description="Target role: Admin, Data Engineer, Analyst, Viewer")
+    new_role: str = Field(..., description="Target role: Admin, Analyst, Viewer")
 
 
 class TeamMemberResponse(BaseModel):

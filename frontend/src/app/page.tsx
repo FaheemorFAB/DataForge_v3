@@ -13,7 +13,6 @@ import TeamSection from "./components/landing/TeamSection";
 import CTABanner from "./components/landing/CTABanner";
 import Scratch from "./components/ui/Scratch";
 import WorkspaceLaunchModal from "./components/landing/WorkspaceLaunchModal";
-import HomepagePricingSection from "./components/landing/HomepagePricingSection";
 import ThreeHeroVisual from "./components/landing/ThreeHeroVisual";
 import { useAuth } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
@@ -395,16 +394,16 @@ function AIVisual() {
             style={
               m.role === "user"
                 ? {
-                    background: "#6366F1",
-                    color: "#fff",
-                    borderBottomRightRadius: "4px",
-                  }
+                  background: "#6366F1",
+                  color: "#fff",
+                  borderBottomRightRadius: "4px",
+                }
                 : {
-                    background: "var(--card-bg)",
-                    border: "1px solid var(--border)",
-                    color: "var(--txt)",
-                    borderBottomLeftRadius: "4px",
-                  }
+                  background: "var(--card-bg)",
+                  border: "1px solid var(--border)",
+                  color: "var(--txt)",
+                  borderBottomLeftRadius: "4px",
+                }
             }
           >
             {m.text}
@@ -661,14 +660,47 @@ const PIPELINE_STAGES = [
   },
 ];
 
+function getStageGradientEnd(color: string): string {
+  switch (color.toUpperCase()) {
+    case "#FF5722":
+      return "#FF8A65";
+    case "#EF4444":
+      return "#F43F5E";
+    case "#3B82F6":
+      return "#06B6D4";
+    case "#6366F1":
+      return "#8B5CF6";
+    case "#A855F7":
+      return "#EC4899";
+    case "#F59E0B":
+      return "#EA580C";
+    default:
+      return color;
+  }
+}
+
 /* ─── Pipeline showcase — interactive sticky section ─────────────────────── */
 function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
   const [active, setActive] = useState(0);
   const outerRef = useRef<HTMLDivElement>(null);
+  const visualPanelRef = useRef<HTMLDivElement>(null);
   const { Visual, color } = PIPELINE_STAGES[active];
+
+  const handleStageSelect = (index: number) => {
+    setActive(index);
+    if (typeof window !== "undefined" && window.innerWidth < 768 && visualPanelRef.current) {
+      const rect = visualPanelRef.current.getBoundingClientRect();
+      if (rect.top < 70) {
+        visualPanelRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+  };
 
   useEffect(() => {
     const onScroll = () => {
+      if (typeof window !== "undefined" && (window as any).__isProgrammaticScrolling) {
+        return;
+      }
       const outer = outerRef.current;
       if (!outer) return;
       const rect = outer.getBoundingClientRect();
@@ -680,7 +712,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
         PIPELINE_STAGES.length - 1,
         Math.floor(progress * PIPELINE_STAGES.length)
       );
-      setActive(idx);
+      setActive((prev) => (prev !== idx ? idx : prev));
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -709,10 +741,10 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
             </h2>
           </div>
 
-          {/* Split */}
+          {/* Split — Visual animation placed above 6 pipelines on mobile */}
           <div className="flex flex-col md:flex-row gap-6 md:gap-8 lg:gap-12 items-start">
-            {/* Left — timeline */}
-            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0">
+            {/* Left (on desktop) / Bottom (on mobile) — timeline of 6 pipelines */}
+            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0 order-2 md:order-1">
               <div
                 className="absolute left-6 top-0 bottom-0 w-px"
                 style={{ background: "var(--border)", zIndex: 0 }}
@@ -732,7 +764,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                 return (
                   <button
                     key={i}
-                    onClick={() => setActive(i)}
+                    onClick={() => handleStageSelect(i)}
                     className="relative z-10 pl-16 pb-6 last:pb-0 text-left group w-full cursor-pointer"
                   >
                     <div
@@ -747,8 +779,8 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                           background: isActive
                             ? step.color + "22"
                             : isPast
-                            ? step.color + "10"
-                            : "var(--card-bg)",
+                              ? step.color + "10"
+                              : "var(--card-bg)",
                           boxShadow: isActive
                             ? `0 0 20px ${step.color}55`
                             : "none",
@@ -770,8 +802,8 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                           color: isActive
                             ? step.color
                             : isPast
-                            ? step.color + "88"
-                            : "var(--txt-m)",
+                              ? step.color + "88"
+                              : "var(--txt-m)",
                         }}
                       >
                         Stage {step.num}
@@ -804,8 +836,8 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
               })}
             </div>
 
-            {/* Right — visual panel */}
-            <div className="w-full md:w-7/12 lg:w-3/5">
+            {/* Right (on desktop) / Top (on mobile) — visual animation panel */}
+            <div ref={visualPanelRef} className="w-full md:w-7/12 lg:w-3/5 order-1 md:order-2">
               <div
                 className="rounded-2xl border overflow-hidden shadow-2xl transition-all duration-500"
                 style={{
@@ -867,13 +899,45 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                 <div className="px-6 pb-5">
                   <button
                     onClick={onTryDataset}
-                    className="flex items-center justify-between w-full px-5 py-3 rounded-xl font-bold text-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-xl group cursor-pointer"
-                    style={{ background: color, color: "#fff" }}
+                    className="relative overflow-hidden flex items-center justify-between w-full px-5 py-3 rounded-2xl font-bold text-sm transition-all duration-300 hover:scale-[1.015] active:scale-[0.99] group cursor-pointer border"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: `${color}45`,
+                      boxShadow: `0 8px 30px -8px ${color}25`,
+                    }}
                   >
-                    <span>Try this with your own dataset →</span>
-                    <span className="text-xs font-normal opacity-75 group-hover:opacity-100 transition-opacity">
-                      Upload
-                    </span>
+                    {/* Hover ambient color wash */}
+                    <div
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                      style={{
+                        background: `linear-gradient(90deg, transparent 0%, ${color}14 50%, transparent 100%)`,
+                      }}
+                    />
+
+                    <div className="flex items-center gap-2.5 sm:gap-3 relative z-10 text-left">
+                      <div
+                        className="w-2.5 h-2.5 rounded-full animate-pulse shrink-0"
+                        style={{ background: color, boxShadow: `0 0 10px ${color}` }}
+                      />
+                      <span className="text-xs sm:text-sm font-bold tracking-tight transition-colors" style={{ color: "var(--txt)" }}>
+                        Try this with your own dataset
+                      </span>
+                      <span className="text-xs transition-transform duration-200 group-hover:translate-x-1 font-bold" style={{ color: color }}>
+                        →
+                      </span>
+                    </div>
+
+                    {/* Standout Dynamic Upload Button */}
+                    <div
+                      className="relative z-10 flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-white font-black text-xs tracking-wide shadow-md transition-all duration-300 group-hover:scale-105 group-hover:shadow-xl shrink-0"
+                      style={{
+                        background: `linear-gradient(135deg, ${color} 0%, ${getStageGradientEnd(color)} 100%)`,
+                        boxShadow: `0 4px 18px ${color}65, 0 0 10px ${color}35`,
+                      }}
+                    >
+                      <UploadCloud size={14} className="group-hover:-translate-y-0.5 transition-transform duration-200" />
+                      <span>Upload</span>
+                    </div>
                   </button>
                 </div>
               </div>
@@ -883,7 +947,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                 {PIPELINE_STAGES.map((s, i) => (
                   <button
                     key={i}
-                    onClick={() => setActive(i)}
+                    onClick={() => handleStageSelect(i)}
                     className="rounded-full transition-all duration-300 cursor-pointer"
                     style={{
                       width: active === i ? "24px" : "8px",
@@ -892,8 +956,8 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                         active === i
                           ? s.color
                           : i < active
-                          ? s.color + "55"
-                          : "var(--border)",
+                            ? s.color + "55"
+                            : "var(--border)",
                     }}
                   />
                 ))}
@@ -905,18 +969,6 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
     </div>
   );
 }
-
-/* ─── Tech stack ─────────────────────────────────────────────────────────── */
-const TECH = [
-  { category: "Frontend", name: "Next.js + React", icon: Globe },
-  { category: "Backend API", name: "FastAPI + Python", icon: Server },
-  { category: "AI", name: "DataForge Copilot", icon: Bot },
-  { category: "AutoML", name: "FLAML + SHAP", icon: Cpu },
-  { category: "Auth + DB", name: "Supabase + OAuth 2.0", icon: Key },
-  { category: "Storage", name: "Supabase + Redis", icon: HardDrive },
-  { category: "Reporting", name: "WeasyPrint + ydata", icon: Zap },
-  { category: "Visualisation", name: "Chart.js", icon: Activity },
-];
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 export default function Home() {
@@ -946,6 +998,18 @@ export default function Home() {
       if (params.get("login_success") === "1") {
         setShowSplash(true);
         window.history.replaceState({}, "", "/");
+      }
+
+      // Clean up multiple concatenated hashes (e.g. #audiences#origin -> #origin)
+      if (window.location.hash) {
+        const hashParts = window.location.hash.split("#").filter(Boolean);
+        if (hashParts.length > 1) {
+          const cleanHash = hashParts[hashParts.length - 1];
+          window.history.replaceState({}, "", `/#${cleanHash}`);
+          setTimeout(() => {
+            document.getElementById(cleanHash)?.scrollIntoView({ behavior: "smooth" });
+          }, 100);
+        }
       }
     }
   }, []);
@@ -1029,7 +1093,7 @@ export default function Home() {
 
       <main className="flex-1 w-full flex flex-col">
         {/* ══════════════ HERO ══════════════ */}
-        <section className="relative overflow-hidden min-h-[calc(100vh-80px)] flex items-center py-10 sm:py-20 px-4 sm:px-8">
+        <section className="relative overflow-hidden md:min-h-[calc(100vh-80px)] flex md:items-center pt-5 pb-6 sm:py-16 md:py-20 px-4 sm:px-8">
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div
               className="w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] rounded-full filter blur-[100px] sm:blur-[140px] opacity-[0.14] transition-colors duration-500"
@@ -1039,28 +1103,37 @@ export default function Home() {
 
           <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center">
             {/* Left side: Text & CTA */}
-            <div className="flex flex-col items-start text-left gap-6 sm:gap-8 w-full">
+            <div className="flex flex-col items-start text-left gap-5 sm:gap-7 w-full max-w-xl md:max-w-none">
               <motion.div
                 initial="hidden"
                 animate="visible"
                 variants={fadeUp}
                 className="flex flex-col items-start w-full"
               >
+
+
                 <h1
-                  className="text-3xl sm:text-4xl md:text-[2.6rem] lg:text-5xl xl:text-6xl font-black tracking-tight leading-[1.12] sm:leading-[1.1] mb-4 sm:mb-5 transition-colors duration-300"
+                  className="text-[2.25rem] xs:text-[2.5rem] sm:text-5xl md:text-[2.6rem] lg:text-5xl xl:text-6xl font-black leading-[1.12] mb-3.5 sm:mb-5 transition-colors duration-300"
                   style={{ color: "var(--txt)" }}
                 >
-                  Turning Messy Data
+                  Turning Messy
+                  <br />
+                  Data
                   <br />
                   Into{" "}
-                  <span style={{ color: "var(--accent)" }}>Clear Decisions.</span>
+                  <span style={{ color: "var(--accent)" }}>Clear</span>
+                  <br />
+                  <span style={{ color: "var(--accent)" }}>Decisions.</span>
                 </h1>
                 <p
-                  className="max-w-lg text-base sm:text-lg lg:text-xl leading-relaxed transition-colors duration-300"
+                  className="max-w-lg text-[15px] sm:text-base md:text-lg lg:text-xl leading-relaxed transition-colors duration-300"
                   style={{ color: "var(--txt-m)" }}
                 >
-                  Transform raw spreadsheets into statistical insights,
-                  predictive models, and executive reports without code.
+                  Transform raw spreadsheets into
+                  <br />
+                  statistical insights, predictive models,
+                  <br />
+                  and executive reports without code.
                 </p>
               </motion.div>
 
@@ -1090,23 +1163,26 @@ export default function Home() {
                   See How It Works
                 </a>
               </motion.div>
+
+
             </div>
 
-            {/* Right side: Three.js & GSAP 3D Hero Visual (Pie Chart, Database, Flow, Charts) */}
+            {/* Right side: Three.js & GSAP 3D Hero Visual — Hidden on mobile screens */}
             <motion.div
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
               variants={fadeUp}
-              className="w-full flex items-center justify-center relative"
+              className="hidden md:flex w-full items-center justify-center relative"
             >
               <ThreeHeroVisual />
             </motion.div>
           </div>
         </section>
 
-        {/* ══════════════ ORIGIN STORY ══════════════ */}
-        <section id="origin" className="py-14 sm:py-20 px-4 sm:px-8">
+        {/* ══════════════ ABOUT / ORIGIN STORY ══════════════ */}
+        <section id="about" className="pt-2 pb-12 sm:py-16 md:py-20 px-4 sm:px-8 relative">
+          <span id="origin" className="sr-only" />
           <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-8 lg:gap-12 items-center">
             {/* Left side: Text */}
             <motion.div
@@ -1120,7 +1196,7 @@ export default function Home() {
                 className="text-[11px] font-extrabold uppercase tracking-widest"
                 style={{ color: "var(--accent)" }}
               >
-                Our Origin
+                About
               </span>
               <h2
                 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight transition-colors duration-300"
@@ -1292,102 +1368,41 @@ export default function Home() {
           <PipelineShowcase onTryDataset={handleLaunchWorkspace} />
         </section>
 
+        {/* ══════════════ MID-PAGE CTA BANNER (Compact Variant) ══════════════ */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 my-10 sm:my-14">
+          <CTABanner
+            variant="compact"
+            title="Want to test DataForge with your dataset first?"
+            subtitle="Start on the Free Starter plan — zero setup, instant automated EDA."
+            buttonText="Launch Workspace"
+            onAction={handleLaunchWorkspace}
+            secondaryButtonText="Explore Architecture"
+            secondaryHref="/#about"
+          />
+        </div>
+
         {/* ══════════════ WHO USES DATAFORGE ══════════════ */}
         <BuiltFor />
 
-        {/* ══════════════ TECH STACK ══════════════ */}
-        <section id="platform-architecture" className="py-20 px-5 sm:px-8">
-          <div className="max-w-6xl mx-auto flex flex-col gap-12">
-            <motion.div
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-80px" }}
-              variants={fadeUp}
-              className="flex flex-col gap-3 text-left"
-            >
-              <span
-                className="text-[11px] font-extrabold uppercase tracking-widest"
-                style={{ color: "var(--accent)" }}
-              >
-                Behind the Scenes
-              </span>
-              <h2
-                className="text-3xl sm:text-5xl font-black tracking-tight transition-colors duration-300"
-                style={{ color: "var(--txt)" }}
-              >
-                The Technology Stack
-              </h2>
-              <p
-                className="max-w-xl text-base transition-colors duration-300"
-                style={{ color: "var(--txt-m)" }}
-              >
-                High-performance, production-verified technologies powering every
-                layer of DataForge.
-              </p>
-            </motion.div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {TECH.map((t, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 16 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-50px" }}
-                  transition={{ delay: (i % 4) * 0.07 }}
-                  className="p-5 rounded-2xl border flex flex-col gap-3 transition-all duration-300 hover:border-[var(--accent)] hover:-translate-y-1 hover:shadow-lg group relative overflow-hidden"
-                  style={{
-                    background: "var(--card-bg)",
-                    borderColor: "var(--border)",
-                  }}
-                >
-                  <div
-                    className="absolute inset-0 opacity-0 group-hover:opacity-[0.04] transition-opacity duration-500"
-                    style={{ background: "var(--accent)" }}
-                  />
-                  <div className="flex items-center justify-between relative z-10">
-                    <span
-                      className="text-[10px] font-bold uppercase tracking-wider transition-colors duration-300"
-                      style={{ color: "var(--txt-m)" }}
-                    >
-                      {t.category}
-                    </span>
-                    <t.icon size={16} style={{ color: "var(--accent)" }} />
-                  </div>
-                  <p
-                    className="text-sm font-bold relative z-10 transition-colors duration-300 group-hover:text-[var(--accent)] text-left"
-                    style={{ color: "var(--txt)" }}
-                  >
-                    {t.name}
-                  </p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ══════════════ PRICING ══════════════ */}
-        <HomepagePricingSection
-          onSelectPlan={(planId) => {
-            if (planId === "free") {
-              handleLaunchWorkspace();
-            } else {
-              router.push(`/billing/checkout?plan=${planId}`);
-            }
-          }}
-        />
-
         {/* ══════════════ TEAM ══════════════ */}
-        <section id="meet-the-builders" className="py-8">
+        <section id="team" className="py-8 relative">
+          <span id="meet-the-builders" className="sr-only" />
           <TeamSection />
         </section>
       </main>
 
-      <CTABanner
-        title="Ready to experience it?"
-        subtitle="Upload your dataset and get insights in under 60 seconds."
-        buttonText="Launch Workspace"
-        onAction={handleLaunchWorkspace}
-      />
+      {/* ══════════════ BOTTOM CTA BANNER (Compact Variant) ══════════════ */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-16">
+        <CTABanner
+          variant="compact"
+          title="Ready to experience DataForge with your own data?"
+          subtitle="Instant statistical EDA, data quality scoring, and automated model benchmarks in ~60 seconds."
+          buttonText="Launch Workspace"
+          onAction={handleLaunchWorkspace}
+          secondaryButtonText="View Pricing Plans"
+          secondaryHref="/pricing"
+        />
+      </div>
 
       <Footer />
     </div>

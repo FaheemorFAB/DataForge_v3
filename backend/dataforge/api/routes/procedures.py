@@ -218,7 +218,7 @@ async def api_run_procedure(
     body: RunProcedureRequest,
     current_user: CurrentUser,
 ):
-    await require_upload_with_data(body.upload_id, current_user, min_role="Editor")
+    await require_upload_with_data(body.upload_id, current_user, min_role="Analyst")
     try:
         def _run():
             return ProcedureService.execute_procedure(

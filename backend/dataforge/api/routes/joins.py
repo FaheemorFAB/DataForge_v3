@@ -31,7 +31,7 @@ from dataforge.api.schemas.joins import (
     TablesListResponse,
 )
 from dataforge.api.storage.manager import STORE_DIR, exists, load, save
-from dataforge.api.utils.json import safe_jsonable
+from dataforge.api.utils.json import parse_json_to_dataframe, safe_jsonable
 from dataforge.join_engine import DuckDBJoinEngine, _sanitize_table_name
 
 log = logging.getLogger(__name__)
@@ -131,22 +131,7 @@ async def upload_secondary_table(
         elif ext == "parquet":
             df = pd.read_parquet(io.BytesIO(raw))
         elif ext in ("json", "jsonl", "ndjson"):
-            try:
-                content_str = raw.decode("utf-8")
-                parsed = pyjson.loads(content_str)
-                if isinstance(parsed, list):
-                    df = pd.json_normalize(parsed)
-                elif isinstance(parsed, dict):
-                    for key in ("data", "items", "records", "rows", "results"):
-                        if key in parsed and isinstance(parsed[key], list):
-                            df = pd.json_normalize(parsed[key])
-                            break
-                    else:
-                        df = pd.json_normalize([parsed])
-                else:
-                    raise ValueError("JSON must be a list of records or dictionary")
-            except Exception:
-                df = pd.read_json(io.BytesIO(raw), lines=True)
+            df = parse_json_to_dataframe(raw)
         else:
             raise ValueError(f"Unsupported format: {ext}")
     except Exception as exc:

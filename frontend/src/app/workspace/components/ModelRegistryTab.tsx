@@ -23,6 +23,8 @@ import {
   FileCode,
   Plus,
   ShieldCheck,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 
 interface ModelRecord {
@@ -156,6 +158,26 @@ export function ModelRegistryTab() {
       }
     } catch (e) {
       console.error("Failed to update status:", e);
+    }
+  };
+
+  const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const handleDeleteModel = async (modelId: string) => {
+    setDeletingModelId(modelId);
+    try {
+      const res = await apiFetch(`/models/${modelId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setDeleteConfirmId(null);
+        fetchModels();
+      }
+    } catch (e) {
+      console.error("Failed to delete model:", e);
+    } finally {
+      setDeletingModelId(null);
     }
   };
 
@@ -581,6 +603,39 @@ export function ModelRegistryTab() {
                         <span>Docker Container</span>
                       </button>
 
+                      {deleteConfirmId === m.id ? (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-red-500/40 bg-red-500/10">
+                          <button
+                            onClick={() => handleDeleteModel(m.id)}
+                            disabled={deletingModelId === m.id}
+                            className="text-xs font-bold text-red-400 hover:text-red-300 cursor-pointer flex items-center gap-1"
+                          >
+                            {deletingModelId === m.id ? <Loader2 size={11} className="animate-spin" /> : null}
+                            <span>{deletingModelId === m.id ? "Deleting..." : "Confirm"}</span>
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(null)}
+                            className="text-xs text-gray-400 hover:text-white cursor-pointer ml-1"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteConfirmId(m.id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all hover:scale-[1.02] hover:text-red-400 hover:border-red-500/40 cursor-pointer"
+                          style={{
+                            background: "var(--card)",
+                            borderColor: "var(--border)",
+                            color: "var(--txt-m)",
+                          }}
+                          title="Delete Model from Registry"
+                        >
+                          <Trash2 size={13} />
+                          <span>Delete</span>
+                        </button>
+                      )}
+
                     </div>
                   </div>
                 </div>
@@ -794,21 +849,26 @@ export function ModelRegistryTab() {
                   </div>
                 </div>
 
-                <pre
-                  className="p-3 rounded-xl text-[11px] font-mono overflow-x-auto border"
-                  style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
-                >
-                  {codeSnippetTab === "curl"
-                    ? `curl -X POST http://localhost:5000/api/v1/models/${activeModelForInference.id}/predict \\
+                {(() => {
+                  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000").replace(/\/api\/?$/, "").replace(/\/$/, "");
+                  return (
+                    <pre
+                      className="p-3 rounded-xl text-[11px] font-mono overflow-x-auto border"
+                      style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+                    >
+                      {codeSnippetTab === "curl"
+                        ? `curl -X POST ${apiBase}/api/v1/models/${activeModelForInference.id}/predict \\
   -H "Content-Type: application/json" \\
   -d '${JSON.stringify({ features: featureInputs })}'`
-                    : `import requests
+                        : `import requests
 
-url = "http://localhost:5000/api/v1/models/${activeModelForInference.id}/predict"
+url = "${apiBase}/api/v1/models/${activeModelForInference.id}/predict"
 payload = {"features": ${JSON.stringify(featureInputs)}}
 response = requests.post(url, json=payload)
 print(response.json())`}
-                </pre>
+                    </pre>
+                  );
+                })()}
               </div>
             </div>
           </div>

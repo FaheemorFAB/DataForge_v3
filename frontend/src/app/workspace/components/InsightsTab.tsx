@@ -1061,7 +1061,7 @@ export function InsightsTab() {
       if (!res.ok) {
         const text = await res.text();
         let msg = `HTTP ${res.status}`;
-        try { const d = JSON.parse(text); msg = d.error || msg; } catch { msg = text.substring(0, 150) || msg; }
+        try { const d = JSON.parse(text); msg = d.detail || d.error || msg; } catch { msg = text.substring(0, 150) || msg; }
         setInsightError(msg);
         return;
       }

@@ -86,25 +86,37 @@ async def api_restore(
 
 
 @router.delete("/delete/{upload_id}", summary="Delete a project and all its data")
+@router.delete("/projects/{upload_id}", summary="Delete a project and all its data")
+@router.delete("/uploads/{upload_id}", summary="Delete a project and all its data")
 async def api_delete(
     current_user: CurrentUser,
     upload_id: str = Path(...),
 ):
     up = db_get("uploads", upload_id)
-    if not up or up.get("user_id") != current_user.id:
-        raise HTTPException(404, "Upload not found")
+    if not up:
+        try:
+            up = db_get("uploads", int(upload_id))
+        except (ValueError, TypeError):
+            pass
 
-    # Clear disk storage
+    if up and up.get("user_id") and up.get("user_id") != current_user.id:
+        raise HTTPException(403, "Permission denied")
+
+    # Clear local disk storage
     clear_store(upload_id)
 
-    # Delete from Supabase
+    # Delete from database
     upload_repo.delete(upload_id)
+    try:
+        upload_repo.delete(int(upload_id))
+    except (ValueError, TypeError):
+        pass
 
     # Best-effort Supabase Storage cleanup
     try:
         from dataforge.supabase_storage import get_store, STORAGE_OK
         if STORAGE_OK:
-            user_id = up.get("user_id")
+            user_id = (up.get("user_id") if up else None) or current_user.id
             store = get_store()
             for rkey in ("raw", "clean", "profile", "model_pkl", "eda_html"):
                 for ext in (".parquet", ".json", ".joblib", ".html"):
@@ -115,4 +127,4 @@ async def api_delete(
     except Exception:
         pass
 
-    return {"ok": True}
+    return {"ok": True, "message": "Dataset deleted successfully"}

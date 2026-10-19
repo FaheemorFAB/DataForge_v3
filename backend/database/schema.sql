@@ -197,12 +197,12 @@ CREATE TABLE IF NOT EXISTS workspaces (
 CREATE INDEX IF NOT EXISTS ix_workspaces_owner ON workspaces(owner_user_id);
 CREATE INDEX IF NOT EXISTS ix_workspaces_org ON workspaces(org_id);
 
--- 13. MEMBERSHIPS (Organization Roles & Permissions)
+-- 13. MEMBERSHIPS (Organization Roles & Permissions - Strictly 3-Tier RBAC)
 CREATE TABLE IF NOT EXISTS memberships (
     id SERIAL PRIMARY KEY,
     org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    role VARCHAR(64) NOT NULL DEFAULT 'Viewer', -- 'Admin', 'Data Engineer', 'Analyst', 'Viewer'
+    role VARCHAR(64) NOT NULL DEFAULT 'Viewer' CHECK (role IN ('Admin', 'Analyst', 'Viewer')),
     invited_by INT REFERENCES users(id) ON DELETE SET NULL,
     joined_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(org_id, user_id)
@@ -229,10 +229,10 @@ CREATE INDEX IF NOT EXISTS ix_projects_user ON projects(user_id);
 CREATE TABLE IF NOT EXISTS subscriptions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-    plan VARCHAR(64) NOT NULL DEFAULT 'free', -- 'free', 'starter', 'pro', 'enterprise'
+    plan VARCHAR(64) NOT NULL DEFAULT 'free', -- 'free', 'pro', 'team', 'enterprise'
     status VARCHAR(64) NOT NULL DEFAULT 'active', -- 'active', 'trialing', 'past_due', 'canceled'
-    max_storage_mb INT NOT NULL DEFAULT 500,
-    max_rows_per_dataset INT NOT NULL DEFAULT 100000,
+    max_storage_mb INT NOT NULL DEFAULT 250,
+    max_rows_per_dataset INT NOT NULL DEFAULT 25000,
     monthly_automl_jobs INT NOT NULL DEFAULT 5,
     monthly_ai_queries INT NOT NULL DEFAULT 25,
     current_period_start TIMESTAMPTZ DEFAULT NOW(),

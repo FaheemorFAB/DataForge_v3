@@ -306,7 +306,8 @@ class DuckDBJoinEngine:
             if not agg_projs:
                 continue
 
-            group_str = f"GROUP BY {', '.join([f'\"{g}\"' for g in group_by_cols])}" if group_by_cols else ""
+            group_cols_str = ", ".join([f'"{g}"' for g in group_by_cols])
+            group_str = f"GROUP BY {group_cols_str}" if group_by_cols else ""
             cte_sql = f'"{cte_name}" AS (\n  SELECT\n    ' + ",\n    ".join(agg_projs) + f'\n  FROM "{orig_tbl}"\n  {group_str}\n)'
             cte_clauses.append(cte_sql)
             table_query_map[orig_tbl] = cte_name

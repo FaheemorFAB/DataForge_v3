@@ -216,7 +216,7 @@ class Membership(BaseModel):
     id: Optional[int] = None
     org_id: str
     user_id: int
-    role: str = "Viewer"  # "Admin", "Data Engineer", "Analyst", "Viewer"
+    role: str = "Viewer"  # "Admin", "Analyst", "Viewer"
     invited_by: Optional[int] = None
     joined_at: Optional[str] = None
 
@@ -234,10 +234,10 @@ class Project(BaseModel):
 class Subscription(BaseModel):
     id: str
     user_id: int
-    plan: str = "free"  # "free", "starter", "pro", "enterprise"
+    plan: str = "free"  # "free", "pro", "team", "enterprise"
     status: str = "active"  # "active", "trialing", "past_due", "canceled"
-    max_storage_mb: int = 500
-    max_rows_per_dataset: int = 100000
+    max_storage_mb: int = 250
+    max_rows_per_dataset: int = 25000
     monthly_automl_jobs: int = 5
     monthly_ai_queries: int = 25
     current_period_start: Optional[str] = None

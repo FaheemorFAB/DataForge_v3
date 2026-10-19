@@ -52,9 +52,20 @@ def _is_non_numeric(series: pd.Series) -> bool:
 def _infer_fill_strategy(series: pd.Series):
     """Return (strategy_label, filled_series)."""
     if _is_non_numeric(series):
-        mode_vals = series.mode(dropna=True)
-        mode_val  = mode_vals.iloc[0] if not mode_vals.empty else "Unknown"
-        return f"mode ('{mode_val}')", series.fillna(mode_val)
+        try:
+            mode_vals = series.mode(dropna=True)
+            mode_val  = mode_vals.iloc[0] if not mode_vals.empty else "Unknown"
+        except Exception:
+            mode_val = "Unknown"
+
+        # If mode_val is a list or dict, use apply/where instead of fillna (pandas requires scalar for fillna)
+        if isinstance(mode_val, (list, dict, set, tuple)):
+            filled = series.apply(
+                lambda x: mode_val if (x is None or (isinstance(x, float) and np.isnan(x))) else x
+            )
+            return f"mode ({mode_val})", filled
+        else:
+            return f"mode ('{mode_val}')", series.fillna(mode_val)
 
     n_valid = series.notna().sum()
     if n_valid < 3:
@@ -69,6 +80,24 @@ def _infer_fill_strategy(series: pd.Series):
         return f"median ({median_val:.4g})", series.fillna(median_val)
     else:
         return f"mean ({mean_val:.4g})", series.fillna(mean_val)
+
+
+def _safe_duplicated(df: pd.DataFrame) -> pd.Series:
+    """Safely check duplicated rows even when columns contain unhashable types (lists, dicts)."""
+    try:
+        return df.duplicated()
+    except TypeError:
+        import json
+        hashable_cols = {}
+        for c in df.columns:
+            if df[c].dtype == "object":
+                sample = df[c].dropna().iloc[0] if not df[c].dropna().empty else None
+                if isinstance(sample, (list, dict, set, tuple)):
+                    hashable_cols[c] = df[c].apply(
+                        lambda x: json.dumps(x, sort_keys=True, default=str) if isinstance(x, (list, dict, set, tuple)) else str(x)
+                    )
+        temp = df.assign(**hashable_cols) if hashable_cols else df
+        return temp.duplicated()
 
 
 # ── public API ────────────────────────────────────────────────────────────────
@@ -162,16 +191,26 @@ def structural_clean(df: pd.DataFrame) -> tuple:
     if renamed:
         actions.append(f"Renamed {len(renamed)} column(s) to snake_case")
 
-    n_dupes = int(df.duplicated().sum())
+    dup_mask = _safe_duplicated(df)
+    n_dupes = int(dup_mask.sum())
     if n_dupes:
-        df = df.drop_duplicates()
+        df = df[~dup_mask]
         actions.append(f"Removed {n_dupes:,} duplicate row(s)")
 
     str_cols = df.select_dtypes(include=["object", "string"]).columns.tolist()
+    stripped_count = 0
     for col in str_cols:
-        df[col] = df[col].str.strip()
-    if str_cols:
-        actions.append(f"Stripped whitespace from {len(str_cols)} string column(s)")
+        sample = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+        if isinstance(sample, str):
+            df[col] = df[col].astype(str).str.strip()
+            stripped_count += 1
+        elif isinstance(sample, list):
+            df[col] = df[col].apply(
+                lambda lst: [x.strip() if isinstance(x, str) else x for x in lst] if isinstance(lst, list) else lst
+            )
+            stripped_count += 1
+    if stripped_count:
+        actions.append(f"Stripped whitespace from {stripped_count} string column(s)")
 
     empty_rows = int(df.isnull().all(axis=1).sum())
     if empty_rows:
@@ -179,12 +218,18 @@ def structural_clean(df: pd.DataFrame) -> tuple:
         actions.append(f"Removed {empty_rows} fully-empty row(s)")
 
     for col in df.select_dtypes(include=["object", "string"]).columns.tolist():
+        sample = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+        if not isinstance(sample, (str, bytes, int, float)) or isinstance(sample, (list, dict, set, tuple)):
+            continue
         coerced = pd.to_numeric(df[col], errors="coerce")
         if coerced.notna().mean() > 0.85:
             df[col] = coerced
             actions.append(f"Coerced '{col}' to numeric")
 
     for col in df.select_dtypes(include=["object", "string"]).columns.tolist():
+        sample = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+        if not isinstance(sample, (str, bytes)) or isinstance(sample, (list, dict, set, tuple)):
+            continue
         try:
             parsed = pd.to_datetime(df[col], format="mixed", dayfirst=False, errors="coerce")
             if parsed.notna().mean() > 0.85:
@@ -373,9 +418,15 @@ def run_dynamic_cleaning_pipeline(df_raw: pd.DataFrame, rules: list[dict]) -> di
                     logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Filled with Median ({m_val:.4g})", "type": "fill"})
 
                 elif method == "mode":
-                    mode_v = df[col].mode(dropna=True)
-                    m_val = mode_v.iloc[0] if not mode_v.empty else "Unknown"
-                    df[col] = df[col].fillna(m_val)
+                    try:
+                        mode_v = df[col].mode(dropna=True)
+                        m_val = mode_v.iloc[0] if not mode_v.empty else "Unknown"
+                    except Exception:
+                        m_val = "Unknown"
+                    if isinstance(m_val, (list, dict, set, tuple)):
+                        df[col] = df[col].apply(lambda x: m_val if (x is None or (isinstance(x, float) and np.isnan(x))) else x)
+                    else:
+                        df[col] = df[col].fillna(m_val)
                     logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Filled with Mode ('{m_val}')", "type": "fill"})
 
                 elif method == "zero":
@@ -623,8 +674,11 @@ def run_dynamic_cleaning_pipeline(df_raw: pd.DataFrame, rules: list[dict]) -> di
                 # Fuzzy Deduplication
                 if is_fuzzy:
                     threshold = float(rule.get("fuzzy_threshold", 0.85))
-                    import difflib
-                    unique_vals = [str(x) for x in df[col].dropna().unique()]
+                    try:
+                        unique_vals = [str(x) for x in df[col].dropna().unique()]
+                    except TypeError:
+                        import json
+                        unique_vals = list({json.dumps(x, sort_keys=True, default=str) if isinstance(x, (list, dict, set, tuple)) else str(x) for x in df[col].dropna()})
                     mapping = {}
                     processed = set()
                     for val in sorted(unique_vals, key=len, reverse=True):

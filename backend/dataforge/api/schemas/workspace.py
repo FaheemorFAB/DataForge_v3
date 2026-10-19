@@ -17,8 +17,8 @@ class CleanRequest(BaseModel):
 
 class EDARequest(BaseModel):
     upload_id: Optional[str] = None
-    minimal: bool = True
-    sample_n: int = Field(default=5000, ge=100, le=50_000)
+    minimal: bool = False
+    sample_n: Optional[int] = Field(default=None, description="Max rows to sample, or 0/None for full dataset")
 
 
 class QueryRequest(BaseModel):

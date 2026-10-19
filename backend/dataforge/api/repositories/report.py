@@ -31,6 +31,9 @@ class ReportRepository:
     def create(self, data: dict) -> Optional[dict]:
         return db_insert("reports", data) or None
 
+    def delete(self, report_id: int) -> bool:
+        return db_delete("reports", report_id)
+
 
 class AlertRepository:
 

@@ -78,18 +78,99 @@ interface IngestionCardProps {
   handleDrop: (e: React.DragEvent) => Promise<void>;
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onUpgradePlan?: (planKey: string) => Promise<void>;
 }
 
 export type CardVariation = "studio" | "bento" | "wizard";
 
 const DIALECT_OPTIONS = [
-  { id: "postgresql", name: "PostgreSQL", badge: "PG", defaultUri: "postgresql://postgres:password@localhost:5432/postgres", color: "#336791" },
-  { id: "mysql", name: "MySQL", badge: "MY", defaultUri: "mysql+pymysql://root:password@localhost:3306/mydb", color: "#00758f" },
+  { id: "postgresql", name: "PostgreSQL", badge: "PG", defaultUri: "postgresql://postgres:password@db.project-ref.supabase.co:5432/postgres", color: "#336791" },
+  { id: "mysql", name: "MySQL", badge: "MY", defaultUri: "mysql+pymysql://admin:password@mysql.us-east-1.rds.amazonaws.com:3306/mydb", color: "#00758f" },
   { id: "snowflake", name: "Snowflake", badge: "SF", defaultUri: "snowflake://user:password@account/my_db/public?warehouse=compute_wh", color: "#29b5e8" },
   { id: "bigquery", name: "BigQuery", badge: "BQ", defaultUri: "bigquery://gcp-project-id/analytics_dataset", color: "#4285f4" },
-  { id: "clickhouse", name: "ClickHouse", badge: "CH", defaultUri: "clickhouse+native://default:password@localhost:9000/default", color: "#fca311" },
+  { id: "clickhouse", name: "ClickHouse", badge: "CH", defaultUri: "clickhouse+native://default:password@service.us-east-1.clickhouse.cloud:9440/default", color: "#fca311" },
   { id: "sqlite", name: "SQLite", badge: "SQL", defaultUri: "sqlite:///sample.db", color: "#003b57" },
 ];
+
+interface DbStatusBannerProps {
+  testResult: { ok: boolean; message: string } | null;
+  error?: string;
+  onUpgrade?: (planKey: string) => Promise<void>;
+  compact?: boolean;
+}
+
+function DbStatusBanner({ testResult, error, onUpgrade, compact }: DbStatusBannerProps) {
+  if (testResult?.ok) {
+    return (
+      <div
+        className={`flex items-center gap-1.5 rounded-xl border font-mono transition-all ${
+          compact ? "p-1.5 text-[10px] mt-1" : "p-2.5 text-xs mt-1.5"
+        }`}
+        style={{
+          background: "rgba(16, 185, 129, 0.08)",
+          borderColor: "rgba(16, 185, 129, 0.3)",
+          color: "#34d399",
+        }}
+      >
+        <CheckCircle2 size={compact ? 11 : 13} className="shrink-0 text-emerald-400" />
+        <span className="font-semibold leading-tight">{testResult.message || "Database link verified successfully!"}</span>
+      </div>
+    );
+  }
+
+  const msg = (testResult && !testResult.ok ? testResult.message : error) || "";
+  if (!msg) return null;
+
+  const isPlanGated =
+    msg.toLowerCase().includes("exclusive to team") ||
+    msg.toLowerCase().includes("upgrade your organization") ||
+    msg.toLowerCase().includes("payment required") ||
+    msg.toLowerCase().includes("plan tier") ||
+    msg.toLowerCase().includes("upgrade to team");
+
+  return (
+    <div
+      className={`rounded-xl border font-mono transition-all flex flex-col gap-1.5 ${
+        compact ? "p-2 text-[10px] mt-1.5" : "p-2.5 text-xs mt-1.5"
+      }`}
+      style={{
+        background: isPlanGated ? "rgba(245, 158, 11, 0.08)" : "rgba(239, 68, 68, 0.08)",
+        borderColor: isPlanGated ? "rgba(245, 158, 11, 0.35)" : "rgba(239, 68, 68, 0.35)",
+        color: isPlanGated ? "#fcd34d" : "#fca5a5",
+      }}
+    >
+      <div className="flex items-start gap-1.5">
+        <span className="font-bold shrink-0">{isPlanGated ? "🔒 Plan Locked:" : "✗ Error:"}</span>
+        <span className="leading-snug break-words flex-1">{msg}</span>
+      </div>
+
+      {isPlanGated && (
+        <div className="flex items-center gap-2 pt-0.5">
+          {onUpgrade ? (
+            <button
+              type="button"
+              onClick={() => onUpgrade("team")}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-black transition-all hover:scale-[1.02] cursor-pointer flex items-center gap-1 shadow-sm"
+              style={{ background: "linear-gradient(135deg, #f59e0b, #fbbf24)" }}
+            >
+              <Zap size={10} />
+              <span>Upgrade to Team Plan</span>
+            </button>
+          ) : (
+            <a
+              href="/pricing"
+              className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-black transition-all hover:scale-[1.02] cursor-pointer inline-flex items-center gap-1 shadow-sm"
+              style={{ background: "linear-gradient(135deg, #f59e0b, #fbbf24)" }}
+            >
+              <span>View Pricing & Upgrade</span>
+              <ArrowRight size={10} />
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function IngestionCard(props: IngestionCardProps) {
   const [variation, setVariation] = useState<CardVariation>("studio");
@@ -578,30 +659,44 @@ export default function IngestionCard(props: IngestionCardProps) {
                             style={{
                               background: props.dbTestResult?.ok
                                 ? "rgba(16, 185, 129, 0.15)"
+                                : props.dbTestResult && !props.dbTestResult.ok
+                                ? "rgba(239, 68, 68, 0.15)"
                                 : "rgba(255, 255, 255, 0.08)",
                               borderColor: props.dbTestResult?.ok
                                 ? "rgba(16, 185, 129, 0.4)"
+                                : props.dbTestResult && !props.dbTestResult.ok
+                                ? "rgba(239, 68, 68, 0.4)"
                                 : "var(--border)",
-                              color: props.dbTestResult?.ok ? "#10b981" : "var(--txt)",
+                              color: props.dbTestResult?.ok
+                                ? "#10b981"
+                                : props.dbTestResult && !props.dbTestResult.ok
+                                ? "#ef4444"
+                                : "var(--txt)",
                             }}
                           >
                             {props.isDbTesting ? (
                               <RefreshCw size={10} className="animate-spin" />
                             ) : props.dbTestResult?.ok ? (
                               <Check size={11} className="text-emerald-400" />
+                            ) : props.dbTestResult && !props.dbTestResult.ok ? (
+                              <X size={11} className="text-red-400" />
                             ) : null}
                             <span>
                               {props.isDbTesting
                                 ? "Testing..."
                                 : props.dbTestResult?.ok
                                 ? "Connected"
+                                : props.dbTestResult && !props.dbTestResult.ok
+                                ? "Failed"
                                 : "Test Link"}
                             </span>
                           </button>
                         </div>
-                        {props.dbTestResult && !props.dbTestResult.ok && (
-                          <p className="text-[10px] font-mono text-red-400 mt-1">✗ {props.dbTestResult.message}</p>
-                        )}
+                        <DbStatusBanner
+                          testResult={props.dbTestResult}
+                          error={props.dbError}
+                          onUpgrade={props.onUpgradePlan}
+                        />
                       </div>
 
                       {/* Side-by-Side Target Config: Mode + Limit */}
@@ -836,9 +931,21 @@ export default function IngestionCard(props: IngestionCardProps) {
                             onClick={props.testDbConnection}
                             disabled={!props.dbConnStr.trim() || props.isDbTesting}
                             className="text-[9px] font-mono underline hover:text-white"
-                            style={{ color: "var(--accent)" }}
+                            style={{
+                              color: props.dbTestResult?.ok
+                                ? "#10b981"
+                                : props.dbTestResult && !props.dbTestResult.ok
+                                ? "#ef4444"
+                                : "var(--accent)",
+                            }}
                           >
-                            {props.isDbTesting ? "Testing..." : props.dbTestResult?.ok ? "✓ Link Verified" : "Test Link"}
+                            {props.isDbTesting
+                              ? "Testing..."
+                              : props.dbTestResult?.ok
+                              ? "✓ Link Verified"
+                              : props.dbTestResult && !props.dbTestResult.ok
+                              ? "✗ Test Failed"
+                              : "Test Link"}
                           </button>
                         </div>
                         <input
@@ -848,6 +955,12 @@ export default function IngestionCard(props: IngestionCardProps) {
                           placeholder="postgresql://user:pass@host:5432/db"
                           className="w-full px-2.5 py-1.5 rounded-lg text-xs font-mono outline-none border"
                           style={{ background: "rgba(255, 255, 255, 0.04)", borderColor: "var(--border)", color: "var(--txt)" }}
+                        />
+                        <DbStatusBanner
+                          testResult={props.dbTestResult}
+                          error={props.dbError}
+                          onUpgrade={props.onUpgradePlan}
+                          compact={true}
                         />
                       </div>
 
@@ -998,11 +1111,11 @@ export default function IngestionCard(props: IngestionCardProps) {
                               className="w-full px-3 py-2 rounded-xl text-xs font-mono outline-none border"
                               style={{ background: "rgba(255, 255, 255, 0.04)", borderColor: "var(--border)", color: "var(--txt)" }}
                             />
-                            {props.dbTestResult && (
-                              <p className={`text-[10px] font-mono mt-1 ${props.dbTestResult.ok ? "text-emerald-400" : "text-red-400"}`}>
-                                {props.dbTestResult.ok ? "✓ Link Verified!" : `✗ Failed: ${props.dbTestResult.message}`}
-                              </p>
-                            )}
+                            <DbStatusBanner
+                              testResult={props.dbTestResult}
+                              error={props.dbError}
+                              onUpgrade={props.onUpgradePlan}
+                            />
                           </div>
 
                           <div className="flex gap-2 pt-1">
@@ -1011,9 +1124,26 @@ export default function IngestionCard(props: IngestionCardProps) {
                               onClick={props.testDbConnection}
                               disabled={!props.dbConnStr.trim() || props.isDbTesting}
                               className="px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition-all hover:bg-white/5"
-                              style={{ borderColor: "var(--border)", color: "var(--txt)" }}
+                              style={{
+                                borderColor: props.dbTestResult?.ok
+                                  ? "rgba(16, 185, 129, 0.4)"
+                                  : props.dbTestResult && !props.dbTestResult.ok
+                                  ? "rgba(239, 68, 68, 0.4)"
+                                  : "var(--border)",
+                                color: props.dbTestResult?.ok
+                                  ? "#10b981"
+                                  : props.dbTestResult && !props.dbTestResult.ok
+                                  ? "#ef4444"
+                                  : "var(--txt)",
+                              }}
                             >
-                              {props.isDbTesting ? "Testing..." : "Test Connection"}
+                              {props.isDbTesting
+                                ? "Testing..."
+                                : props.dbTestResult?.ok
+                                ? "✓ Link Verified"
+                                : props.dbTestResult && !props.dbTestResult.ok
+                                ? "✗ Test Failed"
+                                : "Test Connection"}
                             </button>
                             <button
                               type="button"

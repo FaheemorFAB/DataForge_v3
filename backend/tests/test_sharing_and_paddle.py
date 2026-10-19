@@ -55,6 +55,15 @@ def test_setup():
     orig_get_by_id = upload_repo.get_by_id
     upload_repo.get_by_id = lambda uid: {"id": uid, "user_id": 101, "filename": "financial_records.csv"} if str(uid) == "8888" else None
 
+    from dataforge.api.services.entitlements import EntitlementService
+    orig_get_subscription = EntitlementService.get_subscription
+    EntitlementService.get_subscription = lambda uid, email=None: {
+        "plan": "team",
+        "has_team_collaboration": True,
+        "status": "active",
+        "max_rows": 5_000_000,
+    }
+
     try:
         yield {
             "client": client,
@@ -66,6 +75,7 @@ def test_setup():
     finally:
         app.dependency_overrides.clear()
         upload_repo.get_by_id = orig_get_by_id
+        EntitlementService.get_subscription = orig_get_subscription
 
 
 def test_dataset_sharing_lifecycle(test_setup):
@@ -104,20 +114,20 @@ def test_dataset_sharing_lifecycle(test_setup):
     res = client.get("/api/workspace/state?upload_id=8888")
     assert res.status_code == 200
 
-    # 5. Collaborator as Viewer attempts to run cleaning (requires Editor) -> 403
+    # 5. Collaborator as Viewer attempts to run cleaning (requires Analyst) -> 403
     res = client.post("/api/clean", json={"upload_id": "8888"})
     assert res.status_code == 403
-    assert "requires 'Editor' permission" in res.json()["detail"]
+    assert "requires 'Analyst' permission" in res.json()["detail"]
 
-    # 6. Owner upgrades Collaborator to Editor
+    # 6. Owner upgrades Collaborator to Analyst
     active_ref["user"] = owner
     res = client.post(
         "/api/workspace/8888/share/invite",
-        json={"email": "collab@dataforge.test", "role": "Editor"},
+        json={"email": "collab@dataforge.test", "role": "Analyst"},
     )
     assert res.status_code == 200
 
-    # 7. Collaborator as Editor can now execute cleaning
+    # 7. Collaborator as Analyst can now execute cleaning
     active_ref["user"] = collab
     res = client.post("/api/clean", json={"upload_id": "8888"})
     assert res.status_code == 200

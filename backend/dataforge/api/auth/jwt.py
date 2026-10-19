@@ -18,8 +18,10 @@ settings = get_settings()
 
 def create_access_token(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
     """Create a signed JWT access token for the given user ID."""
+    # In non-production, default to 7 days if not explicitly configured otherwise
+    expire_minutes = settings.JWT_EXPIRE_MINUTES if settings.PRODUCTION else max(settings.JWT_EXPIRE_MINUTES, 60 * 24 * 7)
     expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+        expires_delta or timedelta(minutes=expire_minutes)
     )
     payload = {
         "sub": str(user_id),
@@ -30,7 +32,7 @@ def create_access_token(user_id: int, expires_delta: Optional[timedelta] = None)
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def decode_access_token(token: str) -> Optional[dict]:
+def decode_access_token(token: str, verify_exp: bool = True) -> Optional[dict]:
     """
     Decode and validate a JWT access token.
     Returns the payload dict, or None if the token is invalid/expired.
@@ -40,6 +42,7 @@ def decode_access_token(token: str) -> Optional[dict]:
             token,
             settings.JWT_SECRET,
             algorithms=[settings.JWT_ALGORITHM],
+            options={"verify_exp": verify_exp},
         )
         if payload.get("type") != "access":
             return None
@@ -57,3 +60,4 @@ def get_user_id_from_token(token: str) -> Optional[int]:
         return int(payload["sub"])
     except (KeyError, ValueError, TypeError):
         return None
+

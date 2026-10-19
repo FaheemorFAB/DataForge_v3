@@ -3,117 +3,75 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Check, Sparkles, ArrowRight } from "lucide-react";
+import { Check, X, Sparkles, ArrowRight } from "lucide-react";
 
 interface Props {
   onSelectPlan: (plan: string) => void;
 }
 
 export default function HomepagePricingSection({ onSelectPlan }: Props) {
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annually">("annually");
-
-  // Exactly 3 Paid Tiers
+  // Exactly 2 Paid Tiers (Pro Analyst & Team Collaboration)
   const plans = [
     {
       id: "pro",
       name: "Pro Analyst",
       badge: "MOST POPULAR",
-      description: "For professional data analysts, quants, and high-velocity business teams.",
+      description: "For solo data analysts requiring full export formats, EDA presentation slides & AutoML Docker containers.",
       price: 29,
-      annualPrice: 24,
-      limits: "Up to 1,000,000 rows • 10 GB storage",
-      seats: "Up to 5 team seats",
+      limits: "Up to 250,000 rows • 5 GB storage",
+      seats: "1 solo practitioner seat",
       features: [
-        "1,000,000 rows out-of-core DuckDB engine",
-        "10 GB cloud dataset storage",
-        "Up to 5 team seats with role permissions",
+        "Unlimited Data Ingestion (no file count or monthly ingest caps)",
+        "250,000 rows in-memory DuckDB processing (10x Free)",
+        "Data Ingestion: Local CSV/Excel, Google Sheets & OneDrive/M365",
+        "Full File Downloads: CSV, Excel, Parquet & JSON",
+        "Executive EDA presentation slides export (PPTX & PDF)",
+        "AutoML production Docker containers & deployment files",
+        "Pipeline Code Export: Standalone Python & dbt models",
         "50 AutoML tournaments (LightGBM, XGBoost)",
-        "250 AI natural-language queries / mo",
+        "250 AI natural-language queries / mo (10x Free)",
         "Relational Join Studio & multi-table merge",
-        "Statistical hypothesis suite (ANOVA, t-test, Chi-Sq)",
         "Priority email support",
       ],
-      cta: "Upgrade to Pro",
+      nonFeatures: [
+        "Shared Database Connection Vault (PostgreSQL, MySQL, SQLite, DuckDB)",
+        "Apache Airflow production DAG exports & database push",
+        "Multi-user team collaboration & 3-tier roles",
+      ],
+      cta: "Upgrade to Pro Analyst",
       popular: false,
     },
     {
       id: "team",
       name: "Team Collaboration",
       badge: "SCALE & GOVERNANCE",
-      description: "For analytics engineering teams requiring cloud pushdown and shared governance.",
+      description: "For analytics teams requiring shared datasets, collaboration with 3 roles and database connections.",
       price: 79,
-      annualPrice: 69,
-      limits: "Up to 5,000,000 rows • 50 GB storage",
-      seats: "Up to 25 team seats",
+      limits: "Up to 1,000,000 rows • 25 GB storage",
+      seats: "Up to 5 seats (Viewer, Analyst, Admin)",
       features: [
-        "5,000,000 rows out-of-core streaming",
-        "50 GB shared organization storage",
-        "Up to 25 team seats with 4-tier RBAC",
-        "Live Cloud Warehouses (Snowflake, BigQuery, ClickHouse)",
-        "200 AutoML tournaments & Model Registry REST API",
-        "1-click dbt & Apache Airflow pipeline code export",
+        "Multi-user team collaboration with 3 roles: Viewer, Analyst, Admin",
+        "Up to 5 seats with granular permission roles",
+        "Shared Database Connection Vault (PostgreSQL, MySQL, SQLite, DuckDB)",
+        "1,000,000 rows out-of-core streaming (4x Pro, 40x Free)",
+        "25 GB shared organization storage (5x Pro)",
+        "Unlimited Team Data Ingestion & Pipeline Uploads",
+        "Apache Airflow production DAG exports & pipeline code",
+        "Direct Database Push & Cross-team exports",
+        "200 AutoML tournaments & Model Registry REST API (4x Pro)",
+        "1,000 AI natural-language queries / mo (4x Pro)",
         "Immutable governance audit logs & compliance trail",
-        "Dedicated engineer support (4h SLA)",
       ],
+      nonFeatures: [],
       cta: "Deploy Team Workspace",
       popular: true,
-    },
-    {
-      id: "enterprise",
-      name: "Enterprise Scale",
-      badge: "PRIVATE VPC",
-      description: "For high-volume enterprises requiring private VPC or zero cloud egress.",
-      price: 249,
-      annualPrice: 199,
-      limits: "20,000,000+ rows • 500 GB storage",
-      seats: "Unlimited team seats",
-      features: [
-        "20M+ rows or unlimited warehouse streaming",
-        "500 GB organization storage",
-        "Unlimited team seats & SAML 2.0 / Okta SSO",
-        "100% Private VPC or on-prem deployment",
-        "Customer-Managed Encryption Keys (CMEK)",
-        "Dynamic PII scrubbing & column masking",
-        "Custom Connector SDKs & 99.99% uptime SLA",
-        "24/7 dedicated solutions architect",
-      ],
-      cta: "Contact Enterprise",
-      popular: false,
     },
   ];
 
   return (
     <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 relative border-t border-[var(--border)]">
       <div className="max-w-7xl mx-auto">
-        {/* Free Starter subtle banner */}
-        <div
-          className="mb-10 max-w-2xl mx-auto p-3 sm:p-3.5 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-center sm:text-left shadow-sm"
-          style={{ background: "var(--card-bg)", borderColor: "var(--border)" }}
-        >
-          <div className="flex flex-col sm:flex-row items-center gap-2">
-            <span
-              className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border shrink-0"
-              style={{
-                background: "rgba(16, 185, 129, 0.1)",
-                borderColor: "rgba(16, 185, 129, 0.3)",
-                color: "#10b981",
-              }}
-            >
-              Free Starter
-            </span>
-            <span style={{ color: "var(--txt-m)" }}>
-              Solo analyst? Get started free (up to 100k rows, 500MB storage).
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => onSelectPlan("free")}
-            className="font-bold underline cursor-pointer shrink-0 hover:opacity-80 transition-opacity"
-            style={{ color: "var(--accent)" }}
-          >
-            Launch Free →
-          </button>
-        </div>
+
 
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-12">
@@ -123,51 +81,21 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
           <p className="text-sm sm:text-base text-[var(--txt-m)] max-w-xl mx-auto mb-6">
             Keep your costs predictable with out-of-core DuckDB performance.
           </p>
-
-          {/* Billing Cycle Toggle */}
-          <div className="inline-flex items-center gap-3 p-1 rounded-full border border-[var(--border)] bg-[var(--card-bg)] shadow-sm">
-            <button
-              type="button"
-              onClick={() => setBillingCycle("monthly")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                billingCycle === "monthly"
-                  ? "bg-[var(--accent)] text-white shadow-md"
-                  : "text-[var(--txt-m)] hover:text-[var(--txt)]"
-              }`}
-            >
-              Monthly billing
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingCycle("annually")}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                billingCycle === "annually"
-                  ? "bg-[var(--accent)] text-white shadow-md"
-                  : "text-[var(--txt-m)] hover:text-[var(--txt)]"
-              }`}
-            >
-              <span>Annual billing</span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
-                Save 20%
-              </span>
-            </button>
-          </div>
         </div>
 
-        {/* 3 Paid Pricing Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-7 items-stretch">
+        {/* Paid Pricing Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 items-stretch max-w-4xl mx-auto">
           {plans.map((plan) => {
-            const currentPrice = billingCycle === "annually" ? plan.annualPrice : plan.price;
+            const currentPrice = plan.price;
             return (
               <motion.div
                 key={plan.id}
                 whileHover={{ y: -4 }}
                 transition={{ duration: 0.2 }}
-                className={`relative rounded-3xl p-5 sm:p-6 lg:p-7 flex flex-col justify-between border transition-all ${
-                  plan.popular
-                    ? "border-[var(--accent)] bg-[var(--card-bg)] shadow-2xl ring-2 ring-[var(--accent)]/30"
-                    : "border-[var(--border)] bg-[var(--card-bg)] shadow-lg"
-                }`}
+                className={`relative rounded-3xl p-5 sm:p-6 lg:p-7 flex flex-col justify-between border transition-all ${plan.popular
+                  ? "border-[var(--accent)] bg-[var(--card-bg)] shadow-2xl ring-2 ring-[var(--accent)]/30"
+                  : "border-[var(--border)] bg-[var(--card-bg)] shadow-lg"
+                  }`}
               >
                 {/* Popular Pill */}
                 {plan.badge && (
@@ -202,8 +130,34 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
 
                   {/* Features list */}
                   <div className="space-y-2.5 mb-6">
+                    {plan.id === "pro" && (
+                      <div
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3 shadow-sm"
+                        style={{
+                          background: "var(--surface)",
+                          borderColor: "var(--accent)",
+                          color: "var(--accent)",
+                        }}
+                      >
+                        <Sparkles size={12} className="shrink-0" />
+                        <span>Everything in Free Starter, plus:</span>
+                      </div>
+                    )}
+                    {plan.id === "team" && (
+                      <div
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3 shadow-sm"
+                        style={{
+                          background: "var(--surface)",
+                          borderColor: "var(--accent)",
+                          color: "var(--accent)",
+                        }}
+                      >
+                        <Sparkles size={12} className="shrink-0" />
+                        <span>Everything in Pro Analyst, plus:</span>
+                      </div>
+                    )}
                     <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--txt-m)]">
-                      Included Capabilities:
+                      Exclusive Capabilities:
                     </p>
                     {plan.features.map((feat, i) => (
                       <div key={i} className="flex items-start gap-2 text-xs text-[var(--txt)]">
@@ -213,6 +167,19 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
                         <span className="leading-tight">{feat}</span>
                       </div>
                     ))}
+
+                    {plan.nonFeatures && plan.nonFeatures.length > 0 && (
+                      <div className="pt-2.5 border-t border-[var(--border)]/50 space-y-2.5">
+                        {plan.nonFeatures.map((feat, i) => (
+                          <div key={i} className="flex items-start gap-2 text-xs opacity-50 text-[var(--txt-m)]">
+                            <div className="w-4 h-4 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center shrink-0 mt-0.5 border border-red-500/25">
+                              <X size={10} strokeWidth={2.5} />
+                            </div>
+                            <span className="leading-tight">{feat}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -221,11 +188,10 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
                   <button
                     type="button"
                     onClick={() => onSelectPlan(plan.id)}
-                    className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                      plan.popular
-                        ? "bg-[var(--accent)] text-white hover:opacity-95 shadow-lg shadow-[var(--accent)]/20"
-                        : "bg-[var(--border)] text-[var(--txt)] hover:bg-[var(--accent)] hover:text-white"
-                    }`}
+                    className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${plan.popular
+                      ? "bg-[var(--accent)] text-white hover:opacity-95 shadow-lg shadow-[var(--accent)]/20"
+                      : "bg-[var(--border)] text-[var(--txt)] hover:bg-[var(--accent)] hover:text-white"
+                      }`}
                   >
                     <span>{plan.cta}</span>
                     <ArrowRight size={13} />

@@ -11,8 +11,11 @@ from __future__ import annotations
 import ast
 import json
 import logging
+try:
+    import resource
+except ImportError:
+    resource = None
 import os
-import resource
 import subprocess
 import sys
 import tempfile
@@ -141,23 +144,24 @@ def run():
     except Exception:
         pass
 
-    # 2. Network isolation via unprivileged Linux network namespace (fail-closed)
-    try:
-        import ctypes
-        CLONE_NEWUSER = 0x10000000
-        CLONE_NEWNET = 0x40000000
-        libc = ctypes.CDLL("libc.so.6", use_errno=True)
-        ret = libc.unshare(CLONE_NEWUSER | CLONE_NEWNET)
-        if ret != 0:
+    # 2. Network isolation via unprivileged Linux network namespace (fail-closed on Linux)
+    if sys.platform == "linux":
+        try:
+            import ctypes
+            CLONE_NEWUSER = 0x10000000
+            CLONE_NEWNET = 0x40000000
+            libc = ctypes.CDLL("libc.so.6", use_errno=True)
+            ret = libc.unshare(CLONE_NEWUSER | CLONE_NEWNET)
+            if ret != 0:
+                allow_no_netns = os.environ.get("DATAFORGE_SANDBOX_ALLOW_NO_NETNS") == "1"
+                if not allow_no_netns:
+                    sys.stderr.write(f"Sandbox isolation error: network namespace unshare failed (code {ret}). Failing closed.\\n")
+                    sys.exit(77)
+        except Exception as exc:
             allow_no_netns = os.environ.get("DATAFORGE_SANDBOX_ALLOW_NO_NETNS") == "1"
             if not allow_no_netns:
-                sys.stderr.write(f"Sandbox isolation error: network namespace unshare failed (code {ret}). Failing closed.\\n")
+                sys.stderr.write(f"Sandbox isolation error: network namespace unshare exception: {exc}. Failing closed.\\n")
                 sys.exit(77)
-    except Exception as exc:
-        allow_no_netns = os.environ.get("DATAFORGE_SANDBOX_ALLOW_NO_NETNS") == "1"
-        if not allow_no_netns:
-            sys.stderr.write(f"Sandbox isolation error: network namespace unshare exception: {exc}. Failing closed.\\n")
-            sys.exit(77)
 
     import pandas as pd
     import numpy as np
@@ -335,10 +339,17 @@ def run_sandboxed_code(
             "LC_ALL": "C.UTF-8",
             "PYTHONUNBUFFERED": "1",
         }
+        if sys.platform == "win32":
+            clean_env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", r"C:\Windows")
+            clean_env["TEMP"] = os.environ.get("TEMP", str(tmp_path))
+            clean_env["TMP"] = os.environ.get("TMP", str(tmp_path))
+            clean_env["USERPROFILE"] = os.environ.get("USERPROFILE", "")
+            clean_env["APPDATA"] = os.environ.get("APPDATA", "")
+            clean_env["LOCALAPPDATA"] = os.environ.get("LOCALAPPDATA", "")
         # Forward virtualenv site-packages path if running under venv
         if "VIRTUAL_ENV" in os.environ:
             clean_env["VIRTUAL_ENV"] = os.environ["VIRTUAL_ENV"]
-            clean_env["PATH"] = f"{os.environ['VIRTUAL_ENV']}/bin:{clean_env['PATH']}"
+            clean_env["PATH"] = f"{os.environ['VIRTUAL_ENV']}/bin;{clean_env['PATH']}"
 
         # 4. Spawn child process without preexec_fn (safe in multithreaded runtimes)
         cmd = [

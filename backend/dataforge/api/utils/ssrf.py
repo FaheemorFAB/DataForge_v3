@@ -94,21 +94,27 @@ def is_safe_ip(ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return True
 
 
-def validate_and_resolve_host(hostname: str, port: int) -> str:
+def validate_and_resolve_host(hostname: str, port: int, allow_local: bool = False) -> str:
     """
     Resolve target hostname and ensure EVERY resolved IP address is a safe public IP.
     Returns the first validated public IP string for socket pinning.
+    If allow_local is True, localhost and loopback IPs (127.0.0.1, ::1) are permitted for local development.
     """
     if not hostname:
         raise SSRFSecurityError("Missing hostname")
 
     lower_host = hostname.lower()
+    if allow_local and lower_host in ("localhost", "127.0.0.1", "::1"):
+        return "127.0.0.1"
+
     if lower_host in ("localhost", "metadata.google.internal", "instance-data"):
         raise SSRFSecurityError(f"Access to host '{hostname}' is prohibited")
 
     # If hostname is already an IP literal
     try:
         ip = ipaddress.ip_address(hostname.strip("[]"))
+        if allow_local and (ip.is_loopback or str(ip) in ("127.0.0.1", "::1")):
+            return str(ip)
         if not is_safe_ip(ip):
             raise SSRFSecurityError(f"Access to private/internal IP '{hostname}' is prohibited")
         return str(ip)
@@ -127,6 +133,10 @@ def validate_and_resolve_host(hostname: str, port: int) -> str:
     for entry in addr_info:
         raw_ip = entry[4][0]
         ip = ipaddress.ip_address(raw_ip)
+        if allow_local and (ip.is_loopback or str(ip) in ("127.0.0.1", "::1")):
+            if first_safe_ip is None:
+                first_safe_ip = str(ip)
+            continue
         if not is_safe_ip(ip):
             raise SSRFSecurityError(
                 f"Hostname '{hostname}' resolved to disallowed private/internal IP '{raw_ip}'"

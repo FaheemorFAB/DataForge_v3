@@ -371,7 +371,6 @@ export function JoinCanvasTab() {
   // --
   const handleDeleteTable = async (tableName: string) => {
     if (!uploadId) return;
-    if (!confirm(`Are you sure you want to remove table "${tableName}"?`)) return;
 
     try {
       const res = await apiFetch(`/joins/tables/${tableName}?upload_id=${uploadId}`, {
@@ -1794,6 +1793,12 @@ export function JoinCanvasTab() {
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (f) {
+                      const ext = f.name.split(".").pop()?.toLowerCase();
+                      const allowed = ["csv", "parquet", "json", "jsonl", "ndjson", "xlsx", "xls"];
+                      if (!ext || !allowed.includes(ext)) {
+                        showToast("error", `Unsupported file extension .${ext}. Supported: CSV, Parquet, JSON, Excel.`);
+                        return;
+                      }
                       setUploadFile(f);
                       if (!uploadTableName) {
                         setUploadTableName(f.name.replace(/\.[^/.]+$/, ""));

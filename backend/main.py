@@ -26,10 +26,11 @@ app = create_app()
 if __name__ == "__main__":
     import os
     port = int(os.getenv("PORT", 5000))
+    is_prod = os.getenv("PRODUCTION", "false").lower() in ("true", "1")
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=port,
-        reload=True,
+        reload=not is_prod,
         log_level="info",
     )

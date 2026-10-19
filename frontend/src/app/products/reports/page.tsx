@@ -90,14 +90,17 @@ export default function ReportsPage() {
         </div>
       </main>
 
-      <CTABanner 
-        title="Ready to visualize your data?"
-        subtitle="Upload your dataset and generate dashboards now."
-        buttonText="Upload Your Dataset"
-        href="/?login=1"
-        bgColor="linear-gradient(to top right, #60a5fa, #6366f1)"
-        btnTextColor="#60a5fa"
-      />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 mb-16">
+        <CTABanner 
+          variant="compact"
+          title="Ready to visualize your data?"
+          subtitle="Generate interactive slide decks, statistical profiles, and executive PDF summaries in seconds."
+          buttonText="Upload Your Dataset"
+          href="/?login=1"
+          secondaryButtonText="Ingestion Engine"
+          secondaryHref="/products/ingestion"
+        />
+      </div>
 
       <Footer />
     </div>

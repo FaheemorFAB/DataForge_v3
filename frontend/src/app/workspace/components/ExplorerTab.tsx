@@ -19,10 +19,12 @@ import {
   CheckCircle2,
   Table as TableIcon,
   ShieldCheck,
+  RefreshCw,
 } from "lucide-react";
+import Spinner from "../../components/ui/Spinner";
 
 export function ExplorerTab() {
-  const { profile, cleanProfile, sourceType, isSyncingSheets, syncSheets, uploadId } = useWorkspace();
+  const { profile, cleanProfile, sourceType, isSyncingSheets, syncSheets, uploadId, isLoadingWorkspace } = useWorkspace();
   const [needsReupload, setNeedsReupload] = useState(false);
   const [reuploadMessage, setReuploadMessage] = useState("");
 
@@ -80,7 +82,7 @@ export function ExplorerTab() {
       }
       setLoading(false);
     },
-    [rowLimit, showClean, cleanProfile, uploadId]
+    [rowLimit, showClean, cleanProfile, uploadId, profile?.rows, profile?.cols]
   );
 
   useEffect(() => {
@@ -244,9 +246,53 @@ export function ExplorerTab() {
         </div>
       )}
 
+      {/* If no dataset loaded yet */}
+      {!activeProfile && !needsReupload && (
+        (isLoadingWorkspace || loading) ? (
+          <div className="py-20 flex items-center justify-center">
+            <Spinner
+              size="lg"
+              variant="brand"
+              label="Loading dataset..."
+              description="Fetching columns, summary statistics, and grid records..."
+            />
+          </div>
+        ) : (
+          <div
+            className="p-8 rounded-2xl border text-center flex flex-col items-center justify-center gap-3 shadow-sm my-4"
+            style={{ background: "var(--card)", borderColor: "var(--border)" }}
+          >
+            <div
+              className="w-12 h-12 rounded-2xl border flex items-center justify-center"
+              style={{ background: "var(--glow)", borderColor: "var(--accent)", color: "var(--accent)" }}
+            >
+              <Database size={22} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold" style={{ color: "var(--txt)" }}>No Dataset Loaded in Workspace</h3>
+              <p className="text-xs max-w-md mx-auto mt-1" style={{ color: "var(--txt-m)" }}>
+                Upload your dataset or connect a data source to begin exploring columns, profiles, and data grids.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const btn = document.querySelector('[title="Import a new dataset or connect a data source"]') as HTMLButtonElement;
+                if (btn) btn.click();
+              }}
+              className="mt-2 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm hover:scale-[1.02] transition-all"
+              style={{ background: "var(--accent)", color: "#fff" }}
+            >
+              <Upload size={14} />
+              <span>Import Dataset</span>
+            </button>
+          </div>
+        )
+      )}
+
       {/* -- 4 High-Impact KPI Telemetry Cards -- */}
       {activeProfile && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
           {/* Card 1: Rows */}
           <div
             className="p-5 rounded-2xl border shadow-sm relative overflow-hidden group transition-all"
@@ -481,9 +527,10 @@ export function ExplorerTab() {
       )}
 
       {/* -- Live Data Grid Explorer -- */}
-      <div className="space-y-4">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
+      {activeProfile && (
+        <div className="space-y-4">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-black tracking-tight" style={{ color: "var(--txt)" }}>
               Live Memory Explorer
@@ -559,6 +606,29 @@ export function ExplorerTab() {
               </label>
             )}
 
+            {/* Google Sheets Live Sync Button */}
+            {sourceType === "sheets" && (
+              <button
+                onClick={async () => {
+                  const res = await syncSheets();
+                  if (res?.ok) {
+                    await reloadData();
+                  }
+                }}
+                disabled={isSyncingSheets}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-60 hover:scale-[1.02] active:scale-[0.98]"
+                style={{
+                  background: "rgba(16, 185, 129, 0.12)",
+                  borderColor: "rgba(16, 185, 129, 0.35)",
+                  color: "#10b981",
+                }}
+                title="Sync live rows and edits from connected Google Sheet"
+              >
+                <RefreshCw size={13} className={isSyncingSheets ? "animate-spin" : ""} />
+                <span>{isSyncingSheets ? "Syncing..." : "Sync Sheet"}</span>
+              </button>
+            )}
+
             {(globalSearch || sortCol) && (
               <button
                 onClick={clearAll}
@@ -632,11 +702,8 @@ export function ExplorerTab() {
           }}
         >
           {loading && (
-            <div className="absolute inset-0 bg-black/30 z-20 flex items-center justify-center backdrop-blur-xs">
-              <div
-                className="w-7 h-7 border-2 border-t-transparent rounded-full animate-spin"
-                style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
-              />
+            <div className="absolute inset-0 bg-black/40 z-20 flex flex-col items-center justify-center backdrop-blur-xs">
+              <Spinner size="md" variant="brand" label="Updating records..." />
             </div>
           )}
 
@@ -805,6 +872,7 @@ export function ExplorerTab() {
           </div>
         </div>
       </div>
-    </div>
-  );
+    )}
+  </div>
+);
 }

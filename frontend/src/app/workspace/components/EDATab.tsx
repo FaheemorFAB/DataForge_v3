@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getAuthToken } from "@/lib/api";
 import {
   Download,
   AlertTriangle,
@@ -35,13 +35,15 @@ export function EDATab() {
   const [edaReady, setEdaReady] = useState(false);
   const [edaError, setEdaError] = useState("");
   const [edaWarning, setEdaWarning] = useState("");
-  const [edaMinimal, setEdaMinimal] = useState(false);
-  const [edaSampleN, setEdaSampleN] = useState("5000");
 
   // Business Report State
   const [bizReportGenerating, setBizReportGenerating] = useState(false);
   const [bizReportReady, setBizReportReady] = useState(false);
   const [bizReportError, setBizReportError] = useState("");
+  const [reportKey, setReportKey] = useState(Date.now());
+
+  const token = typeof window !== "undefined" ? getAuthToken() : null;
+  const authQuery = token ? `&token=${encodeURIComponent(token)}` : "";
 
   const activeProfile = cleanProfile || profile;
   const rows = activeProfile?.rows || 0;
@@ -80,20 +82,20 @@ export function EDATab() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          minimal: edaMinimal,
-          sample_n: parseInt(edaSampleN),
           upload_id: uploadId,
+          minimal: false,
+          sample_n: null,
         }),
       });
       if (!res.ok) {
-        let errStr = "EDA failed: unexpected server response. Try enabling Minimal mode.";
+        let errStr = "EDA profiling failed: unexpected server response.";
         try {
           const text = await res.text();
           try {
             const data = JSON.parse(text);
             if (data.error) errStr = data.error;
           } catch (e) {
-            errStr = `EDA failed (HTTP ${res.status}): ${text.substring(0, 150)}`;
+            errStr = `EDA profiling failed (HTTP ${res.status}): ${text.substring(0, 150)}`;
           }
         } catch (e) {}
         setEdaError(errStr);
@@ -109,20 +111,25 @@ export function EDATab() {
       if (data.warning) setEdaWarning(data.warning);
       if (data.task_id) {
         const pollTask = async (taskId: string) => {
-          while (true) {
+          let attempts = 0;
+          while (attempts < 60) {
+            attempts++;
             await new Promise((r) => setTimeout(r, 2000));
             const pRes = await apiFetch(`/tasks/status/${taskId}`);
-            if (!pRes.ok) throw new Error("Task check failed");
+            if (!pRes.ok) throw new Error(`Task status check failed (HTTP ${pRes.status})`);
             const pData = await pRes.json();
             if (pData.status === "success" || pData.status === "completed") return true;
             if (pData.status === "failure" || pData.status === "failed")
-              throw new Error(pData.error || "Task failed");
+              throw new Error(pData.error || "Statistical profiling failed");
           }
+          throw new Error("Profiling timed out. Please try again.");
         };
         await pollTask(data.task_id);
         setEdaReady(true);
+        setReportKey(Date.now());
       } else {
         setEdaReady(true);
+        setReportKey(Date.now());
       }
     } catch (e: any) {
       setEdaError("Network error: " + e.message);
@@ -141,10 +148,16 @@ export function EDATab() {
         body: JSON.stringify({ upload_id: uploadId }),
       });
       if (!res.ok) {
-        let errStr = "Report generation failed.";
+        let errStr = "Report generation failed: unexpected server response.";
         try {
-          const data = await res.json();
-          if (data.error) errStr = data.error;
+          const text = await res.text();
+          try {
+            const data = JSON.parse(text);
+            if (data.error) errStr = data.error;
+            else if (data.detail) errStr = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+          } catch (e) {
+            errStr = `Report generation failed (HTTP ${res.status}): ${text.substring(0, 150)}`;
+          }
         } catch (e) {}
         setBizReportError(errStr);
         return;
@@ -156,21 +169,25 @@ export function EDATab() {
       }
       if (data.task_id) {
         const pollTask = async (taskId: string) => {
-          while (true) {
+          let attempts = 0;
+          while (attempts < 60) {
+            attempts++;
             await new Promise((r) => setTimeout(r, 2000));
             const pRes = await apiFetch(`/tasks/status/${taskId}`);
-            if (!pRes.ok) throw new Error("Task check failed");
+            if (!pRes.ok) throw new Error(`Task status check failed (HTTP ${pRes.status})`);
             const pData = await pRes.json();
             if (pData.status === "success" || pData.status === "completed") return true;
             if (pData.status === "failure" || pData.status === "failed")
-              throw new Error(pData.error || "Task failed");
+              throw new Error(pData.error || "Business report generation failed");
           }
+          throw new Error("Report generation timed out. Please try again.");
         };
         await pollTask(data.task_id);
       }
       setBizReportReady(true);
+      setReportKey(Date.now());
     } catch (e: any) {
-      setBizReportError(String(e));
+      setBizReportError(e.message || String(e));
     } finally {
       setBizReportGenerating(false);
     }
@@ -384,7 +401,7 @@ export function EDATab() {
                 Governance: RBAC & Audit Trails Active
               </h4>
               <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--txt)" }}>
-                All transformations and model deployments are cryptographically logged in the Team Governance audit ledger with 4-tier tenant access.
+                All transformations and model deployments are cryptographically logged in the Team Governance audit ledger with 3-tier enterprise role-based access control (Admin, Analyst, Viewer).
               </p>
             </div>
           </div>
@@ -499,10 +516,21 @@ export function EDATab() {
     },
   ];
 
+  const handlePrintDeck = () => {
+    document.body.classList.add("print-deck-mode");
+    const cleanup = () => {
+      document.body.classList.remove("print-deck-mode");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    setTimeout(cleanup, 2500);
+    window.print();
+  };
+
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto print:p-0 print:m-0 print:max-w-none print:space-y-0">
       {/* -- Header & Mode Switcher -- */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b pb-4" style={{ borderColor: "var(--border)" }}>
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b pb-4 no-print" style={{ borderColor: "var(--border)" }}>
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-black uppercase tracking-tight" style={{ color: "var(--txt)" }}>
@@ -574,88 +602,116 @@ export function EDATab() {
 
       {/* -- VIEW 1: EXECUTIVE SLIDE DECK -- */}
       {reportView === "deck" && (
-        <div className="space-y-4">
-          {/* Slide Deck Main Card */}
-          <div
-            className="p-6 md:p-8 rounded-3xl border shadow-xl relative overflow-hidden transition-all"
-            style={{
-              background: "var(--surface)",
-              borderColor: "var(--border)",
-              minHeight: 460,
-            }}
-          >
-            {/* Top Slide Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 mb-6" style={{ borderColor: "var(--border)" }}>
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>
-                  Slide {currentSlide + 1} of {slides.length}
-                </span>
-                <h2 className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>
-                  {slides[currentSlide].title}
-                </h2>
-                <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                  {slides[currentSlide].subtitle}
-                </p>
-              </div>
+        <>
+          {/* Interactive Single-Slide Carousel for Screen Display */}
+          <div className="space-y-4 screen-only-deck">
+            {/* Slide Deck Main Card */}
+            <div
+              className="p-6 md:p-8 rounded-3xl border shadow-xl relative overflow-hidden transition-all"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--border)",
+                minHeight: 460,
+              }}
+            >
+              {/* Top Slide Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 mb-6" style={{ borderColor: "var(--border)" }}>
+                <div>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider" style={{ color: "var(--accent)" }}>
+                    Slide {currentSlide + 1} of {slides.length}
+                  </span>
+                  <h2 className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>
+                    {slides[currentSlide].title}
+                  </h2>
+                  <p className="text-xs" style={{ color: "var(--txt-m)" }}>
+                    {slides[currentSlide].subtitle}
+                  </p>
+                </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02] cursor-pointer"
-                  style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
-                  title="Print to presentation PDF"
-                >
-                  <Printer size={13} />
-                  <span>Print Deck</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Slide Body */}
-            <div className="py-2 animate-fade-in">{slides[currentSlide].content}</div>
-
-            {/* Slide Navigation Footer */}
-            <div className="mt-8 pt-4 border-t flex items-center justify-between gap-4" style={{ borderColor: "var(--border)" }}>
-              <div className="flex items-center gap-1.5">
-                {slides.map((_, idx) => (
+                {/* Actions */}
+                <div className="flex items-center gap-2">
                   <button
-                    key={idx}
-                    onClick={() => setCurrentSlide(idx)}
-                    className="h-2 rounded-full transition-all cursor-pointer"
-                    style={{
-                      width: currentSlide === idx ? 28 : 8,
-                      background: currentSlide === idx ? "var(--accent)" : "var(--border)",
-                    }}
-                    title={`Go to slide ${idx + 1}`}
-                  />
-                ))}
+                    onClick={handlePrintDeck}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition hover:scale-[1.02] cursor-pointer shadow-xs"
+                    style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+                    title="Print all slides to presentation PDF"
+                  >
+                    <Printer size={14} style={{ color: "var(--accent)" }} />
+                    <span>Print Deck ({slides.length} Slides)</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentSlide((p) => Math.max(0, p - 1))}
-                  disabled={currentSlide === 0}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02] disabled:opacity-40 cursor-pointer"
-                  style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
-                >
-                  <ChevronLeft size={14} />
-                  <span>Previous</span>
-                </button>
+              {/* Slide Body */}
+              <div className="py-2 animate-fade-in">{slides[currentSlide].content}</div>
 
-                <button
-                  onClick={() => setCurrentSlide((p) => Math.min(slides.length - 1, p + 1))}
-                  disabled={currentSlide === slides.length - 1}
-                  className="flex items-center gap-1 px-4 py-1.5 rounded-xl text-xs font-bold transition hover:scale-[1.02] disabled:opacity-40 cursor-pointer shadow-md"
-                  style={{ background: "var(--accent)", color: "#fff" }}
-                >
-                  <span>Next Slide</span>
-                  <ChevronRight size={14} />
-                </button>
+              {/* Slide Navigation Footer */}
+              <div className="mt-8 pt-4 border-t flex items-center justify-between gap-4" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-center gap-1.5">
+                  {slides.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentSlide(idx)}
+                      className="h-2 rounded-full transition-all cursor-pointer"
+                      style={{
+                        width: currentSlide === idx ? 28 : 8,
+                        background: currentSlide === idx ? "var(--accent)" : "var(--border)",
+                      }}
+                      title={`Go to slide ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentSlide((p) => Math.max(0, p - 1))}
+                    disabled={currentSlide === 0}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02] disabled:opacity-40 cursor-pointer"
+                    style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+                  >
+                    <ChevronLeft size={14} />
+                    <span>Previous</span>
+                  </button>
+
+                  <button
+                    onClick={() => setCurrentSlide((p) => Math.min(slides.length - 1, p + 1))}
+                    disabled={currentSlide === slides.length - 1}
+                    className="flex items-center gap-1 px-4 py-1.5 rounded-xl text-xs font-bold transition hover:scale-[1.02] disabled:opacity-40 cursor-pointer shadow-md"
+                    style={{ background: "var(--accent)", color: "#fff" }}
+                  >
+                    <span>Next Slide</span>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+
+          {/* Full Multi-Slide Presentation for Print (ALL slides rendered on separate pages) */}
+          <div className="print-deck-only">
+            {slides.map((s, idx) => (
+              <div key={idx} className="print-slide">
+                <div className="print-slide-header">
+                  <div className="print-slide-meta">
+                    <span className="print-slide-badge">DataForge · Executive Briefing Deck</span>
+                    <span className="print-slide-num">Slide {idx + 1} of {slides.length}</span>
+                  </div>
+                  <h2 className="print-slide-title">{s.title}</h2>
+                  <p className="print-slide-subtitle">{s.subtitle}</p>
+                </div>
+
+                <div className="print-slide-body">
+                  {s.content}
+                </div>
+
+                <div className="print-slide-footer">
+                  <span>Confidential · DataForge Automated Intelligence</span>
+                  <span>Dataset: {filename} ({rows.toLocaleString()} rows · {cols} columns)</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* -- VIEW 2: STATISTICAL PROFILE (YDATA-PROFILING) -- */}
@@ -671,33 +727,6 @@ export function EDATab() {
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold">
-                <input
-                  type="checkbox"
-                  checked={edaMinimal}
-                  onChange={(e) => {
-                    setEdaMinimal(e.target.checked);
-                    runEda();
-                  }}
-                  disabled={isGeneratingEda}
-                  style={{ accentColor: "var(--accent)" }}
-                />
-                <span>Minimal Mode</span>
-              </label>
-              <select
-                value={edaSampleN}
-                onChange={(e) => {
-                  setEdaSampleN(e.target.value);
-                  runEda();
-                }}
-                disabled={isGeneratingEda}
-                className="rounded-lg px-2.5 py-1 text-xs border font-mono"
-                style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
-              >
-                <option value="1000">1k rows</option>
-                <option value="5000">5k rows</option>
-                <option value="0">All rows</option>
-              </select>
               <button
                 onClick={runEda}
                 disabled={isGeneratingEda}
@@ -709,7 +738,7 @@ export function EDATab() {
               </button>
               {edaReady && (
                 <a
-                  href={`/api/eda/report?format=pdf&theme=cupcake&upload_id=${uploadId}`}
+                  href={`/api/eda/report?format=pdf&theme=cupcake&upload_id=${uploadId}${authQuery}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02]"
@@ -771,7 +800,7 @@ export function EDATab() {
             <div className="rounded-2xl border overflow-hidden shadow-lg" style={{ borderColor: "var(--border)" }}>
               <iframe
                 id="eda-frame"
-                src={`/api/eda/report?upload_id=${uploadId}`}
+                src={`/api/eda/report?upload_id=${uploadId}${authQuery}&t=${reportKey}`}
                 className="w-full bg-[var(--bg)] border-none block"
                 style={{ height: "clamp(500px, calc(100vh - 240px), 1000px)" }}
               />
@@ -804,7 +833,7 @@ export function EDATab() {
               </button>
               {bizReportReady && (
                 <a
-                  href={`/api/data-report/download?print=true&upload_id=${uploadId}`}
+                  href={`/api/data-report/download?print=true&upload_id=${uploadId}${authQuery}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02]"
@@ -816,6 +845,13 @@ export function EDATab() {
               )}
             </div>
           </div>
+
+          {bizReportError && (
+            <div className="p-4 rounded-xl border space-y-1 bg-rose-500/10 border-rose-500/20 text-rose-400">
+              <p className="font-bold text-xs flex items-center gap-1.5"><AlertTriangle size={14} /> Report Failed</p>
+              <p className="font-mono text-xs">{bizReportError}</p>
+            </div>
+          )}
 
           {bizReportGenerating && (
             <div className="p-12 rounded-2xl border text-center flex flex-col items-center justify-center gap-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -856,18 +892,13 @@ export function EDATab() {
           )}
 
           {bizReportReady && !bizReportGenerating && (
-            <div className="rounded-2xl border overflow-hidden shadow-xl" style={{ borderColor: "var(--border)", height: "calc(100vh - 240px)", minHeight: 650 }}>
+            <div className="rounded-2xl border overflow-hidden shadow-xl" style={{ borderColor: "var(--border)" }}>
               <iframe
-                src={`/api/reports/latest?upload_id=${uploadId}`}
-                className="w-full h-full border-none block"
+                id="biz-report-frame"
+                src={`/api/reports/latest?upload_id=${uploadId}${authQuery}&t=${reportKey}`}
+                className="w-full bg-[var(--bg)] border-none block"
+                style={{ height: "clamp(500px, calc(100vh - 240px), 1000px)" }}
               />
-            </div>
-          )}
-
-          {bizReportError && (
-            <div className="p-4 rounded-xl border space-y-1 bg-rose-500/10 border-rose-500/20 text-rose-400">
-              <p className="font-bold text-xs flex items-center gap-1.5"><AlertTriangle size={14} /> Report Failed</p>
-              <p className="font-mono text-xs">{bizReportError}</p>
             </div>
           )}
         </div>

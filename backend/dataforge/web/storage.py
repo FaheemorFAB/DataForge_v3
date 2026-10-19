@@ -127,10 +127,20 @@ def _lock_path(path: Path) -> Path:
 
 def _safe_df_for_parquet(df: pd.DataFrame) -> pd.DataFrame:
     """Ensure all object columns have homogeneous types (strings) for PyArrow serialization."""
+    import json
     df_copy = df.copy()
     for col in df_copy.columns:
         if df_copy[col].dtype == 'object':
-            df_copy[col] = df_copy[col].apply(lambda x: str(x) if pd.notna(x) else None)
+            def _to_str(x):
+                if x is None:
+                    return None
+                if isinstance(x, (list, dict, set, tuple)):
+                    return json.dumps(x, default=str)
+                try:
+                    return str(x) if pd.notna(x) else None
+                except Exception:
+                    return str(x)
+            df_copy[col] = df_copy[col].apply(_to_str)
     return df_copy
 
 
@@ -255,6 +265,10 @@ def _exists(upload_id: str, key: str) -> bool:
 
 def _clear_store(upload_id: str):
     """Remove all stored data for an upload."""
-    d = STORE_DIR / str(upload_id)
-    if d.exists():
-        shutil.rmtree(d)
+    for base in (STORE_DIR, LEGACY_STORE_DIR):
+        d = base / str(upload_id)
+        if d.exists():
+            try:
+                shutil.rmtree(d, ignore_errors=True)
+            except Exception:
+                pass

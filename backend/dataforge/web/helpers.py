@@ -105,6 +105,70 @@ def _get_filename(upload_id: str) -> str:
     return p.get("filename", "")
 
 
+def normalize_chat_data(raw_data) -> tuple[dict, bool]:
+    """
+    Normalizes any chat_history format into a multi-session structure.
+    Returns (normalized_dict, was_migrated_bool).
+    Ensures previous messages are never lost or wiped out.
+    """
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+    migrated = False
+
+    if isinstance(raw_data, list):
+        migrated = True
+        has_msgs = len(raw_data) > 0
+        first_q = ""
+        for m in raw_data:
+            if isinstance(m, dict) and m.get("role") == "user" and m.get("content"):
+                first_q = m["content"][:28] + ("..." if len(m["content"]) > 28 else "")
+                break
+        sess_name = first_q or ("Previous Chat" if has_msgs else "New Chat")
+        return {
+            "active_session_id": "default",
+            "sessions": [{
+                "id": "default",
+                "name": sess_name,
+                "created_at": now_iso,
+                "updated_at": now_iso,
+                "messages": raw_data,
+            }],
+        }, migrated
+
+    if isinstance(raw_data, dict):
+        sessions = raw_data.get("sessions")
+        if isinstance(sessions, list) and len(sessions) > 0:
+            active_id = raw_data.get("active_session_id")
+            if not any(s.get("id") == active_id for s in sessions):
+                raw_data["active_session_id"] = sessions[0].get("id", "default")
+                migrated = True
+            return raw_data, migrated
+        elif "messages" in raw_data and isinstance(raw_data["messages"], list):
+            migrated = True
+            msgs = raw_data["messages"]
+            return {
+                "active_session_id": "default",
+                "sessions": [{
+                    "id": "default",
+                    "name": raw_data.get("name") or "Previous Chat",
+                    "created_at": raw_data.get("created_at") or now_iso,
+                    "updated_at": raw_data.get("updated_at") or now_iso,
+                    "messages": msgs,
+                }],
+            }, migrated
+
+    return {
+        "active_session_id": "default",
+        "sessions": [{
+            "id": "default",
+            "name": "New Chat",
+            "created_at": now_iso,
+            "updated_at": now_iso,
+            "messages": [],
+        }],
+    }, False
+
+
 def _persist(upload_id: str, key: str, obj):
     """
     Write-through storage: always saves to local disk, also pushes to

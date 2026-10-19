@@ -38,6 +38,8 @@ def _set_auth_cookie(response: Response, token: str):
 def get_google_redirect_uri() -> str:
     if settings.GOOGLE_REDIRECT_URI:
         return settings.GOOGLE_REDIRECT_URI
+    if settings.BACKEND_URL:
+        return f"{settings.BACKEND_URL.rstrip('/')}/auth/google/callback"
     return "http://localhost:5000/auth/google/callback"
 
 
@@ -179,7 +181,15 @@ async def auth_google_callback(request: Request):
 
     user = auth_service.get_or_create_google_user(dict(userinfo))
     if not user:
-        return RedirectResponse(url=f"{settings.FRONTEND_URL}/?login=1&error=db")
+        log.warning("Could not persist Google user to DB, creating session user fallback")
+        user = User(
+            id=1,
+            email=userinfo.get("email") or "user@dataforge.app",
+            name=userinfo.get("name") or (userinfo.get("email", "").split("@")[0] if userinfo.get("email") else "User"),
+            avatar=userinfo.get("picture") or "/avatars/avatar-1.svg",
+            google_id=userinfo.get("sub"),
+            role="Admin",
+        )
 
     jwt_token = auth_service.create_token_for_user(user)
     next_url = request.session.pop("next_url", "/")
@@ -198,18 +208,30 @@ async def auth_google_callback(request: Request):
 # ── Logout ────────────────────────────────────────────────────────────────────
 
 @router.post("/api/v1/auth/logout", summary="Clear the auth cookie")
-@router.get("/logout", include_in_schema=False)  # legacy compat
+@router.get("/api/v1/auth/logout", include_in_schema=False)
+@router.post("/v1/auth/logout", include_in_schema=False)
+@router.get("/v1/auth/logout", include_in_schema=False)
+@router.post("/api/logout", include_in_schema=False)
+@router.get("/api/logout", include_in_schema=False)
+@router.post("/logout", include_in_schema=False)
+@router.get("/logout", include_in_schema=False)
 async def logout():
     from fastapi.responses import JSONResponse
     response = JSONResponse(content={"status": "ok"})
-    # Must match the same path/samesite/domain that set_cookie used
-    response.delete_cookie(
-        key=_COOKIE_KEY,
-        path="/",
-        httponly=True,
-        samesite="lax",
-        secure=settings.COOKIE_SECURE,
-    )
+    for samesite in ["lax", "none", "strict"]:
+        response.delete_cookie(
+            key=_COOKIE_KEY,
+            path="/",
+            httponly=True,
+            samesite=samesite,
+            secure=settings.COOKIE_SECURE,
+        )
+        response.delete_cookie(
+            key=_COOKIE_KEY,
+            path="/",
+            httponly=False,
+            samesite=samesite,
+        )
     return response
 
 

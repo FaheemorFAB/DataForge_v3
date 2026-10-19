@@ -154,10 +154,10 @@ def test_verified_payment_webhook_transitions_subscription(client, test_user):
     assert res_valid.json()["ok"] is True
     assert res_valid.json().get("replayed") is not True
 
-    # Confirm user is now on Pro tier
+    # Confirm user is now on Pro tier (250,000 rows canonical limit)
     sub = EntitlementService.get_subscription(uid)
     assert sub["plan"] == "pro"
-    assert sub["max_rows_per_dataset"] == 1_000_000
+    assert sub["max_rows_per_dataset"] == 250_000
 
     # 3. Duplicate delivery is idempotent
     res_replay = client.post(

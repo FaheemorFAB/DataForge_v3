@@ -153,10 +153,10 @@ const TOUR_STEPS: TourStep[] = [
   {
     step: 7,
     tabId: "automl",
-    badge: "Step 6 of 6 · AI Prediction",
+    badge: "Step 6 of 6 · AutoML Training",
     icon: Bot,
-    title: "AI Prediction — Forecast future outcomes with ease",
-    subtitle: "Teach AI to predict customer churn, revenue, or sales.",
+    title: "AutoML — Train predictive models with ease",
+    subtitle: "Train AI models to predict customer churn, revenue, or sales.",
     description:
       "Machine learning used to take teams of PhDs weeks to set up. In DataForge, you simply pick the column you want to predict (like 'Will Customer Churn?' or 'Next Month Revenue'). Click 'Train Models' and our tournament engine automatically finds the most accurate model for your data.",
     keyBenefits: [
@@ -165,8 +165,8 @@ const TOUR_STEPS: TourStep[] = [
       "Clear accuracy score so you know how reliable the prediction is",
       "Download a scored CSV with predictions attached to every row",
     ],
-    proTip: "Great for forecasting sales, loan approvals, employee retention, or lead scoring.",
-    tryButtonText: "Explore AI Prediction",
+    proTip: "Great for predicting sales, loan approvals, employee retention, or lead scoring.",
+    tryButtonText: "Explore AutoML",
   },
 ];
 

@@ -346,12 +346,236 @@ class PaddlePaymentProvider(PaymentProvider):
         return {"ok": True, "event_id": event_id, "processed": True}
 
 
+class DodoPaymentProvider(PaymentProvider):
+    """
+    Dodo Payments (dodopayments.com) Merchant of Record Integration.
+    Supports monthly recurring subscription checkout sessions,
+    cryptographic webhook signature verification, and lifecycle state management.
+    """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        webhook_key: Optional[str] = None,
+        environment: Optional[str] = None,
+    ):
+        self.api_key = api_key or getattr(settings, "DODO_PAYMENTS_API_KEY", "") or ""
+        self.webhook_key = (
+            webhook_key
+            or getattr(settings, "DODO_PAYMENTS_WEBHOOK_KEY", "")
+            or getattr(settings, "JWT_SECRET", "dodo_default_webhook_secret")
+        )
+        self.environment = (
+            environment
+            or getattr(settings, "DODO_PAYMENTS_ENVIRONMENT", "test_mode")
+            or "test_mode"
+        )
+        self.base_url = (
+            "https://live.dodopayments.com"
+            if self.environment == "live_mode"
+            else "https://test.dodopayments.com"
+        )
+
+    def create_checkout_session(
+        self,
+        user_id: int,
+        user_email: str,
+        plan_key: str,
+        return_url: str,
+    ) -> Dict[str, Any]:
+        """Creates a monthly recurring Dodo Payments checkout session."""
+        plan_norm = plan_key.lower()
+        plan = PLAN_TIERS.get(plan_norm)
+        if not plan:
+            raise ValueError(f"Unknown plan: '{plan_key}'")
+
+        if plan_norm == "team":
+            product_id = getattr(settings, "DODO_PRODUCT_TEAM_MONTHLY", "pdt_team_monthly_79")
+        elif plan_norm == "pro":
+            product_id = getattr(settings, "DODO_PRODUCT_PRO_MONTHLY", "pdt_pro_monthly_29")
+        else:
+            product_id = f"pdt_{plan_norm}_monthly"
+
+        session_id = f"dodo_cs_{int(time.time() * 1000)}"
+        return_target = f"{settings.FRONTEND_URL}{return_url if return_url.startswith('/') else '/' + return_url}"
+
+        checkout_url = (
+            f"{self.base_url}/buy/{product_id}?"
+            f"quantity=1&email={user_email}&redirect_url={return_target}&"
+            f"metadata[user_id]={user_id}&metadata[plan]={plan_norm}&metadata[billing_cycle]=monthly"
+        )
+
+        return {
+            "provider": "dodopayments",
+            "environment": self.environment,
+            "session_id": session_id,
+            "checkout_url": checkout_url,
+            "product_id": product_id,
+            "plan": plan_norm,
+            "billing_cycle": "monthly",
+            "amount": plan["price_monthly"],
+            "currency": "USD",
+        }
+
+    def verify_webhook_signature(
+        self,
+        payload_bytes: bytes,
+        signature_header: str,
+    ) -> Dict[str, Any]:
+        """
+        Cryptographically verifies Dodo Payments webhook signatures.
+        Supports standard hex HMAC-SHA256, formatted v1=..., or Svix-style signatures.
+        """
+        if not signature_header:
+            raise ValueError("Missing webhook signature header")
+
+        secret = self.webhook_key
+        raw_secret_str = secret[6:] if secret.startswith("whsec_") else secret
+
+        candidate_sigs: list[str] = []
+        timestamp = ""
+
+        if "=" in signature_header:
+            parts = signature_header.split(",")
+            for p in parts:
+                if "=" in p:
+                    k, v = p.strip().split("=", 1)
+                    if k == "v1":
+                        candidate_sigs.append(v)
+                    elif k == "t":
+                        timestamp = v
+        elif signature_header.startswith("v1,"):
+            candidate_sigs.append(signature_header.split(",", 1)[1])
+        else:
+            candidate_sigs.append(signature_header.strip())
+
+        verified = False
+        payload_str = payload_bytes.decode("utf-8", errors="ignore")
+
+        digests_to_check: list[str] = []
+        if timestamp:
+            signed_content = f"{timestamp}.{payload_str}".encode("utf-8")
+            digests_to_check.append(hmac.new(secret.encode("utf-8"), signed_content, hashlib.sha256).hexdigest())
+            digests_to_check.append(hmac.new(raw_secret_str.encode("utf-8"), signed_content, hashlib.sha256).hexdigest())
+
+        digests_to_check.append(hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest())
+        digests_to_check.append(hmac.new(raw_secret_str.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest())
+
+        try:
+            import base64
+            decoded_secret = base64.b64decode(raw_secret_str)
+            if timestamp:
+                digests_to_check.append(hmac.new(decoded_secret, f"{timestamp}.{payload_str}".encode("utf-8"), hashlib.sha256).hexdigest())
+                b64_sig = base64.b64encode(hmac.new(decoded_secret, f"{timestamp}.{payload_str}".encode("utf-8"), hashlib.sha256).digest()).decode("utf-8")
+                digests_to_check.append(b64_sig)
+            digests_to_check.append(hmac.new(decoded_secret, payload_bytes, hashlib.sha256).hexdigest())
+        except Exception:
+            pass
+
+        for cand in candidate_sigs:
+            for d in digests_to_check:
+                if hmac.compare_digest(cand, d):
+                    verified = True
+                    break
+            if verified:
+                break
+
+        if not verified:
+            raise ValueError("Invalid Dodo Payments webhook signature")
+
+        return json.loads(payload_str)
+
+    def handle_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Idempotently processes Dodo Payments lifecycle events for monthly subscriptions.
+        """
+        event_id = (
+            event.get("event_id")
+            or event.get("id")
+            or event.get("webhook_id")
+            or f"dodo_{hash(json.dumps(event, default=str))}"
+        )
+        if event_id in _get_processed_events():
+            return {"ok": True, "replayed": True, "event_id": event_id}
+
+        event_type = event.get("type") or event.get("event_type") or ""
+        data = event.get("data", {})
+
+        metadata = data.get("metadata") or event.get("metadata") or {}
+        user_id = (
+            metadata.get("user_id")
+            or data.get("user_id")
+            or event.get("user_id")
+            or data.get("customer", {}).get("metadata", {}).get("user_id")
+        )
+        plan_key = (
+            metadata.get("plan")
+            or data.get("plan")
+            or event.get("plan")
+            or "pro"
+        )
+
+        product_id = (
+            data.get("product_id")
+            or (data.get("product_cart", [{}])[0].get("product_id") if isinstance(data.get("product_cart"), list) and data.get("product_cart") else None)
+        )
+        if product_id:
+            if "team" in product_id.lower():
+                plan_key = "team"
+            elif "pro" in product_id.lower():
+                plan_key = "pro"
+
+        if not user_id:
+            user_email = data.get("customer", {}).get("email") or event.get("email")
+            if user_email:
+                from dataforge.api.repositories.user import user_repo
+                user_rec = user_repo.get_by_email(user_email)
+                if user_rec:
+                    user_id = user_rec.get("id")
+
+        if user_id:
+            uid = int(user_id)
+            if event_type in (
+                "payment.succeeded",
+                "subscription.active",
+                "subscription.created",
+                "subscription.renewed",
+                "checkout.session.completed",
+                "customer.subscription.created",
+                "customer.subscription.updated",
+            ):
+                EntitlementService.set_user_plan(uid, plan_key)
+                log.info("[payments/dodo] Upgraded user %s to monthly plan %s", uid, plan_key)
+            elif event_type in (
+                "subscription.cancelled",
+                "subscription.canceled",
+                "subscription.expired",
+                "subscription.terminated",
+                "customer.subscription.deleted",
+                "subscription.deleted",
+            ):
+                EntitlementService.set_user_plan(uid, "free")
+                log.info("[payments/dodo] Downgraded user %s to free tier after cancellation", uid)
+            elif event_type in ("subscription.past_due", "payment.failed"):
+                sub = EntitlementService.get_subscription(uid)
+                sub["status"] = "past_due"
+                log.warning("[payments/dodo] Subscription for user %s marked as past_due", uid)
+
+        _mark_event_processed(event_id)
+        return {"ok": True, "event_id": event_id, "provider": "dodopayments", "processed": True}
+
+
 def get_payment_provider() -> PaymentProvider:
     """Factory returning configured payment adapter."""
-    provider_type = getattr(settings, "PAYMENT_PROVIDER", "mock").lower()
+    provider_type = getattr(settings, "PAYMENT_PROVIDER", "dodo").lower()
+    if provider_type in ("dodo", "dodopayments") or getattr(settings, "DODO_PAYMENTS_API_KEY", None):
+        return DodoPaymentProvider()
     if provider_type == "paddle" or getattr(settings, "PADDLE_VENDOR_ID", None):
         return PaddlePaymentProvider()
     if provider_type == "stripe" and getattr(settings, "STRIPE_SECRET_KEY", None):
         return StripePaymentProvider(settings.STRIPE_SECRET_KEY, settings.STRIPE_WEBHOOK_SECRET)
-    return MockPaymentProvider()
+    if provider_type == "mock":
+        return MockPaymentProvider()
+    return DodoPaymentProvider()
+
 

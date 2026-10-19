@@ -22,12 +22,22 @@ export default function ThemeSwitcher() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const syncThemeClass = (theme: string) => {
+    document.documentElement.setAttribute('data-theme', theme);
+    const darkThemes = ['dark', 'dracula', 'slate', 'emerald', 'nord', 'luxury'];
+    if (darkThemes.includes(theme)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('analyst-theme') || 'light';
     const savedFont = localStorage.getItem('analyst-font') || 'inter';
     setCurrentTheme(savedTheme);
     setCurrentFont(savedFont);
-    document.documentElement.setAttribute('data-theme', savedTheme);
+    syncThemeClass(savedTheme);
     document.documentElement.setAttribute('data-font', savedFont);
   }, []);
 
@@ -44,7 +54,7 @@ export default function ThemeSwitcher() {
   const setTheme = (t: string) => {
     setCurrentTheme(t);
     localStorage.setItem('analyst-theme', t);
-    document.documentElement.setAttribute('data-theme', t);
+    syncThemeClass(t);
     const f = document.getElementById('eda-frame') as HTMLIFrameElement;
     if (f && f.contentWindow) {
       f.contentWindow.postMessage({type:'THEME_CHANGED', theme: t}, '*');

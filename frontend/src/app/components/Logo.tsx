@@ -4,9 +4,10 @@ interface LogoProps {
   size?: number;
   showText?: boolean;
   textSize?: number;
+  textClassName?: string;
 }
 
-export default function Logo({ size = 28, showText = true, textSize = 22 }: LogoProps) {
+export default function Logo({ size = 28, showText = true, textSize = 22, textClassName }: LogoProps) {
   return (
     <div className="flex items-center gap-2.5 select-none">
       <svg viewBox="0 0 64 64" width={size} height={size} xmlns="http://www.w3.org/2000/svg">
@@ -40,7 +41,10 @@ export default function Logo({ size = 28, showText = true, textSize = 22 }: Logo
         </g>
       </svg>
       {showText && (
-        <div style={{ fontSize: textSize, fontFamily: "'Inter', -apple-system, sans-serif", fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1, display: "flex", alignItems: "center" }}>
+        <div
+          className={`items-center ${textClassName ?? "flex"}`}
+          style={{ fontSize: textSize, fontFamily: "'Inter', -apple-system, sans-serif", fontWeight: 700, letterSpacing: "-.03em", lineHeight: 1 }}
+        >
           <span style={{ color: "var(--txt)" }}>Data</span>
           <span style={{
             background: "linear-gradient(90deg, #06B6D4, #4F46E5)",

@@ -90,14 +90,17 @@ export default function CleaningPage() {
         </div>
       </main>
 
-      <CTABanner 
-        title="Ready to clean your datasets?"
-        subtitle="Upload your raw dataset now. No complex setup."
-        buttonText="Upload Your Dataset"
-        href="/?login=1"
-        bgColor="linear-gradient(to top right, #14b8a6, #6366f1)"
-        btnTextColor="#14b8a6"
-      />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 mb-16">
+        <CTABanner 
+          variant="compact"
+          title="Ready to clean your datasets?"
+          subtitle="Automatic missing value imputation, outlier winsorization, and type inference in seconds."
+          buttonText="Upload Your Dataset"
+          href="/?login=1"
+          secondaryButtonText="Explore AutoML"
+          secondaryHref="/products/automl"
+        />
+      </div>
 
       <Footer />
     </div>

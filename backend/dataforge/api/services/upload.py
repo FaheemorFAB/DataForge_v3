@@ -33,6 +33,8 @@ class UploadService:
         meta = {
             "id": upload_id,
             "user_id": user.id,
+            "user_email": getattr(user, "email", None),
+            "user_name": getattr(user, "name", None),
             "filename": filename,
             "source_type": source_type,
             "rows": profile.get("rows", len(df)),

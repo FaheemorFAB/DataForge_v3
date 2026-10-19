@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 @plugin "daisyui";
 @import "./themes.css";
 
@@ -274,6 +275,103 @@ html.light .chat-session-item:hover{background:rgba(0,0,0,.025);}
     font-size:.82rem;line-height:1.6;color:var(--txt);
     box-shadow:0 2px 8px rgba(0,0,0,.12);word-break:break-word;
 }
+.chat-bubble-ai strong,
+.chat-bubble-ai b {
+    color: var(--txt) !important;
+    font-weight: 700;
+}
+.chat-bubble-ai p {
+    color: var(--txt);
+}
+.chat-bubble-ai h2,
+.chat-bubble-ai h3,
+.chat-bubble-ai h4 {
+    color: var(--txt);
+    font-weight: 800;
+}
+
+/* Solutions and Suggested Action Pills */
+.chat-action-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.95rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--txt);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    text-decoration: none;
+    user-select: none;
+}
+.chat-action-pill:hover {
+    background: var(--inp-bg);
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px var(--glow, rgba(255, 67, 16, 0.18));
+}
+.chat-action-pill:active {
+    transform: scale(0.97);
+}
+
+/* Light theme high-contrast rules for chat components */
+html[data-theme="light"] .chat-bubble-ai,
+html[data-theme="cupcake"] .chat-bubble-ai,
+html[data-theme="solarized"] .chat-bubble-ai,
+html[data-theme="lavender"] .chat-bubble-ai,
+html[data-theme="matcha"] .chat-bubble-ai {
+    background: #FFFFFF !important;
+    border-color: #E2E8F0 !important;
+    color: #09090B !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+html[data-theme="light"] .chat-bubble-ai strong,
+html[data-theme="cupcake"] .chat-bubble-ai strong,
+html[data-theme="solarized"] .chat-bubble-ai strong,
+html[data-theme="lavender"] .chat-bubble-ai strong,
+html[data-theme="matcha"] .chat-bubble-ai strong {
+    color: #000000 !important;
+    font-weight: 800 !important;
+}
+
+html[data-theme="light"] .chat-bubble-ai p,
+html[data-theme="cupcake"] .chat-bubble-ai p,
+html[data-theme="solarized"] .chat-bubble-ai p,
+html[data-theme="lavender"] .chat-bubble-ai p,
+html[data-theme="matcha"] .chat-bubble-ai p {
+    color: #09090B !important;
+}
+
+html[data-theme="light"] .chat-action-pill,
+html[data-theme="cupcake"] .chat-action-pill,
+html[data-theme="solarized"] .chat-action-pill,
+html[data-theme="lavender"] .chat-action-pill,
+html[data-theme="matcha"] .chat-action-pill {
+    background: #FFFFFF !important;
+    border: 1.5px solid #CBD5E1 !important;
+    color: #0F172A !important;
+    font-weight: 700 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+html[data-theme="light"] .chat-action-pill:hover,
+html[data-theme="cupcake"] .chat-action-pill:hover,
+html[data-theme="solarized"] .chat-action-pill:hover,
+html[data-theme="lavender"] .chat-action-pill:hover,
+html[data-theme="matcha"] .chat-action-pill:hover {
+    background: #F8FAFC !important;
+    border-color: #FF4310 !important;
+    color: #FF4310 !important;
+    box-shadow: 0 4px 12px rgba(255, 67, 16, 0.15) !important;
+}
+
 .chat-ai-header{display:flex;align-items:center;gap:.55rem;margin-bottom:.6rem;}
 .chat-ai-avatar{
     width:22px;height:22px;border-radius:50%;flex-shrink:0;
@@ -369,4 +467,213 @@ html.light .chat-session-item:hover{background:rgba(0,0,0,.025);}
 @keyframes pulseWidth { 
   0%, 100% { width: 3rem; opacity: 0.3; } 
   50% { width: 5rem; opacity: 0.7; } 
+}
+
+/* ==========================================================================
+   Print Deck & Presentation Styles
+   ========================================================================== */
+@media screen {
+  .print-deck-only {
+    display: none !important;
+  }
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 0.8cm;
+  }
+
+  :root,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-family: inherit !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+
+    /* High-contrast presentation tokens for clear print output */
+    --bg: #ffffff !important;
+    --surface: #ffffff !important;
+    --card: #f8fafc !important;
+    --border: #e2e8f0 !important;
+    --txt: #0f172a !important;
+    --txt-m: #475569 !important;
+    --txt-f: #94a3b8 !important;
+    --inp-bg: #f1f5f9 !important;
+    --accent: #FF4310 !important;
+    --glow: rgba(255, 67, 16, 0.08) !important;
+  }
+
+  /* Hide entire page shell / navigation / interactive chrome during print */
+  header,
+  nav,
+  aside,
+  footer,
+  .workspace-header,
+  .tabs-container,
+  .tab-nav,
+  .sec-hd,
+  .screen-only-deck,
+  .no-print,
+  button,
+  .ibt,
+  .chat-container,
+  [role="navigation"],
+  [role="dialog"],
+  [aria-modal="true"],
+  .workspace-tab-hidden,
+  .hidden,
+  [style*="display: none"],
+  [style*="display:none"] {
+    display: none !important;
+  }
+
+  /* Expand and unconstrain all active ancestors to regular blocks without scroll clipping */
+  html,
+  body,
+  #__next,
+  body > div,
+  [class*="h-screen"],
+  [class*="overflow-"],
+  main,
+  .tab-panel,
+  .workspace-tab-active {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    float: none !important;
+    background: transparent !important;
+  }
+
+  /* Show the print deck container with all slides */
+  .print-deck-only {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .print-slide {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    min-height: 88vh !important;
+    box-sizing: border-box !important;
+    padding: 2rem 2.5rem !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 1.25rem !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 0 1rem 0 !important;
+
+    /* Enforce hard page breaks after every slide */
+    page-break-after: always !important;
+    break-after: page !important;
+
+    /* Prevent slide content from breaking awkwardly across pages */
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    clear: both !important;
+  }
+
+  .print-slide:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+    margin-bottom: 0 !important;
+  }
+
+  .print-slide-header {
+    border-bottom: 2px solid #e2e8f0 !important;
+    padding-bottom: 0.85rem !important;
+    margin-bottom: 1.25rem !important;
+  }
+
+  .print-slide-meta {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    margin-bottom: 0.35rem !important;
+  }
+
+  .print-slide-badge {
+    font-size: 0.75rem !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.1em !important;
+    color: #FF4310 !important;
+  }
+
+  .print-slide-num {
+    font-size: 0.75rem !important;
+    font-family: monospace !important;
+    font-weight: 700 !important;
+    color: #64748b !important;
+  }
+
+  .print-slide-title {
+    font-size: 1.45rem !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.02em !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+  }
+
+  .print-slide-subtitle {
+    font-size: 0.85rem !important;
+    color: #475569 !important;
+    margin-top: 0.25rem !important;
+  }
+
+  .print-slide-body {
+    flex: 1 !important;
+  }
+
+  .print-slide-footer {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    border-top: 1px solid #e2e8f0 !important;
+    padding-top: 0.85rem !important;
+    margin-top: 1.5rem !important;
+    font-size: 0.7rem !important;
+    font-family: monospace !important;
+    color: #94a3b8 !important;
+  }
+
+  /* Force print cards and borders to high-contrast clear dark-on-white */
+  .print-slide div[style*="background"],
+  .print-slide div[style*="backgroundColor"] {
+    box-shadow: none !important;
+  }
+
+  .print-slide [class*="border"] {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Ensure multi-column presentation grids keep their layout in print */
+  .print-slide .sm\:grid-cols-4 {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .print-slide .md\:grid-cols-3 {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .print-slide .md\:grid-cols-2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
 }

@@ -506,9 +506,9 @@ def generate_eda_report(
     # Sample large datasets
     rows_profiled = len(df)
     df_sample = df
-    if len(df) > sample_n:
-        df_sample = df.sample(n=sample_n, random_state=42).reset_index(drop=True)
-        rows_profiled = sample_n
+    if sample_n and int(sample_n) > 0 and len(df) > int(sample_n):
+        df_sample = df.sample(n=int(sample_n), random_state=42).reset_index(drop=True)
+        rows_profiled = int(sample_n)
 
     df_sample = _sanitize_dtypes(df_sample)
 

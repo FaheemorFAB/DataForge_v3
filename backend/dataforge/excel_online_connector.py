@@ -114,17 +114,13 @@ class ExcelOnlineConnector:
         return candidates
 
     @classmethod
-    def load_url(
-        cls,
-        url: str,
-        sheet_name: Optional[Union[str, int]] = 0,
-        timeout: int = 30,
-    ) -> Tuple[pd.DataFrame, dict]:
+    def fetch_workbook_bytes(cls, url: str, timeout: int = 30) -> Tuple[Optional[bytes], str, Optional[str]]:
         """
-        Fetches an Excel workbook from an online link and returns (DataFrame, metadata).
+        Downloads workbook bytes from online candidate endpoints.
+        Returns (raw_bytes, final_url, last_error).
         """
         if not url or not url.strip():
-            raise ValueError("URL cannot be empty")
+            return None, url, "URL cannot be empty"
 
         candidates = cls.get_candidate_download_urls(url)
         headers = {
@@ -147,22 +143,18 @@ class ExcelOnlineConnector:
                 log.info("ExcelOnlineConnector: attempting download from %s", target)
                 resp = session.get(target, allow_redirects=True, timeout=timeout)
                 if resp.status_code == 200 and len(resp.content) > 0:
-                    # Check if response is an HTML error / login landing page instead of a document
                     content_type = resp.headers.get("Content-Type", "").lower()
                     content_start = resp.content[:200].lower()
-                    
+
                     is_html = (
                         "text/html" in content_type
                         or b"<!doctype html" in content_start
                         or b"<html" in content_start
                     )
-                    
-                    # If HTML was returned, it might be an auth wall or redirect landing page
-                    # Unless the content is actually a zip/ole file
+
                     is_excel_binary = resp.content.startswith(b"PK\x03\x04") or resp.content.startswith(b"\xd0\xcf\x11\xe0")
 
                     if is_html and not is_excel_binary:
-                        # Try to extract redirect URL from meta refresh or window.location if present
                         html_text = resp.content.decode("utf-8", errors="ignore")
                         meta_match = re.search(r'url=([^"\' >]+)', html_text, re.IGNORECASE)
                         if meta_match:
@@ -186,6 +178,41 @@ class ExcelOnlineConnector:
                 last_error = f"{type(exc).__name__}: {str(exc)}"
                 log.warning("ExcelOnlineConnector attempt failed for %s: %s", target, exc)
 
+        return raw_bytes, final_url, last_error
+
+    @classmethod
+    def list_worksheets(cls, url: str, timeout: int = 30) -> List[str]:
+        """
+        Inspects an online Excel workbook and returns the list of worksheet tab names.
+        """
+        raw_bytes, _, _ = cls.fetch_workbook_bytes(url, timeout=timeout)
+        if not raw_bytes:
+            return []
+
+        try:
+            excel_file = pd.ExcelFile(io.BytesIO(raw_bytes), engine="openpyxl")
+            return [str(s) for s in excel_file.sheet_names]
+        except Exception:
+            try:
+                excel_file = pd.ExcelFile(io.BytesIO(raw_bytes))
+                return [str(s) for s in excel_file.sheet_names]
+            except Exception:
+                return []
+
+    @classmethod
+    def load_url(
+        cls,
+        url: str,
+        sheet_name: Optional[Union[str, int]] = 0,
+        timeout: int = 30,
+    ) -> Tuple[pd.DataFrame, dict]:
+        """
+        Fetches an Excel workbook from an online link and returns (DataFrame, metadata).
+        """
+        if not url or not url.strip():
+            raise ValueError("URL cannot be empty")
+
+        raw_bytes, final_url, last_error = cls.fetch_workbook_bytes(url, timeout=timeout)
         if raw_bytes is None or len(raw_bytes) == 0:
             raise ValueError(
                 f"Could not download Excel workbook from link ({last_error}). "

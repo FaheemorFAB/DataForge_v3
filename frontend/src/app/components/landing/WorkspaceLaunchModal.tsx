@@ -23,6 +23,7 @@ import {
   MicrosoftExcelOnlineLogo,
 } from "./DataLogos";
 import { SAMPLE_DATASETS, SampleDataset } from "./sampleDatasets";
+import Logo from "../Logo";
 import {
   Zap,
   Search,
@@ -34,6 +35,12 @@ import {
   UploadCloud,
   ArrowRight,
   ShieldCheck,
+  Sparkles,
+  Database,
+  Layers,
+  Bot,
+  Cpu,
+  Rocket,
 } from "lucide-react";
 
 interface WorkspaceLaunchModalProps {
@@ -125,7 +132,7 @@ const ALL_CONNECTORS: ConnectorDef[] = [
     category: "relational",
     subtitle: "Relational / InnoDB",
     tag: "v8.0+",
-    defaultUri: "mysql+pymysql://root:***@localhost:3306/production",
+    defaultUri: "mysql+pymysql://admin:***@mysql.us-east-1.rds.amazonaws.com:3306/production",
     targetTable: "orders",
     Logo: MySQLLogo,
   },
@@ -134,7 +141,7 @@ const ALL_CONNECTORS: ConnectorDef[] = [
     name: "ClickHouse",
     category: "relational",
     subtitle: "Columnar OLAP",
-    defaultUri: "clickhouse+native://default:***@localhost:9000/default",
+    defaultUri: "clickhouse+native://default:***@service.us-east-1.clickhouse.cloud:9440/default",
     targetTable: "telemetry_logs",
     Logo: ClickHouseLogo,
   },
@@ -214,6 +221,53 @@ function sanitizeInput(raw: string): string {
   return raw.replace(/[\x00-\x1F\x7F]/g, "").trim();
 }
 
+interface FormatConfig {
+  label: string;
+  extensions: string[];
+  accept: string;
+  hint: string;
+}
+
+function getExpectedExtensions(connectorId: string): FormatConfig {
+  switch (connectorId) {
+    case "csv":
+      return {
+        label: "CSV",
+        extensions: ["csv"],
+        accept: ".csv",
+        hint: "Supports CSV datasets (.csv, max 100MB)",
+      };
+    case "excel":
+      return {
+        label: "Excel",
+        extensions: ["xlsx", "xls"],
+        accept: ".xlsx,.xls",
+        hint: "Supports Microsoft Excel workbooks (.xlsx, .xls, max 100MB)",
+      };
+    case "parquet":
+      return {
+        label: "Parquet",
+        extensions: ["parquet"],
+        accept: ".parquet",
+        hint: "Supports Apache Parquet columnar datasets (.parquet, max 100MB)",
+      };
+    case "json":
+      return {
+        label: "JSON",
+        extensions: ["json", "jsonl", "ndjson"],
+        accept: ".json,.jsonl,.ndjson",
+        hint: "Supports JSON records & lines (.json, .jsonl, .ndjson, max 100MB)",
+      };
+    default:
+      return {
+        label: "Dataset",
+        extensions: ["csv", "xlsx", "xls", "parquet", "json", "jsonl", "ndjson"],
+        accept: ".csv,.xlsx,.xls,.parquet,.json",
+        hint: "Supports CSV, Excel (.xlsx), Parquet, JSON (max 100MB)",
+      };
+  }
+}
+
 function validateConnectorInput(
   connectorId: string,
   category: ConnectorCategory,
@@ -221,15 +275,28 @@ function validateConnectorInput(
   file: File | null
 ): { valid: boolean; error?: string } {
   if (category === "files") {
+    const config = getExpectedExtensions(connectorId);
     if (!file) {
-      return { valid: false, error: "Please select or drop a dataset file (.csv, .xlsx, .parquet, or .json) to upload." };
-    }
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    const allowed = ["csv", "xlsx", "xls", "parquet", "json"];
-    if (!ext || !allowed.includes(ext)) {
       return {
         valid: false,
-        error: `Unsupported file extension (.${ext}). Supported: CSV, Excel, Parquet, JSON.`,
+        error: `Please select or drop a ${config.label} dataset file (${config.extensions.map((e) => `.${e}`).join(", ")}) to upload.`,
+      };
+    }
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if (!ext || !config.extensions.includes(ext)) {
+      let suggestedConnector = "";
+      if (ext === "csv") suggestedConnector = "CSV";
+      else if (["xlsx", "xls"].includes(ext)) suggestedConnector = "Excel";
+      else if (ext === "parquet") suggestedConnector = "Parquet";
+      else if (["json", "jsonl", "ndjson"].includes(ext)) suggestedConnector = "JSON";
+
+      const suggestionText = suggestedConnector
+        ? ` Please switch to '${suggestedConnector}' or upload a .${config.extensions.join(" / .")} file.`
+        : ` Please upload a .${config.extensions.join(" / .")} file.`;
+
+      return {
+        valid: false,
+        error: `File extension mismatch: '${file.name}' is a .${ext || "unknown"} file, but '${config.label}' is selected.${suggestionText}`,
       };
     }
     if (file.size > 100 * 1024 * 1024) {
@@ -317,6 +384,8 @@ export default function WorkspaceLaunchModal({
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [dbTables, setDbTables] = useState<string[]>([]);
+  const [sheetTabs, setSheetTabs] = useState<string[]>([]);
+  const [isDetectingTabs, setIsDetectingTabs] = useState(false);
 
   // File Upload State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -326,6 +395,76 @@ export default function WorkspaceLaunchModal({
   // Ingestion / Launching State
   const [isConnecting, setIsConnecting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [isGeneratingWorkspace, setIsGeneratingWorkspace] = useState(false);
+  const [generationStage, setGenerationStage] = useState(1);
+  const [generationProgress, setGenerationProgress] = useState(15);
+  const [generationStatus, setGenerationStatus] = useState("Ingesting dataset and authenticating data connection...");
+
+  const handleDetectSheetTabs = async (urlToTest?: string) => {
+    const rawUrl = urlToTest !== undefined ? urlToTest : connUri;
+    const clean = sanitizeInput(rawUrl);
+    if (!clean) return;
+
+    const isGoogle = clean.includes("docs.google.com/spreadsheets");
+    const isMicrosoft =
+      clean.includes("1drv.ms") ||
+      clean.includes("onedrive.live.com") ||
+      clean.includes("sharepoint.com") ||
+      clean.includes("office.com") ||
+      clean.includes("office365.com") ||
+      clean.includes(".xlsx") ||
+      clean.includes(".xls");
+
+    if (!isGoogle && !isMicrosoft && selectedConnector.category !== "spreadsheets") {
+      return;
+    }
+
+    setIsDetectingTabs(true);
+    try {
+      const endpoint = isMicrosoft ? "/upload/excel-online/worksheets" : "/upload/sheets/worksheets";
+      const res = await apiFetch(endpoint, {
+        method: "POST",
+        body: JSON.stringify({ url: clean }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.sheets && Array.isArray(data.sheets) && data.sheets.length > 0) {
+          setSheetTabs(data.sheets);
+          if (!targetTable || !data.sheets.includes(targetTable)) {
+            setTargetTable(data.sheets[0]);
+          }
+        }
+      }
+    } catch {
+      // non-blocking tab detection failure
+    } finally {
+      setIsDetectingTabs(false);
+    }
+  };
+
+  React.useEffect(() => {
+    const isOnlineSpreadsheet = selectedConnector.id === "google_sheets" || selectedConnector.id === "excel_online";
+    if (isOnlineSpreadsheet && connUri.trim()) {
+      const isCandidateUrl =
+        connUri.includes("docs.google.com/spreadsheets") ||
+        connUri.includes("1drv.ms") ||
+        connUri.includes("onedrive.live.com") ||
+        connUri.includes("sharepoint.com") ||
+        connUri.includes("office.com") ||
+        connUri.includes("office365.com") ||
+        connUri.includes(".xlsx") ||
+        connUri.includes(".xls");
+
+      if (isCandidateUrl) {
+        const timer = setTimeout(() => {
+          handleDetectSheetTabs(connUri);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    } else if (!isOnlineSpreadsheet) {
+      setSheetTabs([]);
+    }
+  }, [connUri, selectedConnector.id]);
 
   React.useEffect(() => {
     if (isOpen && initialConnectorId) {
@@ -334,6 +473,7 @@ export default function WorkspaceLaunchModal({
         setSelectedConnector(match);
         setConnUri("");
         setTargetTable("");
+        setSheetTabs([]);
         setSelectedCategory(match.category);
       }
     }
@@ -353,6 +493,7 @@ export default function WorkspaceLaunchModal({
     setSelectedFile(null);
     setTestResult(null);
     setDbTables([]);
+    setSheetTabs([]);
     setErrorMsg("");
   };
 
@@ -381,9 +522,17 @@ export default function WorkspaceLaunchModal({
         body: JSON.stringify({ connection_string: cleanUri }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data.detail || data.message || `Database test failed (HTTP ${res.status})`;
+        setTestResult({
+          ok: false,
+          message: errMsg,
+        });
+        return;
+      }
       setTestResult({
-        ok: data.ok,
-        message: data.message || (data.ok ? "Connected" : "Failed"),
+        ok: Boolean(data.ok),
+        message: data.message || (data.ok ? "Connected" : "Failed to connect"),
       });
 
       if (data.ok) {
@@ -411,6 +560,10 @@ export default function WorkspaceLaunchModal({
 
   const executeIngestion = async () => {
     setIsConnecting(true);
+    setIsGeneratingWorkspace(true);
+    setGenerationStage(1);
+    setGenerationProgress(25);
+    setGenerationStatus(`Connecting to ${selectedConnector.name} and initiating data ingestion...`);
     setErrorMsg("");
 
     try {
@@ -420,6 +573,7 @@ export default function WorkspaceLaunchModal({
 
       if (selectedConnector.category === "spreadsheets") {
         if (selectedConnector.id === "google_sheets") {
+          setGenerationStatus("Streaming Google Sheets workbook tabs...");
           const res = await apiFetch("/upload/sheets", {
             method: "POST",
             body: JSON.stringify({
@@ -435,6 +589,7 @@ export default function WorkspaceLaunchModal({
           uploadId = data.upload_id;
         } else {
           // excel_online
+          setGenerationStatus("Accessing Microsoft Excel Online workbook...");
           const res = await apiFetch("/upload/excel-online", {
             method: "POST",
             body: JSON.stringify({
@@ -454,8 +609,10 @@ export default function WorkspaceLaunchModal({
           throw new Error("No file selected. Please choose or drag a dataset file (.csv, .xlsx, .parquet, or .json).");
         }
 
+        setGenerationStatus(`Ingesting and parsing ${selectedFile.name}...`);
         const formData = new FormData();
         formData.append("file", selectedFile);
+        formData.append("expected_format", selectedConnector.id);
         const res = await apiFetch("/upload", {
           method: "POST",
           body: formData,
@@ -468,6 +625,7 @@ export default function WorkspaceLaunchModal({
         const data = await res.json();
         uploadId = data.upload_id;
       } else {
+        setGenerationStatus(`Executing database ingest query on ${selectedConnector.name}...`);
         const payload: any = {
           connection_string: cleanUri,
           limit: 5000,
@@ -488,17 +646,39 @@ export default function WorkspaceLaunchModal({
         uploadId = data.upload_id;
       }
 
-      // Default role is Admin
+      // Stage 2: Profiling & Schema detection
+      setGenerationStage(2);
+      setGenerationProgress(65);
+      setGenerationStatus("Dataset ingested! Analyzing column distributions & data types...");
+      await new Promise((r) => setTimeout(r, 450));
+
+      // Stage 3: DuckDB Engine & Canvas synthesis
+      setGenerationStage(3);
+      setGenerationProgress(90);
+      setGenerationStatus("Mounting DuckDB analytics engine and preparing interactive canvas...");
+      await new Promise((r) => setTimeout(r, 450));
+
+      // Stage 4: Ready to enter workspace
+      setGenerationStage(4);
+      setGenerationProgress(100);
+      setGenerationStatus("Redirecting in a few seconds...");
+
       if (typeof window !== "undefined") {
         localStorage.setItem("df_user_role", "Admin");
       }
 
-      onClose();
-      router.push(`/workspace?upload_id=${uploadId}`);
+      await new Promise((r) => setTimeout(r, 1500));
+
+      // Direct navigation to workspace — DO NOT call onClose() to eliminate landing page flash
+      if (typeof window !== "undefined") {
+        window.location.href = `/workspace?upload_id=${encodeURIComponent(uploadId)}`;
+      } else {
+        router.push(`/workspace?upload_id=${encodeURIComponent(uploadId)}`);
+      }
     } catch (err: any) {
-      setErrorMsg(err.message || "Connection failed");
-    } finally {
+      setIsGeneratingWorkspace(false);
       setIsConnecting(false);
+      setErrorMsg(err.message || "Connection failed");
     }
   };
 
@@ -522,6 +702,41 @@ export default function WorkspaceLaunchModal({
     await executeIngestion();
   };
 
+  const handleIncomingFile = (file: File) => {
+    setErrorMsg("");
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    const config = getExpectedExtensions(selectedConnector.id);
+
+    if (!ext || !config.extensions.includes(ext)) {
+      let suggestedConnector = "";
+      if (ext === "csv") suggestedConnector = "CSV";
+      else if (["xlsx", "xls"].includes(ext)) suggestedConnector = "Excel";
+      else if (ext === "parquet") suggestedConnector = "Parquet";
+      else if (["json", "jsonl", "ndjson"].includes(ext)) suggestedConnector = "JSON";
+
+      const suggestionText = suggestedConnector
+        ? ` Please switch to '${suggestedConnector}' or upload a .${config.extensions.join(" / .")} file.`
+        : ` Please upload a .${config.extensions.join(" / .")} file.`;
+
+      setErrorMsg(
+        `File extension mismatch: '${file.name}' is a .${ext || "unknown"} file, but '${selectedConnector.name}' is selected.${suggestionText}`
+      );
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
+      setErrorMsg("File exceeds 100MB limit. Connect via cloud storage or warehouse.");
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setSelectedFile(file);
+    setErrorMsg("");
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -534,14 +749,17 @@ export default function WorkspaceLaunchModal({
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setSelectedFile(e.dataTransfer.files[0]);
+      handleIncomingFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleQuickSample = (sample: SampleDataset) => {
+    const csvConnector = ALL_CONNECTORS.find((c) => c.id === "csv") || selectedConnector;
+    setSelectedConnector(csvConnector);
     const blob = new Blob([sample.csvContent], { type: "text/csv" });
     const file = new File([blob], sample.filename, { type: "text/csv" });
     setSelectedFile(file);
+    setErrorMsg("");
   };
 
   if (!isOpen) return null;
@@ -550,7 +768,7 @@ export default function WorkspaceLaunchModal({
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 backdrop-blur-md animate-fadeIn"
       style={{ background: "rgba(0, 0, 0, 0.72)" }}
-      onClick={onClose}
+      onClick={isGeneratingWorkspace ? undefined : onClose}
     >
       <div
         className="w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col relative animate-slideUp transition-colors"
@@ -576,36 +794,230 @@ export default function WorkspaceLaunchModal({
               style={{
                 background: "var(--glow)",
                 borderColor: "var(--accent)",
-                color: "var(--accent)",
               }}
             >
-              <Zap size={16} />
+              <Logo size={20} showText={false} />
             </div>
             <div>
               <h3 className="text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
-                Ingestion Hub
+                {isGeneratingWorkspace ? "Generating Workspace" : "Ingestion Hub"}
               </h3>
               <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
-                Connect your data source or upload a dataset to launch your workspace.
+                {isGeneratingWorkspace
+                  ? "DataForge High-Performance Analytics Engine"
+                  : "Connect your data source or upload a dataset to launch your workspace."}
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer opacity-80 hover:opacity-100"
-            style={{
-              borderColor: "var(--border)",
-              background: "var(--card)",
-              color: "var(--txt-m)",
-            }}
-          >
-            <X size={14} />
-          </button>
+          {!isGeneratingWorkspace && (
+            <button
+              onClick={onClose}
+              className="w-7 h-7 rounded-lg border flex items-center justify-center transition-all cursor-pointer opacity-80 hover:opacity-100"
+              style={{
+                borderColor: "var(--border)",
+                background: "var(--card)",
+                color: "var(--txt-m)",
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
 
-        {/* ── Two Column Layout ── */}
-        <div className="grid grid-cols-1 md:grid-cols-12 min-h-[440px]">
+        {isGeneratingWorkspace ? (
+          <div className="relative p-8 sm:p-14 min-h-[440px] flex flex-col items-center justify-center text-center overflow-hidden">
+            {/* Ambient atmospheric glow behind animation */}
+            <div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[460px] h-[300px] rounded-full blur-[110px] pointer-events-none opacity-25"
+              style={{ background: "radial-gradient(circle, var(--accent) 0%, #ff7043 55%, transparent 70%)" }}
+            />
+
+            {/* Glowing Orbital Ring Centerpiece */}
+            <div className="relative mb-6 flex items-center justify-center">
+              {/* Outer ring: spins dashed during generation, settles into calm glowing emerald solid border when ready */}
+              <div
+                className={`w-24 h-24 rounded-full border-2 transition-all duration-500 ${
+                  generationStage === 4 ? "border-solid" : "border-dashed animate-spin"
+                }`}
+                style={{
+                  borderColor: generationStage === 4 ? "rgba(16, 185, 129, 0.45)" : "var(--accent)",
+                  animationDuration: generationStage === 4 ? "0s" : "9s",
+                  boxShadow: generationStage === 4 ? "0 0 35px rgba(16, 185, 129, 0.35)" : "0 0 35px var(--glow)",
+                }}
+              />
+              {/* Mid pulsating ring - active only during initial synthesis stages */}
+              {generationStage < 4 && (
+                <div
+                  className="absolute w-20 h-20 rounded-full border border-orange-400/30 animate-ping opacity-25"
+                />
+              )}
+              {/* Center icon badge - replaced moving bouncing tick with stable Rocket emblem */}
+              <div
+                className="absolute w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-2xl border transition-all duration-500"
+                style={{
+                  background: generationStage === 4 ? "linear-gradient(135deg, #10b981, #059669)" : "var(--surface)",
+                  borderColor: generationStage === 4 ? "rgba(255, 255, 255, 0.3)" : "var(--border)",
+                  boxShadow: generationStage === 4 ? "0 0 30px rgba(16, 185, 129, 0.45)" : "0 0 25px var(--glow)",
+                }}
+              >
+                {generationStage === 4 ? (
+                  <div className="flex items-center justify-center">
+                    <Rocket size={24} className="text-white transform -rotate-12 transition-transform duration-500" />
+                  </div>
+                ) : (
+                  <div className="animate-pulse flex items-center justify-center">
+                    <Logo size={32} showText={false} />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Title & Status */}
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight" style={{ color: "var(--txt)" }}>
+              {generationStage === 4 ? "Workspace Ready!" : "Forging Your Workspace..."}
+            </h2>
+            <p className="text-xs sm:text-sm mt-1.5 max-w-xs sm:max-w-md mx-auto leading-relaxed px-2" style={{ color: "var(--txt-m)" }}>
+              {generationStage === 4
+                ? "Your environment is prepared. Redirecting in a few seconds..."
+                : generationStatus}
+            </p>
+
+            {generationStage === 4 && (
+              <div
+                className="inline-flex items-center gap-2 px-3 sm:px-3.5 py-1 sm:py-1.5 mt-3 rounded-full border text-[11px] sm:text-xs font-semibold transition-all animate-fade-in max-w-full shadow-sm"
+                style={{
+                  background: "rgba(16, 185, 129, 0.1)",
+                  borderColor: "rgba(16, 185, 129, 0.3)",
+                  color: "#10b981",
+                }}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                <span className="truncate">Redirecting in a few seconds...</span>
+              </div>
+            )}
+
+            {/* Progress Bar */}
+            <div className="w-full max-w-md mt-6 space-y-2">
+              <div
+                className="w-full h-2 rounded-full overflow-hidden p-0.5 border"
+                style={{ background: "var(--card)", borderColor: "var(--border)" }}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-300 ease-out"
+                  style={{
+                    width: `${generationProgress}%`,
+                    background: generationStage === 4
+                      ? "#10b981"
+                      : "linear-gradient(90deg, var(--accent), #ff7043, #10b981)",
+                    boxShadow: "0 0 14px var(--glow)",
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px] font-mono px-1" style={{ color: "var(--txt-m)" }}>
+                <div className="flex items-center gap-2 font-bold" style={{ color: "var(--txt)" }}>
+                  {/* Modern Animated Dataset Connector Badge */}
+                  <div className="relative flex items-center justify-center">
+                    {/* Subtle pulse aura */}
+                    <span
+                      className="absolute -inset-1 rounded-md opacity-35 animate-pulse pointer-events-none"
+                      style={{ background: "var(--accent)" }}
+                    />
+                    {/* Authentic Connector / Dataset Logo */}
+                    <div
+                      className="relative flex items-center justify-center w-5 h-5 rounded-md border shadow-sm shrink-0 overflow-hidden"
+                      style={{ background: "rgba(0,0,0,0.35)", borderColor: "var(--border)" }}
+                    >
+                      {selectedConnector?.Logo ? (
+                        <selectedConnector.Logo size={14} className="shrink-0" />
+                      ) : (
+                        <Database size={13} style={{ color: "var(--accent)" }} />
+                      )}
+                    </div>
+                    {/* Live processing activity indicator dot */}
+                    {generationStage < 4 && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.9)]" />
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs font-bold tracking-tight">{selectedConnector.name}</span>
+                </div>
+                <span className="font-semibold text-emerald-400">{generationProgress}%</span>
+              </div>
+            </div>
+
+            {/* 3 Live Stage Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full max-w-lg mt-7">
+              <div
+                className="p-3 rounded-xl border flex items-center gap-2.5 text-left transition-all"
+                style={{
+                  background: generationStage >= 1 ? "rgba(16, 185, 129, 0.08)" : "var(--card)",
+                  borderColor: generationStage >= 1 ? "rgba(16, 185, 129, 0.35)" : "var(--border)",
+                }}
+              >
+                {generationStage > 1 ? (
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                ) : (
+                  <Loader2 size={16} className="animate-spin shrink-0" style={{ color: "var(--accent)" }} />
+                )}
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold truncate" style={{ color: "var(--txt)" }}>1. Ingestion</p>
+                  <p className="text-[9px] truncate" style={{ color: "var(--txt-m)" }}>
+                    {generationStage > 1 ? "Data Loaded" : "Reading Stream"}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className="p-3 rounded-xl border flex items-center gap-2.5 text-left transition-all"
+                style={{
+                  background: generationStage >= 2 ? "rgba(16, 185, 129, 0.08)" : "var(--card)",
+                  borderColor: generationStage >= 2 ? "rgba(16, 185, 129, 0.35)" : "var(--border)",
+                }}
+              >
+                {generationStage > 2 ? (
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                ) : generationStage === 2 ? (
+                  <Loader2 size={16} className="animate-spin shrink-0" style={{ color: "var(--accent)" }} />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border border-gray-600 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold truncate" style={{ color: "var(--txt)" }}>2. Profiling</p>
+                  <p className="text-[9px] truncate" style={{ color: "var(--txt-m)" }}>
+                    {generationStage > 2 ? "Schema Built" : generationStage === 2 ? "Analyzing..." : "Pending"}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className="p-3 rounded-xl border flex items-center gap-2.5 text-left transition-all"
+                style={{
+                  background: generationStage >= 3 ? "rgba(16, 185, 129, 0.08)" : "var(--card)",
+                  borderColor: generationStage >= 3 ? "rgba(16, 185, 129, 0.35)" : "var(--border)",
+                }}
+              >
+                {generationStage >= 4 ? (
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                ) : generationStage === 3 ? (
+                  <Loader2 size={16} className="animate-spin shrink-0" style={{ color: "var(--accent)" }} />
+                ) : (
+                  <div className="w-4 h-4 rounded-full border border-gray-600 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold truncate" style={{ color: "var(--txt)" }}>3. Studio</p>
+                  <p className="text-[9px] truncate" style={{ color: "var(--txt-m)" }}>
+                    {generationStage >= 4 ? "Ready" : generationStage === 3 ? "Mounting..." : "Pending"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ── Two Column Layout ── */
+          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[440px]">
           {/* ── Left Column: Connectors (5 cols) ── */}
           <div
             className="md:col-span-5 border-b md:border-b-0 md:border-r p-4 space-y-3"
@@ -880,11 +1292,7 @@ export default function WorkspaceLaunchModal({
                       color: "var(--accent)",
                     }}
                   >
-                    {selectedConnector.id === "postgresql" ? (
-                      <Zap size={16} />
-                    ) : (
-                      <selectedConnector.Logo size={18} />
-                    )}
+                    <selectedConnector.Logo size={18} />
                   </div>
                   <div>
                     <h5 className="text-xs font-bold" style={{ color: "var(--txt)" }}>
@@ -907,18 +1315,45 @@ export default function WorkspaceLaunchModal({
                         ? "Google Sheets Public Link"
                         : "OneDrive / SharePoint Link"}
                     </label>
-                    <input
-                      type="url"
-                      value={connUri}
-                      onChange={(e) => setConnUri(e.target.value)}
-                      placeholder={selectedConnector.defaultUri}
-                      className="w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none transition-colors"
-                      style={{
-                        background: "var(--inp-bg)",
-                        borderColor: "var(--border)",
-                        color: "var(--txt)",
-                      }}
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="url"
+                        value={connUri}
+                        onChange={(e) => setConnUri(e.target.value)}
+                        placeholder={selectedConnector.defaultUri}
+                        className="flex-1 border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none transition-colors"
+                        style={{
+                          background: "var(--inp-bg)",
+                          borderColor: "var(--border)",
+                          color: "var(--txt)",
+                        }}
+                      />
+                      {(selectedConnector.id === "google_sheets" || selectedConnector.id === "excel_online") && (
+                        <button
+                          type="button"
+                          onClick={() => handleDetectSheetTabs()}
+                          disabled={isDetectingTabs || !connUri.trim()}
+                          className="px-2.5 py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all shrink-0 cursor-pointer disabled:opacity-40 hover:border-orange-500/50"
+                          style={{
+                            background: "var(--surface)",
+                            borderColor: "var(--border)",
+                            color: "var(--txt)",
+                          }}
+                          title={
+                            selectedConnector.id === "google_sheets"
+                              ? "Scan Google Sheet for worksheet tabs"
+                              : "Scan Microsoft 365 / OneDrive workbook for worksheet tabs"
+                          }
+                        >
+                          {isDetectingTabs ? (
+                            <Loader2 size={12} className="animate-spin" style={{ color: "var(--accent)" }} />
+                          ) : (
+                            <Search size={12} style={{ color: "var(--accent)" }} />
+                          )}
+                          <span>Tabs</span>
+                        </button>
+                      )}
+                    </div>
                     <p className="text-[10px] pt-0.5" style={{ color: "var(--txt-m)" }}>
                       {selectedConnector.id === "google_sheets"
                         ? "Ensure document is set to 'Anyone with the link can view'."
@@ -927,21 +1362,47 @@ export default function WorkspaceLaunchModal({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-[11px] font-semibold" style={{ color: "var(--txt)" }}>
-                      Tab / Sheet Name <span className="opacity-60 font-normal">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={targetTable}
-                      onChange={(e) => setTargetTable(e.target.value)}
-                      placeholder="Sheet1"
-                      className="w-full border rounded-xl px-3 py-1.5 text-xs font-mono focus:outline-none transition-colors"
-                      style={{
-                        background: "var(--inp-bg)",
-                        borderColor: "var(--border)",
-                        color: "var(--txt)",
-                      }}
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[11px] font-semibold" style={{ color: "var(--txt)" }}>
+                        Tab / Sheet Name <span className="opacity-60 font-normal">(Optional)</span>
+                      </label>
+                      {sheetTabs.length > 0 && (
+                        <span className="text-[10px] font-mono font-semibold" style={{ color: "var(--accent)" }}>
+                          {sheetTabs.length} tabs found
+                        </span>
+                      )}
+                    </div>
+                    {sheetTabs.length > 0 ? (
+                      <select
+                        value={targetTable}
+                        onChange={(e) => setTargetTable(e.target.value)}
+                        className="w-full border rounded-xl px-3 py-2 text-xs font-mono focus:outline-none cursor-pointer"
+                        style={{
+                          background: "var(--inp-bg)",
+                          borderColor: "var(--border)",
+                          color: "var(--txt)",
+                        }}
+                      >
+                        {sheetTabs.map((tab) => (
+                          <option key={tab} value={tab}>
+                            {tab}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={targetTable}
+                        onChange={(e) => setTargetTable(e.target.value)}
+                        placeholder="Sheet1"
+                        className="w-full border rounded-xl px-3 py-1.5 text-xs font-mono focus:outline-none transition-colors"
+                        style={{
+                          background: "var(--inp-bg)",
+                          borderColor: "var(--border)",
+                          color: "var(--txt)",
+                        }}
+                      />
+                    )}
                   </div>
 
                   {/* Quick Demo Pre-fill */}
@@ -992,9 +1453,9 @@ export default function WorkspaceLaunchModal({
                       type="file"
                       ref={fileInputRef}
                       onChange={(e) => {
-                        if (e.target.files?.[0]) setSelectedFile(e.target.files[0]);
+                        if (e.target.files?.[0]) handleIncomingFile(e.target.files[0]);
                       }}
-                      accept=".csv,.xlsx,.xls,.parquet,.json"
+                      accept={getExpectedExtensions(selectedConnector.id).accept}
                       className="hidden"
                     />
                     <UploadCloud size={22} style={{ color: "var(--accent)" }} />
@@ -1004,16 +1465,16 @@ export default function WorkspaceLaunchModal({
                           <CheckCircle2 size={12} /> {selectedFile.name}
                         </p>
                         <p className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
-                          {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                          {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • {getExpectedExtensions(selectedConnector.id).label} Verified
                         </p>
                       </div>
                     ) : (
                       <div>
                         <p className="text-xs font-medium" style={{ color: "var(--txt)" }}>
-                          Drop file here or click to browse
+                          Drop {getExpectedExtensions(selectedConnector.id).label} file here or click to browse
                         </p>
                         <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
-                          Supports CSV, Excel (.xlsx), Parquet, JSON (max 100MB)
+                          {getExpectedExtensions(selectedConnector.id).hint}
                         </p>
                       </div>
                     )}
@@ -1079,16 +1540,26 @@ export default function WorkspaceLaunchModal({
                       </button>
                     </div>
 
+                    <p className="text-[10px] pt-1" style={{ color: "var(--txt-m)" }}>
+                      Supports cloud services (AWS RDS, PlanetScale, Supabase, ClickHouse Cloud) and local database instances (127.0.0.1).
+                    </p>
+
                     {testResult && (
-                      <p
-                        className="text-[10px] font-mono mt-1 flex items-center gap-1"
+                      <div
+                        className="text-[10px] font-mono mt-1.5 p-2 rounded-lg border flex items-start gap-1.5 leading-snug"
                         style={{
-                          color: testResult.ok ? "var(--accent)" : "#ef4444",
+                          background: testResult.ok ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)",
+                          borderColor: testResult.ok ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)",
+                          color: testResult.ok ? "#34d399" : "#fca5a5",
                         }}
                       >
-                        {testResult.ok ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
-                        {testResult.message}
-                      </p>
+                        {testResult.ok ? (
+                          <CheckCircle2 size={12} className="shrink-0 text-emerald-400 mt-0.5" />
+                        ) : (
+                          <AlertCircle size={12} className="shrink-0 text-red-400 mt-0.5" />
+                        )}
+                        <span className="flex-1 break-words">{testResult.message}</span>
+                      </div>
                     )}
                   </div>
 
@@ -1169,6 +1640,7 @@ export default function WorkspaceLaunchModal({
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

@@ -173,7 +173,13 @@ class SnapshotManager:
 
             # Compute content-addressed hash
             buf = io.BytesIO()
-            df.to_parquet(buf, index=False, compression="snappy")
+            try:
+                df.to_parquet(buf, index=False, compression="snappy")
+            except Exception:
+                from dataforge.web.storage import _safe_df_for_parquet
+                safe_df = _safe_df_for_parquet(df)
+                buf = io.BytesIO()
+                safe_df.to_parquet(buf, index=False, compression="snappy")
             parquet_bytes = buf.getvalue()
             sha256 = hashlib.sha256(parquet_bytes).hexdigest()
             snapshot_id = sha256[:16]

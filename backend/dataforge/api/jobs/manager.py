@@ -47,7 +47,7 @@ class JobManager:
         from dataforge.api.jobs.tasks import run_insights_task
         job_id = await registry.create_job(user_id, upload_id, "insights")
         background_tasks.add_task(run_insights_task, job_id, upload_id, user_id, top_n)
-        log.info("Dispatched insights job %s for upload_id=%d", job_id, upload_id)
+        log.info("Dispatched insights job %s for upload_id=%s", job_id, upload_id)
         return job_id
 
     async def dispatch_automl(
@@ -100,7 +100,7 @@ class JobManager:
         background_tasks.add_task(
             run_eda_task, job_id, upload_id, user_id, minimal, sample_n
         )
-        log.info("Dispatched EDA job %s for upload_id=%d", job_id, upload_id)
+        log.info("Dispatched EDA job %s for upload_id=%s", job_id, upload_id)
         return job_id
 
     async def dispatch_report(self, background_tasks: BackgroundTasks, upload_id: str, user_id: int) -> str:
@@ -112,7 +112,7 @@ class JobManager:
         from dataforge.api.jobs.tasks import generate_report_task
         job_id = await registry.create_job(user_id, upload_id, "report")
         background_tasks.add_task(generate_report_task, job_id, upload_id, user_id)
-        log.info("Dispatched report job %s for upload_id=%d", job_id, upload_id)
+        log.info("Dispatched report job %s for upload_id=%s", job_id, upload_id)
         return job_id
 
     async def dispatch_alerts(self, background_tasks: BackgroundTasks, upload_id: str, user_id: int) -> str:
@@ -124,7 +124,7 @@ class JobManager:
         from dataforge.api.jobs.tasks import check_alerts_task
         job_id = await registry.create_job(user_id, upload_id, "alerts")
         background_tasks.add_task(check_alerts_task, job_id, upload_id, user_id)
-        log.info("Dispatched alerts job %s for upload_id=%d", job_id, upload_id)
+        log.info("Dispatched alerts job %s for upload_id=%s", job_id, upload_id)
         return job_id
 
 

@@ -117,5 +117,13 @@ def test_api_upload_sheets_and_excel_online_endpoints():
         assert data["source_type"] == "excel_online"
         assert "upload_id" in data
 
+    # Test Excel Online worksheets endpoint
+    with patch.object(ExcelOnlineConnector, "list_worksheets", return_value=["Sales2026", "Forecast", "Summary"]):
+        resp = client.post("/api/upload/excel-online/worksheets", json={"url": "https://1drv.ms/x/s!abc"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["sheets"] == ["Sales2026", "Forecast", "Summary"]
+
     app.dependency_overrides.clear()
 

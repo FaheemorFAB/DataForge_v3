@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 export async function GET() {
-  return POST(new Request("http://localhost:3000/api/send-email", { method: "POST", body: JSON.stringify({}) }));
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  return POST(new Request(`${appUrl}/api/send-email`, { method: "POST", body: JSON.stringify({}) }));
 }
 
 export async function POST(req: Request) {

@@ -11,6 +11,8 @@ from pydantic import BaseModel, Field, field_validator
 
 class SheetsUploadRequest(BaseModel):
     url: str = Field(..., min_length=10, description="Google Sheets URL")
+    sheet_name: Optional[str] = Field(default=None, description="Optional worksheet/tab name")
+    gid: Optional[str] = Field(default=None, description="Optional worksheet gid")
 
 
 class ExcelOnlineUploadRequest(BaseModel):

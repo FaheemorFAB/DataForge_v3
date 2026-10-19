@@ -17,6 +17,8 @@ import {
   Sparkles,
   RefreshCw,
   Search,
+  Check,
+  Loader2,
 } from "lucide-react";
 
 interface TeamMember {
@@ -25,7 +27,7 @@ interface TeamMember {
   user_id: number;
   user_email: string;
   user_name: string;
-  role: "Admin" | "Data Engineer" | "Analyst" | "Viewer";
+  role: "Admin" | "Analyst" | "Viewer";
   joined_at: string;
   capabilities?: string[];
 }
@@ -75,10 +77,14 @@ export function TeamGovernanceDrawer({
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [createOrgModalOpen, setCreateOrgModalOpen] = useState(false);
 
+  // Revoke member confirm state (inline confirmation instead of window alert)
+  const [revokeConfirmId, setRevokeConfirmId] = useState<number | null>(null);
+  const [revokingId, setRevokingId] = useState<number | null>(null);
+
   // Invite form state
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
-  const [inviteRole, setInviteRole] = useState<"Admin" | "Data Engineer" | "Analyst" | "Viewer">("Analyst");
+  const [inviteRole, setInviteRole] = useState<"Admin" | "Analyst" | "Viewer">("Analyst");
   const [inviteError, setInviteError] = useState("");
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
 
@@ -203,9 +209,9 @@ export function TeamGovernanceDrawer({
     }
   };
 
-  const handleRemoveMember = async (targetUserId: number, memberName: string) => {
+  const handleRemoveMember = async (targetUserId: number) => {
     if (!activeOrg) return;
-    if (!confirm(`Are you sure you want to revoke access for ${memberName}?`)) return;
+    setRevokingId(targetUserId);
 
     try {
       const res = await apiFetch(`/teams/${activeOrg.id}/members/${targetUserId}`, {
@@ -216,6 +222,9 @@ export function TeamGovernanceDrawer({
       }
     } catch (e) {
       console.error("Failed to remove member:", e);
+    } finally {
+      setRevokingId(null);
+      setRevokeConfirmId(null);
     }
   };
 
@@ -256,8 +265,6 @@ export function TeamGovernanceDrawer({
     switch (role) {
       case "Admin":
         return { bg: "rgba(239, 68, 68, 0.12)", border: "rgba(239, 68, 68, 0.35)", text: "#ef4444" };
-      case "Data Engineer":
-        return { bg: "rgba(99, 102, 241, 0.12)", border: "rgba(99, 102, 241, 0.35)", text: "#6366f1" };
       case "Analyst":
         return { bg: "rgba(6, 182, 212, 0.12)", border: "rgba(6, 182, 212, 0.35)", text: "#06b6d4" };
       default:
@@ -512,18 +519,61 @@ export function TeamGovernanceDrawer({
                           style={{ borderColor: "var(--border)", color: "var(--txt)" }}
                         >
                           <option value="Admin">Admin</option>
-                          <option value="Data Engineer">Data Engineer</option>
                           <option value="Analyst">Analyst</option>
                           <option value="Viewer">Viewer</option>
                         </select>
 
-                        <button
-                          onClick={() => handleRemoveMember(m.user_id, m.user_name)}
-                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
-                          title="Remove Member"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {revokeConfirmId === m.user_id ? (
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={revokingId === m.user_id}
+                              onClick={() => handleRemoveMember(m.user_id)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg font-bold text-xs shadow-sm transition-all cursor-pointer"
+                              style={{
+                                background: "#dc2626",
+                                color: "#ffffff",
+                              }}
+                              title="Confirm revoke access"
+                            >
+                              {revokingId === m.user_id ? (
+                                <>
+                                  <Loader2 size={12} className="animate-spin" />
+                                  <span>Revoking...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Check size={12} />
+                                  <span>Confirm?</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={revokingId === m.user_id}
+                              onClick={() => setRevokeConfirmId(null)}
+                              className="p-1 rounded-lg border transition-all cursor-pointer hover:opacity-80"
+                              style={{
+                                background: "var(--surface)",
+                                borderColor: "var(--border)",
+                                color: "var(--txt-m)",
+                              }}
+                              title="Cancel"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={revokingId === m.user_id}
+                            onClick={() => setRevokeConfirmId(m.user_id)}
+                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title="Revoke Member Access"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -544,17 +594,16 @@ export function TeamGovernanceDrawer({
                 style={{ background: "var(--card)", borderColor: "var(--border)" }}
               >
                 <div
-                  className="grid grid-cols-4 p-3 font-bold text-xs border-b"
+                  className="grid grid-cols-3 p-3 font-bold text-xs border-b"
                   style={{ background: "var(--nav)", borderColor: "var(--border)" }}
                 >
-                  <div style={{ color: "#ef4444" }}>Admin (Level 4)</div>
-                  <div style={{ color: "#6366f1" }}>Data Engineer (L3)</div>
+                  <div style={{ color: "#ef4444" }}>Admin (Level 3)</div>
                   <div style={{ color: "#06b6d4" }}>Analyst (Level 2)</div>
                   <div style={{ color: "#94a3b8" }}>Viewer (Level 1)</div>
                 </div>
 
-                <div className="grid grid-cols-4 p-3 text-xs gap-3">
-                  {["Admin", "Data Engineer", "Analyst", "Viewer"].map((roleName) => (
+                <div className="grid grid-cols-3 p-3 text-xs gap-3">
+                  {["Admin", "Analyst", "Viewer"].map((roleName) => (
                     <div key={roleName} className="space-y-2">
                       {(capabilitiesMatrix[roleName] || []).map((cap, i) => (
                         <div
@@ -704,10 +753,9 @@ export function TeamGovernanceDrawer({
                     className="w-full px-3 py-2 rounded-xl text-xs border bg-transparent outline-none cursor-pointer"
                     style={{ borderColor: "var(--border)", color: "var(--txt)" }}
                   >
-                    <option value="Admin">Admin (Full Control & Production Deploy)</option>
-                    <option value="Data Engineer">Data Engineer (DB Vault, Joins, Cleaning)</option>
-                    <option value="Analyst">Analyst (EDA, AutoML, Dashboards, SQL)</option>
-                    <option value="Viewer">Viewer (Read-Only Dashboards)</option>
+                    <option value="Admin">Admin (Full Control, Team Management & Production Deploy)</option>
+                    <option value="Analyst">Analyst (EDA, AutoML, Dashboards, SQL Analytics)</option>
+                    <option value="Viewer">Viewer (Read-Only Dashboards & Summaries)</option>
                   </select>
                 </div>
 

@@ -33,6 +33,7 @@ pandas>=2.3.0                 # Core DataFrame engine for all data operations
 numpy>=2.3.0                  # Numerical arrays underlying pandas & ML models
 pyarrow>=25.0.0               # Parquet read/write — primary storage format for uploads
 duckdb>=1.0.0                 # High-performance analytical in-process SQL & relational join pushdown
+sqlglot>=25.0.0               # SQL parser and transpiler for hardened AST expression evaluation
 openpyxl>=3.1.5               # Excel (.xlsx) file parsing via pandas
 pyjanitor>=0.32.0             # DataFrame cleaning helpers (snake_case column names)
 scipy>=1.16.0                 # Statistical functions used in EDA & trend analysis
@@ -59,9 +60,15 @@ wordcloud>=1.9.0              # Word-cloud charts for text columns in EDA report
 spacy>=3.8.0                  # NLP pipeline — tokenisation, NER for text column analysis
 
 # ── AI / Gemini ───────────────────────────────────────────────────────────────
-google-generativeai>=0.7.0        # Gemini API client used by gemini_pipeline.py
+google-genai>=1.0.0               # Official Google GenAI SDK for Multi-Agent Architecture
+google-generativeai>=0.7.0        # Legacy client (kept for backwards compatibility)
 
 # ── Database / Storage ────────────────────────────────────────────────────────
+sqlalchemy>=2.0.0             # SQL toolkit and Object Relational Mapper for external DB connections
+psycopg2-binary>=2.9.13       # PostgreSQL DBAPI driver for SQLAlchemy connections
+pymysql>=1.1.0                # MySQL pure-Python driver for SQLAlchemy connections
+clickhouse-sqlalchemy>=0.3.0  # ClickHouse dialect for SQLAlchemy connections
+clickhouse-connect>=0.8.0     # ClickHouse native HTTP/native transport
 supabase>=2.31.0              # Supabase Python client — auth, DB queries, storage
 pydantic>=2.13.0              # Data validation & settings models (FastAPI schemas)
 pydantic-settings>=2.14.0     # .env / environment variable loading into pydantic models

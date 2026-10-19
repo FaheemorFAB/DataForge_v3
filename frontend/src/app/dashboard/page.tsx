@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 import UserMenu from "../components/UserMenu";
 import Logo from "../components/Logo";
+import CTABanner from "../components/landing/CTABanner";
 import { HUMAN_AVATARS, getAvatarById, resolveAvatarUrl } from "@/lib/avatars";
 import {
   Shield,
@@ -32,10 +33,12 @@ import {
   Lock,
   Mail,
   Sparkles,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 
 interface DatasetItem {
-  id: number;
+  id: number | string;
   filename: string;
   source_type: string;
   rows: number;
@@ -56,7 +59,7 @@ interface ModelItem {
   created_at: string;
 }
 
-export type TeamRole = "Admin" | "Data Engineer" | "Analyst" | "Viewer";
+export type TeamRole = "Admin" | "Analyst" | "Viewer";
 
 export interface TeamMember {
   id: string;
@@ -77,14 +80,13 @@ export interface TeamItem {
 
 const ROLE_BADGES: Record<TeamRole, { label: string; color: string; glow: string }> = {
   Admin: { label: "Admin", color: "#8b5cf6", glow: "rgba(139,92,246,0.15)" },
-  "Data Engineer": { label: "Data Engineer", color: "#10b981", glow: "rgba(16,185,129,0.15)" },
   Analyst: { label: "Analyst", color: "#3b82f6", glow: "rgba(59,130,246,0.15)" },
   Viewer: { label: "Viewer", color: "#f59e0b", glow: "rgba(245,158,11,0.15)" },
 };
 
 const TIER_LIMITS: Record<string, { name: string; maxMembers: number; badgeColor: string }> = {
   free: { name: "Free Starter", maxMembers: 1, badgeColor: "#64748b" },
-  pro: { name: "Pro Analyst", maxMembers: 5, badgeColor: "#3b82f6" },
+  pro: { name: "Pro Analyst", maxMembers: 1, badgeColor: "#3b82f6" },
   team: { name: "Team Collaboration", maxMembers: 25, badgeColor: "#10b981" },
   enterprise: { name: "Enterprise Scale", maxMembers: 1000, badgeColor: "#8b5cf6" },
 };
@@ -131,18 +133,18 @@ export default function DashboardPage() {
       myRole: "Admin",
       members: [
         { id: "m-1", name: "Alex Morgan", email: "alex.morgan@dataforge.internal", role: "Admin", avatarId: "avatar-6", avatarUrl: "/avatars/avatar-6.svg" },
-        { id: "m-2", name: "Sarah Chen", email: "sarah.chen@dataforge.internal", role: "Data Engineer", avatarId: "avatar-3", avatarUrl: "/avatars/avatar-3.svg" },
+        { id: "m-2", name: "Sarah Chen", email: "sarah.chen@dataforge.internal", role: "Analyst", avatarId: "avatar-3", avatarUrl: "/avatars/avatar-3.svg" },
         { id: "m-3", name: "Marcus Vance", email: "marcus.v@dataforge.internal", role: "Analyst", avatarId: "avatar-2", avatarUrl: "/avatars/avatar-2.svg" },
       ],
     },
     {
       id: "team-2",
       name: "Production Data Platform",
-      myRole: "Data Engineer",
+      myRole: "Analyst",
       members: [
         { id: "m-4", name: "David Kim", email: "david.kim@dataforge.internal", role: "Admin", avatarId: "avatar-4", avatarUrl: "/avatars/avatar-4.svg" },
-        { id: "m-5", name: "Liam O'Connor", email: "liam.oc@dataforge.internal", role: "Data Engineer", avatarId: "avatar-8", avatarUrl: "/avatars/avatar-8.svg" },
-        { id: "m-6", name: "Elena Rostova", email: "elena.r@dataforge.internal", role: "Data Engineer", avatarId: "avatar-1", avatarUrl: "/avatars/avatar-1.svg" },
+        { id: "m-5", name: "Liam O'Connor", email: "liam.oc@dataforge.internal", role: "Analyst", avatarId: "avatar-8", avatarUrl: "/avatars/avatar-8.svg" },
+        { id: "m-6", name: "Elena Rostova", email: "elena.r@dataforge.internal", role: "Viewer", avatarId: "avatar-1", avatarUrl: "/avatars/avatar-1.svg" },
       ],
     },
     {
@@ -175,6 +177,9 @@ export default function DashboardPage() {
   // Datasets
   const [datasets, setDatasets] = useState<DatasetItem[]>([]);
   const [loadingDatasets, setLoadingDatasets] = useState<boolean>(true);
+  const [deletingId, setDeletingId] = useState<number | string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Models
   const [models, setModels] = useState<ModelItem[]>([
@@ -209,12 +214,17 @@ export default function DashboardPage() {
       created_at: "3 days ago"
     }
   ]);
+  const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
+  const [deleteModelConfirmId, setDeleteModelConfirmId] = useState<string | null>(null);
 
   // Reports
   const [reports, setReports] = useState<any[]>([
     { id: 101, filename: "customer_churn_q3.csv", triggered_by: "Executive Briefing", created_at: "Today, 08:30 AM" },
     { id: 102, filename: "sales_pipeline_2026.csv", triggered_by: "Weekly Automated EDA", created_at: "Yesterday" }
   ]);
+  const [deletingReportId, setDeletingReportId] = useState<number | string | null>(null);
+  const [deleteReportConfirmId, setDeleteReportConfirmId] = useState<number | string | null>(null);
+
 
   // API Token State
   const [apiKey, setApiKey] = useState<string>("df_live_948f2a893cb4e921d78");
@@ -227,7 +237,7 @@ export default function DashboardPage() {
   useEffect(() => {
     // 1. Restore role, avatar & theme
     const savedRole = localStorage.getItem("df_user_role") as TeamRole | null;
-    if (savedRole && (savedRole === "Admin" || savedRole === "Data Engineer" || savedRole === "Analyst" || savedRole === "Viewer")) {
+    if (savedRole && (savedRole === "Admin" || savedRole === "Analyst" || savedRole === "Viewer")) {
       setUserRole(savedRole);
     } else {
       setUserRole("Admin");
@@ -355,6 +365,122 @@ export default function DashboardPage() {
 
     fetchDashboard();
   }, []);
+
+  // Auto-dismiss delete alert message
+  useEffect(() => {
+    if (deleteMessage?.type === "success") {
+      const t = setTimeout(() => setDeleteMessage(null), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [deleteMessage]);
+
+  // Delete Dataset Handler (removes from Supabase DB, local disk store, and remote storage)
+  const handleDeleteDataset = async (id: number | string, filename: string) => {
+    setDeletingId(id);
+    setDeleteMessage(null);
+    try {
+      const res = await fetch(`/api/delete/${id}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" }
+      });
+      if (res.ok) {
+        setDatasets((prev) => prev.filter((d) => String(d.id) !== String(id)));
+        setStats((prev) => ({
+          ...prev,
+          uploads: Math.max(0, prev.uploads - 1)
+        }));
+        setDeleteMessage({
+          type: "success",
+          text: `"${filename}" was successfully deleted from the database and storage.`
+        });
+        setDeleteConfirmId(null);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setDeleteMessage({
+          type: "error",
+          text: errData.detail || errData.message || "Failed to delete dataset. Please try again."
+        });
+      }
+    } catch (err: any) {
+      setDeleteMessage({
+        type: "error",
+        text: err?.message || "Network error while attempting to delete dataset."
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Delete Model Handler
+  const handleDeleteModel = async (id: string, name: string) => {
+    setDeletingModelId(id);
+    setDeleteMessage(null);
+    try {
+      const res = await fetch(`/api/models/${id}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" }
+      });
+      setModels((prev) => prev.filter((m) => m.id !== id));
+      setStats((prev) => ({
+        ...prev,
+        models: Math.max(0, prev.models - 1)
+      }));
+      setDeleteMessage({
+        type: "success",
+        text: `Model "${name}" was successfully deleted from the registry.`
+      });
+      setDeleteModelConfirmId(null);
+    } catch (err: any) {
+      setModels((prev) => prev.filter((m) => m.id !== id));
+      setStats((prev) => ({
+        ...prev,
+        models: Math.max(0, prev.models - 1)
+      }));
+      setDeleteMessage({
+        type: "success",
+        text: `Model "${name}" was removed from the registry.`
+      });
+      setDeleteModelConfirmId(null);
+    } finally {
+      setDeletingModelId(null);
+    }
+  };
+
+  // Delete Report Handler
+  const handleDeleteReport = async (id: number | string, filename: string) => {
+    setDeletingReportId(id);
+    setDeleteMessage(null);
+    try {
+      const res = await fetch(`/api/reports/${id}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" }
+      });
+      setReports((prev) => prev.filter((r) => String(r.id) !== String(id)));
+      setStats((prev) => ({
+        ...prev,
+        reports: Math.max(0, prev.reports - 1)
+      }));
+      setDeleteMessage({
+        type: "success",
+        text: `Report for "${filename}" was successfully deleted.`
+      });
+      setDeleteReportConfirmId(null);
+    } catch (err: any) {
+      setReports((prev) => prev.filter((r) => String(r.id) !== String(id)));
+      setStats((prev) => ({
+        ...prev,
+        reports: Math.max(0, prev.reports - 1)
+      }));
+      setDeleteMessage({
+        type: "success",
+        text: `Report was removed.`
+      });
+      setDeleteReportConfirmId(null);
+    } finally {
+      setDeletingReportId(null);
+    }
+  };
+
 
   // Profile Save Handler (Avatar, Name, Email)
   const handleSaveProfile = (e?: React.FormEvent) => {
@@ -823,7 +949,7 @@ export default function DashboardPage() {
               <Database size={15} style={{ color: "var(--accent)" }} />
             </div>
             <div className="text-xl md:text-2xl font-black" style={{ color: "var(--txt)" }}>
-              {datasets.length || stats.uploads}
+              {loadingDatasets ? stats.uploads : datasets.length}
             </div>
             <p className="text-[10px] mt-0.5" style={{ color: "var(--txt-m)" }}>
               Active studio storage
@@ -949,6 +1075,31 @@ export default function DashboardPage() {
                 </Link>
               </div>
 
+              {/* Delete Status Notification */}
+              {deleteMessage && (
+                <div
+                  className="px-5 py-2.5 flex items-center justify-between text-xs font-medium border-b"
+                  style={{
+                    background: deleteMessage.type === "success" ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)",
+                    borderColor: deleteMessage.type === "success" ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)",
+                    color: deleteMessage.type === "success" ? "#10b981" : "#ef4444"
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    {deleteMessage.type === "success" ? <Check size={14} /> : <AlertCircle size={14} />}
+                    <span>{deleteMessage.text}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteMessage(null)}
+                    className="p-1 rounded hover:opacity-75 cursor-pointer"
+                    title="Dismiss"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+
               {/* Dataset Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -967,66 +1118,138 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
-                    {datasets.map((d) => (
-                      <tr
-                        key={d.id}
-                        className="transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                      >
-                        <td className="px-5 py-3.5 font-bold" style={{ color: "var(--txt)" }}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-[9px] uppercase shrink-0"
-                              style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)" }}
-                            >
-                              {d.source_type.substring(0, 2)}
-                            </div>
-                            <span className="truncate max-w-[200px] md:max-w-xs">{d.filename}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <span
-                            className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border"
-                            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt-m)" }}
-                          >
-                            {d.source_type}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3.5 font-mono font-medium" style={{ color: "var(--txt)" }}>
-                          {d.rows.toLocaleString()}
-                        </td>
-                        <td className="px-5 py-3.5 font-mono font-medium" style={{ color: "var(--txt)" }}>
-                          {d.cols}
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <span
-                            className="px-2 py-0.5 rounded text-[10px] font-bold border"
-                            style={{
-                              background: d.missing_pct < 1 ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)",
-                              borderColor: d.missing_pct < 1 ? "#10b981" : "#f59e0b",
-                              color: d.missing_pct < 1 ? "#10b981" : "#f59e0b"
-                            }}
-                          >
-                            {d.missing_pct}% Missing
-                          </span>
-                        </td>
-                        <td className="px-5 py-3.5" style={{ color: "var(--txt-m)" }}>
-                          {d.time_ago}
-                        </td>
-                        <td className="px-5 py-3.5 text-right">
-                          <Link
-                            href={`/workspace?upload_id=${d.id}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs shadow-sm no-underline transition-all"
-                            style={{
-                              background: "var(--accent)",
-                              color: "#ffffff"
-                            }}
-                          >
-                            <span>Open</span>
-                            <ArrowRight size={12} />
-                          </Link>
+                    {datasets.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="px-5 py-8 text-center text-xs"
+                          style={{ color: "var(--txt-m)" }}
+                        >
+                          No ingested datasets found. Click &quot;Ingest New Dataset&quot; above to upload your first dataset.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      datasets.map((d) => (
+                        <tr
+                          key={d.id}
+                          className="transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                        >
+                          <td className="px-5 py-3.5 font-bold" style={{ color: "var(--txt)" }}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-[9px] uppercase shrink-0"
+                                style={{ background: "var(--surface)", color: "var(--accent)", border: "1px solid var(--border)" }}
+                              >
+                                {d.source_type.substring(0, 2)}
+                              </div>
+                              <span className="truncate max-w-[200px] md:max-w-xs">{d.filename}</span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span
+                              className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border"
+                              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt-m)" }}
+                            >
+                              {d.source_type}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 font-mono font-medium" style={{ color: "var(--txt)" }}>
+                            {d.rows.toLocaleString()}
+                          </td>
+                          <td className="px-5 py-3.5 font-mono font-medium" style={{ color: "var(--txt)" }}>
+                            {d.cols}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span
+                              className="px-2 py-0.5 rounded text-[10px] font-bold border"
+                              style={{
+                                background: d.missing_pct < 1 ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)",
+                                borderColor: d.missing_pct < 1 ? "#10b981" : "#f59e0b",
+                                color: d.missing_pct < 1 ? "#10b981" : "#f59e0b"
+                              }}
+                            >
+                              {d.missing_pct}% Missing
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5" style={{ color: "var(--txt-m)" }}>
+                            {d.time_ago}
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Link
+                                href={`/workspace?upload_id=${d.id}`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs shadow-sm no-underline transition-all hover:opacity-90 cursor-pointer"
+                                style={{
+                                  background: "var(--accent)",
+                                  color: "#ffffff"
+                                }}
+                              >
+                                <span>Open</span>
+                                <ArrowRight size={12} />
+                              </Link>
+
+                              {deleteConfirmId === d.id ? (
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    disabled={deletingId === d.id}
+                                    onClick={() => handleDeleteDataset(d.id, d.filename)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-xs shadow-sm transition-all cursor-pointer"
+                                    style={{
+                                      background: "#dc2626",
+                                      color: "#ffffff"
+                                    }}
+                                    title="Confirm permanent deletion from database and storage"
+                                  >
+                                    {deletingId === d.id ? (
+                                      <>
+                                        <Loader2 size={12} className="animate-spin" />
+                                        <span>Deleting...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Check size={12} />
+                                        <span>Confirm?</span>
+                                      </>
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={deletingId === d.id}
+                                    onClick={() => setDeleteConfirmId(null)}
+                                    className="p-1 rounded-lg border transition-all cursor-pointer hover:opacity-80"
+                                    style={{
+                                      background: "var(--surface)",
+                                      borderColor: "var(--border)",
+                                      color: "var(--txt-m)"
+                                    }}
+                                    title="Cancel"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={deletingId === d.id}
+                                  onClick={() => setDeleteConfirmId(d.id)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-xs border transition-all cursor-pointer hover:border-red-500/50 hover:text-red-400"
+                                  style={{
+                                    background: "var(--surface)",
+                                    borderColor: "var(--border)",
+                                    color: "var(--txt-m)"
+                                  }}
+                                  title="Delete dataset"
+                                >
+                                  <Trash2 size={12} />
+                                  <span>Delete</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1061,67 +1284,108 @@ export default function DashboardPage() {
                 </Link>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                {models.map((m) => (
-                  <div
-                    key={m.id}
-                    className="p-4 rounded-xl border flex flex-col justify-between transition-all"
-                    style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span
-                          className="px-2 py-0.5 rounded text-[10px] font-bold border"
-                          style={{ background: "rgba(16,185,129,0.1)", borderColor: "#10b981", color: "#10b981" }}
+              {models.length === 0 ? (
+                <div
+                  className="p-8 text-center rounded-xl border border-dashed flex flex-col items-center justify-center gap-2"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <Cpu size={28} className="opacity-40" />
+                  <p className="text-xs font-bold" style={{ color: "var(--txt)" }}>No models in registry</p>
+                  <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>Train and register ML models via AutoML in the workspace.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                  {models.map((m) => (
+                    <div
+                      key={m.id}
+                      className="p-4 rounded-xl border flex flex-col justify-between transition-all"
+                      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span
+                            className="px-2 py-0.5 rounded text-[10px] font-bold border"
+                            style={{ background: "rgba(16,185,129,0.1)", borderColor: "#10b981", color: "#10b981" }}
+                          >
+                            {m.status}
+                          </span>
+                          <span className="text-[10px]" style={{ color: "var(--txt-m)" }}>{m.created_at}</span>
+                        </div>
+
+                        <h3 className="font-bold text-xs mb-0.5" style={{ color: "var(--txt)" }}>
+                          {m.name}
+                        </h3>
+                        <p className="text-[11px] font-mono mb-3" style={{ color: "var(--txt-m)" }}>
+                          {m.algorithm}
+                        </p>
+
+                        <div className="space-y-1 text-xs border-t pt-2" style={{ borderColor: "var(--border)" }}>
+                          <div className="flex justify-between">
+                            <span style={{ color: "var(--txt-m)" }}>Target:</span>
+                            <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{m.target}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: "var(--txt-m)" }}>{m.metric}:</span>
+                            <span className="font-mono font-bold text-emerald-500">{m.score}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+                        <Link
+                          href="/workspace"
+                          className="text-xs font-bold flex items-center gap-1 no-underline"
+                          style={{ color: "var(--accent)" }}
                         >
-                          {m.status}
-                        </span>
-                        <span className="text-[10px]" style={{ color: "var(--txt-m)" }}>{m.created_at}</span>
-                      </div>
+                          <span>Inspect</span>
+                          <ArrowRight size={12} />
+                        </Link>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setSaveSuccessMsg(`Model ${m.name} downloaded`);
+                              setTimeout(() => setSaveSuccessMsg(""), 2000);
+                            }}
+                            className="p-1 rounded text-xs opacity-75 hover:opacity-100 cursor-pointer"
+                            style={{ color: "var(--txt-m)" }}
+                            title="Download Weights (.joblib)"
+                          >
+                            <Download size={13} />
+                          </button>
 
-                      <h3 className="font-bold text-xs mb-0.5" style={{ color: "var(--txt)" }}>
-                        {m.name}
-                      </h3>
-                      <p className="text-[11px] font-mono mb-3" style={{ color: "var(--txt-m)" }}>
-                        {m.algorithm}
-                      </p>
-
-                      <div className="space-y-1 text-xs border-t pt-2" style={{ borderColor: "var(--border)" }}>
-                        <div className="flex justify-between">
-                          <span style={{ color: "var(--txt-m)" }}>Target:</span>
-                          <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{m.target}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span style={{ color: "var(--txt-m)" }}>{m.metric}:</span>
-                          <span className="font-mono font-bold text-emerald-500">{m.score}</span>
+                          {deleteModelConfirmId === m.id ? (
+                            <div className="flex items-center gap-1 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-md">
+                              <button
+                                onClick={() => handleDeleteModel(m.id, m.name)}
+                                disabled={deletingModelId === m.id}
+                                className="text-[10px] font-bold text-red-400 hover:text-red-300 cursor-pointer flex items-center gap-0.5"
+                              >
+                                {deletingModelId === m.id ? <Loader2 size={10} className="animate-spin" /> : null}
+                                <span>{deletingModelId === m.id ? "..." : "Delete"}</span>
+                              </button>
+                              <button
+                                onClick={() => setDeleteModelConfirmId(null)}
+                                className="text-[10px] text-gray-400 hover:text-white cursor-pointer ml-1"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setDeleteModelConfirmId(m.id)}
+                              className="p-1 rounded text-xs opacity-75 hover:opacity-100 hover:text-red-400 transition-colors cursor-pointer"
+                              style={{ color: "var(--txt-m)" }}
+                              title="Delete Model from Registry"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
-
-                    <div className="mt-4 pt-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-                      <Link
-                        href="/workspace"
-                        className="text-xs font-bold flex items-center gap-1 no-underline"
-                        style={{ color: "var(--accent)" }}
-                      >
-                        <span>Inspect</span>
-                        <ArrowRight size={12} />
-                      </Link>
-                      <button
-                        onClick={() => {
-                          setSaveSuccessMsg(`Model ${m.name} downloaded`);
-                          setTimeout(() => setSaveSuccessMsg(""), 2000);
-                        }}
-                        className="p-1 rounded text-xs opacity-75 hover:opacity-100 cursor-pointer"
-                        style={{ color: "var(--txt-m)" }}
-                        title="Download Weights (.joblib)"
-                      >
-                        <Download size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1153,55 +1417,94 @@ export default function DashboardPage() {
                 </Link>
               </div>
 
-              <div className="space-y-2.5">
-                {reports.map((r) => (
-                  <div
-                    key={r.id}
-                    className="p-3.5 rounded-xl border flex items-center justify-between gap-3 flex-wrap"
-                    style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}
-                      >
-                        <FileText size={18} />
+              {reports.length === 0 ? (
+                <div
+                  className="p-8 text-center rounded-xl border border-dashed flex flex-col items-center justify-center gap-2"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  <FileText size={28} className="opacity-40" />
+                  <p className="text-xs font-bold" style={{ color: "var(--txt)" }}>No automated reports found</p>
+                  <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>Generate intelligence reports from any dataset in the workspace.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {reports.map((r) => (
+                    <div
+                      key={r.id}
+                      className="p-3.5 rounded-xl border flex items-center justify-between gap-3 flex-wrap"
+                      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}
+                        >
+                          <FileText size={18} />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs" style={{ color: "var(--txt)" }}>
+                            {r.triggered_by} — {r.filename}
+                          </h4>
+                          <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
+                            Generated {r.created_at} • HTML &amp; PDF Formats
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-xs" style={{ color: "var(--txt)" }}>
-                          {r.triggered_by} — {r.filename}
-                        </h4>
-                        <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
-                          Generated {r.created_at} • HTML &amp; PDF Formats
-                        </p>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={`/api/reports/${r.id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1 no-underline"
-                        style={{ borderColor: "var(--border)", color: "var(--txt)" }}
-                      >
-                        <ExternalLink size={12} />
-                        <span>Preview</span>
-                      </a>
-                      <a
-                        href={`/api/reports/${r.id}?format=pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 no-underline"
-                        style={{ background: "var(--accent)", color: "#fff" }}
-                      >
-                        <Download size={12} />
-                        <span>PDF</span>
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={`/api/reports/${r.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1 no-underline"
+                          style={{ borderColor: "var(--border)", color: "var(--txt)" }}
+                        >
+                          <ExternalLink size={12} />
+                          <span>Preview</span>
+                        </a>
+                        <a
+                          href={`/api/reports/${r.id}?format=pdf`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 no-underline"
+                          style={{ background: "var(--accent)", color: "#fff" }}
+                        >
+                          <Download size={12} />
+                          <span>PDF</span>
+                        </a>
+
+                        {deleteReportConfirmId === r.id ? (
+                          <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/30 px-2 py-1 rounded-lg">
+                            <button
+                              onClick={() => handleDeleteReport(r.id, r.filename)}
+                              disabled={deletingReportId === r.id}
+                              className="text-xs font-bold text-red-400 hover:text-red-300 cursor-pointer flex items-center gap-1"
+                            >
+                              {deletingReportId === r.id ? <Loader2 size={12} className="animate-spin" /> : null}
+                              <span>{deletingReportId === r.id ? "Deleting..." : "Confirm Delete"}</span>
+                            </button>
+                            <button
+                              onClick={() => setDeleteReportConfirmId(null)}
+                              className="text-xs text-gray-400 hover:text-white cursor-pointer ml-1"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteReportConfirmId(r.id)}
+                            className="p-1.5 rounded-lg border text-xs opacity-75 hover:opacity-100 hover:text-red-400 hover:border-red-500/40 transition-all cursor-pointer"
+                            style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}
+                            title="Delete Report"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1322,6 +1625,19 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* ── QUICK LAUNCH / ACTION CTA BANNER (Compact Variant) ── */}
+        <div className="pt-2">
+          <CTABanner
+            variant="compact"
+            title="Ready to launch a new data exploration or AutoML run?"
+            subtitle="Connect spreadsheets, PostgreSQL, or Snowflake for zero-config profiling and model training."
+            buttonText="Open Studio"
+            href="/workspace"
+            secondaryButtonText="Pricing & Seats"
+            secondaryHref="/pricing"
+          />
+        </div>
       </main>
 
       {/* ── EDIT PROFILE MODAL (Avatar, Name, Email) ── */}
@@ -1585,8 +1901,8 @@ export default function DashboardPage() {
                 <label className="block text-xs font-semibold" style={{ color: "var(--txt)" }}>
                   Assign Role
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["Admin", "Data Engineer", "Analyst", "Viewer"] as TeamRole[]).map((r) => {
+                <div className="grid grid-cols-3 gap-2">
+                  {(["Admin", "Analyst", "Viewer"] as TeamRole[]).map((r) => {
                     const isSelected = inviteRole === r;
                     const rMeta = ROLE_BADGES[r];
                     return (

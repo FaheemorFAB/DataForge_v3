@@ -66,7 +66,33 @@ def test_fastapi_endpoints(monkeypatch):
     res = client.post("/api/dashboard/custom-chart?upload_id=999", json={"chart_type": "bar", "x_col": "Category", "y_col": "Annual Revenue (USD)", "agg_type": "mean"})
     assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
     data = res.json()
-    assert data["ok"] is True
+    # 6. File Extension Mismatch Validation (/api/upload)
+    # Uploading a .json file when expected_format is 'csv' should be rejected with 400
+    res = client.post(
+        "/api/upload",
+        files={"file": ("dataset.json", b'{"a": 1}', "application/json")},
+        data={"expected_format": "csv"},
+    )
+    assert res.status_code == 400
+    assert "File extension mismatch" in res.json().get("detail", "")
+
+    # Uploading a .csv file when expected_format is 'json' should be rejected with 400
+    res = client.post(
+        "/api/upload",
+        files={"file": ("dataset.csv", b"a,b\n1,2\n", "text/csv")},
+        data={"expected_format": "json"},
+    )
+    assert res.status_code == 400
+    assert "File extension mismatch" in res.json().get("detail", "")
+
+    # Uploading a .csv file when expected_format is 'csv' should pass extension check
+    res = client.post(
+        "/api/upload",
+        files={"file": ("dataset.csv", b"a,b\n1,2\n3,4\n", "text/csv")},
+        data={"expected_format": "csv"},
+    )
+    assert res.status_code == 200
+    assert res.json().get("ok") is True
 
 print("  ALL API ENDPOINT TESTS PASSED CLEANLY")
 print("============================================================\n")
