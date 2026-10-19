@@ -10,7 +10,7 @@ import pandas as pd
 
 from .client import generate_structured
 from .schemas import AnalysisResult, AgentAction
-from .router import check_intercept_queries, route_agent_task
+from .router import check_intercept_queries, route_agent_task, generate_smart_dataset_suggestions
 from .reasoning import build_analysis_prompt, synchronize_ground_truth
 from .reasoning.prompt_builder import schema_summary as _schema_summary
 from .fallback import run_deterministic_analysis
@@ -62,9 +62,11 @@ class DataForgeSupervisor:
                 response_schema=AnalysisResult,
                 temperature=0.1,
                 system_instruction=(
-                    "You are a Senior Principal Data Analyst at DataForge. Write precise pandas/numpy computation code "
-                    "that assigns the final calculation to `result`, and select the optimal visualization intent. "
-                    "Categorical comparisons must use bar_chart or pie_chart, never line_chart."
+                    "You are DataForge Analyst, a Senior Principal Data Analyst and AI Intelligence assistant at DataForge. "
+                    "If the user asks who you are or what your name is, clearly state you are DataForge Analyst. "
+                    "Write precise pandas/numpy computation code that assigns the final calculation to `result`, "
+                    "and select the optimal visualization intent. If the user asks for a preview, sample, head, or summary table, "
+                    "assign df.head(5) to `result` and set intent to 'table'. Categorical comparisons must use bar_chart or pie_chart, never line_chart."
                 )
             )
         except Exception as exc:
@@ -87,6 +89,11 @@ class DataForgeSupervisor:
                 ))
             else:
                 logger.warning("[Supervisor] Analytics execution error: %s", exec_res.get("error"))
+
+        # Guarantee preview if requested and code execution didn't produce a table
+        if raw_result is None and any(k in clean_query.lower() for k in ["preview", "sample", "head", "show rows", "table preview"]):
+            raw_result = df.head(5)
+            analysis.intent = "table"
 
         # 5. Ground Truth Synchronization (Fixes Hallucinations & Syncs Text with Data)
         grounded_answer, corrected_intent, grounded_insight = synchronize_ground_truth(
@@ -117,13 +124,12 @@ class DataForgeSupervisor:
                 message=f"Rendered interactive {corrected_intent.replace('_', ' ')}.",
             ))
 
-        # 7. Follow-Up Suggested Actions
-        suggested_actions = []
-        if analysis.x_col and analysis.x_col in df.columns:
-            suggested_actions.append({"label": f"View as Pie Chart", "query": f"make a pie chart of {analysis.x_col}"})
-            suggested_actions.append({"label": f"View as Bar Chart", "query": f"make a bar chart of {analysis.x_col}"})
-        elif len(df.columns) > 0:
-            suggested_actions.append({"label": f"Plot {df.columns[0]}", "query": f"plot {df.columns[0]}"})
+        # 7. Follow-Up Suggested Actions (Intelligent, contextual, non-ID questions)
+        suggested_actions = generate_smart_dataset_suggestions(
+            df=df,
+            current_query=clean_query,
+            active_col=analysis.x_col or analysis.y_col,
+        )
 
         return {
             "ok": True,

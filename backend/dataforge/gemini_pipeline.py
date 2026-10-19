@@ -25,7 +25,7 @@ GEMINI_OK        = True
 
 # ── Identity intercept — questions about what model / who you are ─────────────
 _IDENTITY_PATTERNS = re.compile(
-    r"(who\s+are\s+you|what\s+are\s+you|your\s+name|what.*model|are\s+you\s+(an?\s+)?(ai|bot|chatbot|gpt|gemini|claude|llm)|tell\s+me\s+about\s+yourself|introduce\s+yourself)",
+    r"(who\s+(are|r)\s+you|w[ha]{2,4}t\s+(is|s)?\s*(yo?u?r)?\s*name|what\s+are\s+you|your\s+name|ur\s+name|what.*model|are\s+you\s+(an?\s+)?(ai|bot|chatbot|gpt|gemini|claude|llm)|tell\s+me\s+about\s+yourself|introduce\s+yourself|who\s+made\s+you|who\s+created\s+you)",
     re.IGNORECASE
 )
 
@@ -245,13 +245,15 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "", u
 
     # ── Identity intercept ───────────────────────────────────────────────────
     if _IDENTITY_PATTERNS.search(query):
+        from dataforge.ai.router.query_router import generate_smart_dataset_suggestions
         return {
             "error":   None,
-            "answer":  "I'm Dataforge Assistant, your AI-powered data analyst. I can help you explore, analyse, and visualise your dataset. Ask me anything about your data!",
-            "result":  {"type": "summary", "text": "I'm Dataforge Assistant, your AI-powered data analyst. I can help you explore, analyse, and visualise your dataset. Ask me anything about your data!"},
-            "insight": "",
+            "answer":  "I am DataForge Analyst, your enterprise AI data science and analytics assistant. I coordinate specialized data agents to analyze distributions, detect anomalies, train predictive models, clean dirty records, and build interactive visualizations for your dataset.",
+            "result":  {"type": "summary", "text": "I am DataForge Analyst, your enterprise AI data science and analytics assistant."},
+            "insight": "DataForge Analyst is ready to explore your dataset.",
             "intent":  {"type": "summary"},
             "engine":  "identity",
+            "suggested_actions": generate_smart_dataset_suggestions(df, current_query=query),
         }
 
     if GEMINI_OK:

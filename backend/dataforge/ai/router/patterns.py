@@ -9,12 +9,12 @@ from typing import List, Optional
 import pandas as pd
 
 GREETING_PATTERNS = re.compile(
-    r"^(hi|hello|hey|hiya|howdy|greetings|sup|good\s+(morning|afternoon|evening)|help|what\s+can\s+you\s+do)[\s!.]*$",
+    r"^(hi|hello|hey|hiya|howdy|greetings|sup|good\s+(morning|afternoon|evening)|help|what\s+can\s+you\s+do)[\s!.,?]*$",
     re.IGNORECASE
 )
 
 IDENTITY_PATTERNS = re.compile(
-    r"(who\s+are\s+you|what\s+are\s+you|your\s+name|what.*model|are\s+you\s+(an?\s+)?(ai|bot|chatbot|gpt|gemini|claude|llm)|tell\s+me\s+about\s+yourself|introduce\s+yourself)",
+    r"(who\s+(are|r)\s+you|w[ha]{2,4}t\s+(is|s)?\s*(yo?u?r)?\s*name|what\s+are\s+you|your\s+name|ur\s+name|what.*model|are\s+you\s+(an?\s+)?(ai|bot|chatbot|gpt|gemini|claude|llm)|tell\s+me\s+about\s+yourself|introduce\s+yourself|who\s+made\s+you|who\s+created\s+you)",
     re.IGNORECASE
 )
 
@@ -34,14 +34,23 @@ PIPELINE_KEYWORDS = re.compile(
 )
 
 THANKS_PATTERNS = re.compile(
-    r"^(thanks|thank\s+you|awesome|great|cool|nice|good\s+job|perfect|thx|ty)[\s!.]*$",
+    r"^(thanks|thank\s+you|awesome|great|cool|nice|good\s+job|perfect|thx|ty)[\s!.,?]*$",
     re.IGNORECASE
 )
 
 SCHEMA_EXPLORE_PATTERNS = re.compile(
-    r"^(what\s+columns(\s+do\s+i\s+have)?|list(\s+all)?\s+columns|show(\s+all)?\s+columns|describe(\s+this)?\s+dataset|dataset\s+info|how\s+many\s+rows(\s+and\s+columns)?|tell\s+me\s+about\s+(the\s+)?(dataset|data))[\s!.]*$",
+    r"(what\s+columns|list(\s+all)?\s+columns|show(\s+all)?\s+columns|describe(\s+this|\s+the|\s+my)?\s+dataset|dataset\s+info|how\s+many\s+rows|summarize(\s+my|\s+the)?\s+dataset|dataset\s+summary|overview\s+of\s+(the\s+|my\s+)?(dataset|data)|preview(\s+the|\s+my)?\s+dataset|preview\s+table|show\s+(me\s+)?(the\s+)?(preview|sample|data)|little\s+preview|sample\s+(data|rows)|tell\s+me\s+about\s+(the\s+)?(dataset|data))",
     re.IGNORECASE
 )
+
+def is_id_column(col_name: str) -> bool:
+    """Determines if a column is an ID, hash, or key that shouldn't be suggested for charts."""
+    c = str(col_name).lower().strip()
+    if c in ("id", "uuid", "guid", "pk", "key", "index", "hash"):
+        return True
+    if re.search(r"(^|_)(id|uuid|guid|key|pk|hash|index)($|_)", c):
+        return True
+    return False
 
 
 def fuzzy_resolve_all_columns(q: str, df: pd.DataFrame) -> List[str]:

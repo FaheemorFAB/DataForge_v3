@@ -395,6 +395,21 @@ export function ChatSidebar() {
     "Identify data quality issues",
   ];
 
+  // Contextual smart suggestions derived from the latest assistant response
+  const latestSuggestions = React.useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === "assistant" && Array.isArray(m.suggested_actions) && m.suggested_actions.length > 0) {
+        return m.suggested_actions;
+      }
+    }
+    return [
+      { label: "Give me an overview of the dataset with column distributions", query: "summarize dataset overview and key distributions" },
+      { label: "Show preview of the first 5 records in an interactive table", query: "show preview of the first 5 records in a table" },
+      { label: "Audit dataset for missing values, duplicates, and data anomalies", query: "audit missing values and anomalies" },
+    ];
+  }, [messages]);
+
   // Fetch initial sessions & consent on uploadId change
   useEffect(() => {
     if (uploadId) {
@@ -1049,6 +1064,42 @@ export function ChatSidebar() {
               </div>
             )}
           </div>
+
+          {/* Pinned Suggested Follow-up Questions directly ABOVE the typing bar */}
+          {latestSuggestions && latestSuggestions.length > 0 && !isAnalyzing && (
+            <div className="px-4 pt-2.5 pb-1 border-t" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+              <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-semibold" style={{ color: "var(--txt-m)" }}>
+                <Sparkles size={12} className="text-amber-400" />
+                <span>Suggested Questions:</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                {latestSuggestions.map((act: any, idx: number) => {
+                  const qText = act.query || act.label;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => runQuery(qText)}
+                      className="chat-action-pill text-left transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                      style={{
+                        fontSize: "11px",
+                        lineHeight: "1.4",
+                        padding: "5px 10px",
+                        borderRadius: "10px",
+                        background: "var(--surface)",
+                        borderColor: "var(--border)",
+                        borderWidth: "1px",
+                        color: "var(--txt)",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                      }}
+                    >
+                      <span>{act.label || act.query}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Input */}
           <div className="chat-input-wrap" style={{ margin: "1rem" }}>

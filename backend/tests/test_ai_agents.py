@@ -110,3 +110,32 @@ def test_supervisor_deterministic_fallback(sample_df):
     fb = supervisor._deterministic_fallback("Summarize this dataset", sample_df)
     assert fb["ok"] is True
     assert "20 records" in fb["answer"]
+
+
+def test_supervisor_identity_typos_and_smart_suggestions(sample_df):
+    """Verify typos like 'waht is ur name' return official persona and never suggest plotting ID columns."""
+    res = supervisor.execute("waht is ur name", sample_df)
+    assert res["ok"] is True
+    assert "DataForge Analyst" in res["answer"]
+    suggestions = res.get("suggested_actions", [])
+    assert len(suggestions) > 0
+    for s in suggestions:
+        label = s.get("label", "")
+        # Must not suggest plotting an ID column
+        assert "plot id" not in label.lower()
+        # Must be well-formed, multi-word questions (not 1 or 2 words)
+        words = label.split()
+        assert len(words) >= 4, f"Expected detailed question, got '{label}'"
+
+
+def test_dataset_summary_with_preview_table(sample_df):
+    """Verify compound summary queries with preview return column breakdown AND preview table."""
+    query = "summarize my dataset tell me the no. of colums that we have show me the little preview with that list down the coloum names"
+    res = supervisor.execute(query, sample_df)
+    assert res["ok"] is True
+    assert "columns" in res["answer"].lower()
+    assert res["intent"] == "table"
+    assert res["result"] is not None
+    assert res["result"]["type"] == "table"
+    assert len(res["result"]["rows"]) == 5
+

@@ -13,7 +13,7 @@ from .patterns import (
     fuzzy_resolve_all_columns,
     fuzzy_resolve_column,
 )
-from .query_router import check_intercept_queries, route_agent_task, AgentSelectionDecision
+from .query_router import check_intercept_queries, route_agent_task, AgentSelectionDecision, generate_smart_dataset_suggestions
 
 __all__ = [
     "GREETING_PATTERNS",
@@ -28,4 +28,5 @@ __all__ = [
     "check_intercept_queries",
     "route_agent_task",
     "AgentSelectionDecision",
+    "generate_smart_dataset_suggestions",
 ]

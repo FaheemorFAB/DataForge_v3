@@ -138,8 +138,9 @@ def synchronize_ground_truth(
     # CASE 3: raw_result is a DataFrame (Multi-column Slicing or Table)
     # ─────────────────────────────────────────────────────────────────────────
     elif isinstance(raw_result, pd.DataFrame) and len(raw_result) > 0:
-        if raw_result.shape[1] >= 2 and pd.api.types.is_numeric_dtype(raw_result.iloc[:, 1]):
-            # If 2 columns (category, metric), treat like Series for accurate ranking
+        is_preview_or_table = any(k in query.lower() for k in ["preview", "sample", "head", "show rows", "table", "overview", "first few", "summarize"])
+        if not is_preview_or_table and raw_result.shape[1] == 2 and pd.api.types.is_numeric_dtype(raw_result.iloc[:, 1]):
+            # If exactly 2 columns (category, metric), treat like Series for accurate ranking
             col0 = raw_result.columns[0]
             col1 = raw_result.columns[1]
             s_equiv = raw_result.set_index(col0)[col1]
@@ -155,10 +156,18 @@ def synchronize_ground_truth(
             )
         else:
             corrected_intent = "table"
-            grounded_answer = (
-                f"### Table Results ({len(raw_result):,} records)\n\n"
-                f"Computed structured table with columns: {', '.join(f'`{c}`' for c in raw_result.columns)}."
-            )
-            grounded_insight = f"Retrieved {len(raw_result):,} records."
+            cols_preview = ", ".join(f"`{c}`" for c in list(raw_result.columns)[:10])
+            if len(raw_result.columns) > 10:
+                cols_preview += f", and {len(raw_result.columns) - 10} more"
+
+            base_ans = proposed_answer.strip() if proposed_answer and len(proposed_answer.strip()) > 25 else f"Structured table generated across {len(df):,} records."
+            if "preview table" not in base_ans.lower() and "table below" not in base_ans.lower():
+                grounded_answer = (
+                    f"{base_ans}\n\n"
+                    f"**Preview Table:** Rendered interactive table of {len(raw_result)} records with columns: {cols_preview}."
+                )
+            else:
+                grounded_answer = base_ans
+            grounded_insight = proposed_insight or f"Displaying {len(raw_result)} records from dataset."
 
     return grounded_answer, corrected_intent, grounded_insight

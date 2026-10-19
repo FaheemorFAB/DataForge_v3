@@ -36,14 +36,133 @@ class AgentSelectionDecision(BaseModel):
     target_col: Optional[str] = Field(None, description="Target column name if inferred or relevant")
 
 
+from ..tools.viz_tool import _safe_rows
+
+
+def generate_smart_dataset_suggestions(
+    df: pd.DataFrame,
+    current_query: str = "",
+    active_col: Optional[str] = None,
+) -> List[Dict[str, str]]:
+    """
+    Generates intelligent, highly relevant, business-grade analytical questions
+    tailored to the active dataset. Never suggests plotting meaningless ID columns.
+    Always produces complete, natural questions (not 1-2 words).
+    """
+    suggestions = []
+    if df is None or len(df.columns) == 0:
+        return [
+            {"label": "Summarize dataset overview and key distributions", "query": "summarize dataset overview and key distributions"}
+        ]
+
+    # 1. Categorize columns while strictly excluding ID/hash/key columns
+    id_regex = re.compile(r"(^|_)(id|uuid|guid|key|pk|hash|index)($|_)", re.IGNORECASE)
+
+    valid_cols = [c for c in df.columns if not id_regex.search(str(c).strip())]
+    if not valid_cols:
+        valid_cols = list(df.columns)
+
+    num_cols = [c for c in valid_cols if pd.api.types.is_numeric_dtype(df[c]) and df[c].nunique() > 2]
+    cat_cols = [c for c in valid_cols if not pd.api.types.is_numeric_dtype(df[c]) or (df[c].nunique() <= 10 and c not in num_cols)]
+
+    def metric_score(c):
+        c_low = str(c).lower()
+        if any(k in c_low for k in ["revenue", "profit", "sales", "gmv"]): return 10
+        if any(k in c_low for k in ["margin", "amount", "total"]): return 8
+        if any(k in c_low for k in ["price", "cost", "discount"]): return 7
+        if any(k in c_low for k in ["quantity", "units", "rating", "score"]): return 6
+        if any(k in c_low for k in ["age", "duration", "tenure"]): return 5
+        return 1
+
+    num_cols.sort(key=metric_score, reverse=True)
+
+    def cat_score(c):
+        c_low = str(c).lower()
+        if any(k in c_low for k in ["category", "segment", "region", "department"]): return 10
+        if any(k in c_low for k in ["status", "country", "city", "state", "channel"]): return 8
+        if any(k in c_low for k in ["payment", "product", "tier", "plan"]): return 7
+        return 1
+
+    cat_cols.sort(key=cat_score, reverse=True)
+
+    top_num = num_cols[0] if num_cols else None
+    second_num = num_cols[1] if len(num_cols) > 1 else None
+    top_cat = cat_cols[0] if cat_cols else None
+    second_cat = cat_cols[1] if len(cat_cols) > 1 else None
+
+    # Contextual check: If active_col was analyzed in current query
+    if active_col and active_col in df.columns and not id_regex.search(str(active_col)):
+        is_num = pd.api.types.is_numeric_dtype(df[active_col])
+        if is_num:
+            if top_cat:
+                suggestions.append({
+                    "label": f"Which {top_cat.replace('_', ' ')} generated the highest {active_col.replace('_', ' ')}?",
+                    "query": f"Which {top_cat} has the highest average {active_col}?",
+                })
+            suggestions.append({
+                "label": f"Show statistical distribution and percentiles of {active_col.replace('_', ' ')}",
+                "query": f"show histogram and percentiles of {active_col}",
+            })
+            if second_num and second_num != active_col:
+                suggestions.append({
+                    "label": f"How does {active_col.replace('_', ' ')} correlate with {second_num.replace('_', ' ')}?",
+                    "query": f"show correlation between {active_col} and {second_num}",
+                })
+        else:
+            if top_num:
+                suggestions.append({
+                    "label": f"Compare total {top_num.replace('_', ' ')} across {active_col.replace('_', ' ')} categories",
+                    "query": f"compare total {top_num} by {active_col}",
+                })
+                suggestions.append({
+                    "label": f"View proportion of records by {active_col.replace('_', ' ')} as a chart",
+                    "query": f"show pie chart of {active_col}",
+                })
+            else:
+                suggestions.append({
+                    "label": f"What is the frequency breakdown of {active_col.replace('_', ' ')}?",
+                    "query": f"what is the breakdown of {active_col}?",
+                })
+
+    # Add high-value domain suggestions if list is under 3
+    if top_cat and top_num and len(suggestions) < 3:
+        suggestions.append({
+            "label": f"What are the top 5 {top_cat.replace('_', ' ')}s by total {top_num.replace('_', ' ')}?",
+            "query": f"what are the top 5 {top_cat} by total {top_num}?",
+        })
+
+    if second_cat and top_num and len(suggestions) < 3:
+        suggestions.append({
+            "label": f"Compare total {top_num.replace('_', ' ')} across {second_cat.replace('_', ' ')} groups",
+            "query": f"compare total {top_num} by {second_cat}",
+        })
+    elif top_num and second_num and len(suggestions) < 3:
+        suggestions.append({
+            "label": f"How does {second_num.replace('_', ' ')} correlate with {top_num.replace('_', ' ')}?",
+            "query": f"correlation between {top_num} and {second_num}",
+        })
+
+    if top_num and len(suggestions) < 3:
+        suggestions.append({
+            "label": f"Show distribution and outlier spread for {top_num.replace('_', ' ')}",
+            "query": f"show distribution of {top_num}",
+        })
+
+    if len(suggestions) < 3:
+        suggestions.append({
+            "label": "Audit dataset for missing values, duplicates, and anomalies",
+            "query": "audit missing values and anomalies",
+        })
+
+    return suggestions[:4]
+
+
 def check_intercept_queries(query: str, df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     """Checks for standard conversational intercepts (greetings, identity, gratitude, schema explore)."""
     clean_query = query.strip()
 
     # 1. Greeting
-    if GREETING_PATTERNS.match(clean_query):
-        num_cols = df.select_dtypes(include=np.number).columns.tolist()
-        sample_col = num_cols[0] if num_cols else (df.columns[0] if len(df.columns) > 0 else "data")
+    if GREETING_PATTERNS.search(clean_query):
         return {
             "ok": True,
             "answer": (
@@ -51,62 +170,70 @@ def check_intercept_queries(query: str, df: pd.DataFrame) -> Optional[Dict[str, 
                 f"clean, model, and visualize your dataset ({df.shape[0]:,} records across {df.shape[1]} columns).\n\n"
                 f"Common operations you can perform:\n"
                 f"- **Data Sanitization**: \"Clean missing values and clip outliers\"\n"
-                f"- **Statistical Profiling**: \"What is the distribution of `{sample_col}`?\"\n"
-                f"- **Machine Learning**: \"Predict {df.columns[-1] if len(df.columns) > 0 else 'target'}\"\n"
+                f"- **Statistical Profiling**: \"What is the distribution of key metrics?\"\n"
+                f"- **Machine Learning**: \"Predict the target column with AutoML\"\n"
                 f"- **Workflow Export**: \"Export an Airflow DAG or Python pipeline\""
             ),
             "intent": "summary",
             "result": None,
             "agent_actions": [],
-            "suggested_actions": [
-                {"label": f"Distribution of {sample_col}", "query": f"distribution of {sample_col}"},
-                {"label": "Audit Missing Values", "query": "audit missing values"},
-                {"label": "Predict with AutoML", "query": f"predict {df.columns[-1] if len(df.columns)>0 else 'target'}"},
-            ],
+            "suggested_actions": generate_smart_dataset_suggestions(df, current_query=clean_query),
         }
 
-    # 2. Identity
+    # 2. Identity / Name
     if IDENTITY_PATTERNS.search(clean_query):
         return {
             "ok": True,
             "answer": (
-                "I am the **DataForge Autonomous Analytics Intelligence**. I coordinate specialized data "
-                "agents for data cleaning (CleanerAgent), statistical computation (AnalyticsAgent), "
-                "visual chart generation (VisualizerAgent), machine learning (AutoMLAgent), and workflow export (PipelineAgent)."
+                "I am **DataForge Analyst**, the **DataForge Autonomous Analytics Intelligence** assistant. "
+                "I coordinate specialized domain agents to compute statistics (AnalyticsAgent), "
+                "clean dirty records and impute nulls (CleanerAgent), train machine learning models (AutoMLAgent), "
+                "render interactive visualizations (VisualizerAgent), and export production pipelines (PipelineAgent) "
+                f"for your active dataset ({df.shape[0]:,} records across {df.shape[1]} columns).\n\n"
+                "How can I help you analyze your data today?"
             ),
             "intent": "summary",
             "result": None,
             "agent_actions": [],
+            "suggested_actions": generate_smart_dataset_suggestions(df, current_query=clean_query),
         }
 
     # 3. Thanks / Appreciation
-    if THANKS_PATTERNS.match(clean_query):
+    if THANKS_PATTERNS.search(clean_query):
         return {
             "ok": True,
             "answer": "You are welcome. Please let me know if you would like to run additional statistical analyses, sanitize data, or export your pipeline.",
             "intent": "summary",
             "result": None,
             "agent_actions": [],
+            "suggested_actions": generate_smart_dataset_suggestions(df, current_query=clean_query),
         }
 
-    # 4. Schema Explore
-    if SCHEMA_EXPLORE_PATTERNS.match(clean_query):
+    # 4. Schema Explore / Dataset Summary / Preview
+    if SCHEMA_EXPLORE_PATTERNS.search(clean_query):
         col_list_md = "\n".join(f"- `{col}` ({df[col].dtype}): {df[col].isnull().sum():,} missing ({df[col].isnull().mean()*100:.1f}%)" for col in df.columns)
+        
+        # Provide an interactive 5-row table preview whenever summary/preview is requested
+        preview_tbl = df.head(5)
+        table_result = {
+            "type": "table",
+            "headers": [str(c) for c in df.columns],
+            "rows": _safe_rows(preview_tbl.to_dict("records")),
+            "total": len(df),
+        }
+
         return {
             "ok": True,
             "answer": (
                 f"### Dataset Schema & Column Overview\n\n"
-                f"Your active dataset contains **{df.shape[0]:,} records** across **{df.shape[1]} dimensions**:\n\n"
+                f"Your active dataset contains **{df.shape[0]:,} records** across **{df.shape[1]} columns**:\n\n"
                 f"{col_list_md}\n\n"
-                f"You can request distribution analysis, correlation matrices, missing value audits, or predictive modeling."
+                f"An interactive preview of the **first 5 records** is rendered in the table below."
             ),
-            "intent": "summary",
-            "result": None,
+            "intent": "table",
+            "result": table_result,
             "agent_actions": [],
-            "suggested_actions": [
-                {"label": "Plot Top Categories", "query": f"plot {df.columns[0]}"},
-                {"label": "Audit Missing Values", "query": "audit missing values"},
-            ],
+            "suggested_actions": generate_smart_dataset_suggestions(df, current_query=clean_query),
         }
 
     return None
