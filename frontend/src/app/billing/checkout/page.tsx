@@ -39,7 +39,7 @@ const PLANS: Record<string, PlanConfig> = {
     priceMonthly: 29,
     rowLimit: "Up to 250,000 Rows • 5 GB Storage",
     description: "For solo data analysts & practitioners requiring advanced exports, EDA slides & AutoML Docker containers.",
-    dodoProductId: "pdt_pro_monthly_29",
+    dodoProductId: "pdt_0Nq982Kd8DHmCrFIX4XC2",
     features: [
       "Unlimited Data Ingestion (no file count or monthly ingest caps)",
       "250,000 rows in-memory DuckDB processing (10x Free)",
@@ -61,7 +61,7 @@ const PLANS: Record<string, PlanConfig> = {
     priceMonthly: 79,
     rowLimit: "Up to 1,000,000 Rows • 25 GB Storage",
     description: "For analytics teams requiring shared datasets, collaboration with 3 roles and database connections.",
-    dodoProductId: "pdt_team_monthly_79",
+    dodoProductId: "pdt_0Nq98DJ0O2SJ5pqxJeFHz",
     features: [
       "Multi-user team collaboration with 3 roles: Viewer, Analyst, Admin",
       "Up to 5 team member seats with role permissions",
@@ -100,19 +100,25 @@ function BillingCheckoutContent() {
     setSuccessMsg("");
 
     try {
-      // Pre-deployment: activate directly with no external payment gateway required
-      const res = await apiFetch("/subscription/upgrade", {
+      const res = await apiFetch("/subscription/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan: activePlan,
-          direct_apply: true,
+          direct_apply: false,
         }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || data.error || "Unable to activate plan.");
+        throw new Error(data.detail || data.error || "Unable to initiate payment checkout.");
+      }
+
+      const data = await res.json();
+      if (data.checkout_url) {
+        setSuccessMsg("✓ Redirecting to Dodo Payments secure checkout...");
+        window.location.href = data.checkout_url;
+        return;
       }
 
       setSuccessMsg(`✓ Successfully activated ${plan.name}! All limits and features unlocked.`);
@@ -120,7 +126,7 @@ function BillingCheckoutContent() {
         router.push("/workspace");
       }, 1000);
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to activate plan.");
+      setErrorMsg(err.message || "Failed to initiate payment.");
     } finally {
       setIsLoading(false);
     }
@@ -275,12 +281,12 @@ function BillingCheckoutContent() {
               <div className="text-right">
                 <div className="text-3xl font-black font-mono" style={{ color: "var(--txt)" }}>
                   ${currentPrice}
-                  <span className="text-xs font-normal" style={{ color: "var(--txt-m)" }}>
-                    /mo
+                  <span className="text-xs font-normal ml-1" style={{ color: "var(--txt-m)" }}>
+                    one-time
                   </span>
                 </div>
                 <span className="text-[10px] font-mono text-emerald-500 font-bold">
-                  Billed Monthly via Dodo Payments
+                  One-Time Payment • Lifetime Access
                 </span>
               </div>
             </div>
@@ -352,15 +358,23 @@ function BillingCheckoutContent() {
                   boxShadow: "0 4px 16px var(--glow)",
                 }}
               >
-                <Zap size={16} />
-                <span>{isLoading ? "Activating Plan..." : `⚡ Activate ${plan.name} (Pre-Deployment: No Payment Required)`}</span>
+                <Lock size={16} />
+                <span>{isLoading ? "Connecting to Dodo Payments..." : `Pay $${currentPrice} via Dodo Payments (One-Time)`}</span>
                 <ArrowRight size={16} />
               </button>
 
-              <div className="text-center pt-2">
-                <p className="text-[11px] font-mono text-emerald-400">
-                  ✓ Pre-deployment mode active: All tiers unlocked for free testing before live deployment.
-                </p>
+              <div className="flex items-center justify-between pt-1 px-1">
+                <span className="text-[11px] font-mono text-emerald-400">
+                  ✓ 100% Certified Checkout via Dodo Payments
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDevDirectUpgrade}
+                  disabled={isSandboxActivating}
+                  className="text-[11px] font-mono text-[var(--txt-m)] hover:text-indigo-400 underline cursor-pointer"
+                >
+                  {isSandboxActivating ? "Activating..." : "Developer Bypass"}
+                </button>
               </div>
             </div>
           </div>
