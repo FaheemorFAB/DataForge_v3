@@ -19,8 +19,8 @@ _backend_env = ROOT_DIR / "backend" / ".env"
 if _backend_env.exists():
     load_dotenv(override=True, dotenv_path=_backend_env)
 
-DEFAULT_PRIMARY_MODEL = "gemini-2.5-flash"
-FALLBACK_MODELS = ["gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"]
+DEFAULT_PRIMARY_MODEL = os.getenv("GEMINI_MODEL", "gemini-4-argon")
+FALLBACK_MODELS = ["gemini-4-argon", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
 
 _cached_client: Optional[Any] = None
 _last_api_key: Optional[str] = None

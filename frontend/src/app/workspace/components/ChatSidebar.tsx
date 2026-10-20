@@ -379,7 +379,7 @@ function FormattedMessage({ text }: { text: string }) {
 }
 
 export function ChatSidebar() {
-  const { uploadId } = useWorkspace();
+  const { uploadId, refreshWorkspace, setCleanProfile } = useWorkspace();
   const [chatSessions, setChatSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -590,6 +590,14 @@ export function ChatSidebar() {
       });
       if (res.ok) {
         const data = await res.json();
+        if (data.workspace_updated) {
+          if (data.clean_profile && setCleanProfile) {
+            setCleanProfile(data.clean_profile);
+          }
+          if (refreshWorkspace) {
+            refreshWorkspace();
+          }
+        }
         if (data.chat_sessions) {
           setChatSessions(data.chat_sessions);
         }
@@ -1115,9 +1123,14 @@ export function ChatSidebar() {
               )}
             </button>
           </div>
-          <p className="chat-input-hint text-center pb-2 text-[10px]" style={{ color: "var(--txt-m)" }}>
-            Shift+Enter for new line · Enter to send
-          </p>
+          <div className="chat-input-hint flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 pb-2 text-[10px] px-3 text-center" style={{ color: "var(--txt-m)" }}>
+            <span>Shift+Enter for new line · Enter to send</span>
+            <span className="hidden sm:inline opacity-40">•</span>
+            <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+              <AlertTriangle size={11} className="shrink-0" />
+              AI can make mistakes. Verify important transformations and data outputs.
+            </span>
+          </div>
         </div>
       </div>
     </div>

@@ -49,7 +49,8 @@ def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 60) -> str:
     api_key = (os.getenv("GEMINI_API_KEY") or "").strip("'\"")
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not configured. Add it to backend/.env.")
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    model = (os.getenv("GEMINI_MODEL") or "gemini-4-argon").strip()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": api_key,
@@ -62,6 +63,10 @@ def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 60) -> str:
         }
     }
     response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    if response.status_code != 200 and model != "gemini-2.5-flash":
+        # Fallback to gemini-2.5-flash
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+        response = requests.post(url, headers=headers, json=payload, timeout=timeout)
     if response.status_code != 200:
         if response.status_code in (401, 402, 403, 429):
             GEMINI_OK = False

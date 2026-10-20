@@ -143,6 +143,14 @@ def clean_dataset_tool(
             pre_df = load(upload_id, "df_preclean")
             if pre_df is not None:
                 save(upload_id, "df_clean", pre_df)
+                try:
+                    from dataforge.api.routes.workspace import df_profile
+                    from dataforge.db import db_get
+                    up_row = db_get("uploads", upload_id) or {}
+                    c_prof = df_profile(pre_df, up_row.get("filename", "dataset.csv"))
+                    save(upload_id, "clean_profile", c_prof)
+                except Exception as p_err:
+                    logger.warning("[CleanerAgent] Undo profile regenerate notice: %s", p_err)
                 return {
                     "ok": True,
                     "is_undo": True,
@@ -216,6 +224,24 @@ def clean_dataset_tool(
         # Persist updated clean dataframe to workspace storage cache
         try:
             save(upload_id, "df_clean", cleaned_df)
+            from dataforge.api.routes.workspace import df_profile
+            from dataforge.db import db_get
+            up_row = db_get("uploads", upload_id) or {}
+            c_prof = df_profile(cleaned_df, up_row.get("filename", "dataset.csv"))
+            save(upload_id, "clean_profile", c_prof)
+
+            # Record AI action history for the presentation & report
+            ai_history = load(upload_id, "ai_cleaning_actions") or []
+            ai_history.append({
+                "timestamp": pd.Timestamp.now().isoformat(),
+                "agent": "CleanerAgent",
+                "actions": actions,
+                "initial_quality": initial_quality,
+                "final_quality": final_quality,
+                "rows_before": len(df),
+                "rows_after": len(cleaned_df),
+            })
+            save(upload_id, "ai_cleaning_actions", ai_history)
         except Exception as s_err:
             logger.warning("[CleanerAgent] Clean dataset save notice: %s", s_err)
 

@@ -36,8 +36,48 @@ html[data-theme="light"] .mesh { background: radial-gradient(circle at 10% 10%, 
 .ibt { width: 32px; height: 32px; border-radius: .45rem; border: 1px solid var(--border); background: transparent; cursor: pointer; color: var(--txt-m); display: inline-flex; align-items: center; justify-content: center; transition: border-color .15s, color .15s; flex-shrink: 0; }
 .ibt:hover { border-color: var(--accent); color: var(--txt); }
 .ibt.hidden { display: none !important; }
-.stat-box { background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); border-radius: .75rem; padding: .75rem; text-align: center; }
 html[data-theme="light"] .stat-box { background: rgba(0, 0, 0, .04); border-color: rgba(0, 0, 0, .08); }
+
+/* ── Light Mode High Contrast Text Overrides ──────────────────────────────── */
+html[data-theme="light"],
+html[data-theme="light"] body {
+  color: #000000 !important;
+}
+
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] h4,
+html[data-theme="light"] h5,
+html[data-theme="light"] h6 {
+  color: #000000 !important;
+}
+
+html[data-theme="light"] p,
+html[data-theme="light"] .dt td,
+html[data-theme="light"] .dt th,
+html[data-theme="light"] label {
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] [class*="text-gray-400"],
+html[data-theme="light"] [class*="text-gray-500"],
+html[data-theme="light"] [class*="text-slate-400"],
+html[data-theme="light"] [class*="text-zinc-400"],
+html[data-theme="light"] [class*="text-neutral-400"] {
+  color: #0f172a !important;
+}
+
+html[data-theme="light"] [class*="text-gray-300"],
+html[data-theme="light"] [class*="text-slate-300"],
+html[data-theme="light"] [class*="text-zinc-300"] {
+  color: #334155 !important;
+}
+
+html[data-theme="light"] .opacity-40,
+html[data-theme="light"] .opacity-50 {
+  opacity: 0.88 !important;
+}
 .modal-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(0, 0, 0, .55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); animation: fadeIn .2s ease; }
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 .modal-card {

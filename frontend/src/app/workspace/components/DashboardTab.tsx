@@ -32,6 +32,8 @@ import {
   Download,
   Palette,
   Maximize2,
+  Bot,
+  Sparkles,
 } from "lucide-react";
 import { Scatter, Line, Bar, Pie, Doughnut, Radar, PolarArea } from "react-chartjs-2";
 import { ForecastCard } from "./InsightsTab";
@@ -586,6 +588,11 @@ function ChartCard({ ch, idx, onRemove, activePaletteColors }: { ch: any; idx: n
             <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color, boxShadow: `0 0 5px ${color}` }} />
             <p className="text-[11px] font-black uppercase tracking-wide truncate" style={{ color: "var(--txt)" }}>{ch.title}</p>
             {ch.is_custom && <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>Custom</span>}
+            {ch.agent_source && (
+              <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+                <Bot size={9} /> {ch.agent_source}
+              </span>
+            )}
             <span
               className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded border"
               style={{ background: "var(--inp-bg)", color: "var(--txt-m)", borderColor: "var(--border)" }}
@@ -638,6 +645,8 @@ function ChartCard({ ch, idx, onRemove, activePaletteColors }: { ch: any; idx: n
 // -- Main --
 export function DashboardTab() {
   const { uploadId, profile } = useWorkspace();
+  const [dashboardMode,     setDashboardMode]     = useState<"auto" | "manual">("auto");
+  const [governedBy,        setGovernedBy]        = useState<string>("VisualizerAgent & AnalyticsAgent (Gemini Argon)");
   const [isDashLoading,     setIsDashLoading]     = useState(false);
   const [dashStats,         setDashStats]          = useState<any[]>([]);
   const [dashCharts,        setDashCharts]         = useState<any[]>([]);
@@ -654,11 +663,17 @@ export function DashboardTab() {
 
   const activeColors = PALETTES[selectedPalette]?.colors || PALETTES.indigo.colors;
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (modeOverride?: "auto" | "manual") => {
     if (!uploadId) return;
+    const mode = modeOverride || dashboardMode;
     setIsDashLoading(true);
     try {
-      const res = await apiFetch("/dashboard/stats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chart_dim: "", chart_metric: "", upload_id: uploadId }) });
+      const endpoint = mode === "auto" ? "/dashboard/agentic-auto" : "/dashboard/stats";
+      const res = await apiFetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chart_dim: "", chart_metric: "", upload_id: uploadId }),
+      });
       if (res.ok) {
         const d = await res.json();
         setDashStats(d.stats || []);
@@ -667,13 +682,24 @@ export function DashboardTab() {
         setDashIdStats(d.id_stats || null);
         setDashNumericCols(d.numeric_cols || []);
         setDashInsights(d.insights || []);
+        if (d.governed_by) setGovernedBy(d.governed_by);
         setProfileCols(d.cat_cols ? [...(d.cat_cols || []), ...(d.numeric_cols || [])] : profile?.columns?.map((c: any) => c.name) || []);
       }
-    } catch (e) { console.error(e); }
-    finally { setIsDashLoading(false); }
-  }, [uploadId, profile]);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsDashLoading(false);
+    }
+  }, [uploadId, profile, dashboardMode]);
 
-  useEffect(() => { if (uploadId) loadDashboard(); }, [uploadId]);
+  useEffect(() => {
+    if (uploadId) loadDashboard();
+  }, [uploadId]);
+
+  const handleModeChange = (newMode: "auto" | "manual") => {
+    setDashboardMode(newMode);
+    loadDashboard(newMode);
+  };
 
   const saveCustomChart = async () => {
     setCustomChartError(""); setIsGeneratingChart(true);
@@ -703,7 +729,7 @@ export function DashboardTab() {
       }
       setCustomChart({ id: null, chart_type: "bar", x_col: "", y_col: "", agg_type: "mean", title: "", is_area: false, top_n: 10 });
       setBuilderOpen(false);
-      await loadDashboard();
+      await loadDashboard("manual");
     } catch (e: any) {
       setCustomChartError("Network error: " + (e.message || String(e)));
     } finally {
@@ -727,19 +753,51 @@ export function DashboardTab() {
       <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Analytics Dashboard</h2>
-          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>KPIs · Trend Charts · Category Analysis · Distribution</p>
+          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>Agentic Auto-Pilot & Manual Studio · Governed by VisualizerAgent & AnalyticsAgent</p>
         </div>
-        <button onClick={loadDashboard} className="bp flex items-center gap-2"><BarChart4 size={14} /> Generate Dashboard</button>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center p-1 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <button
+              onClick={() => handleModeChange("auto")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                dashboardMode === "auto"
+                  ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20"
+                  : "opacity-70 hover:opacity-100"
+              }`}
+              style={{ color: dashboardMode === "auto" ? "#ffffff" : "var(--txt)" }}
+            >
+              <Sparkles size={12} className={dashboardMode === "auto" ? "text-amber-300" : ""} />
+              Agentic Auto
+            </button>
+            <button
+              onClick={() => handleModeChange("manual")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                dashboardMode === "manual"
+                  ? "bg-slate-800 text-white shadow-md"
+                  : "opacity-70 hover:opacity-100"
+              }`}
+              style={{ color: dashboardMode === "manual" ? "#ffffff" : "var(--txt)" }}
+            >
+              <Layers size={12} />
+              Manual Studio
+            </button>
+          </div>
+          <button onClick={() => loadDashboard()} className="bp flex items-center gap-2">
+            <Sparkles size={14} className="text-amber-300" /> Generate Dashboard
+          </button>
+        </div>
       </div>
       <div className="flex flex-col items-center justify-center gap-6 py-24 text-center">
         <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.15),rgba(99,102,241,0.04))", border: "1px solid rgba(99,102,241,0.2)" }}>
-          <BarChart4 size={40} style={{ color: "#6366f1" }} />
+          <Sparkles size={40} style={{ color: "#6366f1" }} />
         </div>
         <div>
-          <p className="font-black text-base mb-1" style={{ color: "var(--txt)" }}>No Dashboard Yet</p>
-          <p className="text-sm max-w-sm" style={{ color: "var(--txt-m)" }}>Click <strong>Generate Dashboard</strong> to automatically build KPI metrics, trend charts, and distribution analysis from your dataset.</p>
+          <p className="font-black text-base mb-1" style={{ color: "var(--txt)" }}>No Dashboard Generated Yet</p>
+          <p className="text-sm max-w-sm" style={{ color: "var(--txt-m)" }}>Click <strong>Launch Agentic Auto-Pilot</strong> to have VisualizerAgent and AnalyticsAgent autonomously curate your metrics, Pareto distributions, trends, and dispersion boxplots.</p>
         </div>
-        <button onClick={loadDashboard} className="px-6 py-3 rounded-xl font-bold text-sm text-white" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>Generate Dashboard</button>
+        <button onClick={() => loadDashboard("auto")} className="px-6 py-3 rounded-xl font-bold text-sm text-white flex items-center gap-2" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>
+          <Sparkles size={16} className="text-amber-300" /> Launch Agentic Auto-Pilot
+        </button>
       </div>
     </div>
   );
@@ -761,10 +819,49 @@ export function DashboardTab() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Analytics Dashboard</h2>
-          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>{dashCharts.length} chart{dashCharts.length !== 1 ? "s" : ""} · {dashStats.length} KPIs · Live dataset analysis</p>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Analytics Dashboard</h2>
+            {dashboardMode === "auto" ? (
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/30 flex items-center gap-1">
+                <Sparkles size={11} className="text-indigo-400" /> Agentic Auto-Pilot
+              </span>
+            ) : (
+              <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-500/15 text-slate-500 border border-slate-500/30 flex items-center gap-1">
+                <Layers size={11} /> Manual Studio
+              </span>
+            )}
+          </div>
+          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>{dashCharts.length} chart{dashCharts.length !== 1 ? "s" : ""} · {dashStats.length} KPIs · {dashboardMode === "auto" ? "Multi-Agent Governed" : "Interactive Studio"}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Mode Switcher */}
+          <div className="flex items-center p-1 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <button
+              onClick={() => handleModeChange("auto")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                dashboardMode === "auto"
+                  ? "bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20"
+                  : "opacity-70 hover:opacity-100"
+              }`}
+              style={{ color: dashboardMode === "auto" ? "#ffffff" : "var(--txt)" }}
+            >
+              <Sparkles size={12} className={dashboardMode === "auto" ? "text-amber-300" : ""} />
+              Agentic Auto
+            </button>
+            <button
+              onClick={() => handleModeChange("manual")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                dashboardMode === "manual"
+                  ? "bg-slate-800 text-white shadow-md"
+                  : "opacity-70 hover:opacity-100"
+              }`}
+              style={{ color: dashboardMode === "manual" ? "#ffffff" : "var(--txt)" }}
+            >
+              <Layers size={12} />
+              Manual Studio
+            </button>
+          </div>
+
           {/* Palette Selector */}
           <div
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold"
@@ -785,16 +882,59 @@ export function DashboardTab() {
             </select>
           </div>
 
-          <button onClick={() => setBuilderOpen(b => !b)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all"
-            style={{ borderColor: builderOpen ? "#6366f1" : "rgba(255,255,255,0.1)", background: builderOpen ? "rgba(99,102,241,0.1)" : "transparent", color: builderOpen ? "#6366f1" : "var(--txt-m)" }}>
-            <Plus size={12} /> Add Chart
-          </button>
-          <button onClick={loadDashboard} disabled={isDashLoading} className="bp flex items-center gap-1.5">
+          {dashboardMode === "manual" && (
+            <button onClick={() => setBuilderOpen(b => !b)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all"
+              style={{ borderColor: builderOpen ? "#6366f1" : "rgba(255,255,255,0.1)", background: builderOpen ? "rgba(99,102,241,0.1)" : "transparent", color: builderOpen ? "#6366f1" : "var(--txt-m)" }}>
+              <Plus size={12} /> Add Chart
+            </button>
+          )}
+
+          <button onClick={() => loadDashboard()} disabled={isDashLoading} className="bp flex items-center gap-1.5">
             {isDashLoading ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : <RefreshCw size={13} />}
             {isDashLoading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </div>
+
+      {/* Agentic Governance Banner */}
+      {dashboardMode === "auto" && (
+        <div
+          className="rounded-2xl p-4 flex items-center justify-between flex-wrap gap-3"
+          style={{
+            background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(16, 185, 129, 0.06) 100%)",
+            border: "1px solid rgba(99, 102, 241, 0.22)",
+            boxShadow: "0 2px 12px rgba(99, 102, 241, 0.06)"
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, #6366f1, #10b981)", color: "#fff" }}>
+              <Bot size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>Agentic Workflow Auto-Governance</span>
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                  Autonomous Multi-Agent Orchestration
+                </span>
+              </div>
+              <p className="text-[11px] font-medium mt-0.5" style={{ color: "var(--txt-m)" }}>
+                Curated by <strong className="font-semibold">{governedBy}</strong> — Automatically synthesizes statistical KPI cards, Pareto distributions, trajectory lines, and bivariate correlations.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => loadDashboard("auto")}
+              disabled={isDashLoading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-white cursor-pointer"
+              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 2px 10px rgba(99, 102, 241, 0.3)" }}
+            >
+              <Sparkles size={12} className="text-amber-300" /> Re-Synthesize Agentic View
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       {dashStats.length > 0 && (

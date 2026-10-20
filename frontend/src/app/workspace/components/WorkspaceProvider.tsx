@@ -42,6 +42,8 @@ interface WorkspaceContextType {
   setShareMeta: (meta: any) => void;
   // Initial loading state
   isLoadingWorkspace: boolean;
+  // Re-fetch current workspace state
+  refreshWorkspace: () => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -183,6 +185,20 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const refreshWorkspace = async () => {
+    if (!uploadId) return;
+    try {
+      const res = await apiFetch(`/workspace/state?upload_id=${uploadId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.profile) setProfile(data.profile);
+        if (data.clean_profile) setCleanProfile(data.clean_profile);
+      }
+    } catch (e) {
+      console.error("Failed to refresh workspace state:", e);
+    }
+  };
+
   const value = {
     activeTab, setActiveTab,
     uploadId: uploadId ?? null,
@@ -201,6 +217,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     apiError, setApiError,
     shareMeta, setShareMeta,
     isLoadingWorkspace,
+    refreshWorkspace,
   };
 
   // (upload_id is now handled in the main useEffect)

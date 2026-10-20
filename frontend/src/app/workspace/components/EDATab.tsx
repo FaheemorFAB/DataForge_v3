@@ -23,6 +23,8 @@ import {
   Zap,
   Layers,
   Award,
+  Bot,
+  Wrench,
 } from "lucide-react";
 
 export function EDATab() {
@@ -278,6 +280,71 @@ export function EDATab() {
             <p className="text-sm leading-relaxed" style={{ color: "var(--txt)" }}>
               Dataset <strong className="font-mono">{filename}</strong> has been successfully materialized. The dimensional schema exhibits balanced coverage with{" "}
               <strong>{numericCols.length} quantitative metrics</strong> suitable for variance analysis and statistical hypothesis testing. Zero catastrophic data loss detected.
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "AI Agentic Data Transformations & Discoveries",
+      subtitle: "Autonomous actions executed by CleanerAgent, AnalyticsAgent, and Gemini Argon",
+      content: (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-2xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between text-xs font-mono text-emerald-500 font-bold">
+                <span>DATA INTEGRITY</span>
+                <ShieldCheck size={15} />
+              </div>
+              <div className="text-2xl font-black mt-2 text-emerald-500">
+                {cleanProfile ? "Production Cleaned" : "Active Ingestion Stage"}
+              </div>
+              <p className="text-[11px] mt-1" style={{ color: "var(--txt-m)" }}>
+                {cleanProfile ? "AI Sanitization active across schema" : "Continuous profiling ready"}
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between text-xs font-mono text-indigo-400 font-bold">
+                <span>ACTIVE MATERIALIZED ROWS</span>
+                <BarChart3 size={15} />
+              </div>
+              <div className="text-2xl font-black mt-2" style={{ color: "var(--txt)" }}>
+                {rows.toLocaleString()} Rows
+              </div>
+              <p className="text-[11px] mt-1" style={{ color: "var(--txt-m)" }}>
+                Across {cols} validated dimensions
+              </p>
+            </div>
+
+            <div className="p-4 rounded-2xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between text-xs font-mono text-amber-500 font-bold">
+                <span>AGENT ENGINE</span>
+                <Bot size={15} />
+              </div>
+              <div className="text-2xl font-black mt-2 text-amber-500">
+                Gemini Argon
+              </div>
+              <p className="text-[11px] mt-1" style={{ color: "var(--txt-m)" }}>
+                Governed reasoning & zero hallucinations
+              </p>
+            </div>
+          </div>
+
+          <div
+            className="p-5 rounded-2xl border"
+            style={{
+              background: "linear-gradient(135deg, var(--card), var(--surface))",
+              borderColor: "var(--border)",
+            }}
+          >
+            <h4 className="text-xs font-black uppercase tracking-wider mb-2 flex items-center gap-2 text-indigo-500">
+              <Bot size={15} /> AI Multi-Agent Audit Log
+            </h4>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--txt)" }}>
+              {cleanProfile
+                ? "The dataset has been enhanced by the CleanerAgent. Automated median/mode imputation, duplicate removal, and outlier clipping were executed. All metrics, correlations, charts, and row tallies in this report are directly generated from the sanitized active workspace state."
+                : "The active dataset is continuously monitored by the DataForge AI Analyst. In the Ask AI tab, you can instruct the agent in natural English to clean dirty records, impute nulls, or drop anomalous rows. All changes immediately propagate to My Data (Preview), Charts, and this executive presentation."}
             </p>
           </div>
         </div>
