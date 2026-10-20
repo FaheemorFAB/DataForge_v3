@@ -618,9 +618,14 @@ export default function WorkspaceLaunchModal({
           body: formData,
         });
 
+        if (res.status === 401) {
+          onLoginRequired?.();
+          throw new Error("Authentication required. Please log in to upload datasets.");
+        }
+
         if (!res.ok) {
           const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-          throw new Error(err.detail || "File processing failed. Please verify file integrity.");
+          throw new Error(err.detail || err.error || "File processing failed. Please verify file integrity.");
         }
         const data = await res.json();
         uploadId = data.upload_id;

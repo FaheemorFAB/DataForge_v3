@@ -112,11 +112,11 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
     const fd = new FormData(); fd.append('file', file);
     try {
       const res = await apiFetch('/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (res.status === 401 || data.error === 'login_required') {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401 || data.error === 'login_required' || data.detail === 'Authentication required') {
         onLoginRequired(); setIsUploading(false); return;
       }
-      if (!res.ok || data.error) { setErrorMsg(data.error || 'Upload failed.'); return; }
+      if (!res.ok || data.error) { setErrorMsg(data.detail || data.error || 'Upload failed.'); return; }
       setProfile(data.profile);
       setCurrentUploadId(data.upload_id);
       setFileUploaded(true);
