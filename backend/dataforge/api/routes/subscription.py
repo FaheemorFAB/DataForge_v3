@@ -107,7 +107,7 @@ async def update_plan(req: UpdatePlanRequest, current_user: CurrentUser):
         user_id=current_user.id,
         user_email=current_user.email,
         plan_key=plan_key,
-        return_url="/billing",
+        return_url="/billing/checkout",
     )
 
     return JSONResponse(

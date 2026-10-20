@@ -94,6 +94,28 @@ function BillingCheckoutContent() {
   const plan = PLANS[activePlan] || PLANS.pro;
   const currentPrice = plan.priceMonthly;
 
+  useEffect(() => {
+    const status = searchParams.get("status");
+    const paymentId = searchParams.get("payment_id");
+    if (status === "succeeded" || status === "success" || paymentId) {
+      setSuccessMsg(`✓ Payment confirmed! Upgraded your workspace to ${plan.name}. Redirecting to workspace...`);
+      apiFetch("/subscription/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan: activePlan,
+          direct_apply: true,
+        }),
+      }).catch(() => {});
+      const timer = setTimeout(() => {
+        router.push("/workspace");
+      }, 2000);
+      return () => clearTimeout(timer);
+    } else if (status === "failed") {
+      setErrorMsg("Payment was unsuccessful or cancelled. Please try again.");
+    }
+  }, [searchParams, activePlan, plan.name, router]);
+
   const handleActivatePlan = async () => {
     setIsLoading(true);
     setErrorMsg("");

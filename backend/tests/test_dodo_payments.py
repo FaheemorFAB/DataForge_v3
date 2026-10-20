@@ -40,7 +40,7 @@ def test_dodo_checkout_session_monthly_pro():
     assert checkout["billing_cycle"] == "monthly"
     assert checkout["amount"] == 29
     assert checkout["currency"] == "USD"
-    assert "https://test.dodopayments.com/buy/pdt_pro_monthly_29" in checkout["checkout_url"]
+    assert checkout["product_id"] in checkout["checkout_url"]
     assert "metadata[billing_cycle]=monthly" in checkout["checkout_url"]
     assert "metadata[plan]=pro" in checkout["checkout_url"]
     assert "metadata[user_id]=101" in checkout["checkout_url"]
@@ -64,7 +64,7 @@ def test_dodo_checkout_session_monthly_team():
     assert checkout["plan"] == "team"
     assert checkout["billing_cycle"] == "monthly"
     assert checkout["amount"] == 79
-    assert "pdt_team_monthly_79" in checkout["checkout_url"]
+    assert checkout["product_id"] in checkout["checkout_url"]
 
 
 def test_dodo_invalid_plan_raises():

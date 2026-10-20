@@ -399,11 +399,54 @@ class DodoPaymentProvider(PaymentProvider):
         session_id = f"dodo_cs_{int(time.time() * 1000)}"
         return_target = f"{settings.FRONTEND_URL}{return_url if return_url.startswith('/') else '/' + return_url}"
 
-        checkout_url = (
-            f"{self.base_url}/buy/{product_id}?"
-            f"quantity=1&email={user_email}&redirect_url={return_target}&"
-            f"metadata[user_id]={user_id}&metadata[plan]={plan_norm}&metadata[billing_cycle]=monthly"
-        )
+        checkout_url = ""
+        # Call Dodo Payments API to generate a real checkout session URL
+        if self.api_key and not self.api_key.startswith("dodo_test_key"):
+            try:
+                import requests
+                customer_name = user_email.split("@")[0] if user_email else "DataForge User"
+                resp = requests.post(
+                    f"{self.base_url}/checkouts",
+                    json={
+                        "product_cart": [{"product_id": product_id, "quantity": 1}],
+                        "customer": {
+                            "email": user_email,
+                            "name": customer_name,
+                        },
+                        "return_url": return_target,
+                        "metadata": {
+                            "user_id": str(user_id),
+                            "plan": plan_norm,
+                            "billing_cycle": "monthly",
+                        },
+                    },
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=15,
+                )
+                if resp.status_code in (200, 201):
+                    data = resp.json()
+                    session_id = data.get("session_id", session_id)
+                    checkout_url = data.get("checkout_url", "")
+                    log.info("[payments/dodo] Checkout session created: %s -> %s", session_id, checkout_url)
+                else:
+                    log.error(
+                        "[payments/dodo] Checkout API returned status %s: %s",
+                        resp.status_code,
+                        resp.text,
+                    )
+            except Exception as e:
+                log.error("[payments/dodo] Checkout session request failed: %s", e)
+
+        # Fallback for unit tests and offline environments
+        if not checkout_url:
+            checkout_url = (
+                f"{self.base_url}/buy/{product_id}?"
+                f"quantity=1&email={user_email}&redirect_url={return_target}&"
+                f"metadata[user_id]={user_id}&metadata[plan]={plan_norm}&metadata[billing_cycle]=monthly"
+            )
 
         return {
             "provider": "dodopayments",
