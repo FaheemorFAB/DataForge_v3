@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, BackgroundTasks
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from pydantic import BaseModel
 
 from dataforge.api.deps import CurrentUser, OptionalCurrentUser, get_job_manager_dep, require_upload_with_data
 from dataforge.api.jobs.executor import run_in_executor
@@ -507,6 +508,7 @@ async def api_dashboard_stats(
         return {
             "ok": True, "stats": stats, "charts": charts,
             "insights": insights, "summary": summary,
+            "pinned_insights": _load(target_upload_id, "pinned_insights") or [],
             "schema": schema_info, "profile": profile,
             "id_stats": id_stats, "recent_data": recent_data,
             "dim": dim_col, "metric": metric_col,
@@ -543,9 +545,9 @@ async def api_agentic_auto_dashboard(
         # 1. Executive KPI Cards
         stats = []
         stats.append({
-            "label": "Total Materialized Records",
+            "label": "Total Records",
             "value": f"{len(df):,}",
-            "sub": f"{df.shape[1]} Columns Ingested",
+            "sub": f"{df.shape[1]} Attributes Ingested",
             "type": "rows",
         })
 
@@ -559,9 +561,9 @@ async def api_agentic_auto_dashboard(
             s = pd.to_numeric(df[primary_metric], errors="coerce").dropna()
             if len(s) > 0:
                 stats.append({
-                    "label": f"Aggregate {primary_metric}",
+                    "label": f"Total {primary_metric}",
                     "value": format_stat_val(primary_metric, float(s.sum())),
-                    "sub": f"Avg: {format_stat_val(primary_metric, float(s.mean()))}",
+                    "sub": f"Mean: {format_stat_val(primary_metric, float(s.mean()))}",
                     "type": "sum",
                 })
 
@@ -578,28 +580,29 @@ async def api_agentic_auto_dashboard(
                 if len(top_v) > 15:
                     top_v = top_v[:12] + "..."
                 stats.append({
-                    "label": f"Primary Cluster ({primary_cat})",
-                    "value": f"{sc.nunique():,} Groups",
-                    "sub": f"Top Leader: {top_v}",
+                    "label": f"Primary Cohort ({primary_cat})",
+                    "value": f"{sc.nunique():,} Categories",
+                    "sub": f"Dominant: {top_v}",
                     "type": "distinct",
                 })
 
-        # Quality KPI
+        # Data Completeness KPI (Factual, no fake '100% Quality' branding)
         missing = int(df.isnull().sum().sum())
         total_cells = df.shape[0] * df.shape[1]
         missing_pct = (missing / total_cells) * 100 if total_cells > 0 else 0.0
         score = 100.0 - missing_pct
         stats.append({
-            "label": "Data Reliability Score",
+            "label": "Data Completeness",
             "value": f"{score:.1f}%",
-            "sub": "Governed Quality" if score >= 90 else "Action Recommended",
-            "color": "#10b981" if score >= 90 else "#f59e0b",
+            "sub": "Complete (0 nulls)" if missing == 0 else f"{missing:,} missing values",
+            "color": "#10b981" if score >= 95 else "#f59e0b",
             "type": "completeness",
         })
 
-        # 2. Agentic Charts Suite
+        # 2. Charts Suite with Strict Deduplication
         charts = []
         chart_id_counter = 1
+        seen_charts: set[tuple] = set()
 
         # Chart 1: Primary Category breakdown by Metric (Bar)
         if primary_cat and primary_metric:
@@ -607,33 +610,40 @@ async def api_agentic_auto_dashboard(
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "bar",
-                "title": f"Top 10 {primary_cat} by {primary_metric}",
+                "title": f"{primary_metric} by {primary_cat}",
                 "labels": [str(x) for x in grp.index],
                 "values": [round(float(v), 2) for v in grp.values],
                 "x_col": primary_cat,
                 "y_col": primary_metric,
                 "agg_type": "sum",
                 "is_custom": False,
-                "agent_source": "VisualizerAgent",
             })
+            seen_charts.add((primary_cat, primary_metric))
             chart_id_counter += 1
 
-        # Chart 2: Category Share / Donut Chart
-        target_donut_cat = cat_cols[1] if len(cat_cols) > 1 else primary_cat
-        if target_donut_cat:
-            grp = df.groupby(target_donut_cat).size().sort_values(ascending=False).head(6)
+        # Chart 2: Category Share / Donut Chart (Only for second categorical with 3-8 categories)
+        target_donut_cat = None
+        for c in cat_cols:
+            if c != primary_cat and 3 <= df[c].nunique() <= 8:
+                target_donut_cat = c
+                break
+        if not target_donut_cat and len(cat_cols) > 1 and cat_cols[1] != primary_cat:
+            target_donut_cat = cat_cols[1]
+
+        if target_donut_cat and (target_donut_cat, "count") not in seen_charts:
+            grp = df.groupby(target_donut_cat).size().sort_values(ascending=False).head(8)
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "doughnut",
-                "title": f"Segment Share by {target_donut_cat}",
+                "title": f"Distribution of {target_donut_cat}",
                 "labels": [str(x) for x in grp.index],
                 "values": [int(v) for v in grp.values],
                 "x_col": target_donut_cat,
                 "y_col": "count",
                 "agg_type": "count",
                 "is_custom": False,
-                "agent_source": "VisualizerAgent",
             })
+            seen_charts.add((target_donut_cat, "count"))
             chart_id_counter += 1
 
         # Chart 3: Temporal Trend or Trajectory (Line)
@@ -741,6 +751,7 @@ async def api_agentic_auto_dashboard(
             "stats": stats,
             "charts": charts,
             "summary": agentic_summary,
+            "pinned_insights": _load(target_upload_id, "pinned_insights") or [],
             "numeric_cols": numeric_cols,
             "cat_cols": cat_cols,
             "dim": primary_cat,
@@ -1193,3 +1204,30 @@ async def api_dashboard_custom_chart_delete(
     if upload_id and "upload_id" not in body:
         body["upload_id"] = upload_id
     return await api_custom_chart_delete(CustomChartDeleteRequest(**body), current_user, upload_id=upload_id)
+
+
+# ── Pin / Unpin Insight to Dashboard ─────────────────────────────────────────
+
+class PinInsightRequest(BaseModel):
+    upload_id: str
+    insight: dict
+    action: str = "pin"  # "pin" or "unpin"
+
+
+@router.post("/dashboard/pin-insight", summary="Pin or unpin an insight card to the dashboard")
+async def api_pin_insight(
+    body: PinInsightRequest,
+    current_user: CurrentUser,
+):
+    await require_upload_with_data(body.upload_id, current_user)
+    pinned = load(body.upload_id, "pinned_insights") or []
+    ins_id = body.insight.get("title") or str(body.insight.get("id"))
+
+    if body.action == "unpin":
+        pinned = [p for p in pinned if (p.get("title") or str(p.get("id"))) != ins_id]
+    else:
+        if not any((p.get("title") or str(p.get("id"))) == ins_id for p in pinned):
+            pinned.append(body.insight)
+
+    save(body.upload_id, "pinned_insights", pinned)
+    return {"ok": True, "pinned_count": len(pinned), "pinned_insights": pinned}

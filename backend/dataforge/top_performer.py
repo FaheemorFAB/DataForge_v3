@@ -40,18 +40,30 @@ class TopPerformerInsight(BaseInsight):
 
             top_val_fmt = self._format_precise(metric, top_val)
             total_val_fmt = self._format_precise(metric, total_val)
-            description = (
-                f"The top performing category in '{dim}' is '{top_name}', which generates "
-                f"{pct}% ({top_val_fmt}) of the total '{metric}' ({total_val_fmt})."
-            )
+            is_prot = dim in schema.get("protected_columns", [])
+
+            if is_prot:
+                description = (
+                    f"In demographic segment '{dim}', '{top_name}' represents "
+                    f"{pct}% ({top_val_fmt}) of the total '{metric}' ({total_val_fmt}). "
+                    f"(Note: observational segment distribution, not a causal driver)."
+                )
+                title = f"Segment Distribution: {dim}"
+            else:
+                description = (
+                    f"The highest share category in '{dim}' is '{top_name}', which accounts for "
+                    f"{pct}% ({top_val_fmt}) of the total '{metric}' ({total_val_fmt})."
+                )
+                title = f"Category Share: {dim}"
 
             return {
-                "title":       f"Top {dim}",
+                "title":       title,
                 "description": description,
                 "importance":  self._clamp(pct / 100 * 1.5),
                 "type":        "ranking",
                 "chart":       "bar",
-                "chart_data":  {"labels": labels, "values": values},
+                "chart_data":  {"labels": labels, "values": values, "dim": dim},
+                "dimension":   dim,
                 "metric":      metric,
             }
 

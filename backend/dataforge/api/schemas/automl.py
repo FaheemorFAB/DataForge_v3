@@ -42,6 +42,8 @@ class AutoMLTrainResponse(BaseModel):
 class InsightsRunRequest(BaseModel):
     upload_id: Optional[str] = None
     top_n: int = Field(default=6, ge=1, le=20)
+    target_metric: Optional[str] = None
+    focus_prompt: Optional[str] = None
 
 
 class InsightsRunResponse(BaseModel):

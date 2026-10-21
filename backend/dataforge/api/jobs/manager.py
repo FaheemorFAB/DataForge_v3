@@ -37,6 +37,8 @@ class JobManager:
         upload_id: str,
         user_id: int,
         top_n: int = 6,
+        target_metric: Optional[str] = None,
+        focus_prompt: Optional[str] = None,
     ) -> str:
         """Dispatch an insights job. Returns job_id immediately."""
         # Check for active job (idempotency)
@@ -46,8 +48,8 @@ class JobManager:
 
         from dataforge.api.jobs.tasks import run_insights_task
         job_id = await registry.create_job(user_id, upload_id, "insights")
-        background_tasks.add_task(run_insights_task, job_id, upload_id, user_id, top_n)
-        log.info("Dispatched insights job %s for upload_id=%s", job_id, upload_id)
+        background_tasks.add_task(run_insights_task, job_id, upload_id, user_id, top_n, target_metric, focus_prompt)
+        log.info("Dispatched insights job %s for upload_id=%s (target=%s)", job_id, upload_id, target_metric)
         return job_id
 
     async def dispatch_automl(

@@ -41,7 +41,14 @@ async def api_insights_run(
         raise HTTPException(400, "upload_id required")
     await require_upload_with_data(target_upload_id, current_user)
 
-    job_id = await job_manager.dispatch_insights(background_tasks, target_upload_id, current_user.id, top_n=body.top_n)
+    job_id = await job_manager.dispatch_insights(
+        background_tasks,
+        target_upload_id,
+        current_user.id,
+        top_n=body.top_n,
+        target_metric=body.target_metric,
+        focus_prompt=body.focus_prompt,
+    )
     return {"task_id": job_id, "queued": True, "upload_id": target_upload_id}
 
 
@@ -440,4 +447,20 @@ async def api_pin_insight(
         "count": len(insights),
         "message": "Insight successfully pinned to Insights tab and Executive Report.",
     }))
+
+
+class ColumnRolesUpdateRequest(BaseModel):
+    upload_id: str
+    column_roles: dict[str, str]
+
+
+@router.post("/insights/roles", summary="Save user-corrected semantic column roles")
+async def api_save_column_roles(
+    body: ColumnRolesUpdateRequest,
+    current_user: CurrentUser,
+):
+    await require_upload_with_data(body.upload_id, current_user)
+    save(body.upload_id, "user_column_roles", body.column_roles)
+    return {"ok": True, "updated_count": len(body.column_roles), "column_roles": body.column_roles}
+
 

@@ -36,7 +36,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Scatter, Line, Bar, Pie, Doughnut, Radar, PolarArea } from "react-chartjs-2";
-import { ForecastCard } from "./InsightsTab";
+import { ForecastCard, InsightCard } from "./InsightsTab";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement,
@@ -646,7 +646,7 @@ function ChartCard({ ch, idx, onRemove, activePaletteColors }: { ch: any; idx: n
 export function DashboardTab() {
   const { uploadId, profile } = useWorkspace();
   const [dashboardMode,     setDashboardMode]     = useState<"auto" | "manual">("auto");
-  const [governedBy,        setGovernedBy]        = useState<string>("VisualizerAgent & AnalyticsAgent (Gemini Argon)");
+  const [governedBy,        setGovernedBy]        = useState<string>("Unified Analytical Engine & Dynamic Visuals");
   const [isDashLoading,     setIsDashLoading]     = useState(false);
   const [dashStats,         setDashStats]          = useState<any[]>([]);
   const [dashCharts,        setDashCharts]         = useState<any[]>([]);
@@ -654,6 +654,7 @@ export function DashboardTab() {
   const [dashIdStats,       setDashIdStats]        = useState<any>(null);
   const [dashNumericCols,   setDashNumericCols]    = useState<string[]>([]);
   const [dashInsights,      setDashInsights]       = useState<any[]>([]);
+  const [pinnedInsights,    setPinnedInsights]     = useState<any[]>([]);
   const [profileCols,       setProfileCols]        = useState<string[]>([]);
   const [builderOpen,       setBuilderOpen]        = useState(false);
   const [selectedPalette,   setSelectedPalette]    = useState<string>("indigo");
@@ -682,6 +683,7 @@ export function DashboardTab() {
         setDashIdStats(d.id_stats || null);
         setDashNumericCols(d.numeric_cols || []);
         setDashInsights(d.insights || []);
+        setPinnedInsights(d.pinned_insights || []);
         if (d.governed_by) setGovernedBy(d.governed_by);
         setProfileCols(d.cat_cols ? [...(d.cat_cols || []), ...(d.numeric_cols || [])] : profile?.columns?.map((c: any) => c.name) || []);
       }
@@ -691,6 +693,23 @@ export function DashboardTab() {
       setIsDashLoading(false);
     }
   }, [uploadId, profile, dashboardMode]);
+
+  const unpinInsight = async (ins: any) => {
+    if (!uploadId) return;
+    const insId = ins.id || ins.title;
+    try {
+      const res = await apiFetch("/dashboard/pin-insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upload_id: uploadId, insight: ins, action: "unpin" }),
+      });
+      if (res.ok) {
+        setPinnedInsights(prev => prev.filter(p => (p.id || p.title) !== insId));
+      }
+    } catch (e) {
+      console.error("Unpinning insight failed:", e);
+    }
+  };
 
   useEffect(() => {
     if (uploadId) loadDashboard();
@@ -912,14 +931,14 @@ export function DashboardTab() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>Agentic Workflow Auto-Governance</span>
+                <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>Unified Analytical Synthesis</span>
                 <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                  Autonomous Multi-Agent Orchestration
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Deterministic &amp; Deduplicated
                 </span>
               </div>
               <p className="text-[11px] font-medium mt-0.5" style={{ color: "var(--txt-m)" }}>
-                Curated by <strong className="font-semibold">{governedBy}</strong> — Automatically synthesizes statistical KPI cards, Pareto distributions, trajectory lines, and bivariate correlations.
+                Curated by <strong className="font-semibold">{governedBy}</strong> — Synthesizes deduplicated Pareto distributions, trajectory lines, and bivariate correlations from a shared semantic layer.
               </p>
             </div>
           </div>
@@ -930,7 +949,7 @@ export function DashboardTab() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-white cursor-pointer"
               style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 2px 10px rgba(99, 102, 241, 0.3)" }}
             >
-              <Sparkles size={12} className="text-amber-300" /> Re-Synthesize Agentic View
+              <Sparkles size={12} className="text-amber-300" /> Re-Synthesize Visuals
             </button>
           </div>
         </div>
@@ -1053,6 +1072,32 @@ export function DashboardTab() {
           <ForecastCard ins={ins} />
         </div>
       ))}
+
+      {/* Pinned Strategic Findings from Insight Engine (Section 5.3 Pin Bridge) */}
+      {pinnedInsights.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-amber-400">
+                📌 Pinned Strategic Findings ({pinnedInsights.length})
+              </h3>
+            </div>
+            <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>Curated from Insight Engine · Live Evaluated</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {pinnedInsights.map((ins, i) => (
+              <InsightCard
+                key={ins.id || `pinned-${i}`}
+                ins={ins}
+                idx={i}
+                isPinned={true}
+                onTogglePin={() => unpinInsight(ins)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Charts Grid */}
       {dashCharts.length > 0 && (

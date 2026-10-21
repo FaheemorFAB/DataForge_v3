@@ -10,7 +10,10 @@ import {
   Title, Tooltip, Legend, Filler,
 } from "chart.js";
 import { Scatter, Line, Bar, Doughnut } from "react-chartjs-2";
-import { Sparkles, Brain, TrendingUp, TrendingDown, AlertTriangle, Activity, BarChart2, GitBranch, Layers, Zap, Target, ChevronDown } from "lucide-react";
+import {
+  Sparkles, Brain, TrendingUp, TrendingDown, AlertTriangle, Activity,
+  BarChart2, GitBranch, Layers, Zap, Target, ChevronDown, Pin, Shield, Tag, X, Check
+} from "lucide-react";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement,
@@ -758,30 +761,88 @@ export function ForecastCard({ ins }: { ins: any }) {
   );
 }
 
-// -- Insight Card --
-function InsightCard({ ins, idx }: { ins: any; idx: number }) {
+// -- Insight Card (Section 4.2 Standard Finding Representation) --
+export function InsightCard({
+  ins,
+  idx,
+  isPinned = false,
+  onTogglePin,
+  onDismiss,
+}: {
+  ins: any;
+  idx: number;
+  isPinned?: boolean;
+  onTogglePin?: (ins: any) => void;
+  onDismiss?: (id: string) => void;
+}) {
   // Forecast insights get their own dedicated card
   if (ins.type === "forecast") return <ForecastCard ins={ins} />;
 
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const t    = theme(ins.type);
   const imp  = Math.round((ins.importance ?? 0) * 100);
   const cd   = getChartData(ins);
   const hasChart = !!cd;
+  const insId = ins.id || ins.title || `ins-${idx}`;
 
   return (
-    <div className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: `1px solid ${t.border}`, boxShadow: `0 4px 24px rgba(0,0,0,0.25), 0 0 0 1px ${t.border}` }}>
+    <div
+      className="rounded-2xl overflow-hidden flex flex-col transition-all duration-200"
+      style={{
+        background: "var(--surface)",
+        border: `1px solid ${t.border}`,
+        boxShadow: `0 4px 24px rgba(0,0,0,0.25), 0 0 0 1px ${t.border}`,
+      }}
+    >
       {/* Colour accent bar */}
       <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg,${t.text},${t.text}44)` }} />
 
       {/* Header */}
       <div className="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="font-black text-sm leading-tight truncate" style={{ color: "var(--txt)" }}>{ins.title}</p>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="font-black text-sm leading-tight truncate" style={{ color: "var(--txt)" }}>{ins.title}</p>
+            {ins.is_protected && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                Demographic Segment
+              </span>
+            )}
+          </div>
           {ins.metric && <p className="text-[9px] font-mono mt-0.5" style={{ color: "var(--txt-m)" }}>{ins.metric}</p>}
         </div>
-        <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full flex-shrink-0 whitespace-nowrap" style={{ background: t.bg, color: t.text, border: `1px solid ${t.border}` }}>
-          {ins.type?.replace(/_/g, " ")}
-        </span>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <span
+            className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full whitespace-nowrap"
+            style={{ background: t.bg, color: t.text, border: `1px solid ${t.border}` }}
+          >
+            {ins.type?.replace(/_/g, " ")}
+          </span>
+
+          {onTogglePin && (
+            <button
+              onClick={() => onTogglePin(ins)}
+              title={isPinned ? "Unpin from Dashboard" : "Pin finding to Dashboard"}
+              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer border ${
+                isPinned
+                  ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                  : "bg-white/5 hover:bg-white/10 text-slate-400 border-white/10"
+              }`}
+            >
+              <Pin size={11} className={isPinned ? "fill-amber-400 text-amber-400" : ""} />
+            </button>
+          )}
+
+          {onDismiss && (
+            <button
+              onClick={() => onDismiss(insId)}
+              title="Dismiss this finding"
+              className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer border border-white/10"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Description */}
@@ -789,7 +850,7 @@ function InsightCard({ ins, idx }: { ins: any; idx: number }) {
 
       {/* Importance bar */}
       <div className="px-4 pb-3 flex items-center gap-2">
-        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Importance</span>
+        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Relevance</span>
         <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--inp-bg)" }}>
           <div className="h-full rounded-full transition-all" style={{ width: `${imp}%`, background: `linear-gradient(90deg,${t.text},${t.text}88)` }} />
         </div>
@@ -798,17 +859,184 @@ function InsightCard({ ins, idx }: { ins: any; idx: number }) {
 
       {/* Chart */}
       {hasChart ? (
-        <div className="mx-3 mb-4 rounded-xl p-3 bg-white border border-slate-300 shadow-inner" style={{ height: 230, position: "relative" }}>
+        <div className="mx-3 mb-3 rounded-xl p-3 bg-white border border-slate-300 shadow-inner" style={{ height: 230, position: "relative" }}>
           {renderInsightChart(ins)}
         </div>
       ) : ins.type === "profile" ? (
-        <div className="mx-4 mb-4 rounded-xl p-3" style={{ background: "var(--inp-bg)", border: "1px solid var(--border)" }}>
+        <div className="mx-4 mb-3 rounded-xl p-3" style={{ background: "var(--inp-bg)", border: "1px solid var(--border)" }}>
           <p className="text-[10px] leading-relaxed" style={{ color: "var(--txt-m)" }}>No chart available for this insight type.</p>
         </div>
       ) : null}
+
+      {/* Evidence & Verification Drawer (Section 4.2 & 5.1) */}
+      <div className="mt-auto border-t px-4 py-2.5" style={{ borderColor: "var(--border)", background: "rgba(0,0,0,0.15)" }}>
+        <button
+          onClick={() => setEvidenceOpen(o => !o)}
+          className="w-full flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+        >
+          <span className="flex items-center gap-1.5">
+            <Shield size={11} className="text-indigo-400" />
+            Evidence &amp; Statistical Support
+          </span>
+          <ChevronDown size={11} className={`transform transition-transform ${evidenceOpen ? "rotate-180" : ""}`} />
+        </button>
+
+        {evidenceOpen && (
+          <div className="pt-2.5 mt-2 border-t border-white/5 space-y-2 text-[10px]">
+            {ins.sample_size && (
+              <div className="flex justify-between font-mono">
+                <span className="text-slate-400">Sample Size (N):</span>
+                <span className="font-bold text-slate-200">{ins.sample_size.toLocaleString()} rows</span>
+              </div>
+            )}
+            {ins.evidence_query && (
+              <div className="space-y-1">
+                <span className="text-slate-400 font-mono">Evidence Query:</span>
+                <pre className="p-2 rounded bg-black/40 border border-white/10 text-indigo-300 font-mono text-[9px] overflow-x-auto select-all">
+                  {ins.evidence_query}
+                </pre>
+              </div>
+            )}
+            {ins.caveats && ins.caveats.length > 0 && (
+              <div className="space-y-0.5">
+                <span className="text-slate-400">Caveats &amp; Honesty Note:</span>
+                <ul className="list-disc list-inside text-amber-400/90 text-[9px] space-y-0.5">
+                  {ins.caveats.map((c: string, ci: number) => (
+                    <li key={ci}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+// -- Column Roles & Semantic Review Modal (Section 4.1 & 5.1) --
+function ColumnRolesModal({
+  isOpen,
+  onClose,
+  schema,
+  columns,
+  uploadId,
+  onRolesSaved,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  schema: any;
+  columns: any[];
+  uploadId: string;
+  onRolesSaved: () => void;
+}) {
+  const [roles, setRoles] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (schema?.column_roles) {
+      const initial: Record<string, string> = {};
+      Object.entries(schema.column_roles).forEach(([col, meta]: [string, any]) => {
+        initial[col] = meta.role || "segment";
+      });
+      setRoles(initial);
+    }
+  }, [schema]);
+
+  if (!isOpen) return null;
+
+  const colList = (columns || []).map((c: any) => c.name || c);
+
+  const saveRoles = async () => {
+    setIsSaving(true);
+    try {
+      await apiFetch("/insights/roles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upload_id: uploadId, column_roles: roles }),
+      });
+      onRolesSaved();
+      onClose();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-2xl border flex flex-col max-h-[85vh] overflow-hidden" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <Tag size={15} />
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>Semantic Column Roles &amp; Tags</h3>
+              <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>Correct or customize semantic tags. Changes persist per dataset.</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/10 text-slate-400 cursor-pointer"><X size={16} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-3">
+          <table className="w-full text-left text-xs font-mono">
+            <thead>
+              <tr className="border-b text-[9px] uppercase tracking-wider text-slate-400" style={{ borderColor: "var(--border)" }}>
+                <th className="pb-2">Column Name</th>
+                <th className="pb-2">Current Role</th>
+                <th className="pb-2">Override Semantic Role</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {colList.map(col => {
+                const currentRole = roles[col] || schema?.column_roles?.[col]?.role || "auto";
+                return (
+                  <tr key={col} className="py-2">
+                    <td className="py-2.5 font-bold" style={{ color: "var(--txt)" }}>{col}</td>
+                    <td className="py-2.5">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-white/5 text-slate-300 border border-white/10">
+                        {currentRole}
+                      </span>
+                    </td>
+                    <td className="py-2.5">
+                      <select
+                        value={currentRole}
+                        onChange={e => setRoles(r => ({ ...r, [col]: e.target.value }))}
+                        className="px-2 py-1 rounded bg-black/40 border border-white/10 text-xs font-sans text-slate-200 outline-none"
+                      >
+                        <option value="kpi">Measure / KPI</option>
+                        <option value="driver">Candidate Driver</option>
+                        <option value="segment">Segment / Dimension</option>
+                        <option value="time">Time / Date</option>
+                        <option value="identifier">Identifier (Excluded from drivers)</option>
+                        <option value="protected">Protected Attribute (Demographic only)</option>
+                        <option value="ignore">Ignore / Suppress</option>
+                      </select>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="px-6 py-4 border-t flex justify-end gap-2" style={{ borderColor: "var(--border)", background: "rgba(0,0,0,0.1)" }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-bold text-slate-300 hover:bg-white/5 cursor-pointer">Cancel</button>
+          <button
+            onClick={saveRoles}
+            disabled={isSaving}
+            className="px-5 py-2 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+          >
+            {isSaving ? "Saving..." : "Save Roles & Re-Run Analysis"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 // -- Hypothesis Testing & Significance Lab --
 function HypothesisLab({ uploadId, columns }: { uploadId: string; columns: any[] }) {
@@ -1022,16 +1250,22 @@ function HypothesisLab({ uploadId, columns }: { uploadId: string; columns: any[]
   );
 }
 
-// -- Main Tab --
+// -- Main Tab (Section 5.1 Insights UX) --
 export function InsightsTab() {
   const { profile, uploadId } = useWorkspace();
   const [insightTopN,       setInsightTopN]       = useState("9");
+  const [targetMetric,      setTargetMetric]      = useState("");
+  const [focusPrompt,       setFocusPrompt]       = useState("");
   const [isRunning,         setIsRunning]          = useState(false);
   const [insightError,      setInsightError]       = useState("");
   const [insightCards,      setInsightCards]       = useState<any[]>([]);
   const [insightSummary,    setInsightSummary]     = useState("");
   const [insightSchema,     setInsightSchema]      = useState<any>(null);
+  const [pinnedIds,         setPinnedIds]          = useState<string[]>([]);
+  const [dismissedIds,      setDismissedIds]       = useState<string[]>([]);
+  const [rolesModalOpen,    setRolesModalOpen]     = useState(false);
 
+  // Load current insights and pinned state
   useEffect(() => {
     if (!uploadId) return;
     apiFetch(`/insights/current?upload_id=${uploadId}`)
@@ -1041,21 +1275,70 @@ export function InsightsTab() {
           setInsightCards(d.insights);
           setInsightSummary(d.summary || "");
           setInsightSchema(d.schema || null);
+          if (d.schema?.primary_kpi && !targetMetric) {
+            setTargetMetric(d.schema.primary_kpi);
+          }
         }
       })
       .catch(console.error);
+
+    // Fetch existing pinned insights to sync pin state
+    apiFetch(`/dashboard/agentic-auto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ upload_id: uploadId }),
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(d => {
+        if (d && Array.isArray(d.pinned_insights)) {
+          setPinnedIds(d.pinned_insights.map((p: any) => p.id || p.title));
+        }
+      })
+      .catch(() => {});
   }, [uploadId]);
 
-  const runInsights = async () => {
+  const togglePin = async (ins: any) => {
+    if (!uploadId) return;
+    const insId = ins.id || ins.title;
+    const isPinned = pinnedIds.includes(insId);
+    const action = isPinned ? "unpin" : "pin";
+
+    try {
+      const res = await apiFetch("/dashboard/pin-insight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upload_id: uploadId, insight: ins, action }),
+      });
+      if (res.ok) {
+        setPinnedIds(prev => isPinned ? prev.filter(id => id !== insId) : [...prev, insId]);
+      }
+    } catch (e) {
+      console.error("Pinning insight failed:", e);
+    }
+  };
+
+  const dismissFinding = (id: string) => {
+    setDismissedIds(prev => [...prev, id]);
+  };
+
+  const runInsights = async (customPrompt?: string) => {
     setIsRunning(true);
     setInsightError("");
     setInsightCards([]);
     setInsightSummary("");
+    const activePrompt = customPrompt !== undefined ? customPrompt : focusPrompt;
+
     try {
       const res = await apiFetch("/insights/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ top_n: parseInt(insightTopN), use_gemini: false, upload_id: uploadId }),
+        body: JSON.stringify({
+          top_n: parseInt(insightTopN),
+          use_gemini: true,
+          upload_id: uploadId,
+          target_metric: targetMetric || undefined,
+          focus_prompt: activePrompt ? activePrompt.trim() : undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -1104,6 +1387,12 @@ export function InsightsTab() {
     }
   };
 
+  const kpiCandidates = insightSchema?.kpi_candidates?.length
+    ? insightSchema.kpi_candidates
+    : (insightSchema?.metrics || profile?.columns?.filter((c: any) => c.dtype?.includes("int") || c.dtype?.includes("float")).map((c: any) => c.name) || []);
+
+  const visibleCards = insightCards.filter(ins => !dismissedIds.includes(ins.id || ins.title));
+
   // -- Empty state --
   if (!insightCards.length && !isRunning) return (
     <div className="tab-panel px-4 py-6 md:px-6">
@@ -1118,7 +1407,7 @@ export function InsightsTab() {
             <option value="6">6 insights</option>
             <option value="9">9 insights</option>
           </select>
-          <button onClick={runInsights} className="bp flex items-center gap-2"><Sparkles size={14} /> Run Insights</button>
+          <button onClick={() => runInsights()} className="bp flex items-center gap-2 cursor-pointer"><Sparkles size={14} /> Run Insights</button>
         </div>
       </div>
 
@@ -1131,10 +1420,10 @@ export function InsightsTab() {
           <Brain size={40} style={{ color: "#6366f1" }} />
         </div>
         <div>
-          <p className="font-black text-base mb-1" style={{ color: "var(--txt)" }}>No Insights Yet</p>
-          <p className="text-sm max-w-sm" style={{ color: "var(--txt-m)" }}>Click <strong>Run Insights</strong> to auto-detect trends, anomalies, top performers, correlations, distributions, and more — each with a dedicated visual.</p>
+          <p className="font-black text-base mb-1" style={{ color: "var(--txt)" }}>No Insights Generated Yet</p>
+          <p className="text-sm max-w-sm" style={{ color: "var(--txt-m)" }}>Click <strong>Run Insights</strong> to discover verified statistical signals, anchored correlations, and distribution findings.</p>
         </div>
-        <button onClick={runInsights} className="px-6 py-3 rounded-xl font-bold text-sm text-white" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>Run Insights</button>
+        <button onClick={() => runInsights()} className="px-6 py-3 rounded-xl font-bold text-sm text-white cursor-pointer" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>Run Insights</button>
       </div>
     </div>
   );
@@ -1159,26 +1448,88 @@ export function InsightsTab() {
   // -- Results --
   return (
     <div className="tab-panel space-y-6 px-4 py-4 md:px-6 md:py-6">
-      {/* Header */}
+      {/* Header & Controls */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Insight Engine</h2>
-          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>{insightCards.length} insight{insightCards.length !== 1 ? "s" : ""} generated · {insightSchema?.dataset_type || "general"} dataset</p>
+          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>{visibleCards.length} finding{visibleCards.length !== 1 ? "s" : ""} selected · {insightSchema?.dataset_type || "general"} domain</p>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Target KPI Anchor Selector (Section 4.1 & 5.1) */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <Target size={13} className="text-amber-400" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Anchor KPI:</span>
+            <select
+              value={targetMetric}
+              onChange={e => {
+                setTargetMetric(e.target.value);
+              }}
+              className="bg-transparent border-none outline-none font-bold text-xs cursor-pointer"
+              style={{ color: "var(--txt)" }}
+            >
+              <option value="" style={{ background: "var(--surface)", color: "var(--txt)" }}>
+                Auto-Detect ({insightSchema?.primary_kpi || "None"})
+              </option>
+              {kpiCandidates.map((k: string) => (
+                <option key={k} value={k} style={{ background: "var(--surface)", color: "var(--txt)" }}>{k}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Semantic Roles Review Button */}
+          <button
+            onClick={() => setRolesModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
+            style={{ borderColor: "var(--border)" }}
+          >
+            <Tag size={12} className="text-indigo-400" /> Review Roles
+          </button>
+
+          {/* Top-N count */}
           <select value={insightTopN} onChange={e => setInsightTopN(e.target.value)} className="inp" style={{ width: "auto", padding: ".4rem .7rem", fontSize: ".75rem", fontWeight: 700 }}>
-            <option value="3">3 insights</option>
-            <option value="6">6 insights</option>
-            <option value="9">9 insights</option>
+            <option value="3">3 findings</option>
+            <option value="6">6 findings</option>
+            <option value="9">9 findings</option>
           </select>
-          <button onClick={runInsights} disabled={isRunning} className="bp flex items-center gap-1.5">
+
+          <button onClick={() => runInsights()} disabled={isRunning} className="bp flex items-center gap-1.5 cursor-pointer">
             {isRunning
               ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
               : <Sparkles size={13} />
             }
-            {isRunning ? "Analysing…" : "Re-run"}
+            {isRunning ? "Analysing…" : "Re-Analyze"}
           </button>
         </div>
+      </div>
+
+      {/* Investigate with AI Steering Bar (Section 4.5 & 5.1) */}
+      <div className="rounded-2xl p-4 border" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.06),rgba(139,92,246,0.03))", borderColor: "rgba(99,102,241,0.2)" }}>
+        <form onSubmit={e => { e.preventDefault(); runInsights(); }} className="flex gap-2 items-center flex-wrap">
+          <div className="flex items-center gap-2 flex-1 min-w-[260px] bg-black/30 border border-white/10 rounded-xl px-3 py-2">
+            <Sparkles size={14} className="text-indigo-400 shrink-0" />
+            <input
+              type="text"
+              value={focusPrompt}
+              onChange={e => setFocusPrompt(e.target.value)}
+              placeholder="Investigate hypothesis or steer analysis, e.g. 'Investigate margin decline in North region'..."
+              className="bg-transparent border-none outline-none w-full text-xs text-white placeholder-slate-500 font-sans"
+            />
+            {focusPrompt && (
+              <button type="button" onClick={() => setFocusPrompt("")} className="text-slate-500 hover:text-slate-300 cursor-pointer">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={isRunning}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <Sparkles size={12} />
+            {isRunning ? "Investigating..." : "Steer Analysis"}
+          </button>
+        </form>
       </div>
 
       {/* Schema pill row */}
@@ -1187,6 +1538,11 @@ export function InsightsTab() {
           {insightSchema.dataset_type && (
             <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>
               {insightSchema.dataset_type}
+            </span>
+          )}
+          {targetMetric && (
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+              <Target size={11} /> Anchor: {targetMetric}
             </span>
           )}
           {(insightSchema.metrics || []).slice(0, 4).map((m: string) => (
@@ -1198,14 +1554,19 @@ export function InsightsTab() {
         </div>
       )}
 
-      {/* AI Summary */}
+      {/* Executive Briefing (Section 4.4 Verified Narrative) */}
       {insightSummary && (
         <div className="rounded-2xl p-5 flex gap-4" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.07),rgba(139,92,246,0.03))", border: "1px solid rgba(99,102,241,0.18)" }}>
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
             <Activity size={15} className="text-white" />
           </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "#6366f1" }}>AI Summary</p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#6366f1" }}>Executive Briefing</p>
+              <span className="text-[9px] font-mono px-2 py-0.2 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                Grounded &amp; Validated
+              </span>
+            </div>
             <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "var(--txt-m)" }}>{insightSummary}</p>
           </div>
         </div>
@@ -1218,13 +1579,40 @@ export function InsightsTab() {
       {/* Statistical Hypothesis Testing & Significance Lab */}
       <HypothesisLab uploadId={uploadId || ""} columns={profile?.columns || []} />
 
-      {/* Cards — forecast cards rendered full-width first, then regular grid */}
-      {insightCards.filter(ins => ins.type === "forecast").map((ins, i) => (
-        <InsightCard key={`fc-${i}`} ins={ins} idx={i} />
+      {/* Cards Grid with Pinning, Dismissal, and Evidence Drawer */}
+      {visibleCards.filter(ins => ins.type === "forecast").map((ins, i) => (
+        <InsightCard
+          key={`fc-${i}`}
+          ins={ins}
+          idx={i}
+          isPinned={pinnedIds.includes(ins.id || ins.title)}
+          onTogglePin={togglePin}
+          onDismiss={dismissFinding}
+        />
       ))}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {insightCards.filter(ins => ins.type !== "forecast").map((ins, i) => <InsightCard key={i} ins={ins} idx={i} />)}
+        {visibleCards.filter(ins => ins.type !== "forecast").map((ins, i) => (
+          <InsightCard
+            key={ins.id || `card-${i}`}
+            ins={ins}
+            idx={i}
+            isPinned={pinnedIds.includes(ins.id || ins.title)}
+            onTogglePin={togglePin}
+            onDismiss={dismissFinding}
+          />
+        ))}
       </div>
+
+      {/* Semantic Roles Modal */}
+      <ColumnRolesModal
+        isOpen={rolesModalOpen}
+        onClose={() => setRolesModalOpen(false)}
+        schema={insightSchema}
+        columns={profile?.columns || []}
+        uploadId={uploadId || ""}
+        onRolesSaved={() => runInsights()}
+      />
     </div>
   );
 }
+

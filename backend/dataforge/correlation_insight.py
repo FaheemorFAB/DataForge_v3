@@ -25,10 +25,16 @@ class CorrelationInsight(BaseInsight):
         return len(schema.get("metrics", [])) >= 2
 
     def analyze(self, df: pd.DataFrame, schema: dict) -> dict | None:
-        metrics = schema["metrics"]
+        metrics = schema.get("metrics", [])
+        id_cols = set(schema.get("identifier_columns", []))
+        # Exclude identifiers and columns with id-like names
+        valid_metrics = [
+            m for m in metrics
+            if m not in id_cols and not m.lower().endswith(("_id", "id", "pk", "uuid", "key"))
+        ]
 
         try:
-            numeric_df = df[metrics].select_dtypes(include="number").dropna()
+            numeric_df = df[valid_metrics].select_dtypes(include="number").dropna()
             if len(numeric_df) < 10 or numeric_df.shape[1] < 2:
                 return None
 

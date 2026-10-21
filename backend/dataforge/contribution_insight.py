@@ -37,11 +37,19 @@ class ContributionInsight(BaseInsight):
             values  = [self._safe_float(v) for v in top_n.values]
 
             top_val_abs = self._safe_float(grouped.iloc[0])
-            description = (
-                f"'{top_name}' is the primary performance driver for '{metric}', "
-                f"contributing {top_pct}% ({self._format_precise(metric, top_val_abs)}) "
-                f"of the total '{metric}' ({self._format_precise(metric, total)}) across all categories in '{dim}'."
-            )
+            is_prot = dim in schema.get("protected_columns", [])
+
+            if is_prot:
+                description = (
+                    f"'{top_name}' represents {top_pct}% ({self._format_precise(metric, top_val_abs)}) "
+                    f"of the total '{metric}' ({self._format_precise(metric, total)}) across demographic categories in '{dim}'. "
+                    f"(Note: observational segment distribution, not a causal driver)."
+                )
+            else:
+                description = (
+                    f"'{top_name}' accounts for {top_pct}% ({self._format_precise(metric, top_val_abs)}) "
+                    f"of the total '{metric}' ({self._format_precise(metric, total)}) across segments in '{dim}'."
+                )
 
             return {
                 "title":       f"{metric} Breakdown by {dim}",
@@ -49,7 +57,8 @@ class ContributionInsight(BaseInsight):
                 "importance":  self._clamp(top_pct / 100),
                 "type":        "contribution",
                 "chart":       "bar",
-                "chart_data":  {"labels": labels, "values": values},
+                "chart_data":  {"labels": labels, "values": values, "dim": dim},
+                "dimension":   dim,
                 "metric":      metric,
             }
         except Exception:

@@ -40,6 +40,8 @@ async def run_insights_task(
     upload_id: str,
     user_id: int,
     top_n: int = 6,
+    target_metric: Optional[str] = None,
+    focus_prompt: Optional[str] = None,
 ):
     from dataforge.api.jobs import registry
     from dataforge.api.jobs.executor import run_in_executor
@@ -63,12 +65,39 @@ async def run_insights_task(
                   for r in (automl_meta.get("feature_importance") or [])
                   if isinstance(r, dict)}
             schema   = detect_schema(df, feature_importance=fi)
-            insights = run_insights(df, schema, top_n=top_n)
+            # Apply any persisted user semantic role corrections
+            user_roles = load(upload_id, "user_column_roles") or {}
+            if isinstance(user_roles, dict) and user_roles:
+                for col, role in user_roles.items():
+                    if col in schema.get("column_roles", {}):
+                        schema["column_roles"][col]["role"] = role
+                        if role == "kpi" and col not in schema["metrics"]:
+                            schema["metrics"].append(col)
+                        elif role == "identifier":
+                            if col not in schema.get("identifier_columns", []):
+                                schema["identifier_columns"].append(col)
+                            if col in schema["metrics"]:
+                                schema["metrics"].remove(col)
+                        elif role == "protected" and col not in schema.get("protected_columns", []):
+                            schema["protected_columns"].append(col)
+
+            insights = run_insights(df, schema, top_n=top_n, target_metric=target_metric, focus_prompt=focus_prompt)
             up = db_get("uploads", upload_id)
             filename = up.get("filename", "Dataset") if up else "Dataset"
+
+            # Connect live Gemini narrative synthesis
+            gem_fn = None
+            try:
+                from dataforge.gemini_pipeline import _gemini, is_available
+                if is_available():
+                    gem_fn = lambda p: _gemini(p, temperature=0.3)
+            except Exception as e:
+                log.debug("Gemini summarizer unavailable: %s", e)
+
             summary = summarise_with_gemini(
                 insights, dataset_name=filename,
-                dataset_type=schema["dataset_type"], gemini_fn=None,
+                dataset_type=schema["dataset_type"], gemini_fn=gem_fn,
+                target_metric=target_metric, focus_prompt=focus_prompt,
             )
             return schema, insights, summary, filename
 
