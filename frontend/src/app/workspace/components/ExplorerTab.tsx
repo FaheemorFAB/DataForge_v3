@@ -89,6 +89,12 @@ export function ExplorerTab() {
     reloadData();
   }, [reloadData]);
 
+  useEffect(() => {
+    if (cleanProfile) {
+      setShowClean(true);
+    }
+  }, [cleanProfile]);
+
   const filteredAndSortedRows = useMemo(() => {
     let result = [...allRows];
     if (globalSearch) {

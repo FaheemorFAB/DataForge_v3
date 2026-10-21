@@ -1036,15 +1036,6 @@ async def api_query(
     except Exception:
         pass
 
-    # Check if dataset was updated by an agent action (e.g. CleanerAgent)
-    workspace_updated = False
-    clean_prof = None
-    if any(a.get("agent") == "CleanerAgent" and a.get("status") == "completed" for a in (result.get("agent_actions") or [])):
-        workspace_updated = True
-        clean_prof = load(target_upload_id, "clean_profile")
-        result["workspace_updated"] = True
-        result["clean_profile"] = clean_prof
-
     result["chat_sessions"] = chat_data["sessions"]
     result["active_session_id"] = session_id
     result["chat_history"] = session["messages"]

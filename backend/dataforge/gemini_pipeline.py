@@ -49,8 +49,10 @@ def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 60) -> str:
     api_key = (os.getenv("GEMINI_API_KEY") or "").strip("'\"")
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not configured. Add it to backend/.env.")
-    model = (os.getenv("GEMINI_MODEL") or "gemini-4-argon").strip()
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    model_name = (os.getenv("GEMINI_MODEL") or "gemini-4-argon").strip()
+    models_to_try = [model_name, "gemini-2.5-flash", "gemini-flash-latest"]
+    models_to_try = list(dict.fromkeys(models_to_try))
+
     headers = {
         "Content-Type": "application/json",
         "x-goog-api-key": api_key,
@@ -62,22 +64,33 @@ def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 60) -> str:
             "maxOutputTokens": 8192,
         }
     }
-    response = requests.post(url, headers=headers, json=payload, timeout=timeout)
-    if response.status_code != 200 and model != "gemini-2.5-flash":
-        # Fallback to gemini-2.5-flash
-        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-        response = requests.post(url, headers=headers, json=payload, timeout=timeout)
-    if response.status_code != 200:
-        if response.status_code in (401, 402, 403, 429):
-            GEMINI_OK = False
-        logger.error("Gemini API error %s: %s", response.status_code, response.text[:300])
-        raise RuntimeError(f"Gemini API error {response.status_code}: {response.text[:300]}")
-    data = response.json()
-    candidates = data.get("candidates", [])
-    if not candidates:
-        return ""
-    parts = candidates[0].get("content", {}).get("parts", [])
-    return parts[0].get("text", "") if parts else ""
+    last_err = None
+    for m in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            if response.status_code == 200:
+                data = response.json()
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    return ""
+                parts = candidates[0].get("content", {}).get("parts", [])
+                return parts[0].get("text", "") if parts else ""
+            elif response.status_code in (404, 400):
+                last_err = f"Model {m} returned {response.status_code}: {response.text[:150]}"
+                continue
+            else:
+                if response.status_code in (401, 402, 403, 429):
+                    GEMINI_OK = False
+                logger.error("Gemini API error %s: %s", response.status_code, response.text[:300])
+                raise RuntimeError(f"Gemini API error {response.status_code}: {response.text[:300]}")
+        except Exception as exc:
+            last_err = exc
+            continue
+
+    if last_err:
+        logger.warning("[gemini_pipeline] Models exhausted, last error: %s", last_err)
+    return ""
 
 def _gemini_call(prompt: str, model: str = "", temperature: float = 0.1, timeout: int = 30) -> str:
     return _gemini(prompt, temperature=temperature, timeout=timeout)
@@ -254,6 +267,9 @@ def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "", u
                 "system_notice": res.get("system_notice"),
                 "suggested_actions": res.get("suggested_actions", []),
                 "download_links": res.get("download_links"),
+                "dataset_updated": res.get("dataset_updated", False),
+                "clean_profile": res.get("clean_profile"),
+                "version_id": res.get("version_id"),
             }
     except Exception as exc:
         logger.warning("[gemini_pipeline] ADK Supervisor exception: %s. Falling back to legacy handler.", exc)

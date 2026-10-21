@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import logging
 
+import json
+import uuid
+
 from typing import Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
@@ -16,7 +19,8 @@ from fastapi.responses import JSONResponse
 from dataforge.api.deps import CurrentUser, OptionalCurrentUser, get_job_manager_dep, get_upload_id, require_upload_with_data
 from dataforge.api.jobs.manager import JobManager
 from dataforge.api.schemas.automl import ForecastRequest, InsightsRunRequest, RootCauseRequest
-from dataforge.api.storage.manager import load
+from dataforge.api.storage.manager import load, save
+from dataforge.api.cache.manager import invalidate_upload
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_all, db_client
 
@@ -366,4 +370,74 @@ async def api_hypothesis_test(
     except Exception as e:
         log.exception("Hypothesis test failed: %s", e)
         raise HTTPException(500, f"Statistical test error: {str(e)}")
+
+
+# ── Pin AI Insights to Report & Export Pipeline ───────────────────────────────
+
+class PinInsightRequest(BaseModel):
+    upload_id: str = Field(..., description="Target dataset upload ID")
+    title: str = Field(..., description="Insight headline or chart title")
+    description: str = Field(..., description="Executive interpretation or metric summary")
+    type: str = Field("ask_ai", description="Insight classification type")
+    importance: float = Field(1.0, description="Priority weight (0.0 - 1.0)")
+    chart_data: Optional[dict] = Field(None, description="Structured chart specification for rendering")
+    table_data: Optional[dict] = Field(None, description="Tabular data snapshot if applicable")
+
+
+@router.post("/insights/pin", summary="Pin an AI generated insight, chart, or table to the Executive Report & exports")
+async def api_pin_insight(
+    body: PinInsightRequest,
+    current_user: CurrentUser,
+):
+    """
+    Pins an Ask AI generated chart, table, or analytical finding to `last_insights`.
+    The pinned insight immediately becomes available in the Insights tab,
+    the Executive HTML/PDF Report, and slide deck export generators.
+    """
+    await require_upload_with_data(body.upload_id, current_user)
+
+    insights = load(body.upload_id, "last_insights") or []
+    if not isinstance(insights, list):
+        insights = []
+
+    new_id = f"pin_{uuid.uuid4().hex[:8]}"
+    new_insight = {
+        "id": new_id,
+        "type": body.type,
+        "title": body.title,
+        "description": body.description,
+        "importance": float(body.importance),
+        "chart_data": body.chart_data,
+        "table_data": body.table_data,
+        "pinned": True,
+        "source": "Ask AI",
+    }
+
+    # Prepend pinned insight so it surfaces at the top of reports and views
+    insights.insert(0, new_insight)
+    save(body.upload_id, "last_insights", insights)
+
+    if db_client:
+        try:
+            db_client.table("insight_records").insert([{
+                "upload_id": body.upload_id,
+                "user_id": current_user.id,
+                "type": body.type,
+                "title": body.title,
+                "description": body.description,
+                "importance": float(body.importance),
+                "chart_data": json.dumps(body.chart_data) if body.chart_data else None,
+            }]).execute()
+        except Exception as exc:
+            log.warning("Failed to persist pinned insight to DB: %s", exc)
+
+    invalidate_upload(body.upload_id)
+
+    return JSONResponse(content=safe_jsonable({
+        "ok": True,
+        "pinned": True,
+        "insight": new_insight,
+        "count": len(insights),
+        "message": "Insight successfully pinned to Insights tab and Executive Report.",
+    }))
 

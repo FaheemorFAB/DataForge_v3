@@ -327,6 +327,9 @@ def route_agent_task(
             if clean_res.get("is_undo"):
                 return {
                     "ok": True,
+                    "dataset_updated": True,
+                    "version_id": clean_res.get("version_id"),
+                    "clean_profile": clean_res.get("clean_profile"),
                     "answer": (
                         f"### Dataset Snapshot Rollback Complete\n\n"
                         f"**CleanerAgent** successfully restored the dataset to the snapshot before the last cleaning operation.\n\n"
@@ -351,6 +354,10 @@ def route_agent_task(
 
             return {
                 "ok": True,
+                "dataset_updated": True,
+                "version_id": clean_res.get("version_id"),
+                "clean_profile": clean_res.get("clean_profile"),
+                "stats": stats,
                 "answer": (
                     f"### Data Sanitization Complete\n\n"
                     f"**CleanerAgent** processed your dataset:\n\n"

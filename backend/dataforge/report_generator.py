@@ -27,6 +27,7 @@ TYPE_BADGES = {
     "outlier_summary":    ("#DC2626", "Outlier Sweep ⚠️"),
     "numeric_summary":    ("#9333EA", "Numeric Metric 📐"),
     "categorical":        ("#0D9488", "Category Share 🏷️"),
+    "ask_ai":             ("#10B981", "Ask AI Strategic Finding ⚡"),
     "profile":            ("#475569", "Dataset Profile 📋"),
 }
 

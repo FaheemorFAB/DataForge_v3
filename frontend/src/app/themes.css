@@ -3,7 +3,7 @@
    These ensure variables are always defined to prevent invisible/broken UI
    ========================================================================== */
 :root {
-    --bg: #FAF9F6;
+    --bg: #F8FAFC;
     --surface: #FFFFFF;
     --border: #CBD5E1;
     --accent: #FF4310;
@@ -50,9 +50,9 @@ html[data-theme="dark"] {
     --row-head: rgba(255, 255, 255, 0.03);
 }
 
-/* 2. Light Default - High Contrast Pure Black Text */
+/* 2. Light Default - High Contrast Deep Black Typography */
 html[data-theme="light"] {
-    --bg: #FAF9F6;
+    --bg: #F8FAFC;
     --surface: #FFFFFF;
     --border: #CBD5E1;
     --accent: #FF4310;

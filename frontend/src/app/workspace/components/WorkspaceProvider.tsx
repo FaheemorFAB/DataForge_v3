@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 
 import { SheetSyncModalState } from "./SheetSyncModal";
@@ -42,8 +42,8 @@ interface WorkspaceContextType {
   setShareMeta: (meta: any) => void;
   // Initial loading state
   isLoadingWorkspace: boolean;
-  // Re-fetch current workspace state
-  refreshWorkspace: () => Promise<void>;
+  // Workspace synchronisation
+  refreshWorkspace: (targetUid?: string) => Promise<any>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
@@ -185,19 +185,32 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const refreshWorkspace = async () => {
-    if (!uploadId) return;
+  const refreshWorkspace = useCallback(async (targetUid?: string) => {
+    const uid = targetUid || uploadId;
+    if (!uid) return null;
+    let shareToken = "";
+    if (typeof window !== "undefined") {
+      try {
+        shareToken = sessionStorage.getItem("df_share_token_" + uid) || "";
+      } catch {}
+    }
+    const stateUrl = `/workspace/state?upload_id=${uid}${shareToken ? `&share_token=${shareToken}` : ""}`;
     try {
-      const res = await apiFetch(`/workspace/state?upload_id=${uploadId}`);
+      const res = await apiFetch(stateUrl);
       if (res.ok) {
         const data = await res.json();
         if (data.profile) setProfile(data.profile);
+        if (data.gemini_ok !== undefined) setGeminiOk(data.gemini_ok);
+        if (data.source_type) setSourceType(data.source_type);
         if (data.clean_profile) setCleanProfile(data.clean_profile);
+        if (data.clean_meta) setCleanResult(data.clean_meta);
+        return data;
       }
-    } catch (e) {
-      console.error("Failed to refresh workspace state:", e);
+    } catch (err) {
+      console.error("refreshWorkspace error:", err);
     }
-  };
+    return null;
+  }, [uploadId]);
 
   const value = {
     activeTab, setActiveTab,

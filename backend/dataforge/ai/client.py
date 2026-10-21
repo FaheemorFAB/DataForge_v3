@@ -20,7 +20,7 @@ if _backend_env.exists():
     load_dotenv(override=True, dotenv_path=_backend_env)
 
 DEFAULT_PRIMARY_MODEL = os.getenv("GEMINI_MODEL", "gemini-4-argon")
-FALLBACK_MODELS = ["gemini-4-argon", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+FALLBACK_MODELS = ["gemini-4-argon", "gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-lite-latest"]
 
 _cached_client: Optional[Any] = None
 _last_api_key: Optional[str] = None

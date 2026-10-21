@@ -389,6 +389,13 @@ async def api_dashboard_stats(
             "type": "rows",
         })
 
+        # Case-insensitive resolution of requested dim / metric
+        col_map = {c.lower(): c for c in df.columns}
+        if dim and dim not in df.columns and dim.lower() in col_map:
+            dim = col_map[dim.lower()]
+        if metric and metric not in df.columns and metric.lower() in col_map:
+            metric = col_map[metric.lower()]
+
         dim_col    = dim or (cat_cols[0] if cat_cols else None)
         metric_col = metric or (numeric_cols[0] if numeric_cols else None)
 
@@ -480,7 +487,7 @@ async def api_dashboard_stats(
                     pass
 
         recent_data = []
-        if dim_col and metric_col:
+        if dim_col and metric_col and dim_col in df.columns and metric_col in df.columns:
             for _, row in df.dropna(subset=[dim_col, metric_col]).tail(5).iterrows():
                 try:
                     m_val = float(row[metric_col])

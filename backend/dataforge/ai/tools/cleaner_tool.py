@@ -142,18 +142,47 @@ def clean_dataset_tool(
         if strategy == "undo":
             pre_df = load(upload_id, "df_preclean")
             if pre_df is not None:
+                from dataforge.api.storage.snapshots import SnapshotManager
+                from dataforge.api.storage.manager import persist
+                from dataforge.api.utils.helpers import df_profile
+                from dataforge.db import db_get, db_update
+                from dataforge.api.cache.manager import invalidate_upload
+                import json
+
+                version_id, snapshot_id = SnapshotManager.commit_snapshot(
+                    upload_id=upload_id,
+                    df=pre_df,
+                    action="ai_rollback",
+                    metadata={"source": "Ask AI CleanerAgent", "strategy": "undo"},
+                )
                 save(upload_id, "df_clean", pre_df)
                 try:
-                    from dataforge.api.routes.workspace import df_profile
-                    from dataforge.db import db_get
-                    up_row = db_get("uploads", upload_id) or {}
-                    c_prof = df_profile(pre_df, up_row.get("filename", "dataset.csv"))
-                    save(upload_id, "clean_profile", c_prof)
-                except Exception as p_err:
-                    logger.warning("[CleanerAgent] Undo profile regenerate notice: %s", p_err)
+                    persist(upload_id, "df_clean", pre_df)
+                except Exception:
+                    pass
+
+                up_row = db_get("uploads", upload_id) or {}
+                clean_profile = df_profile(pre_df, up_row.get("filename", "dataset.csv"))
+                clean_meta = {
+                    "stats": {"cleaned_rows": len(pre_df), "cleaned_cols": pre_df.shape[1]},
+                    "clean_profile": clean_profile,
+                    "version_id": version_id,
+                    "snapshot_id": snapshot_id,
+                    "source": "ask_ai_undo",
+                }
+                save(upload_id, "clean_meta", clean_meta)
+                try:
+                    db_update("uploads", upload_id, {"clean_meta_json": json.dumps(clean_meta, default=str)})
+                except Exception:
+                    pass
+                invalidate_upload(upload_id)
+
                 return {
                     "ok": True,
                     "is_undo": True,
+                    "dataset_updated": True,
+                    "version_id": version_id,
+                    "clean_profile": clean_profile,
                     "actions": ["Reverted dataset to snapshot before last cleaning operation"],
                     "stats": {
                         "original_rows": len(df),
@@ -221,32 +250,53 @@ def clean_dataset_tool(
         stats["initial_nulls"] = initial_nulls
         stats["final_nulls"] = final_nulls
 
-        # Persist updated clean dataframe to workspace storage cache
-        try:
-            save(upload_id, "df_clean", cleaned_df)
-            from dataforge.api.routes.workspace import df_profile
-            from dataforge.db import db_get
-            up_row = db_get("uploads", upload_id) or {}
-            c_prof = df_profile(cleaned_df, up_row.get("filename", "dataset.csv"))
-            save(upload_id, "clean_profile", c_prof)
+        # Commit snapshot with versioning and immutable parquet
+        from dataforge.api.storage.snapshots import SnapshotManager
+        from dataforge.api.storage.manager import persist
+        from dataforge.api.utils.helpers import df_profile
+        from dataforge.db import db_get, db_update
+        from dataforge.api.cache.manager import invalidate_upload
+        import json
 
-            # Record AI action history for the presentation & report
-            ai_history = load(upload_id, "ai_cleaning_actions") or []
-            ai_history.append({
-                "timestamp": pd.Timestamp.now().isoformat(),
-                "agent": "CleanerAgent",
-                "actions": actions,
-                "initial_quality": initial_quality,
-                "final_quality": final_quality,
-                "rows_before": len(df),
-                "rows_after": len(cleaned_df),
-            })
-            save(upload_id, "ai_cleaning_actions", ai_history)
-        except Exception as s_err:
-            logger.warning("[CleanerAgent] Clean dataset save notice: %s", s_err)
+        version_id, snapshot_id = SnapshotManager.commit_snapshot(
+            upload_id=upload_id,
+            df=cleaned_df,
+            action="ai_clean",
+            metadata={"source": "Ask AI CleanerAgent", "actions": actions, "stats": stats},
+        )
+
+        save(upload_id, "df_clean", cleaned_df)
+        try:
+            persist(upload_id, "df_clean", cleaned_df)
+        except Exception as p_err:
+            logger.warning("[CleanerAgent] Clean dataset save notice: %s", p_err)
+
+        up_row = db_get("uploads", upload_id) or {}
+        filename = up_row.get("filename", "dataset.csv")
+        clean_profile = df_profile(cleaned_df, filename)
+
+        clean_meta = {
+            "stats": stats,
+            "clean_profile": clean_profile,
+            "version_id": version_id,
+            "snapshot_id": snapshot_id,
+            "source": "ask_ai",
+            "actions": actions,
+        }
+        save(upload_id, "clean_meta", clean_meta)
+        try:
+            db_update("uploads", upload_id, {"clean_meta_json": json.dumps(clean_meta, default=str)})
+        except Exception:
+            pass
+
+        invalidate_upload(upload_id)
 
         return {
             "ok": True,
+            "dataset_updated": True,
+            "version_id": version_id,
+            "snapshot_id": snapshot_id,
+            "clean_profile": clean_profile,
             "actions": actions,
             "stats": stats,
             "message": f"Dataset cleaned: {stats.get('cleaned_rows', len(cleaned_df))} rows remaining. Quality: {initial_quality}% -> {final_quality}%.",

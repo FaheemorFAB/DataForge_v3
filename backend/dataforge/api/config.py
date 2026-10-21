@@ -189,7 +189,7 @@ class Settings(BaseSettings):
     GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None
     VERTEX_PROJECT: Optional[str] = None
     VERTEX_LOCATION: str = "us-central1"
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-4-argon"
 
     # ── Upload limits ─────────────────────────────────────────────────────────
     MAX_UPLOAD_SIZE_MB: int = 200

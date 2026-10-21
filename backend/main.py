@@ -21,7 +21,6 @@ if not _loaded:
 import uvicorn
 from dataforge.api.app import create_app
 
-# Trigger uvicorn reload with updated env
 app = create_app()
 
 if __name__ == "__main__":

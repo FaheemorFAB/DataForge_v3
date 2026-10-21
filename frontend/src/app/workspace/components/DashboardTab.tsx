@@ -767,7 +767,7 @@ export function DashboardTab() {
               style={{ color: dashboardMode === "auto" ? "#ffffff" : "var(--txt)" }}
             >
               <Sparkles size={12} className={dashboardMode === "auto" ? "text-amber-300" : ""} />
-              Agentic Auto
+              ⚡ Auto (Agentic)
             </button>
             <button
               onClick={() => handleModeChange("manual")}
@@ -779,7 +779,7 @@ export function DashboardTab() {
               style={{ color: dashboardMode === "manual" ? "#ffffff" : "var(--txt)" }}
             >
               <Layers size={12} />
-              Manual Studio
+              🛠️ Manual Builder
             </button>
           </div>
           <button onClick={() => loadDashboard()} className="bp flex items-center gap-2">
@@ -846,7 +846,7 @@ export function DashboardTab() {
               style={{ color: dashboardMode === "auto" ? "#ffffff" : "var(--txt)" }}
             >
               <Sparkles size={12} className={dashboardMode === "auto" ? "text-amber-300" : ""} />
-              Agentic Auto
+              ⚡ Auto (Agentic)
             </button>
             <button
               onClick={() => handleModeChange("manual")}
@@ -858,7 +858,7 @@ export function DashboardTab() {
               style={{ color: dashboardMode === "manual" ? "#ffffff" : "var(--txt)" }}
             >
               <Layers size={12} />
-              Manual Studio
+              🛠️ Manual Builder
             </button>
           </div>
 
