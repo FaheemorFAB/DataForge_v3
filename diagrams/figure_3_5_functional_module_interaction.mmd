@@ -1,0 +1,98 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#ffffff',
+    'primaryTextColor': '#000000',
+    'primaryBorderColor': '#000000',
+    'lineColor': '#000000',
+    'secondaryColor': '#ffffff',
+    'tertiaryColor': '#ffffff',
+    'mainBkg': '#ffffff',
+    'nodeBorder': '#000000',
+    'clusterBkg': '#ffffff',
+    'clusterBorder': '#000000',
+    'defaultLinkColor': '#000000',
+    'titleColor': '#000000',
+    'edgeLabelBackground': '#ffffff',
+    'fontFamily': 'Helvetica, Arial, sans-serif',
+    'fontSize': '11px'
+  },
+  'themeCSS': '.edgeLabel { background-color: #ffffff !important; color: #000000 !important; border: 1px solid #000000 !important; padding: 2px 4px !important; border-radius: 2px !important; font-size: 10px !important; } .edgeLabel rect { fill: #ffffff !important; stroke: #000000 !important; stroke-width: 0.8px !important; } .cluster rect { fill: #ffffff !important; stroke: #000000 !important; stroke-width: 1.5px !important; } .node rect, .node circle, .node ellipse, .node polygon, .node path { fill: #ffffff !important; stroke: #000000 !important; }'
+}}%%
+
+flowchart TD
+    classDef module fill:#ffffff,stroke:#000000,stroke-width:1.5px,color:#000000;
+    classDef engine fill:#ffffff,stroke:#000000,stroke-width:1.8px,color:#000000;
+    classDef infra fill:#ffffff,stroke:#000000,stroke-width:1.5px,stroke-dasharray: 4 2,color:#000000;
+
+    subgraph MOD_AUTH ["1. Security, Identity & Workspace Governance"]
+        M_AUTH["Auth & Governance Module<br/>(OAuth 2.0 / JWT / RBAC / Quota Enforcer)"]:::module
+    end
+
+    subgraph MOD_INGEST ["2. Data Ingestion & Ingress Connectors"]
+        M_INGEST["Ingestion Connector Suite<br/>(CSV / Excel Online / Sheets API / Remote SQL)"]:::module
+    end
+
+    subgraph MOD_PIPELINE ["3. Data Transformation & Pipeline Engines"]
+        direction TB
+        M_CLEAN["Data Cleaner Module<br/>(Outlier Clipper / Imputation / Type Coercion)"]:::engine
+        M_JOIN["Join Canvas Engine<br/>(Multi-Table DuckDB Hash Joins)"]:::engine
+        M_DFSPE["DF-SPE Procedure Engine<br/>(DuckDB SQL Compiler, AST Validator, Assertion Gates)"]:::engine
+    end
+
+    subgraph MOD_ANALYTICS ["4. Analytical Profiling & Statistical Insight Core"]
+        direction TB
+        M_EDA["EDA & Data Quality Module<br/>(Missingness Matrix, Skew, Cardinality)"]:::engine
+        M_INSIGHT["Deterministic Insight Engine<br/>(14 Statistical Scanners: Trends, Outliers, Segments)"]:::engine
+    end
+
+    subgraph MOD_AI_ML ["5. Augmented Intelligence & AutoML Systems"]
+        direction TB
+        M_AI["Augmented AI Engine<br/>(Gemini 2.5 Flash Pipeline + Safe AST Code Sandbox)"]:::engine
+        M_AUTOML["AutoML & Model Registry<br/>(FLAML, Hyperparameter Tuner, Metric Evaluator)"]:::engine
+    end
+
+    subgraph MOD_OUTPUT ["6. Presentation, Alerting & Distribution"]
+        direction TB
+        M_REPORT["Executive Report Generator<br/>(Pure Python Vector SVG & Deck Engine)"]:::module
+        M_ALERT["Alert & Baseline Engine<br/>(Statistical Drift & Threshold Breach Monitor)"]:::module
+    end
+
+    subgraph MOD_INFRA ["7. Shared Infrastructure & Data Orchestration"]
+        direction TB
+        M_STORE["Storage & Snapshot Manager<br/>(Supabase DB, Parquet Bucket, Snapshot Materializer)"]:::infra
+        M_JOBS["Async Job Manager & WebSocket Streamer<br/>(ThreadPoolExecutor / Redis Queue / /ws PubSub)"]:::infra
+    end
+
+    %% Interactions & Data Contracts
+    M_AUTH ==>|"1. Authorize User & Check Quota"| M_INGEST
+    M_AUTH -.->|"2. Audit Events & Access Policies"| M_STORE
+
+    M_INGEST -->|"3. Raw Ingested DataFrame & Schema"| M_STORE
+    M_INGEST -->|"4. Dispatch Ingestion Task"| M_JOBS
+    M_INGEST -->|"5. Hand off Raw Dataset"| M_EDA
+
+    M_EDA -->|"6. Quality Score & Health Card"| M_CLEAN
+    M_EDA -->|"7. Multi-Dataset Metadata"| M_JOIN
+
+    M_CLEAN -->|"8. Transformation Spec"| M_DFSPE
+    M_JOIN -->|"9. Joined Staged Table"| M_DFSPE
+
+    M_DFSPE -->|"10. Compiled DuckDB Execution Graph"| M_STORE
+    M_DFSPE -->|"11. Immutable Parquet Snapshot & Lineage"| M_INSIGHT
+    M_DFSPE -->|"12. Snapshot Reference"| M_AUTOML
+
+    M_INSIGHT -->|"13. Ranked Statistical Insight Dictionaries"| M_AI
+    M_INSIGHT -->|"14. Ingestion Baseline Metrics"| M_ALERT
+
+    M_AI -->|"15. Contextual Prompts & Synthesis"| M_REPORT
+    M_AI <-->|"16. Safe Query Execution in Sandbox"| M_STORE
+
+    M_AUTOML -->|"17. Async Training Job Status"| M_JOBS
+    M_AUTOML -->|"18. Serialized Model (.joblib) & Test Metrics"| M_STORE
+    M_AUTOML -->|"19. Model Card & Feature Importance"| M_REPORT
+
+    M_ALERT -->|"20. Drift Alarms & Threshold Status"| M_REPORT
+
+    M_JOBS ==>|"21. Real-Time Push Events (/ws)"| M_AUTH
+    M_STORE <-->|"22. Query State & Retrieve Artifacts"| M_REPORT
