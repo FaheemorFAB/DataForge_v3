@@ -229,7 +229,7 @@ async def apply_to_workspace(
     from dataforge.api.storage.manager import load, save
     from dataforge.api.cache.manager import invalidate_upload
     from dataforge.api.deps import require_upload_with_data
-    from dataforge.profiler import df_profile
+    from dataforge.api.utils.helpers import df_profile
     from dataforge.db import db_get
 
     upload_id = req.upload_id

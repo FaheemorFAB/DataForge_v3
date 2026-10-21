@@ -38,7 +38,7 @@ interface ModelRecord {
   features: string[];
   metrics: Record<string, number>;
   version: string;
-  status: "production" | "staging" | "archived";
+  status?: string;
   created_by: string;
   created_at: string;
   summary?: string;
@@ -61,10 +61,10 @@ interface PredictionResult {
 }
 
 export function ModelRegistryTab() {
-  const { uploadId, refreshWorkspace, setActiveTab } = useWorkspace();
+  const { uploadId, refreshWorkspace, setActiveTab, activeTab } = useWorkspace();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [taskFilter, setTaskFilter] = useState<"all" | "classification" | "regression">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
   // In-Workspace Application State
@@ -195,19 +195,12 @@ export function ModelRegistryTab() {
     fetchModels();
   }, [fetchModels]);
 
-  const handleStatusChange = async (modelId: string, newStatus: string) => {
-    try {
-      const res = await apiFetch(`/models/${modelId}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (res.ok) {
-        fetchModels();
-      }
-    } catch (e) {
-      console.error("Failed to update status:", e);
+  // Re-fetch automatically when the user activates the Models tab
+  useEffect(() => {
+    if (activeTab === "models") {
+      fetchModels();
     }
-  };
+  }, [activeTab, fetchModels]);
 
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -336,16 +329,17 @@ export function ModelRegistryTab() {
   };
 
   const filteredModels = models.filter((m) => {
-    const matchesStatus = statusFilter === "all" || m.status === statusFilter;
+    const matchesTask = taskFilter === "all" || m.task_type === taskFilter;
     const matchesSearch =
       m.model_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.algorithm.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.target_column.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
+      m.target_column.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (m.features || []).some((f) => f.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesTask && matchesSearch;
   });
 
-  const prodCount = models.filter((m) => m.status === "production").length;
-  const stagingCount = models.filter((m) => m.status === "staging").length;
+  const classificationCount = models.filter((m) => m.task_type === "classification").length;
+  const regressionCount = models.filter((m) => m.task_type === "regression").length;
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)", color: "var(--txt)" }}>
@@ -369,7 +363,7 @@ export function ModelRegistryTab() {
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold">Enterprise Model Registry</h1>
               <span
-                className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider"
+                className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider"
                 style={{
                   background: "rgba(16, 185, 129, 0.15)",
                   color: "#10b981",
@@ -399,17 +393,16 @@ export function ModelRegistryTab() {
             className="px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-mono"
             style={{ background: "var(--card)", borderColor: "var(--border)" }}
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span style={{ color: "var(--txt-m)" }}>Production:</span>
-            <span className="font-bold text-emerald-500">{prodCount}</span>
+            <span style={{ color: "var(--txt-m)" }}>Classification:</span>
+            <span className="font-bold text-indigo-400">{classificationCount}</span>
           </div>
 
           <div
             className="px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs font-mono"
             style={{ background: "var(--card)", borderColor: "var(--border)" }}
           >
-            <span style={{ color: "var(--txt-m)" }}>Staging:</span>
-            <span className="font-bold text-amber-500">{stagingCount}</span>
+            <span style={{ color: "var(--txt-m)" }}>Regression:</span>
+            <span className="font-bold text-cyan-400">{regressionCount}</span>
           </div>
 
           <div
@@ -418,8 +411,19 @@ export function ModelRegistryTab() {
           >
             <Zap size={13} className="text-amber-400" />
             <span style={{ color: "var(--txt-m)" }}>Latency:</span>
-            <span className="font-bold text-indigo-400">&lt;2ms SLA</span>
+            <span className="font-bold text-emerald-400">&lt;2ms SLA</span>
           </div>
+
+          <button
+            onClick={fetchModels}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all hover:scale-[1.02] cursor-pointer"
+            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+            title="Reload model catalog"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin text-indigo-400" : ""} />
+            <span>Refresh</span>
+          </button>
 
           <button
             onClick={() => setShowRegisterModal(true)}
@@ -438,17 +442,17 @@ export function ModelRegistryTab() {
         style={{ background: "var(--bg)", borderColor: "var(--border)" }}
       >
         <div className="flex items-center gap-2">
-          {["all", "production", "staging", "archived"].map((st) => (
+          {(["all", "classification", "regression"] as const).map((task) => (
             <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
+              key={task}
+              onClick={() => setTaskFilter(task)}
               className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition-colors cursor-pointer border ${
-                statusFilter === st
+                taskFilter === task
                   ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
                   : "border-transparent text-[var(--txt-m)] hover:text-[var(--txt)]"
               }`}
             >
-              {st}
+              {task === "all" ? "All Tasks" : task}
             </button>
           ))}
         </div>
@@ -523,8 +527,6 @@ export function ModelRegistryTab() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {filteredModels.map((m) => {
-              const isProd = m.status === "production";
-              const isStaging = m.status === "staging";
               return (
                 <div
                   key={m.id}
@@ -564,30 +566,31 @@ export function ModelRegistryTab() {
                       </p>
                     </div>
 
-                    {/* STATUS SELECTOR */}
+                    {/* MODEL SOURCE BADGE */}
                     <div className="shrink-0 flex items-center gap-2">
-                      <select
-                        value={m.status}
-                        onChange={(e) => handleStatusChange(m.id, e.target.value)}
-                        className="px-2 py-1 text-xs rounded-lg border font-bold cursor-pointer"
-                        style={{
-                          background: isProd
-                            ? "rgba(16, 185, 129, 0.12)"
-                            : isStaging
-                            ? "rgba(245, 158, 11, 0.12)"
-                            : "rgba(148, 163, 184, 0.12)",
-                          color: isProd ? "#10b981" : isStaging ? "#f59e0b" : "#94a3b8",
-                          borderColor: isProd
-                            ? "rgba(16, 185, 129, 0.3)"
-                            : isStaging
-                            ? "rgba(245, 158, 11, 0.3)"
-                            : "rgba(148, 163, 184, 0.3)",
-                        }}
-                      >
-                        <option value="production">Production</option>
-                        <option value="staging">Staging</option>
-                        <option value="archived">Archived</option>
-                      </select>
+                      {m.upload_id ? (
+                        <span
+                          className="px-2.5 py-1 text-[10px] font-mono rounded-lg border font-semibold"
+                          style={{
+                            background: "var(--inp-bg)",
+                            borderColor: "var(--border)",
+                            color: "var(--txt-m)",
+                          }}
+                        >
+                          Dataset: {m.upload_id}
+                        </span>
+                      ) : (
+                        <span
+                          className="px-2.5 py-1 text-[10px] font-mono rounded-lg border font-semibold"
+                          style={{
+                            background: "var(--inp-bg)",
+                            borderColor: "var(--border)",
+                            color: "var(--txt-f)",
+                          }}
+                        >
+                          Benchmark Seed
+                        </span>
+                      )}
                     </div>
                   </div>
 

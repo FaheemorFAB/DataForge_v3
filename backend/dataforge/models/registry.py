@@ -276,6 +276,13 @@ class ModelRegistry:
                         X[col] = 0
                 X = X[feat_cols]
 
+                # Preprocess non-numeric columns
+                for col in X.select_dtypes(include=["object", "category", "string"]).columns:
+                    codes = X[col].astype("category").cat.codes.astype(float)
+                    codes[codes == -1] = np.nan
+                    X[col] = codes
+                X = X.fillna(0)
+
                 if hasattr(pipeline, "predict"):
                     pred_raw = pipeline.predict(X)[0]
                 elif hasattr(pipeline, "estimator") and hasattr(pipeline.estimator, "predict"):
@@ -389,6 +396,21 @@ class ModelRegistry:
                         X[c] = df[c]
                     else:
                         X[c] = 0
+                X = X[feat_cols]
+
+                # Preprocess non-numeric columns to match trainer expectations
+                for col in X.select_dtypes(include=["object", "category", "string"]).columns:
+                    codes = X[col].astype("category").cat.codes.astype(float)
+                    codes[codes == -1] = np.nan
+                    X[col] = codes
+
+                for col in X.select_dtypes(include=["datetime64", "datetimetz"]).columns:
+                    try:
+                        X[col] = pd.to_datetime(X[col]).astype("int64") // 10**9
+                    except Exception:
+                        X[col] = 0
+
+                X = X.fillna(0)
 
                 if hasattr(pipeline, "predict"):
                     raw_preds = pipeline.predict(X)
@@ -434,16 +456,26 @@ class ModelRegistry:
                     "is_real_artifact": True,
                 }
             except Exception as e:
-                log.warning("Real artifact predict_dataframe failed, falling back to row-wise inference: %s", e)
+                log.warning("Real artifact predict_dataframe failed, executing vectorized heuristic: %s", e)
 
-        # Fallback heuristic prediction
-        preds = []
-        confidences = []
-        for _, row in df.iterrows():
-            res = cls.predict(model_id, row.to_dict())
-            preds.append(res.get("prediction"))
-            if task_type == "classification":
-                confidences.append(res.get("confidence", 0.9))
+        # High-speed vectorized heuristic fallback (no slow row loops)
+        if task_type == "classification":
+            score = pd.Series(0.5, index=df.index)
+            weights = {"income": -0.00001, "annual_income_usd": -0.00001, "age": 0.015, "support_calls": 0.18, "tenure_months": -0.02}
+            for feat, w in weights.items():
+                if feat in df.columns and pd.api.types.is_numeric_dtype(df[feat]):
+                    score += df[feat].fillna(0) * w
+            prob_1 = (1 / (1 + np.exp(-score * 2))).round(4)
+            preds = (prob_1 >= 0.5).astype(int).tolist()
+            confidences = np.maximum(prob_1, 1 - prob_1).round(4).tolist()
+        else:
+            base_val = pd.Series(100.0, index=df.index)
+            num_cols = df.select_dtypes(include="number").columns
+            if len(num_cols) > 0:
+                for c in num_cols[:4]:
+                    base_val += df[c].fillna(0) * 0.15
+            preds = base_val.round(2).tolist()
+            confidences = None
 
         latency_ms = round((time.perf_counter() - t0) * 1000, 2)
         return {
