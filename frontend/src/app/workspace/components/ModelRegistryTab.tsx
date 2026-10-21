@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { useWorkspace } from "./WorkspaceProvider";
 import {
   Boxes,
   Play,
@@ -60,10 +61,57 @@ interface PredictionResult {
 }
 
 export function ModelRegistryTab() {
+  const { uploadId, refreshWorkspace, setActiveTab } = useWorkspace();
   const [models, setModels] = useState<ModelRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // In-Workspace Application State
+  const [applyingModelId, setApplyingModelId] = useState<string | null>(null);
+  const [applyToast, setApplyToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const handleApplyToWorkspace = async (model: ModelRecord) => {
+    if (!uploadId) {
+      setApplyToast({
+        message: "No active dataset loaded in workspace. Please load or upload a dataset first.",
+        type: "error",
+      });
+      setTimeout(() => setApplyToast(null), 5000);
+      return;
+    }
+    setApplyingModelId(model.id);
+    setApplyToast(null);
+    try {
+      const res = await apiFetch(`/models/${model.id}/apply-to-workspace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upload_id: uploadId }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setApplyToast({
+          message: `Successfully applied '${model.model_name}'! Scored ${d.rows_scored} rows. Added columns: [${d.new_columns.join(", ")}].`,
+          type: "success",
+        });
+        if (refreshWorkspace) await refreshWorkspace(uploadId);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setApplyToast({
+          message: `Application failed: ${err.detail || err.error || res.statusText}`,
+          type: "error",
+        });
+      }
+    } catch (e: any) {
+      setApplyToast({
+        message: `Network error: ${e.message || String(e)}`,
+        type: "error",
+      });
+    } finally {
+      setApplyingModelId(null);
+      setTimeout(() => setApplyToast(null), 8000);
+    }
+  };
 
   // Testing & Inference modal
   const [activeModelForInference, setActiveModelForInference] = useState<ModelRecord | null>(null);
@@ -421,6 +469,38 @@ export function ModelRegistryTab() {
         </div>
       </div>
 
+      {/* Toast Notification for Workspace Application */}
+      {applyToast && (
+        <div
+          className={`shrink-0 mx-4 mt-3 p-3 rounded-xl border flex items-center justify-between gap-3 text-xs font-bold transition-all ${
+            applyToast.type === "success"
+              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+              : "bg-red-500/15 border-red-500/30 text-red-300"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {applyToast.type === "success" ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" /> : <AlertCircle size={16} className="text-red-400 shrink-0" />}
+            <span>{applyToast.message}</span>
+          </div>
+          {applyToast.type === "success" && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setActiveTab("preview")}
+                className="px-2.5 py-1 rounded-lg bg-emerald-500 text-white text-[11px] font-black hover:bg-emerald-400 transition cursor-pointer"
+              >
+                Inspect in My Data
+              </button>
+              <button
+                onClick={() => setActiveTab("charts")}
+                className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-black hover:bg-indigo-500 transition cursor-pointer"
+              >
+                View in Dashboard
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* CATALOG GRID */}
       <div className="flex-1 overflow-y-auto p-4">
         {loading ? (
@@ -556,7 +636,26 @@ export function ModelRegistryTab() {
                       By {m.created_by.split("@")[0]}
                     </span>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => handleApplyToWorkspace(m)}
+                        disabled={applyingModelId === m.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all hover:scale-[1.02] cursor-pointer"
+                        style={{
+                          background: "linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.08))",
+                          borderColor: "rgba(16, 185, 129, 0.35)",
+                          color: "#10b981",
+                        }}
+                        title="Score active workspace dataset and append prediction columns"
+                      >
+                        {applyingModelId === m.id ? (
+                          <Loader2 size={13} className="animate-spin text-emerald-400" />
+                        ) : (
+                          <Play size={13} className="text-emerald-400" />
+                        )}
+                        <span>{applyingModelId === m.id ? "Scoring Dataset..." : "⚡ Apply to Workspace Data"}</span>
+                      </button>
+
                       <button
                         onClick={() => openInferencePlayground(m)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all hover:scale-[1.02] cursor-pointer"

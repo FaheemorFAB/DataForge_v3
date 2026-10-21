@@ -47,7 +47,7 @@ type RoleId = typeof ROLES[number]["id"];
 const TABS = [
   { id: "preview",   label: "My Data",     icon: Table,          desc: "View and search your dataset" },
   { id: "cleaning",  label: "Clean & Fix", icon: Wand2,          desc: "Repair blanks and fix data types" },
-  { id: "dashboard", label: "Charts",      icon: LayoutDashboard,desc: "Build charts and visual reports" },
+  { id: "dashboard", label: "Dashboard",   icon: LayoutDashboard,desc: "Executive KPI strip & visual reports" },
   { id: "insights",  label: "Insights",    icon: Lightbulb,      desc: "Key takeaways in plain English" },
   { id: "query",     label: "Ask AI",      icon: MessageSquare,  desc: "Chat with your data naturally" },
   { id: "automl",    label: "AutoML",      icon: Bot,            desc: "Train predictive models with AutoML" },

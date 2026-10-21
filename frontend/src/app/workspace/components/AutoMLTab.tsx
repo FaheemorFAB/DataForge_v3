@@ -31,10 +31,11 @@ const AVAILABLE_ALGORITHMS = [
 ];
 
 export function AutoMLTab() {
-  const { profile, cleanProfile, uploadId, setActiveTab, automlMeta, setAutomlMeta } = useWorkspace();
+  const { profile, cleanProfile, uploadId, setActiveTab, automlMeta, setAutomlMeta, refreshWorkspace } = useWorkspace();
   const effectiveProfile = cleanProfile || profile;
 
   // Configuration States
+  const [customModelName, setCustomModelName] = useState("");
   const [automlTarget, setAutomlTarget] = useState("");
   const [automlTask, setAutomlTask] = useState("auto-detect");
   const [automlTimeBudget, setAutomlTimeBudget] = useState("60");
@@ -64,14 +65,47 @@ export function AutoMLTab() {
   const [deploySuccessMsg, setDeploySuccessMsg] = useState("");
   const [deployErrorMsg, setDeployErrorMsg] = useState("");
 
+  // Real Workspace Inference State
+  const [isApplyingModel, setIsApplyingModel] = useState(false);
+  const [applySuccessMsg, setApplySuccessMsg] = useState("");
+  const [applyErrorMsg, setApplyErrorMsg] = useState("");
+
   // Restore previous AutoML result on refresh
   useEffect(() => {
     if (automlMeta && !automlResult) {
       setAutomlResult(automlMeta);
       if (automlMeta.target) setAutomlTarget(automlMeta.target);
       if (automlMeta.task) setDetectedTask(automlMeta.task);
+      if (automlMeta.model_name) setCustomModelName(automlMeta.model_name);
     }
   }, [automlMeta]);
+
+  const applyModelToWorkspace = async () => {
+    const targetModelId = automlResult?.registered_model_id;
+    if (!targetModelId || !uploadId) return;
+    setIsApplyingModel(true);
+    setApplySuccessMsg("");
+    setApplyErrorMsg("");
+    try {
+      const res = await apiFetch(`/models/${targetModelId}/apply-to-workspace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upload_id: uploadId }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setApplySuccessMsg(`Successfully scored ${d.rows_scored} rows! Added columns: [${d.new_columns.join(", ")}] to your active workspace dataset.`);
+        if (refreshWorkspace) await refreshWorkspace(uploadId);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setApplyErrorMsg(`Failed to apply model: ${err.detail || err.error || res.statusText}`);
+      }
+    } catch (err: any) {
+      setApplyErrorMsg(`Failed to apply model: ${err.message || String(err)}`);
+    } finally {
+      setIsApplyingModel(false);
+    }
+  };
 
   const deployChampionToRegistry = async () => {
     if (!automlResult) return;
@@ -79,7 +113,7 @@ export function AutoMLTab() {
     setDeploySuccessMsg("");
     setDeployErrorMsg("");
     try {
-      const modelName = `${automlTarget || "Target"}_${automlResult.best_estimator || "Champion"}`.replace(/[^a-zA-Z0-9_]/g, "_");
+      const modelName = (customModelName.trim() || `${automlTarget || "Target"}_${automlResult.best_estimator || "Champion"}`).replace(/[^a-zA-Z0-9_ ]/g, "_");
       const payload = {
         model_name: modelName,
         task_type: automlResult.task || detectedTask || "classification",
@@ -88,7 +122,7 @@ export function AutoMLTab() {
         features: selectedFeatures,
         metrics: automlResult.metrics || { score: automlResult.test_score ?? 0.88 },
         version: "v1.0.0",
-        summary: `Automated champion estimator trained via DataForge tournament on ${effectiveProfile?.filename || "dataset"} (${automlResult.train_rows || 0} rows).`,
+        summary: `Champion estimator trained via DataForge tournament on ${effectiveProfile?.filename || "dataset"} (${automlResult.train_rows || 0} rows).`,
         upload_id: uploadId,
       };
       const res = await apiFetch("/models", {
@@ -260,6 +294,7 @@ export function AutoMLTab() {
           cv_folds: cvFolds,
           metric_override: metricOverride,
           upload_id: uploadId,
+          model_name: customModelName.trim() || undefined,
         }),
       });
 
@@ -361,7 +396,7 @@ export function AutoMLTab() {
       </div>
 
       {/* -- SECTION 1: TARGET SELECTION & PRIMARY CONFIG -- */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-5 rounded-2xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 p-5 rounded-2xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         {/* Target Column */}
         <div>
           <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: "var(--txt-m)" }}>
@@ -369,7 +404,13 @@ export function AutoMLTab() {
           </label>
           <select 
             value={automlTarget} 
-            onChange={e => setAutomlTarget(e.target.value)} 
+            onChange={e => {
+              const val = e.target.value;
+              setAutomlTarget(val);
+              if (!customModelName && val) {
+                setCustomModelName(`${val.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
+              }
+            }} 
             className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl outline-none transition-all"
             style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
             <option value="">- Select Target Column -</option>
@@ -383,6 +424,24 @@ export function AutoMLTab() {
               <span>Detected: {detectedTask} ({detectedNUnique} unique)</span>
             </div>
           )}
+        </div>
+
+        {/* Model Name Input */}
+        <div>
+          <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: "var(--txt-m)" }}>
+            Model Identifier
+          </label>
+          <input
+            type="text"
+            value={customModelName}
+            onChange={e => setCustomModelName(e.target.value)}
+            placeholder={automlTarget ? `${automlTarget} Predictor` : "e.g. Churn XGBoost Model"}
+            className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl outline-none transition-all"
+            style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}
+          />
+          <span className="block mt-1 text-[10px]" style={{ color: "var(--txt-f)" }}>
+            Auto-stored in Model Catalog
+          </span>
         </div>
 
         {/* Task Override */}
@@ -1016,50 +1075,64 @@ print("Predicted Output:", predictions)
             </div>
           </div>
 
-          {/* -- Enterprise Model Registry Deployment Card -- */}
-          <div className="p-5 rounded-2xl border flex flex-col md:flex-row items-center justify-between gap-4" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(59,130,246,0.04))", borderColor: "rgba(99,102,241,0.25)" }}>
-            <div className="flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
-                <Boxes size={20} className="text-white" />
+          {/* -- Enterprise Model Registry & In-Workspace Application Card -- */}
+          <div className="p-5 rounded-2xl border space-y-4" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(59,130,246,0.04))", borderColor: "rgba(99,102,241,0.25)" }}>
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-md" style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
+                  <Boxes size={20} className="text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                      Champion Model: <span className="text-indigo-400 font-mono">{automlResult.model_name || customModelName || automlResult.best_estimator || "Ensemble"}</span>
+                    </h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      ✓ Stored in Model Catalog
+                    </span>
+                  </div>
+                  <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
+                    Trained on {automlResult.train_rows || 0} rows. Apply directly to your active workspace dataset to append prediction &amp; probability columns.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-                  Enterprise Model Registry &amp; Private Endpoint
-                </h4>
-                <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
-                  Promote champion <strong className="text-indigo-400 font-mono">{automlResult.best_estimator || "Ensemble"}</strong> to your team registry for REST inference and container export.
-                </p>
-                {deploySuccessMsg && (
-                  <div className="mt-2 flex items-center gap-3">
-                    <p className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5">
-                      <CheckCircle2 size={13} /> {deploySuccessMsg}
-                    </p>
-                    <button
-                      onClick={() => setActiveTab("models")}
-                      className="px-3 py-1 rounded-lg text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02] transition"
-                      style={{ background: "#10b981" }}
-                    >
-                      <span>Open in Model Registry</span>
-                      <ArrowRight size={12} />
-                    </button>
-                  </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {automlResult.registered_model_id && (
+                  <button
+                    onClick={() => applyModelToWorkspace()}
+                    disabled={isApplyingModel}
+                    className="px-4 py-2.5 rounded-xl font-bold text-xs text-white flex items-center gap-2 shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
+                    style={{ background: "linear-gradient(135deg, #10b981, #059669)", opacity: isApplyingModel ? 0.7 : 1 }}
+                  >
+                    <Play size={13} />
+                    <span>{isApplyingModel ? "Scoring Dataset..." : "⚡ Apply Model to Current Dataset"}</span>
+                  </button>
                 )}
-                {deployErrorMsg && (
-                  <div className="mt-2 flex items-center gap-2 text-[11px] font-bold text-red-400">
-                    <AlertCircle size={13} /> {deployErrorMsg}
-                  </div>
-                )}
+
+                <button
+                  onClick={() => setActiveTab("models")}
+                  className="px-4 py-2.5 rounded-xl font-bold text-xs border text-slate-200 hover:text-white flex items-center gap-1.5 transition-all hover:scale-[1.02] cursor-pointer"
+                  style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                >
+                  <span>Open in Models Catalog</span>
+                  <ArrowRight size={13} />
+                </button>
               </div>
             </div>
-            <button
-              onClick={deployChampionToRegistry}
-              disabled={isDeployingModel}
-              className="px-5 py-2.5 rounded-xl font-bold text-xs text-white shrink-0 flex items-center gap-2 shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
-              style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)", opacity: isDeployingModel ? 0.7 : 1 }}
-            >
-              <Boxes size={14} />
-              <span>{isDeployingModel ? "Deploying Artifact..." : "★ Deploy Champion to Registry"}</span>
-            </button>
+
+            {applySuccessMsg && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 size={15} />
+                <span>{applySuccessMsg} View changes in <button onClick={() => setActiveTab("preview")} className="underline font-black cursor-pointer">My Data</button> or <button onClick={() => setActiveTab("charts")} className="underline font-black cursor-pointer">Dashboard</button>.</span>
+              </div>
+            )}
+            {applyErrorMsg && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold flex items-center gap-2">
+                <AlertCircle size={15} />
+                <span>{applyErrorMsg}</span>
+              </div>
+            )}
           </div>
         </div>
 

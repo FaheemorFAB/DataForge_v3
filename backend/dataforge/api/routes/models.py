@@ -18,6 +18,7 @@ from dataforge.api.deps import CurrentUser
 from dataforge.db import User
 from dataforge.api.schemas.models import (
     BatchPredictRequest,
+    ApplyToWorkspaceRequest,
     ModelRecordResponse,
     PredictionResultResponse,
     PredictRequest,
@@ -213,6 +214,82 @@ async def batch_predict_csv(
         log.exception("Batch predict CSV error: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to score CSV: {str(e)}")
 
+
+@router.post("/{model_id}/apply-to-workspace", summary="Apply model inference directly to the active workspace dataset")
+async def apply_to_workspace(
+    model_id: str,
+    req: ApplyToWorkspaceRequest,
+    current_user: CurrentUser,
+):
+    """
+    Scores the active workspace dataset (df_clean / df_raw) against the model,
+    appends 'predicted_{target}' and 'prediction_confidence' columns,
+    and updates workspace dataset storage and profiles.
+    """
+    from dataforge.api.storage.manager import load, save
+    from dataforge.api.cache.manager import invalidate_upload
+    from dataforge.api.deps import require_upload_with_data
+    from dataforge.profiler import df_profile
+    from dataforge.db import db_get
+
+    upload_id = req.upload_id
+    await require_upload_with_data(upload_id, current_user)
+
+    m = ModelRegistry.get_model(model_id)
+    if not m:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found.")
+
+    # Load active dataset
+    df = load(upload_id, "df_clean")
+    if df is None:
+        df = load(upload_id, "df_raw")
+    if df is None or df.empty:
+        raise HTTPException(status_code=400, detail="Workspace dataset is empty or not loaded.")
+
+    try:
+        eval_result = ModelRegistry.predict_dataframe(model_id, df)
+
+        target_name = m.get("target_column") or "target"
+        col_pred = req.pred_col_name or f"predicted_{target_name}"
+        col_conf = f"{col_pred}_confidence"
+
+        df[col_pred] = eval_result["predictions"]
+        new_cols = [col_pred]
+
+        if eval_result.get("confidences") is not None:
+            df[col_conf] = eval_result["confidences"]
+            new_cols.append(col_conf)
+
+        # Save back to df_clean so all workspace tabs see it
+        save(upload_id, "df_clean", df)
+
+        # Compute updated profile and save
+        up_row = db_get("uploads", upload_id) or {}
+        filename = up_row.get("filename", "dataset.csv")
+        try:
+            profile = df_profile(df, filename)
+            save(upload_id, "clean_profile", profile)
+        except Exception as p_exc:
+            log.warning("Profile re-computation error: %s", p_exc)
+
+        invalidate_upload(upload_id)
+
+        sample_preview = df[new_cols].head(5).to_dict("records")
+        return JSONResponse(
+            content=safe_jsonable({
+                "ok": True,
+                "model_id": model_id,
+                "model_name": m.get("model_name"),
+                "rows_scored": len(df),
+                "new_columns": new_cols,
+                "sample_preview": sample_preview,
+                "latency_ms": eval_result.get("latency_ms", 0),
+                "is_real_artifact": eval_result.get("is_real_artifact", False),
+            })
+        )
+    except Exception as e:
+        log.exception("Apply to workspace failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to apply model to workspace: {str(e)}")
 
 
 @router.get("/{model_id}/docker-package", summary="Download 1-click standalone Docker microservice bundle")

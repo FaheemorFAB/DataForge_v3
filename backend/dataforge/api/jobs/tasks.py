@@ -163,10 +163,11 @@ async def run_automl_task(
     cv_strategy: str = "auto",
     cv_folds: int = 5,
     metric_override: str = "auto",
+    model_name: Optional[str] = None,
 ):
     from dataforge.api.jobs import registry
     from dataforge.api.jobs.executor import run_in_executor
-    from dataforge.api.storage.manager import load, save
+    from dataforge.api.storage.manager import load, save, STORE_DIR
     from dataforge.api.cache.manager import invalidate_upload
     from dataforge.api.websocket.manager import get_ws_manager
     from dataforge.db import db_get, db_update
@@ -201,14 +202,55 @@ async def run_automl_task(
 
         model_pkl = result.pop("model_pkl", None)
         result["target_col"] = target_col
-        save(upload_id, "automl_meta", result)
 
         if model_pkl:
             d = PROJECTS_DIR / str(upload_id)
-            d.mkdir(exist_ok=True)
+            d.mkdir(parents=True, exist_ok=True)
             lock_path = d / "model_pkl.lock"
             with FileLock(str(lock_path)):
                 (d / "model_pkl.joblib").write_bytes(model_pkl)
+
+            # Auto-register into ModelRegistry so it appears in the Models catalog immediately
+            try:
+                from dataforge.models.registry import ModelRegistry
+                eff_name = (model_name or "").strip()
+                if not eff_name:
+                    algo_label = str(result.get("best_estimator", "AutoML")).replace("_", " ").title()
+                    eff_name = f"{target_col.title()} {algo_label} Predictor"
+
+                m_metrics = result.get("metrics") or {}
+                if not m_metrics and result.get("best_loss") is not None:
+                    m_metrics = {"loss": float(result.get("best_loss"))}
+
+                user_rec = db_get("users", user_id)
+                user_email = user_rec.get("email") if user_rec else f"user_{user_id}@dataforge.app"
+
+                reg_model = ModelRegistry.register_model(
+                    org_id="default",
+                    model_name=eff_name,
+                    task_type=result.get("task", "classification"),
+                    algorithm=result.get("best_estimator", "AutoML"),
+                    target_column=target_col,
+                    features=result.get("feature_columns") or feature_whitelist or [],
+                    metrics=m_metrics,
+                    created_by=user_email,
+                    upload_id=str(upload_id),
+                    version="v1.0.0",
+                    summary=f"Champion model trained on dataset {upload_id}."
+                )
+
+                reg_id = reg_model["id"]
+                models_dir = STORE_DIR / "models"
+                models_dir.mkdir(parents=True, exist_ok=True)
+                (models_dir / f"{reg_id}.joblib").write_bytes(model_pkl)
+
+                result["registered_model_id"] = reg_id
+                result["model_name"] = eff_name
+                log.info("AutoML model successfully registered in ModelRegistry as '%s' (id=%s)", eff_name, reg_id)
+            except Exception as reg_exc:
+                log.warning("Failed to auto-register AutoML model in ModelRegistry: %s", reg_exc)
+
+        save(upload_id, "automl_meta", result)
 
         try:
             db_update("uploads", upload_id, {
@@ -227,6 +269,8 @@ async def run_automl_task(
             "task": result.get("task", ""),
             "elapsed_s": result.get("elapsed_s", ""),
             "filename": up.get("filename", "") if up else "",
+            "model_name": result.get("model_name", ""),
+            "registered_model_id": result.get("registered_model_id", ""),
             "ts": _now(),
         })
 

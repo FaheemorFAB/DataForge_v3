@@ -31,6 +31,7 @@ class AutoMLTrainRequest(BaseModel):
     cv_strategy: str = "auto"
     cv_folds: int = Field(default=5, ge=2, le=10)
     metric_override: str = "auto"
+    model_name: Optional[str] = None
 
 
 class AutoMLTrainResponse(BaseModel):

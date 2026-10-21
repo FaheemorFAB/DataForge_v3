@@ -751,6 +751,7 @@ def run_automl(
         "feature_columns": list(df_model.columns),
         "dropped_cols": dropped_cols,
         "model": automl.model,
+        "automl": automl,
     }, buf)
     model_pkl = buf.getvalue()
     timing["serialization_s"] = round(time.time() - t_serial, 2)

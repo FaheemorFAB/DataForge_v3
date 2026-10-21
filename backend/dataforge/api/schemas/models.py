@@ -35,6 +35,12 @@ class BatchPredictRequest(BaseModel):
     records: List[Dict[str, Any]] = Field(..., description="List of feature records")
 
 
+class ApplyToWorkspaceRequest(BaseModel):
+    upload_id: str = Field(..., description="Target dataset upload ID in workspace")
+    target_dataset: Optional[str] = "clean"
+    pred_col_name: Optional[str] = None
+
+
 class PredictionResultResponse(BaseModel):
     ok: bool = True
     model_id: str

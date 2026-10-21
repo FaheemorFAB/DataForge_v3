@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
 import { apiFetch } from "@/lib/api";
 import {
@@ -12,7 +12,8 @@ import {
 import { Scatter, Line, Bar, Doughnut } from "react-chartjs-2";
 import {
   Sparkles, Brain, TrendingUp, TrendingDown, AlertTriangle, Activity,
-  BarChart2, GitBranch, Layers, Zap, Target, ChevronDown, Pin, Shield, Tag, X, Check
+  BarChart2, GitBranch, Layers, Zap, Target, ChevronDown, Pin, Shield, Tag, X, Check,
+  Copy, CheckCircle2, Users, FileText, LayoutDashboard
 } from "lucide-react";
 
 ChartJS.register(
@@ -1250,6 +1251,190 @@ function HypothesisLab({ uploadId, columns }: { uploadId: string; columns: any[]
   );
 }
 
+// ── Redesigned Executive Briefing Card (Section 4.4 Verified Narrative) ───────────
+function ExecutiveBriefingCard({
+  summary,
+  targetMetric,
+  focusPrompt,
+}: {
+  summary: string;
+  targetMetric?: string;
+  focusPrompt?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (!summary) return;
+    navigator.clipboard.writeText(summary);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const sections = useMemo(() => {
+    if (!summary) return [];
+    const lines = summary.split("\n");
+    const parsed: { title: string; bullets: string[]; iconType: string; badge?: string }[] = [];
+    let curSection: { title: string; bullets: string[]; iconType: string; badge?: string } | null = null;
+
+    for (let rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("═") || line.startsWith("Executive Intelligence Briefing")) continue;
+      if (line.startsWith("User Hypothesis Inquiry:")) continue;
+
+      if (line.endsWith(":") || line.startsWith("###")) {
+        const cleanTitle = line.replace(/[:#]/g, "").trim();
+        let iconType = "activity";
+        let badge = undefined;
+        const low = cleanTitle.toLowerCase();
+        if (low.includes("quality") || low.includes("completeness")) {
+          iconType = "quality";
+          badge = "Integrity";
+        } else if (low.includes("trajectory") || low.includes("performance") || low.includes("trend")) {
+          iconType = "trend";
+          badge = "Dynamics";
+        } else if (low.includes("driver") || low.includes("correlation") || low.includes("contribution")) {
+          iconType = "driver";
+          badge = "Contribution";
+        } else if (low.includes("demographic") || low.includes("segment") || low.includes("context")) {
+          iconType = "context";
+          badge = "Cohort Context";
+        } else if (low.includes("risk") || low.includes("anomal") || low.includes("outlier")) {
+          iconType = "risk";
+          badge = "Caution";
+        } else if (low.includes("action") || low.includes("suggest") || low.includes("prescript")) {
+          iconType = "action";
+          badge = "Strategy";
+        }
+
+        curSection = { title: cleanTitle, bullets: [], iconType, badge };
+        parsed.push(curSection);
+      } else if (curSection) {
+        const bulletText = line.startsWith("-") || line.startsWith("•") || line.startsWith("*")
+          ? line.substring(1).trim()
+          : line;
+        if (bulletText) curSection.bullets.push(bulletText);
+      } else {
+        parsed.push({ title: "Core Synthesis", bullets: [line], iconType: "activity" });
+      }
+    }
+    return parsed;
+  }, [summary]);
+
+  return (
+    <div
+      className="rounded-2xl p-5 md:p-6 space-y-5 border relative overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.04) 50%, rgba(16, 185, 129, 0.04) 100%)",
+        borderColor: "rgba(99, 102, 241, 0.25)",
+        boxShadow: "0 4px 24px rgba(99, 102, 241, 0.08)",
+      }}
+    >
+      {/* Top Banner Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-indigo-500/15">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white shadow-md shadow-indigo-500/20" style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
+            <Brain size={18} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-black uppercase tracking-wider text-white">AI Executive Briefing</h3>
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <Shield size={10} /> Numerically Grounded &amp; Validated
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">Automated synthesis anchored to computed statistical findings</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {targetMetric && (
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+              <Target size={12} /> Target KPI: <span className="text-white font-mono">{targetMetric}</span>
+            </span>
+          )}
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all cursor-pointer"
+            title="Copy briefing to clipboard"
+          >
+            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      </div>
+
+      {/* Inquiry Callout if user entered steering prompt */}
+      {focusPrompt && (
+        <div className="px-3.5 py-2 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center gap-2 text-xs text-indigo-200">
+          <Sparkles size={13} className="text-amber-400 shrink-0" />
+          <span>Active Investigation Hypothesis: <strong className="text-white font-semibold">"{focusPrompt}"</strong></span>
+        </div>
+      )}
+
+      {/* Structured Sections Grid */}
+      {sections.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {sections.map((sec, i) => {
+            const isQuality = sec.iconType === "quality";
+            const isDriver = sec.iconType === "driver";
+            const isRisk = sec.iconType === "risk";
+            const isContext = sec.iconType === "context";
+            const isTrend = sec.iconType === "trend";
+
+            const accentColor = isQuality
+              ? "#10b981"
+              : isDriver
+              ? "#6366f1"
+              : isRisk
+              ? "#ef4444"
+              : isContext
+              ? "#8b5cf6"
+              : isTrend
+              ? "#06b6d4"
+              : "#f59e0b";
+
+            return (
+              <div
+                key={i}
+                className="rounded-xl p-4 border transition-all"
+                style={{
+                  background: "rgba(15, 23, 42, 0.4)",
+                  borderColor: "rgba(255, 255, 255, 0.08)",
+                }}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full" style={{ background: accentColor }} />
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-200">{sec.title}</h4>
+                  </div>
+                  {sec.badge && (
+                    <span
+                      className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+                      style={{ background: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}30` }}
+                    >
+                      {sec.badge}
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  {sec.bullets.map((b, bIdx) => (
+                    <p key={bIdx} className="text-xs text-slate-300 leading-relaxed flex items-start gap-2">
+                      <span className="text-slate-500 mt-1 shrink-0">•</span>
+                      <span>{b}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{summary}</p>
+      )}
+    </div>
+  );
+}
+
 // -- Main Tab (Section 5.1 Insights UX) --
 export function InsightsTab() {
   const { profile, uploadId } = useWorkspace();
@@ -1321,19 +1506,20 @@ export function InsightsTab() {
     setDismissedIds(prev => [...prev, id]);
   };
 
-  const runInsights = async (customPrompt?: string) => {
+  const runInsights = async (customPrompt?: string, countOverride?: number) => {
     setIsRunning(true);
     setInsightError("");
     setInsightCards([]);
     setInsightSummary("");
     const activePrompt = customPrompt !== undefined ? customPrompt : focusPrompt;
+    const targetN = countOverride || parseInt(insightTopN, 10) || 6;
 
     try {
       const res = await apiFetch("/insights/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          top_n: parseInt(insightTopN),
+          top_n: targetN,
           use_gemini: true,
           upload_id: uploadId,
           target_metric: targetMetric || undefined,
@@ -1392,6 +1578,8 @@ export function InsightsTab() {
     : (insightSchema?.metrics || profile?.columns?.filter((c: any) => c.dtype?.includes("int") || c.dtype?.includes("float")).map((c: any) => c.name) || []);
 
   const visibleCards = insightCards.filter(ins => !dismissedIds.includes(ins.id || ins.title));
+  const targetCount = parseInt(insightTopN, 10) || 6;
+  const displayedCards = visibleCards.slice(0, targetCount);
 
   // -- Empty state --
   if (!insightCards.length && !isRunning) return (
@@ -1402,11 +1590,25 @@ export function InsightsTab() {
           <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>Trends · Anomalies · Correlations · Rankings · Distributions · Contributions</p>
         </div>
         <div className="flex items-center gap-2">
-          <select value={insightTopN} onChange={e => setInsightTopN(e.target.value)} className="inp" style={{ width: "auto", padding: ".4rem .7rem", fontSize: ".75rem", fontWeight: 700 }}>
-            <option value="3">3 insights</option>
-            <option value="6">6 insights</option>
-            <option value="9">9 insights</option>
-          </select>
+          <div className="flex items-center p-0.5 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            {[3, 6, 9].map(n => {
+              const active = parseInt(insightTopN, 10) === n;
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setInsightTopN(String(n))}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    active
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {n} Findings
+                </button>
+              );
+            })}
+          </div>
           <button onClick={() => runInsights()} className="bp flex items-center gap-2 cursor-pointer"><Sparkles size={14} /> Run Insights</button>
         </div>
       </div>
@@ -1452,7 +1654,7 @@ export function InsightsTab() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Insight Engine</h2>
-          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>{visibleCards.length} finding{visibleCards.length !== 1 ? "s" : ""} selected · {insightSchema?.dataset_type || "general"} domain</p>
+          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>{displayedCards.length} finding{displayedCards.length !== 1 ? "s" : ""} selected · {insightSchema?.dataset_type || "general"} domain</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -1486,12 +1688,29 @@ export function InsightsTab() {
             <Tag size={12} className="text-indigo-400" /> Review Roles
           </button>
 
-          {/* Top-N count */}
-          <select value={insightTopN} onChange={e => setInsightTopN(e.target.value)} className="inp" style={{ width: "auto", padding: ".4rem .7rem", fontSize: ".75rem", fontWeight: 700 }}>
-            <option value="3">3 findings</option>
-            <option value="6">6 findings</option>
-            <option value="9">9 findings</option>
-          </select>
+          {/* Top-N Count Selector: 3, 6, 9 */}
+          <div className="flex items-center p-0.5 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            {[3, 6, 9].map(n => {
+              const active = parseInt(insightTopN, 10) === n;
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => {
+                    setInsightTopN(String(n));
+                    runInsights(undefined, n);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    active
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {n} Findings
+                </button>
+              );
+            })}
+          </div>
 
           <button onClick={() => runInsights()} disabled={isRunning} className="bp flex items-center gap-1.5 cursor-pointer">
             {isRunning
@@ -1556,20 +1775,11 @@ export function InsightsTab() {
 
       {/* Executive Briefing (Section 4.4 Verified Narrative) */}
       {insightSummary && (
-        <div className="rounded-2xl p-5 flex gap-4" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.07),rgba(139,92,246,0.03))", border: "1px solid rgba(99,102,241,0.18)" }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
-            <Activity size={15} className="text-white" />
-          </div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#6366f1" }}>Executive Briefing</p>
-              <span className="text-[9px] font-mono px-2 py-0.2 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                Grounded &amp; Validated
-              </span>
-            </div>
-            <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "var(--txt-m)" }}>{insightSummary}</p>
-          </div>
-        </div>
+        <ExecutiveBriefingCard
+          summary={insightSummary}
+          targetMetric={targetMetric}
+          focusPrompt={focusPrompt}
+        />
       )}
 
       {insightError && (
@@ -1580,7 +1790,7 @@ export function InsightsTab() {
       <HypothesisLab uploadId={uploadId || ""} columns={profile?.columns || []} />
 
       {/* Cards Grid with Pinning, Dismissal, and Evidence Drawer */}
-      {visibleCards.filter(ins => ins.type === "forecast").map((ins, i) => (
+      {displayedCards.filter(ins => ins.type === "forecast").map((ins, i) => (
         <InsightCard
           key={`fc-${i}`}
           ins={ins}
@@ -1591,7 +1801,7 @@ export function InsightsTab() {
         />
       ))}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {visibleCards.filter(ins => ins.type !== "forecast").map((ins, i) => (
+        {displayedCards.filter(ins => ins.type !== "forecast").map((ins, i) => (
           <InsightCard
             key={ins.id || `card-${i}`}
             ins={ins}

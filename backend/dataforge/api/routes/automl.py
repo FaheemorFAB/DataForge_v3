@@ -146,6 +146,7 @@ async def api_automl_train(
         cv_strategy=body.cv_strategy,
         cv_folds=body.cv_folds,
         metric_override=body.metric_override,
+        model_name=body.model_name,
     )
     return {"task_id": job_id, "queued": True, "upload_id": target_upload_id}
 

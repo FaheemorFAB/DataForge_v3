@@ -221,6 +221,37 @@ class ModelRegistry:
             return True
 
     @classmethod
+    def _load_artifact(cls, model_id: str, model_meta: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """Loads serialized .joblib artifact from disk if available."""
+        import joblib
+        from dataforge.settings import PROJECTS_DIR
+
+        # 1. Primary registry artifact store: STORE_DIR / "models" / f"{model_id}.joblib"
+        p1 = STORE_DIR / "models" / f"{model_id}.joblib"
+        if p1.exists():
+            try:
+                return joblib.load(p1)
+            except Exception as e:
+                log.warning("Failed to load artifact from %s: %s", p1, e)
+
+        # 2. Check upload_id folder
+        if not model_meta:
+            model_meta = cls.get_model(model_id) or {}
+        uid = model_meta.get("upload_id")
+        if uid:
+            candidates = [
+                PROJECTS_DIR / str(uid) / "model_pkl.joblib",
+                STORE_DIR / str(uid) / "model_pkl.joblib",
+            ]
+            for c in candidates:
+                if c.exists():
+                    try:
+                        return joblib.load(c)
+                    except Exception as e:
+                        log.warning("Failed to load artifact from candidate %s: %s", c, e)
+        return None
+
+    @classmethod
     def predict(cls, model_id: str, input_features: Dict[str, Any]) -> Dict[str, Any]:
         """
         Executes online real-time inference on input features.
@@ -233,18 +264,67 @@ class ModelRegistry:
 
         task_type = model_meta.get("task_type", "classification")
 
-        # Heuristic scoring simulation or real model evaluation
+        # Try real artifact evaluation if available
+        artifact = cls._load_artifact(model_id, model_meta)
+        if artifact and ("automl" in artifact or "model" in artifact):
+            try:
+                pipeline = artifact.get("automl") or artifact.get("model")
+                feat_cols = artifact.get("feature_columns") or model_meta.get("features") or []
+                X = pd.DataFrame([input_features])
+                for col in feat_cols:
+                    if col not in X.columns:
+                        X[col] = 0
+                X = X[feat_cols]
+
+                if hasattr(pipeline, "predict"):
+                    pred_raw = pipeline.predict(X)[0]
+                elif hasattr(pipeline, "estimator") and hasattr(pipeline.estimator, "predict"):
+                    pred_raw = pipeline.estimator.predict(X)[0]
+                else:
+                    pred_raw = 0
+
+                prediction: Any = int(pred_raw) if isinstance(pred_raw, (np.integer, int)) else round(float(pred_raw), 4)
+
+                prob_dict: Dict[str, float] = {}
+                confidence = 0.95
+                if task_type == "classification":
+                    proba_fn = getattr(pipeline, "predict_proba", None)
+                    if not proba_fn and hasattr(pipeline, "estimator"):
+                        proba_fn = getattr(pipeline.estimator, "predict_proba", None)
+                    if proba_fn:
+                        probas = proba_fn(X)[0]
+                        confidence = round(float(np.max(probas)), 4)
+                        for idx, p_val in enumerate(probas):
+                            prob_dict[str(idx)] = round(float(p_val), 4)
+
+                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+                return {
+                    "ok": True,
+                    "model_id": model_id,
+                    "model_name": model_meta["model_name"],
+                    "algorithm": model_meta["algorithm"],
+                    "task_type": task_type,
+                    "prediction": prediction,
+                    "predicted_label": f"Class {prediction}" if task_type == "classification" else str(prediction),
+                    "confidence": confidence,
+                    "probabilities": prob_dict if prob_dict else {"0": 1.0 - confidence, "1": confidence},
+                    "latency_ms": latency_ms,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "is_real_artifact": True,
+                }
+            except Exception as e:
+                log.debug("Real artifact single predict failed, falling back to heuristic: %s", e)
+
+        # Heuristic scoring simulation fallback for benchmark seed models
         latency_ms = round((time.perf_counter() - t0 + 0.0012) * 1000, 2)
 
         if task_type == "classification":
-            # Compute a deterministic score from input numeric features
             score = 0.5
             weights = {"income": -0.00001, "age": 0.015, "support_calls": 0.18, "tenure_months": -0.02}
             for feat, val in input_features.items():
                 if isinstance(val, (int, float)) and feat in weights:
                     score += val * weights[feat]
 
-            # Sigmoid bounded probability
             prob_1 = round(float(1 / (1 + np.exp(-score * 2))), 4)
             prob_0 = round(1 - prob_1, 4)
             predicted_class = 1 if prob_1 >= 0.5 else 0
@@ -261,9 +341,9 @@ class ModelRegistry:
                 "probabilities": {"0": prob_0, "1": prob_1},
                 "latency_ms": latency_ms,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
+                "is_real_artifact": False,
             }
         else:
-            # Regression calculation
             base_val = 150.0
             for feat, val in input_features.items():
                 if isinstance(val, (int, float)):
@@ -280,7 +360,105 @@ class ModelRegistry:
                 "confidence_interval": [round(predicted_num * 0.94, 2), round(predicted_num * 1.06, 2)],
                 "latency_ms": latency_ms,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
+                "is_real_artifact": False,
             }
+
+    @classmethod
+    def predict_dataframe(cls, model_id: str, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Executes high-throughput batch inference over a full pandas DataFrame.
+        Uses real deserialized .joblib pipeline if available, else deterministic scoring.
+        """
+        t0 = time.perf_counter()
+        model_meta = cls.get_model(model_id)
+        if not model_meta:
+            raise ValueError(f"Model '{model_id}' not found in registry.")
+
+        task_type = model_meta.get("task_type", "classification")
+        target_col = model_meta.get("target_column", "target")
+        artifact = cls._load_artifact(model_id, model_meta)
+
+        if artifact and ("automl" in artifact or "model" in artifact):
+            try:
+                pipeline = artifact.get("automl") or artifact.get("model")
+                feat_cols = artifact.get("feature_columns") or model_meta.get("features") or []
+
+                X = pd.DataFrame(index=df.index)
+                for c in feat_cols:
+                    if c in df.columns:
+                        X[c] = df[c]
+                    else:
+                        X[c] = 0
+
+                if hasattr(pipeline, "predict"):
+                    raw_preds = pipeline.predict(X)
+                elif hasattr(pipeline, "estimator") and hasattr(pipeline.estimator, "predict"):
+                    raw_preds = pipeline.estimator.predict(X)
+                else:
+                    raise AttributeError("Model artifact missing .predict() method")
+
+                preds: List[Any] = []
+                for p in raw_preds:
+                    if isinstance(p, (np.integer, int)):
+                        preds.append(int(p))
+                    elif isinstance(p, (np.floating, float)):
+                        preds.append(round(float(p), 4))
+                    else:
+                        preds.append(str(p))
+
+                confidences: Optional[List[float]] = None
+                if task_type == "classification":
+                    proba_method = getattr(pipeline, "predict_proba", None)
+                    if not proba_method and hasattr(pipeline, "estimator"):
+                        proba_method = getattr(pipeline.estimator, "predict_proba", None)
+                    if proba_method:
+                        try:
+                            proba_matrix = proba_method(X)
+                            if hasattr(proba_matrix, "ndim") and proba_matrix.ndim == 2:
+                                confidences = [round(float(np.max(row)), 4) for row in proba_matrix]
+                        except Exception as p_exc:
+                            log.debug("predict_proba failed: %s", p_exc)
+
+                latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+                return {
+                    "ok": True,
+                    "model_id": model_id,
+                    "model_name": model_meta["model_name"],
+                    "algorithm": model_meta["algorithm"],
+                    "task_type": task_type,
+                    "target_column": target_col,
+                    "count": len(preds),
+                    "predictions": preds,
+                    "confidences": confidences,
+                    "latency_ms": latency_ms,
+                    "is_real_artifact": True,
+                }
+            except Exception as e:
+                log.warning("Real artifact predict_dataframe failed, falling back to row-wise inference: %s", e)
+
+        # Fallback heuristic prediction
+        preds = []
+        confidences = []
+        for _, row in df.iterrows():
+            res = cls.predict(model_id, row.to_dict())
+            preds.append(res.get("prediction"))
+            if task_type == "classification":
+                confidences.append(res.get("confidence", 0.9))
+
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+        return {
+            "ok": True,
+            "model_id": model_id,
+            "model_name": model_meta["model_name"],
+            "algorithm": model_meta["algorithm"],
+            "task_type": task_type,
+            "target_column": target_col,
+            "count": len(preds),
+            "predictions": preds,
+            "confidences": confidences if task_type == "classification" else None,
+            "latency_ms": latency_ms,
+            "is_real_artifact": False,
+        }
 
     @classmethod
     def export_docker_package(cls, model_id: str) -> bytes:
