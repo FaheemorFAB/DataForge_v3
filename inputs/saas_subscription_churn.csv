@@ -1,0 +1,1501 @@
+account_id,signup_date,plan_tier,industry,region,seats_allocated,monthly_active_users,feature_adoption_pct,support_tickets_30d,nps_score,mrr_usd,contract_type,account_exec_gender,churn_risk_flag
+ACC-10001,2024-08-16,Professional,FinTech,APAC,9,8,79.7,0,80.0,662.05,Monthly,Female,0
+ACC-10002,2024-08-26,Professional,FinTech,North America,25,22,96.4,0,58.0,569.49,Monthly,Female,0
+ACC-10003,2024-10-11,Professional,Healthcare,LATAM,11,5,59.7,0,21.0,795.99,Monthly,Non-Binary,0
+ACC-10004,2025-01-24,Enterprise,E-Commerce,North America,257,146,49.8,0,44.0,6788.44,Annual,Female,0
+ACC-10005,2024-10-27,Professional,EdTech,North America,17,14,69.2,1,-7.0,685.9,Monthly,Non-Binary,1
+ACC-10006,2026-06-06,Starter,E-Commerce,North America,1,0,57.2,2,26.0,168.51,Monthly,Female,1
+ACC-10007,2025-11-30,Starter,Healthcare,APAC,1,0,82.8,0,-1.0,135.74,Monthly,Non-Binary,0
+ACC-10008,2024-11-28,Professional,E-Commerce,EMEA,13,6,81.3,0,40.0,712.41,Monthly,Non-Binary,0
+ACC-10009,2025-11-02,Starter,Logistics,APAC,4,2,41.4,3,13.0,130.55,Monthly,Female,1
+ACC-10010,2025-08-21,Professional,Logistics,APAC,24,17,73.8,0,23.0,634.67,Monthly,Non-Binary,0
+ACC-10011,2024-06-05,Professional,FinTech,North America,19,9,86.6,3,62.0,778.38,Monthly,Female,1
+ACC-10012,2026-01-08,Professional,E-Commerce,North America,23,10,74.0,0,64.0,657.35,Monthly,Non-Binary,1
+ACC-10013,2026-01-09,Starter,Healthcare,LATAM,3,1,82.6,4,75.0,148.49,Monthly,Female,0
+ACC-10014,2025-01-17,Professional,Cybersecurity,EMEA,23,18,74.5,3,81.0,587.48,Monthly,Female,0
+ACC-10015,2024-09-02,Professional,FinTech,APAC,13,8,69.6,0,26.0,705.4,Monthly,Male,0
+ACC-10016,2025-11-06,Starter,Logistics,EMEA,4,2,94.6,0,19.0,188.76,Monthly,Female,1
+ACC-10017,2024-11-15,Enterprise,Logistics,EMEA,345,170,84.5,3,44.0,6372.52,Monthly,Non-Binary,0
+ACC-10018,2024-08-13,Starter,Logistics,EMEA,1,0,55.4,0,25.0,187.75,Monthly,Non-Binary,1
+ACC-10019,2024-08-31,Starter,E-Commerce,North America,3,2,68.1,1,27.0,182.72,Monthly,Non-Binary,1
+ACC-10020,2026-04-06,Professional,EdTech,EMEA,12,7,65.1,1,47.0,587.56,Monthly,Male,0
+ACC-10021,2025-10-31,Professional,Cybersecurity,North America,7,6,33.5,0,34.0,658.86,Monthly,Non-Binary,1
+ACC-10022,2025-03-08,Starter,Healthcare,LATAM,2,1,64.5,0,44.0,168.65,Monthly,Female,0
+ACC-10023,2025-10-29,Growth,Logistics,North America,31,16,88.6,0,57.0,2328.38,Annual,Female,0
+ACC-10024,2025-01-23,Starter,EdTech,North America,1,0,78.6,0,100.0,152.33,Monthly,Female,0
+ACC-10025,2024-07-13,Professional,Cybersecurity,LATAM,12,6,69.8,2,19.0,646.33,Monthly,Female,1
+ACC-10026,2026-07-30,Starter,FinTech,LATAM,5,2,48.9,2,49.0,162.07,Monthly,Non-Binary,1
+ACC-10027,2024-05-02,Professional,Cybersecurity,EMEA,13,6,53.9,5,,826.49,Monthly,Male,0
+ACC-10028,2024-07-28,Professional,Logistics,APAC,13,10,72.1,1,74.0,627.95,Monthly,Male,0
+ACC-10029,2025-09-28,Professional,FinTech,North America,9,8,72.7,0,58.0,579.73,Monthly,Male,0
+ACC-10030,2024-10-18,Enterprise,FinTech,EMEA,359,330,72.5,2,45.0,7648.42,Annual,Male,1
+ACC-10031,2024-04-16,Professional,FinTech,APAC,14,12,73.3,0,13.0,599.78,Monthly,Non-Binary,1
+ACC-10032,2025-12-04,Starter,Healthcare,APAC,3,2,46.6,2,54.0,164.54,Monthly,Female,1
+ACC-10033,2024-01-04,Starter,EdTech,APAC,3,2,85.3,2,47.0,149.46,Monthly,Female,0
+ACC-10034,2024-03-18,Professional,Logistics,North America,23,14,52.0,7,10.0,579.9,Monthly,Female,1
+ACC-10035,2026-07-09,Starter,E-Commerce,APAC,3,2,68.2,1,78.0,187.71,Monthly,Female,0
+ACC-10036,2026-06-04,Professional,EdTech,EMEA,11,9,48.7,6,49.0,609.61,Monthly,Female,0
+ACC-10037,2024-06-12,Growth,EdTech,EMEA,28,17,76.5,7,32.0,2271.04,Annual,Male,0
+ACC-10038,2025-11-06,Starter,Healthcare,EMEA,2,1,60.0,0,60.0,147.38,Monthly,Female,0
+ACC-10039,2026-05-13,Starter,Cybersecurity,LATAM,5,4,52.1,2,39.0,190.69,Monthly,Non-Binary,0
+ACC-10040,2025-09-02,Professional,E-Commerce,North America,17,11,74.4,2,51.0,593.47,Monthly,Female,0
+ACC-10041,2024-02-15,Professional,EdTech,EMEA,6,3,77.3,4,50.0,657.65,Monthly,Male,0
+ACC-10042,2025-03-17,Professional,Cybersecurity,EMEA,16,11,78.3,2,69.0,702.07,Monthly,Male,0
+ACC-10043,2025-02-22,Enterprise,Logistics,APAC,232,138,54.1,1,27.0,8128.27,Annual,Non-Binary,1
+ACC-10044,2025-08-05,Starter,Cybersecurity,EMEA,3,2,80.4,0,-13.0,158.93,Monthly,Non-Binary,1
+ACC-10045,2025-03-28,Growth,Logistics,APAC,58,35,69.2,3,2.0,2196.31,Annual,Male,1
+ACC-10046,2026-04-18,Professional,E-Commerce,APAC,15,6,,1,15.0,734.7,Monthly,Female,0
+ACC-10047,2025-02-28,Starter,EdTech,North America,5,4,31.5,3,40.0,176.51,Monthly,Male,1
+ACC-10048,2026-03-08,Starter,Cybersecurity,North America,4,1,77.1,1,60.0,157.13,Monthly,Female,1
+ACC-10049,2024-05-16,Starter,Healthcare,North America,4,2,99.8,2,47.0,138.06,Monthly,Male,0
+ACC-10050,2025-04-01,Professional,Cybersecurity,LATAM,21,17,100.0,1,65.0,831.8,Monthly,Non-Binary,0
+ACC-10051,2024-09-01,Starter,Logistics,LATAM,3,2,76.0,1,58.0,151.53,Monthly,Non-Binary,1
+ACC-10052,2024-06-03,Starter,Logistics,North America,2,1,63.5,1,-2.0,160.68,Monthly,Female,0
+ACC-10053,2024-03-04,Professional,Logistics,LATAM,19,8,93.9,1,-8.0,738.26,Monthly,Male,0
+ACC-10054,2024-01-07,Growth,Logistics,LATAM,74,36,71.6,0,16.0,2063.54,Annual,Male,0
+ACC-10055,2024-08-12,Professional,Logistics,EMEA,19,13,96.5,1,-2.0,827.52,Monthly,Male,0
+ACC-10056,2026-07-30,Growth,Cybersecurity,EMEA,60,37,73.1,0,16.0,2292.59,Annual,Male,0
+ACC-10057,2024-07-05,Starter,EdTech,EMEA,1,0,57.4,0,60.0,184.53,Monthly,Male,0
+ACC-10058,2024-09-15,Growth,EdTech,APAC,27,24,82.6,0,53.0,2039.44,Annual,Male,0
+ACC-10059,2024-09-10,Professional,Cybersecurity,North America,6,5,67.6,1,38.0,772.05,Monthly,Female,0
+ACC-10060,2024-09-19,Starter,Healthcare,LATAM,3,2,64.1,3,67.0,150.5,Monthly,Non-Binary,0
+ACC-10061,2025-08-15,Growth,Healthcare,APAC,62,57,91.5,0,35.0,1613.53,Annual,Female,0
+ACC-10062,2025-12-14,Starter,Logistics,EMEA,3,1,73.8,6,31.0,153.77,Monthly,Female,0
+ACC-10063,2025-01-14,Starter,Logistics,LATAM,1,0,49.9,2,,170.15,Monthly,Non-Binary,0
+ACC-10064,2026-07-01,Professional,EdTech,APAC,10,8,67.8,0,8.0,784.04,Monthly,Non-Binary,0
+ACC-10065,2025-03-22,Starter,Logistics,LATAM,5,4,53.1,0,25.0,157.3,Monthly,Male,0
+ACC-10066,2025-09-16,Growth,Healthcare,LATAM,27,12,72.4,0,19.0,2030.76,Monthly,Non-Binary,0
+ACC-10067,2025-12-19,Growth,E-Commerce,APAC,26,11,41.9,3,-7.0,2102.06,Annual,Non-Binary,0
+ACC-10068,2025-12-29,Professional,Healthcare,LATAM,20,16,55.1,3,28.0,840.91,Monthly,Non-Binary,0
+ACC-10069,2025-07-20,Professional,E-Commerce,APAC,17,15,67.7,0,4.0,676.58,Monthly,Male,0
+ACC-10070,2024-05-03,Professional,E-Commerce,APAC,16,7,73.8,3,10.0,568.97,Monthly,Female,0
+ACC-10071,2026-01-11,Starter,Healthcare,LATAM,5,3,80.4,0,22.0,192.45,Monthly,Male,0
+ACC-10072,2024-01-15,Starter,E-Commerce,EMEA,5,4,72.0,0,35.0,128.32,Monthly,Male,0
+ACC-10073,2026-06-12,Professional,Healthcare,LATAM,24,16,94.1,1,63.0,836.02,Monthly,Female,0
+ACC-10074,2026-04-21,Enterprise,E-Commerce,LATAM,118,108,100.0,0,10.0,7234.12,Monthly,Female,0
+ACC-10075,2024-05-01,Growth,E-Commerce,North America,64,38,54.3,8,39.0,1905.6,Annual,Female,0
+ACC-10076,2025-03-15,Professional,EdTech,APAC,24,17,85.1,2,17.0,756.71,Monthly,Non-Binary,1
+ACC-10077,2025-11-07,Enterprise,Healthcare,EMEA,169,148,44.2,5,89.0,8189.46,Annual,Male,0
+ACC-10078,2024-08-25,Professional,EdTech,APAC,15,6,89.2,9,20.0,565.73,Monthly,Female,1
+ACC-10079,2024-04-27,Starter,Cybersecurity,EMEA,5,3,65.9,1,72.0,167.6,Monthly,Male,0
+ACC-10080,2026-02-05,Starter,Healthcare,APAC,5,4,68.1,3,36.0,131.31,Monthly,Non-Binary,0
+ACC-10081,2024-03-23,Professional,E-Commerce,LATAM,7,3,48.8,6,30.0,801.02,Monthly,Male,1
+ACC-10082,2026-04-21,Starter,Cybersecurity,North America,3,2,40.4,0,73.0,142.93,Monthly,Non-Binary,0
+ACC-10083,2025-03-22,Professional,E-Commerce,EMEA,8,6,89.2,1,37.0,704.69,Monthly,Non-Binary,0
+ACC-10084,2025-12-11,Starter,Healthcare,APAC,4,2,79.6,2,76.0,186.67,Monthly,Male,0
+ACC-10085,2024-04-28,Professional,E-Commerce,APAC,22,8,87.1,1,-17.0,592.39,Monthly,Male,0
+ACC-10086,2026-02-13,Professional,Healthcare,APAC,20,12,95.0,1,37.0,816.97,Monthly,Non-Binary,0
+ACC-10087,2024-01-30,Enterprise,EdTech,LATAM,162,154,,1,33.0,8047.41,Annual,Female,0
+ACC-10088,2025-10-25,Starter,FinTech,LATAM,2,1,44.5,0,55.0,160.75,Monthly,Female,1
+ACC-10089,2025-07-18,Growth,EdTech,EMEA,38,18,74.6,0,6.0,1633.72,Annual,Male,0
+ACC-10090,2024-09-30,Starter,EdTech,APAC,1,0,50.3,0,50.0,188.03,Monthly,Non-Binary,1
+ACC-10091,2025-05-10,Professional,Healthcare,LATAM,16,8,66.1,0,3.0,601.91,Monthly,Non-Binary,1
+ACC-10092,2025-01-27,Starter,Healthcare,EMEA,2,1,55.4,4,41.0,161.48,Monthly,Non-Binary,0
+ACC-10093,2024-02-07,Growth,EdTech,EMEA,63,35,79.1,0,57.0,1579.47,Annual,Male,0
+ACC-10094,2024-05-27,Professional,EdTech,North America,10,6,40.7,1,76.0,660.86,Monthly,Non-Binary,0
+ACC-10095,2026-05-22,Professional,EdTech,North America,18,9,78.4,1,44.0,563.23,Monthly,Male,0
+ACC-10096,2025-10-08,Growth,FinTech,North America,73,48,39.1,0,41.0,1616.81,Annual,Female,1
+ACC-10097,2024-11-02,Growth,EdTech,EMEA,46,26,56.4,0,2.0,1546.26,Annual,Non-Binary,0
+ACC-10098,2024-06-28,Starter,EdTech,EMEA,1,0,67.9,0,79.0,167.57,Monthly,Female,0
+ACC-10099,2024-09-17,Professional,Healthcare,LATAM,14,11,49.3,0,29.0,724.15,Monthly,Non-Binary,1
+ACC-10100,2025-03-28,Starter,Logistics,EMEA,3,2,42.8,0,51.0,171.1,Monthly,Female,1
+ACC-10101,2026-05-23,Professional,E-Commerce,EMEA,9,4,57.3,0,9.0,624.44,Monthly,Male,0
+ACC-10102,2025-02-09,Enterprise,E-Commerce,North America,432,304,72.9,0,33.0,5759.68,Annual,Non-Binary,0
+ACC-10103,2026-04-01,Professional,E-Commerce,EMEA,13,11,57.6,0,57.0,836.07,Monthly,Non-Binary,0
+ACC-10104,2024-04-09,Professional,Cybersecurity,EMEA,15,10,38.0,3,,824.34,Monthly,Non-Binary,1
+ACC-10105,2025-03-01,Starter,E-Commerce,APAC,2,1,38.7,0,36.0,149.35,Monthly,Non-Binary,0
+ACC-10106,2026-07-24,Professional,E-Commerce,EMEA,15,11,66.8,1,-1.0,636.92,Monthly,Male,1
+ACC-10107,2025-01-09,Starter,Healthcare,LATAM,1,0,86.1,0,17.0,150.22,Monthly,Non-Binary,0
+ACC-10108,2025-01-25,Professional,Cybersecurity,APAC,9,6,23.5,0,11.0,774.87,Monthly,Non-Binary,0
+ACC-10109,2024-03-05,Enterprise,E-Commerce,EMEA,290,278,74.7,6,16.0,7954.56,Monthly,Non-Binary,1
+ACC-10110,2026-06-27,Enterprise,FinTech,North America,313,259,89.0,0,42.0,5719.5,Annual,Female,0
+ACC-10111,2025-11-01,Professional,Logistics,EMEA,21,10,75.1,2,22.0,611.48,Monthly,Male,0
+ACC-10112,2024-08-29,Professional,Healthcare,LATAM,9,8,89.6,1,22.0,657.46,Monthly,Male,0
+ACC-10113,2024-05-05,Starter,EdTech,APAC,4,2,68.3,0,85.0,158.73,Monthly,Female,0
+ACC-10114,2026-03-16,Starter,E-Commerce,EMEA,5,3,72.2,0,58.0,153.41,Monthly,Female,0
+ACC-10115,2026-03-18,Growth,Healthcare,APAC,43,25,74.1,2,22.0,2038.44,Annual,Female,0
+ACC-10116,2025-01-01,Starter,FinTech,EMEA,2,1,59.7,0,9.0,187.84,Monthly,Female,0
+ACC-10117,2024-03-06,Professional,Logistics,North America,20,14,76.6,0,45.0,562.31,Monthly,Non-Binary,0
+ACC-10118,2026-03-13,Professional,Logistics,North America,15,13,63.1,3,5.0,584.86,Monthly,Non-Binary,1
+ACC-10119,2024-04-20,Professional,EdTech,LATAM,20,16,83.7,2,75.0,619.56,Monthly,Non-Binary,0
+ACC-10120,2025-09-03,Starter,Logistics,APAC,5,3,36.0,1,79.0,144.5,Monthly,Male,0
+ACC-10121,2025-04-07,Professional,Cybersecurity,EMEA,19,14,100.0,0,38.0,597.36,Monthly,Male,0
+ACC-10122,2024-06-05,Starter,E-Commerce,APAC,4,2,76.7,2,41.0,190.42,Monthly,Male,1
+ACC-10123,2025-07-29,Professional,Healthcare,North America,16,12,96.7,5,19.0,721.06,Monthly,Non-Binary,0
+ACC-10124,2025-09-06,Enterprise,EdTech,North America,376,175,69.0,1,67.0,6843.71,Annual,Male,0
+ACC-10125,2026-02-19,Growth,E-Commerce,APAC,40,23,49.8,1,-14.0,1574.36,Annual,Female,0
+ACC-10126,2025-11-04,Professional,Cybersecurity,North America,6,3,62.0,0,85.0,653.81,Monthly,Non-Binary,0
+ACC-10127,2025-08-02,Starter,FinTech,EMEA,4,2,19.5,5,33.0,137.01,Monthly,Female,1
+ACC-10128,2025-04-09,Professional,Healthcare,LATAM,11,8,63.2,0,1.0,722.32,Monthly,Male,0
+ACC-10129,2024-06-10,Professional,FinTech,North America,7,5,68.3,0,34.0,699.39,Monthly,Female,0
+ACC-10130,2024-08-08,Professional,EdTech,LATAM,9,4,67.4,1,18.0,612.5,Monthly,Male,1
+ACC-10131,2024-08-13,Professional,Logistics,APAC,25,16,20.3,1,67.0,779.34,Monthly,Female,0
+ACC-10132,2024-05-02,Growth,E-Commerce,APAC,73,36,42.7,2,11.0,1655.74,Annual,Male,1
+ACC-10133,2025-02-10,Professional,Cybersecurity,APAC,19,9,84.8,0,73.0,559.93,Monthly,Female,0
+ACC-10134,2025-10-17,Professional,Logistics,LATAM,15,11,58.6,2,,620.09,Monthly,Non-Binary,1
+ACC-10135,2026-07-30,Growth,Logistics,LATAM,53,28,80.8,3,48.0,1610.55,Annual,Non-Binary,0
+ACC-10136,2024-12-07,Starter,E-Commerce,APAC,2,1,78.7,0,25.0,172.6,Monthly,Female,1
+ACC-10137,2026-04-18,Enterprise,E-Commerce,APAC,155,64,73.9,1,-2.0,6133.07,Monthly,Non-Binary,0
+ACC-10138,2025-05-20,Growth,FinTech,EMEA,74,44,55.3,1,-7.0,2192.13,Annual,Non-Binary,1
+ACC-10139,2024-11-19,Professional,Logistics,APAC,20,12,30.5,0,85.0,735.06,Monthly,Non-Binary,0
+ACC-10140,2024-03-16,Starter,FinTech,APAC,3,1,67.3,4,68.0,179.04,Monthly,Non-Binary,0
+ACC-10141,2025-08-17,Starter,FinTech,LATAM,5,2,73.5,2,-16.0,156.2,Monthly,Male,1
+ACC-10142,2025-04-06,Professional,Logistics,EMEA,16,14,68.3,0,45.0,593.26,Monthly,Female,0
+ACC-10143,2025-06-19,Starter,EdTech,LATAM,5,4,71.5,0,5.0,128.74,Monthly,Non-Binary,0
+ACC-10144,2025-10-24,Growth,Cybersecurity,North America,47,41,72.6,2,64.0,2057.65,Monthly,Non-Binary,0
+ACC-10145,2024-03-24,Growth,Logistics,EMEA,48,44,34.9,1,-3.0,1672.05,Annual,Male,1
+ACC-10146,2025-01-20,Professional,FinTech,APAC,10,8,71.4,0,12.0,601.14,Monthly,Non-Binary,0
+ACC-10147,2025-11-17,Professional,Logistics,North America,22,13,50.4,1,66.0,636.94,Monthly,Non-Binary,0
+ACC-10148,2024-05-20,Starter,EdTech,EMEA,2,1,52.5,0,56.0,172.3,Monthly,Female,1
+ACC-10149,2024-12-10,Growth,Logistics,North America,64,27,100.0,0,32.0,2012.01,Annual,Non-Binary,0
+ACC-10150,2025-02-24,Professional,Healthcare,LATAM,13,5,67.4,2,88.0,583.68,Monthly,Female,0
+ACC-10151,2026-04-08,Professional,Logistics,EMEA,12,10,79.4,0,64.0,624.57,Monthly,Male,0
+ACC-10152,2025-06-24,Professional,E-Commerce,LATAM,11,4,66.7,0,53.0,658.08,Monthly,Non-Binary,0
+ACC-10153,2025-07-21,Starter,Cybersecurity,LATAM,1,0,78.1,2,67.0,186.42,Monthly,Male,0
+ACC-10154,2024-04-03,Starter,Logistics,EMEA,2,1,75.7,0,41.0,144.35,Monthly,Male,0
+ACC-10155,2024-08-17,Starter,EdTech,North America,1,0,48.5,5,66.0,189.3,Monthly,Male,0
+ACC-10156,2026-05-01,Starter,E-Commerce,LATAM,2,1,68.5,0,,191.24,Monthly,Non-Binary,0
+ACC-10157,2026-03-05,Starter,Healthcare,LATAM,3,2,60.2,0,25.0,130.0,Monthly,Female,0
+ACC-10158,2026-05-06,Growth,EdTech,North America,60,49,64.6,1,21.0,1805.3,Annual,Female,0
+ACC-10159,2025-08-07,Starter,FinTech,APAC,4,3,72.8,0,61.0,149.02,Monthly,Female,1
+ACC-10160,2026-06-13,Starter,Logistics,North America,4,1,69.5,6,66.0,186.23,Monthly,Male,0
+ACC-10161,2026-01-20,Starter,FinTech,APAC,1,0,58.7,1,77.0,194.86,Monthly,Female,0
+ACC-10162,2025-04-20,Professional,Cybersecurity,EMEA,11,10,60.0,1,78.0,808.05,Monthly,Non-Binary,0
+ACC-10163,2026-03-21,Professional,E-Commerce,EMEA,7,3,43.8,0,7.0,622.34,Monthly,Female,1
+ACC-10164,2024-07-14,Professional,E-Commerce,North America,17,6,67.4,1,42.0,564.81,Monthly,Non-Binary,0
+ACC-10165,2026-01-31,Starter,E-Commerce,LATAM,4,3,85.7,6,28.0,142.23,Monthly,Male,0
+ACC-10166,2026-01-14,Enterprise,Logistics,APAC,389,193,71.0,2,49.0,7319.23,Monthly,Female,0
+ACC-10167,2025-04-01,Starter,E-Commerce,APAC,5,2,56.8,3,18.0,143.07,Monthly,Male,1
+ACC-10168,2025-10-16,Professional,E-Commerce,LATAM,8,7,93.6,2,17.0,569.42,Monthly,Male,1
+ACC-10169,2026-05-19,Professional,Healthcare,North America,20,10,71.7,1,-10.0,791.13,Monthly,Female,0
+ACC-10170,2024-06-06,Starter,EdTech,North America,4,3,57.0,4,23.0,133.68,Monthly,Non-Binary,0
+ACC-10171,2024-10-12,Professional,EdTech,APAC,9,7,79.9,0,95.0,804.67,Monthly,Non-Binary,0
+ACC-10172,2025-12-21,Enterprise,FinTech,APAC,227,124,67.4,0,88.0,6615.11,Monthly,Male,0
+ACC-10173,2026-07-09,Starter,FinTech,LATAM,4,1,67.7,1,70.0,173.62,Monthly,Female,0
+ACC-10174,2025-07-09,Professional,Cybersecurity,North America,15,9,80.3,0,90.0,793.72,Monthly,Non-Binary,0
+ACC-10175,2024-07-24,Professional,E-Commerce,EMEA,13,10,82.8,2,,785.75,Monthly,Female,0
+ACC-10176,2026-06-24,Starter,Logistics,EMEA,1,0,65.0,0,39.0,169.26,Monthly,Non-Binary,0
+ACC-10177,2024-11-20,Professional,EdTech,North America,20,17,68.5,0,73.0,599.52,Monthly,Female,0
+ACC-10178,2025-03-19,Growth,Logistics,EMEA,79,76,43.5,2,57.0,2029.71,Monthly,Female,0
+ACC-10179,2026-07-05,Enterprise,Healthcare,APAC,181,83,72.5,7,82.0,7806.05,Monthly,Non-Binary,0
+ACC-10180,2025-10-18,Starter,Logistics,North America,2,1,60.0,0,40.0,170.2,Monthly,Non-Binary,0
+ACC-10181,2024-03-24,Enterprise,E-Commerce,North America,414,305,89.5,0,-10.0,5722.0,Annual,Female,0
+ACC-10182,2024-11-05,Starter,Cybersecurity,APAC,4,3,57.9,3,46.0,193.21,Monthly,Non-Binary,1
+ACC-10183,2025-03-01,Starter,FinTech,EMEA,4,2,96.2,2,33.0,128.99,Monthly,Male,0
+ACC-10184,2024-05-13,Professional,Cybersecurity,APAC,22,21,41.9,0,-30.0,632.54,Monthly,Male,0
+ACC-10185,2024-02-21,Starter,Healthcare,EMEA,3,1,72.4,2,18.0,174.32,Monthly,Female,1
+ACC-10186,2026-02-20,Starter,E-Commerce,APAC,2,0,79.7,1,32.0,191.68,Monthly,Female,0
+ACC-10187,2024-08-08,Starter,EdTech,LATAM,5,2,67.2,4,42.0,154.34,Monthly,Female,1
+ACC-10188,2025-07-03,Growth,Cybersecurity,LATAM,53,22,45.5,4,78.0,1702.61,Annual,Male,0
+ACC-10189,2025-07-29,Starter,EdTech,North America,2,1,74.2,3,48.0,192.85,Monthly,Non-Binary,0
+ACC-10190,2024-04-09,Growth,E-Commerce,North America,76,58,71.5,3,56.0,2146.43,Monthly,Female,0
+ACC-10191,2024-02-09,Professional,EdTech,North America,16,7,55.8,0,89.0,586.81,Monthly,Female,0
+ACC-10192,2024-11-22,Growth,Healthcare,APAC,65,47,83.1,0,15.0,1582.01,Annual,Non-Binary,0
+ACC-10193,2026-04-15,Professional,EdTech,APAC,17,7,59.9,2,-37.0,555.9,Monthly,Male,1
+ACC-10194,2025-04-30,Starter,Cybersecurity,North America,3,2,50.6,0,33.0,174.41,Monthly,Non-Binary,0
+ACC-10195,2026-04-21,Starter,Cybersecurity,LATAM,2,1,,1,61.0,137.12,Monthly,Female,1
+ACC-10196,2024-07-27,Starter,Healthcare,LATAM,4,2,63.6,0,14.0,149.54,Monthly,Non-Binary,1
+ACC-10197,2024-07-31,Professional,FinTech,EMEA,16,7,100.0,3,54.0,668.6,Monthly,Non-Binary,0
+ACC-10198,2024-12-28,Starter,Logistics,APAC,3,1,93.2,0,62.0,138.81,Monthly,Non-Binary,0
+ACC-10199,2024-07-31,Starter,E-Commerce,APAC,4,2,80.6,2,46.0,131.01,Monthly,Non-Binary,0
+ACC-10200,2025-11-23,Professional,E-Commerce,North America,18,15,91.7,1,40.0,651.79,Monthly,Non-Binary,0
+ACC-10201,2024-03-21,Starter,FinTech,APAC,3,2,56.3,4,20.0,163.03,Monthly,Non-Binary,1
+ACC-10202,2024-04-21,Growth,E-Commerce,APAC,41,24,77.4,2,17.0,2320.45,Monthly,Female,0
+ACC-10203,2026-01-04,Starter,FinTech,LATAM,4,3,68.7,0,38.0,164.99,Monthly,Male,0
+ACC-10204,2026-06-20,Enterprise,Healthcare,LATAM,183,76,63.4,4,-15.0,5736.18,Monthly,Non-Binary,0
+ACC-10205,2026-01-26,Starter,FinTech,EMEA,1,0,45.9,9,-8.0,177.63,Monthly,Non-Binary,1
+ACC-10206,2026-06-12,Growth,EdTech,EMEA,26,19,98.3,1,21.0,2232.3,Annual,Non-Binary,0
+ACC-10207,2026-05-21,Starter,Cybersecurity,LATAM,5,3,79.7,5,-12.0,188.3,Monthly,Female,1
+ACC-10208,2024-07-09,Professional,Cybersecurity,APAC,16,12,56.7,2,46.0,734.72,Monthly,Non-Binary,0
+ACC-10209,2025-06-11,Starter,Cybersecurity,LATAM,3,1,67.5,0,70.0,139.63,Monthly,Male,0
+ACC-10210,2025-01-27,Professional,Healthcare,North America,20,13,88.7,0,-17.0,682.75,Monthly,Male,0
+ACC-10211,2025-01-03,Professional,FinTech,APAC,7,3,44.7,3,69.0,836.05,Monthly,Non-Binary,1
+ACC-10212,2024-04-30,Professional,Cybersecurity,APAC,17,11,69.4,0,-3.0,836.17,Monthly,Non-Binary,0
+ACC-10213,2025-12-19,Starter,Cybersecurity,APAC,5,2,95.0,0,60.0,156.58,Monthly,Male,0
+ACC-10214,2025-04-02,Growth,Cybersecurity,North America,30,24,62.2,4,97.0,1559.7,Annual,Non-Binary,0
+ACC-10215,2024-12-01,Starter,Logistics,EMEA,5,4,63.3,0,29.0,167.01,Monthly,Female,1
+ACC-10216,2025-04-09,Starter,Logistics,LATAM,2,1,81.2,0,32.0,163.35,Monthly,Female,0
+ACC-10217,2024-09-17,Professional,E-Commerce,North America,12,5,84.5,1,45.0,564.66,Monthly,Male,0
+ACC-10218,2024-02-02,Starter,FinTech,North America,3,2,87.9,0,3.0,160.5,Monthly,Male,0
+ACC-10219,2025-04-04,Professional,EdTech,APAC,18,8,56.8,4,92.0,836.2,Monthly,Male,1
+ACC-10220,2025-07-04,Starter,E-Commerce,North America,4,3,70.7,1,45.0,174.25,Monthly,Female,0
+ACC-10221,2026-01-06,Growth,E-Commerce,LATAM,60,43,87.9,0,70.0,2233.81,Annual,Non-Binary,0
+ACC-10222,2026-04-08,Starter,Cybersecurity,North America,4,3,73.4,16,12.0,154.09,Monthly,Female,1
+ACC-10223,2026-01-28,Professional,EdTech,North America,18,11,73.8,1,47.0,838.32,Monthly,Female,0
+ACC-10224,2026-04-15,Growth,Healthcare,APAC,62,39,89.4,3,-1.0,2241.6,Monthly,Female,0
+ACC-10225,2024-11-03,Growth,Cybersecurity,EMEA,61,39,65.3,1,38.0,2176.23,Annual,Male,1
+ACC-10226,2025-10-20,Professional,EdTech,North America,22,13,96.7,1,9.0,647.44,Monthly,Male,0
+ACC-10227,2026-05-19,Starter,Logistics,LATAM,2,1,97.6,2,65.0,143.53,Monthly,Female,0
+ACC-10228,2025-06-26,Starter,EdTech,LATAM,2,1,23.0,0,100.0,153.14,Monthly,Non-Binary,1
+ACC-10229,2026-01-11,Enterprise,E-Commerce,North America,274,172,86.4,2,100.0,6637.07,Annual,Non-Binary,0
+ACC-10230,2024-08-01,Starter,Logistics,EMEA,3,2,81.7,0,43.0,182.38,Monthly,Male,0
+ACC-10231,2025-09-10,Starter,EdTech,EMEA,2,1,54.4,1,26.0,131.57,Monthly,Non-Binary,1
+ACC-10232,2024-09-24,Professional,Cybersecurity,APAC,22,12,71.2,0,76.0,635.83,Monthly,Male,0
+ACC-10233,2024-11-16,Professional,E-Commerce,EMEA,7,3,,0,28.0,761.97,Monthly,Male,0
+ACC-10234,2024-06-05,Professional,Logistics,LATAM,16,11,57.2,1,44.0,605.57,Monthly,Male,1
+ACC-10235,2026-02-20,Professional,Cybersecurity,APAC,21,14,72.0,0,75.0,834.16,Monthly,Male,0
+ACC-10236,2026-07-27,Starter,Logistics,LATAM,5,3,68.9,0,36.0,191.72,Monthly,Female,1
+ACC-10237,2024-05-20,Growth,FinTech,North America,71,45,45.6,3,,2024.89,Annual,Male,1
+ACC-10238,2025-05-14,Professional,Cybersecurity,LATAM,6,3,,2,43.0,793.11,Monthly,Non-Binary,0
+ACC-10239,2025-05-29,Professional,Logistics,APAC,11,5,79.4,0,47.0,724.08,Monthly,Female,1
+ACC-10240,2026-03-25,Professional,E-Commerce,APAC,8,6,85.3,0,100.0,559.41,Monthly,Male,0
+ACC-10241,2026-05-28,Professional,E-Commerce,North America,8,5,53.5,1,84.0,726.38,Monthly,Non-Binary,0
+ACC-10242,2025-05-26,Professional,Cybersecurity,EMEA,16,15,78.2,0,83.0,755.04,Monthly,Female,1
+ACC-10243,2024-02-17,Starter,Cybersecurity,LATAM,1,0,57.5,0,4.0,133.28,Monthly,Male,1
+ACC-10244,2024-05-27,Growth,FinTech,EMEA,45,31,72.2,4,-11.0,1586.23,Annual,Non-Binary,0
+ACC-10245,2026-02-12,Professional,Logistics,APAC,8,4,90.1,11,-1.0,708.39,Monthly,Male,0
+ACC-10246,2026-02-26,Professional,FinTech,APAC,25,20,55.3,1,33.0,715.65,Monthly,Non-Binary,0
+ACC-10247,2024-12-30,Growth,EdTech,LATAM,53,42,71.0,0,-7.0,1672.0,Monthly,Female,0
+ACC-10248,2024-10-01,Professional,Healthcare,North America,18,10,87.6,5,53.0,773.68,Monthly,Female,1
+ACC-10249,2024-11-11,Starter,FinTech,North America,4,1,89.8,1,39.0,154.45,Monthly,Female,0
+ACC-10250,2024-01-27,Professional,Logistics,LATAM,17,14,70.4,3,30.0,578.57,Monthly,Female,0
+ACC-10251,2025-02-01,Growth,FinTech,APAC,41,23,53.9,0,-4.0,1559.29,Monthly,Male,0
+ACC-10252,2024-03-05,Starter,E-Commerce,LATAM,2,1,48.1,2,-29.0,164.88,Monthly,Female,1
+ACC-10253,2025-09-23,Starter,Healthcare,LATAM,2,1,69.5,1,32.0,189.56,Monthly,Non-Binary,0
+ACC-10254,2025-03-26,Starter,Logistics,LATAM,3,2,56.0,0,64.0,186.09,Monthly,Male,0
+ACC-10255,2024-11-17,Starter,Cybersecurity,EMEA,2,1,68.5,2,34.0,139.21,Monthly,Male,0
+ACC-10256,2024-10-14,Enterprise,Healthcare,APAC,369,332,67.5,2,59.0,5912.63,Monthly,Male,0
+ACC-10257,2024-08-02,Growth,FinTech,LATAM,79,54,48.8,1,25.0,1671.62,Annual,Non-Binary,1
+ACC-10258,2024-09-15,Professional,Healthcare,APAC,19,9,69.0,7,50.0,560.05,Monthly,Female,1
+ACC-10259,2024-02-07,Professional,EdTech,LATAM,23,15,51.1,2,30.0,643.71,Monthly,Non-Binary,1
+ACC-10260,2025-10-24,Starter,Cybersecurity,APAC,5,3,64.2,0,79.0,169.32,Monthly,Female,0
+ACC-10261,2024-04-10,Growth,EdTech,North America,58,46,57.0,2,25.0,1576.8,Annual,Female,1
+ACC-10262,2025-08-25,Professional,EdTech,LATAM,10,9,75.9,0,70.0,701.51,Monthly,Non-Binary,0
+ACC-10263,2024-05-25,Enterprise,FinTech,North America,314,203,43.4,1,28.0,7066.6,Annual,Non-Binary,0
+ACC-10264,2024-03-09,Starter,Cybersecurity,LATAM,3,2,57.6,0,-42.0,183.36,Monthly,Male,1
+ACC-10265,2024-09-06,Professional,Cybersecurity,EMEA,11,5,41.4,0,40.0,774.88,Monthly,Non-Binary,1
+ACC-10266,2025-10-17,Professional,EdTech,EMEA,18,15,67.7,0,52.0,837.94,Monthly,Female,0
+ACC-10267,2024-08-07,Professional,EdTech,North America,14,12,67.5,0,7.0,685.41,Monthly,Non-Binary,1
+ACC-10268,2024-11-29,Starter,Logistics,EMEA,2,1,43.3,1,-13.0,177.27,Monthly,Male,0
+ACC-10269,2025-02-05,Enterprise,E-Commerce,LATAM,261,249,56.0,2,66.0,8134.35,Annual,Non-Binary,0
+ACC-10270,2024-05-17,Professional,E-Commerce,North America,9,7,100.0,2,16.0,626.99,Monthly,Non-Binary,0
+ACC-10271,2024-05-21,Starter,EdTech,LATAM,5,3,68.6,0,12.0,170.48,Monthly,Non-Binary,0
+ACC-10272,2024-10-22,Enterprise,Healthcare,EMEA,311,247,61.4,0,40.0,7023.25,Annual,Male,1
+ACC-10273,2025-06-01,Professional,Healthcare,LATAM,19,15,43.8,0,5.0,832.28,Monthly,Non-Binary,0
+ACC-10274,2024-10-26,Professional,FinTech,North America,14,7,89.3,0,56.0,745.95,Monthly,Female,1
+ACC-10275,2024-04-26,Professional,EdTech,North America,23,22,85.9,2,12.0,576.54,Monthly,Non-Binary,0
+ACC-10276,2024-04-14,Growth,EdTech,EMEA,28,13,91.9,2,51.0,1696.61,Monthly,Male,0
+ACC-10277,2026-04-10,Growth,FinTech,EMEA,71,68,56.4,8,62.0,1563.98,Monthly,Female,0
+ACC-10278,2024-12-25,Starter,Healthcare,North America,5,4,77.7,0,67.0,166.81,Monthly,Non-Binary,0
+ACC-10279,2026-07-10,Starter,Logistics,APAC,1,0,49.2,1,-23.0,190.15,Monthly,Non-Binary,1
+ACC-10280,2026-06-05,Starter,Cybersecurity,EMEA,2,1,64.0,4,26.0,191.16,Monthly,Non-Binary,0
+ACC-10281,2025-08-14,Growth,EdTech,LATAM,50,43,65.0,3,43.0,1761.58,Annual,Female,0
+ACC-10282,2026-06-17,Professional,Cybersecurity,APAC,20,16,79.9,0,70.0,798.78,Monthly,Non-Binary,0
+ACC-10283,2025-11-11,Growth,FinTech,LATAM,76,71,75.2,3,15.0,2327.58,Annual,Non-Binary,1
+ACC-10284,2025-07-14,Professional,E-Commerce,APAC,10,8,73.6,1,86.0,700.46,Monthly,Male,0
+ACC-10285,2026-03-13,Growth,FinTech,North America,33,24,,2,46.0,1771.01,Annual,Non-Binary,0
+ACC-10286,2024-11-05,Starter,Cybersecurity,EMEA,2,1,64.2,3,9.0,138.3,Monthly,Non-Binary,1
+ACC-10287,2025-02-09,Professional,Cybersecurity,EMEA,13,10,46.5,0,48.0,714.86,Monthly,Female,0
+ACC-10288,2024-08-19,Starter,FinTech,EMEA,5,2,53.9,6,54.0,164.91,Monthly,Non-Binary,1
+ACC-10289,2024-03-13,Enterprise,EdTech,EMEA,455,221,81.0,12,23.0,6481.27,Annual,Male,1
+ACC-10290,2025-11-24,Starter,EdTech,EMEA,2,1,72.0,1,,157.78,Monthly,Non-Binary,0
+ACC-10291,2026-02-05,Professional,Cybersecurity,EMEA,19,7,40.5,3,72.0,755.97,Monthly,Non-Binary,1
+ACC-10292,2026-01-17,Growth,Healthcare,North America,53,35,57.8,1,40.0,2006.44,Annual,Non-Binary,0
+ACC-10293,2024-01-28,Starter,Logistics,APAC,3,2,86.4,0,52.0,165.34,Monthly,Non-Binary,0
+ACC-10294,2025-01-30,Starter,FinTech,EMEA,1,0,64.9,3,21.0,161.13,Monthly,Male,0
+ACC-10295,2025-01-31,Enterprise,E-Commerce,APAC,360,252,47.4,0,29.0,7831.7,Annual,Female,0
+ACC-10296,2024-09-25,Growth,FinTech,North America,29,15,95.2,14,53.0,1601.77,Annual,Female,0
+ACC-10297,2025-10-17,Growth,EdTech,LATAM,65,41,90.0,0,52.0,2050.48,Annual,Female,0
+ACC-10298,2025-08-23,Starter,Healthcare,APAC,1,0,100.0,0,81.0,184.19,Monthly,Male,0
+ACC-10299,2025-04-09,Starter,FinTech,LATAM,5,2,70.5,0,-18.0,150.08,Monthly,Female,0
+ACC-10300,2024-01-12,Starter,FinTech,EMEA,2,1,77.2,1,19.0,145.0,Monthly,Non-Binary,0
+ACC-10301,2026-03-10,Starter,E-Commerce,EMEA,3,1,67.5,1,88.0,136.51,Monthly,Non-Binary,0
+ACC-10302,2025-04-11,Professional,E-Commerce,North America,17,8,50.0,3,44.0,776.41,Monthly,Male,0
+ACC-10303,2026-01-28,Starter,FinTech,North America,5,2,66.2,0,28.0,192.07,Monthly,Female,1
+ACC-10304,2025-07-20,Starter,Healthcare,EMEA,4,2,84.4,1,10.0,188.67,Monthly,Female,0
+ACC-10305,2025-05-29,Starter,FinTech,APAC,1,0,24.4,0,61.0,131.91,Monthly,Female,0
+ACC-10306,2024-12-01,Professional,EdTech,APAC,23,18,69.2,6,50.0,558.88,Monthly,Male,1
+ACC-10307,2025-01-12,Growth,Cybersecurity,EMEA,75,41,82.3,0,-2.0,1869.22,Annual,Male,0
+ACC-10308,2024-08-26,Starter,FinTech,LATAM,5,4,38.9,0,69.0,158.82,Monthly,Female,1
+ACC-10309,2026-01-14,Starter,Cybersecurity,LATAM,3,1,71.6,1,69.0,142.71,Monthly,Non-Binary,1
+ACC-10310,2024-02-14,Enterprise,Healthcare,APAC,439,359,71.2,1,23.0,8040.91,Annual,Female,1
+ACC-10311,2026-04-19,Professional,Logistics,EMEA,8,5,75.9,1,62.0,686.55,Monthly,Non-Binary,0
+ACC-10312,2026-08-06,Starter,E-Commerce,APAC,4,2,68.4,3,13.0,171.44,Monthly,Male,1
+ACC-10313,2024-04-18,Starter,Logistics,North America,2,1,56.4,0,11.0,131.01,Monthly,Female,1
+ACC-10314,2025-04-19,Enterprise,Healthcare,LATAM,161,112,73.8,4,27.0,7738.5,Annual,Male,0
+ACC-10315,2024-04-03,Professional,Healthcare,APAC,17,11,83.9,1,32.0,622.35,Monthly,Female,0
+ACC-10316,2026-05-25,Growth,Healthcare,North America,73,57,60.3,3,69.0,1615.43,Annual,Male,0
+ACC-10317,2024-05-13,Starter,FinTech,North America,2,1,84.5,1,14.0,141.25,Monthly,Female,0
+ACC-10318,2024-03-07,Professional,E-Commerce,North America,20,12,69.2,0,60.0,785.89,Monthly,Female,0
+ACC-10319,2024-02-21,Growth,FinTech,North America,53,30,,0,22.0,2172.54,Annual,Male,0
+ACC-10320,2024-10-13,Starter,Healthcare,EMEA,4,1,100.0,0,2.0,171.66,Monthly,Male,0
+ACC-10321,2024-03-30,Starter,EdTech,LATAM,3,2,66.6,9,48.0,181.74,Monthly,Female,0
+ACC-10322,2026-03-11,Professional,Cybersecurity,North America,21,10,64.6,0,64.0,738.14,Monthly,Male,1
+ACC-10323,2024-01-27,Professional,EdTech,APAC,25,17,78.4,0,44.0,716.23,Monthly,Female,0
+ACC-10324,2024-08-26,Starter,EdTech,APAC,2,1,71.0,2,74.0,140.15,Monthly,Non-Binary,0
+ACC-10325,2025-08-12,Growth,Cybersecurity,North America,79,69,29.8,1,16.0,1911.65,Annual,Female,0
+ACC-10326,2025-12-18,Professional,Logistics,North America,24,12,83.1,0,51.0,650.55,Monthly,Non-Binary,0
+ACC-10327,2025-05-17,Enterprise,EdTech,APAC,200,120,,2,25.0,5940.27,Annual,Female,0
+ACC-10328,2024-12-14,Starter,Logistics,EMEA,2,1,75.3,2,34.0,151.29,Monthly,Female,1
+ACC-10329,2025-01-17,Starter,FinTech,APAC,4,2,59.6,0,41.0,173.14,Monthly,Female,0
+ACC-10330,2024-11-20,Starter,EdTech,LATAM,2,1,83.7,2,-5.0,142.83,Monthly,Non-Binary,0
+ACC-10331,2026-01-21,Professional,Healthcare,LATAM,10,5,77.3,4,,641.8,Monthly,Male,0
+ACC-10332,2025-09-08,Professional,Logistics,North America,25,19,75.4,2,27.0,783.12,Monthly,Female,0
+ACC-10333,2024-12-21,Starter,Cybersecurity,North America,3,1,87.9,1,31.0,134.99,Monthly,Female,0
+ACC-10334,2024-09-28,Professional,E-Commerce,LATAM,13,6,58.4,2,32.0,838.21,Monthly,Female,0
+ACC-10335,2026-01-20,Professional,FinTech,LATAM,11,9,77.2,3,27.0,634.41,Monthly,Male,0
+ACC-10336,2025-04-07,Starter,EdTech,EMEA,1,0,51.2,3,67.0,128.72,Monthly,Female,1
+ACC-10337,2026-01-19,Starter,Healthcare,LATAM,1,0,74.6,0,90.0,186.41,Monthly,Female,0
+ACC-10338,2024-06-17,Professional,FinTech,LATAM,19,12,82.4,0,-13.0,556.13,Monthly,Non-Binary,1
+ACC-10339,2024-10-15,Starter,Cybersecurity,APAC,3,1,85.1,4,86.0,177.67,Monthly,Non-Binary,1
+ACC-10340,2025-03-13,Professional,FinTech,APAC,15,8,69.3,0,69.0,575.6,Monthly,Female,0
+ACC-10341,2024-10-25,Starter,Healthcare,EMEA,1,0,85.6,4,50.0,167.93,Monthly,Non-Binary,0
+ACC-10342,2025-10-19,Professional,Cybersecurity,APAC,18,11,56.2,3,-19.0,703.85,Monthly,Female,1
+ACC-10343,2024-09-26,Professional,E-Commerce,LATAM,14,9,97.0,1,74.0,813.56,Monthly,Male,0
+ACC-10344,2025-02-27,Starter,Cybersecurity,APAC,5,3,63.6,1,9.0,143.53,Monthly,Non-Binary,0
+ACC-10345,2026-06-21,Professional,Logistics,LATAM,21,15,68.8,2,85.0,830.53,Monthly,Non-Binary,1
+ACC-10346,2026-02-14,Starter,Logistics,EMEA,4,2,57.0,0,33.0,144.67,Monthly,Female,1
+ACC-10347,2026-04-22,Professional,Cybersecurity,LATAM,25,14,42.7,2,32.0,836.67,Monthly,Female,1
+ACC-10348,2024-11-29,Starter,EdTech,LATAM,3,2,62.4,3,12.0,141.47,Monthly,Non-Binary,1
+ACC-10349,2024-06-02,Professional,EdTech,North America,24,13,65.1,0,55.0,702.46,Monthly,Male,0
+ACC-10350,2026-06-07,Enterprise,Logistics,North America,216,129,87.4,1,35.0,5857.98,Annual,Male,0
+ACC-10351,2025-09-25,Starter,E-Commerce,LATAM,5,2,55.2,1,-10.0,194.52,Monthly,Female,1
+ACC-10352,2026-07-07,Starter,Cybersecurity,LATAM,3,2,39.5,3,61.0,188.76,Monthly,Male,0
+ACC-10353,2024-05-17,Growth,Cybersecurity,North America,75,30,59.3,0,39.0,2195.17,Annual,Female,1
+ACC-10354,2025-05-11,Starter,Healthcare,LATAM,5,3,63.2,1,8.0,168.26,Monthly,Non-Binary,1
+ACC-10355,2026-03-10,Starter,Logistics,LATAM,5,3,65.6,0,37.0,135.67,Monthly,Female,0
+ACC-10356,2024-02-21,Growth,Healthcare,North America,43,33,48.4,1,77.0,2292.8,Annual,Male,1
+ACC-10357,2025-05-15,Starter,FinTech,EMEA,5,4,85.2,2,43.0,170.44,Monthly,Male,1
+ACC-10358,2024-01-29,Starter,E-Commerce,North America,4,1,47.4,0,38.0,188.42,Monthly,Male,1
+ACC-10359,2025-10-29,Starter,Healthcare,EMEA,4,2,58.1,0,37.0,147.42,Monthly,Male,0
+ACC-10360,2026-03-31,Professional,Healthcare,EMEA,13,10,85.5,2,47.0,652.88,Monthly,Non-Binary,0
+ACC-10361,2026-07-05,Enterprise,Cybersecurity,APAC,210,117,86.0,1,14.0,7493.43,Annual,Male,0
+ACC-10362,2025-06-07,Professional,Logistics,North America,23,20,65.6,0,59.0,793.06,Monthly,Female,0
+ACC-10363,2025-10-17,Starter,FinTech,APAC,3,2,86.6,1,68.0,152.55,Monthly,Male,1
+ACC-10364,2026-04-04,Starter,Healthcare,EMEA,5,2,62.5,0,58.0,156.56,Monthly,Female,1
+ACC-10365,2025-02-18,Professional,E-Commerce,APAC,7,5,57.9,1,28.0,741.4,Monthly,Male,1
+ACC-10366,2025-07-01,Starter,Cybersecurity,EMEA,4,3,45.8,9,17.0,173.21,Monthly,Non-Binary,1
+ACC-10367,2025-04-27,Growth,Healthcare,APAC,72,34,59.5,1,34.0,2087.5,Annual,Female,0
+ACC-10368,2024-12-29,Growth,Cybersecurity,North America,52,21,66.4,0,23.0,1841.21,Annual,Female,1
+ACC-10369,2026-06-06,Professional,FinTech,LATAM,24,15,78.1,0,26.0,773.69,Monthly,Female,0
+ACC-10370,2024-11-01,Starter,Cybersecurity,LATAM,4,3,89.1,9,46.0,148.69,Monthly,Non-Binary,1
+ACC-10371,2024-11-19,Professional,Logistics,LATAM,8,5,39.7,1,1.0,833.63,Monthly,Female,1
+ACC-10372,2024-08-02,Professional,FinTech,LATAM,24,17,79.5,1,50.0,714.46,Monthly,Male,0
+ACC-10373,2025-03-15,Starter,Logistics,LATAM,4,2,65.0,0,,145.01,Monthly,Non-Binary,0
+ACC-10374,2024-07-14,Professional,FinTech,APAC,6,3,48.7,1,42.0,715.63,Monthly,Non-Binary,0
+ACC-10375,2025-05-30,Starter,Healthcare,North America,5,3,87.8,2,93.0,160.5,Monthly,Male,0
+ACC-10376,2026-06-28,Starter,Cybersecurity,APAC,2,0,100.0,0,-10.0,154.17,Monthly,Male,0
+ACC-10377,2024-08-17,Enterprise,EdTech,North America,92,75,87.5,0,37.0,8185.15,Annual,Female,0
+ACC-10378,2024-09-18,Professional,FinTech,LATAM,25,21,79.2,6,23.0,589.01,Monthly,Non-Binary,1
+ACC-10379,2024-04-28,Professional,FinTech,North America,20,19,88.3,1,33.0,687.83,Monthly,Non-Binary,0
+ACC-10380,2025-03-06,Starter,Cybersecurity,North America,1,0,57.3,1,76.0,146.79,Monthly,Male,0
+ACC-10381,2024-04-26,Growth,FinTech,North America,38,34,67.0,3,43.0,1997.6,Annual,Male,0
+ACC-10382,2024-06-13,Starter,Cybersecurity,LATAM,1,0,64.4,4,30.0,166.21,Monthly,Male,1
+ACC-10383,2026-05-05,Starter,FinTech,North America,5,4,78.7,2,-53.0,184.67,Monthly,Female,0
+ACC-10384,2024-10-30,Professional,E-Commerce,EMEA,20,13,88.2,2,63.0,558.09,Monthly,Male,1
+ACC-10385,2026-01-26,Growth,E-Commerce,APAC,80,48,,0,60.0,1772.51,Monthly,Male,0
+ACC-10386,2025-09-28,Professional,E-Commerce,APAC,8,7,85.2,0,50.0,555.09,Monthly,Male,1
+ACC-10387,2025-12-07,Professional,EdTech,APAC,19,16,56.5,3,47.0,768.33,Monthly,Male,0
+ACC-10388,2026-07-22,Professional,Healthcare,North America,21,17,74.3,0,67.0,745.12,Monthly,Male,0
+ACC-10389,2026-06-20,Starter,E-Commerce,North America,2,1,55.8,0,30.0,132.74,Monthly,Non-Binary,1
+ACC-10390,2025-12-22,Starter,Cybersecurity,APAC,5,4,33.9,0,41.0,182.06,Monthly,Female,1
+ACC-10391,2025-11-08,Growth,Logistics,North America,48,38,39.1,0,12.0,2173.56,Annual,Male,1
+ACC-10392,2025-10-20,Professional,Logistics,North America,22,20,82.9,0,29.0,787.52,Monthly,Female,0
+ACC-10393,2024-12-04,Starter,EdTech,APAC,3,2,69.1,0,43.0,142.76,Monthly,Female,0
+ACC-10394,2026-03-31,Growth,FinTech,LATAM,31,28,13.6,1,40.0,1629.57,Annual,Male,1
+ACC-10395,2024-02-06,Professional,FinTech,LATAM,23,18,82.5,3,5.0,573.49,Monthly,Male,0
+ACC-10396,2025-11-18,Professional,Logistics,EMEA,16,11,75.1,0,19.0,714.11,Monthly,Non-Binary,0
+ACC-10397,2025-11-03,Starter,Logistics,LATAM,3,1,58.6,3,39.0,146.69,Monthly,Non-Binary,1
+ACC-10398,2025-06-18,Starter,Cybersecurity,APAC,3,2,62.1,4,39.0,127.51,Monthly,Non-Binary,1
+ACC-10399,2025-09-17,Professional,EdTech,North America,12,9,56.2,0,25.0,624.7,Monthly,Male,1
+ACC-10400,2024-02-17,Starter,E-Commerce,North America,5,2,72.7,1,40.0,184.38,Monthly,Male,0
+ACC-10401,2026-01-23,Professional,EdTech,North America,23,22,72.8,1,17.0,662.87,Monthly,Non-Binary,0
+ACC-10402,2026-04-14,Enterprise,Healthcare,EMEA,417,337,85.4,7,72.0,7375.68,Annual,Non-Binary,0
+ACC-10403,2025-02-11,Starter,Logistics,EMEA,3,2,56.9,3,25.0,191.68,Monthly,Male,0
+ACC-10404,2025-07-14,Professional,Cybersecurity,APAC,23,14,68.0,1,53.0,566.59,Monthly,Non-Binary,0
+ACC-10405,2025-10-27,Starter,E-Commerce,EMEA,2,1,58.9,3,30.0,141.6,Monthly,Non-Binary,1
+ACC-10406,2025-08-07,Growth,Logistics,LATAM,44,39,79.2,1,0.0,2195.97,Monthly,Non-Binary,0
+ACC-10407,2024-09-30,Starter,Cybersecurity,North America,2,1,40.0,0,59.0,142.06,Monthly,Female,0
+ACC-10408,2026-04-13,Growth,Healthcare,North America,65,37,46.6,2,84.0,2128.26,Annual,Male,1
+ACC-10409,2025-11-11,Professional,Healthcare,APAC,18,10,58.2,0,30.0,812.89,Monthly,Non-Binary,0
+ACC-10410,2026-01-31,Starter,Logistics,North America,3,2,63.9,1,5.0,145.56,Monthly,Female,1
+ACC-10411,2025-07-13,Starter,Cybersecurity,APAC,5,3,67.7,7,27.0,163.34,Monthly,Non-Binary,1
+ACC-10412,2024-06-26,Starter,Cybersecurity,North America,5,2,80.9,1,56.0,173.23,Monthly,Female,0
+ACC-10413,2024-12-04,Starter,Logistics,APAC,4,1,80.1,0,52.0,135.97,Monthly,Female,0
+ACC-10414,2026-03-19,Growth,Cybersecurity,APAC,48,27,69.8,0,81.0,1544.22,Monthly,Male,0
+ACC-10415,2025-07-10,Starter,FinTech,EMEA,5,2,71.0,4,36.0,127.59,Monthly,Male,1
+ACC-10416,2026-02-09,Starter,E-Commerce,APAC,5,4,64.0,1,79.0,188.15,Monthly,Female,0
+ACC-10417,2024-09-03,Starter,Cybersecurity,APAC,5,2,66.1,3,-14.0,131.93,Monthly,Male,1
+ACC-10418,2025-07-07,Enterprise,FinTech,LATAM,475,453,68.4,7,41.0,5694.2,Annual,Male,1
+ACC-10419,2025-06-10,Starter,Cybersecurity,EMEA,1,0,,2,25.0,152.18,Monthly,Male,0
+ACC-10420,2025-03-10,Starter,Cybersecurity,EMEA,1,0,77.0,1,69.0,166.54,Monthly,Non-Binary,0
+ACC-10421,2025-04-15,Professional,FinTech,EMEA,7,4,63.8,1,48.0,628.52,Monthly,Female,0
+ACC-10422,2025-02-21,Professional,Logistics,EMEA,20,8,,0,97.0,759.51,Monthly,Male,0
+ACC-10423,2026-01-07,Professional,Logistics,North America,8,4,100.0,0,35.0,707.43,Monthly,Non-Binary,0
+ACC-10424,2026-03-16,Starter,Logistics,North America,3,1,28.2,0,81.0,181.97,Monthly,Male,1
+ACC-10425,2024-06-09,Starter,Cybersecurity,North America,5,2,60.3,7,52.0,157.57,Monthly,Male,1
+ACC-10426,2025-11-24,Professional,Cybersecurity,EMEA,6,5,39.2,1,48.0,830.79,Monthly,Male,0
+ACC-10427,2024-08-03,Professional,EdTech,North America,12,9,75.7,3,35.0,573.88,Monthly,Male,1
+ACC-10428,2024-04-27,Starter,Logistics,APAC,2,1,81.0,2,-3.0,159.69,Monthly,Female,1
+ACC-10429,2025-11-18,Enterprise,EdTech,North America,182,154,62.4,0,34.0,7177.87,Annual,Male,0
+ACC-10430,2024-10-18,Starter,Cybersecurity,EMEA,5,2,45.5,0,53.0,190.02,Monthly,Female,0
+ACC-10431,2025-08-03,Professional,Cybersecurity,EMEA,16,7,60.1,1,,765.69,Monthly,Non-Binary,0
+ACC-10432,2026-05-10,Starter,Cybersecurity,LATAM,3,1,81.4,10,29.0,135.5,Monthly,Male,1
+ACC-10433,2024-04-21,Professional,E-Commerce,LATAM,25,15,93.6,5,16.0,775.09,Monthly,Non-Binary,0
+ACC-10434,2024-03-18,Professional,E-Commerce,North America,22,13,55.7,1,58.0,721.31,Monthly,Non-Binary,0
+ACC-10435,2024-09-23,Growth,Healthcare,North America,56,30,68.3,0,6.0,2061.87,Monthly,Non-Binary,1
+ACC-10436,2025-04-20,Growth,Cybersecurity,APAC,31,15,,6,55.0,1559.18,Monthly,Female,0
+ACC-10437,2024-05-23,Enterprise,Logistics,EMEA,370,272,97.1,0,38.0,6802.1,Annual,Non-Binary,0
+ACC-10438,2024-08-12,Professional,EdTech,APAC,13,12,64.6,3,62.0,814.02,Monthly,Female,0
+ACC-10439,2026-07-28,Starter,E-Commerce,LATAM,4,2,45.5,0,45.0,161.08,Monthly,Male,0
+ACC-10440,2025-07-11,Professional,E-Commerce,APAC,11,4,21.1,3,40.0,613.07,Monthly,Non-Binary,0
+ACC-10441,2026-07-18,Growth,FinTech,APAC,51,40,80.2,0,70.0,1799.07,Annual,Male,0
+ACC-10442,2024-06-18,Growth,FinTech,EMEA,58,32,58.9,0,32.0,1966.67,Monthly,Male,0
+ACC-10443,2026-04-10,Professional,FinTech,EMEA,9,5,55.8,7,36.0,552.5,Monthly,Male,1
+ACC-10444,2024-02-14,Starter,EdTech,North America,2,1,80.2,2,0.0,148.03,Monthly,Female,0
+ACC-10445,2024-09-21,Growth,Healthcare,North America,51,29,89.5,3,5.0,1872.33,Annual,Female,1
+ACC-10446,2025-04-04,Professional,E-Commerce,North America,21,19,57.2,1,77.0,661.0,Monthly,Female,0
+ACC-10447,2025-11-06,Starter,Logistics,EMEA,5,3,53.1,3,50.0,132.8,Monthly,Non-Binary,0
+ACC-10448,2025-01-29,Professional,FinTech,EMEA,9,3,79.7,0,-10.0,831.02,Monthly,Male,0
+ACC-10449,2025-05-02,Professional,Healthcare,North America,25,11,100.0,1,100.0,774.51,Monthly,Female,0
+ACC-10450,2025-07-06,Starter,Cybersecurity,EMEA,1,0,62.2,5,88.0,183.36,Monthly,Non-Binary,0
+ACC-10451,2024-12-24,Professional,Healthcare,LATAM,24,21,83.1,0,16.0,765.73,Monthly,Male,0
+ACC-10452,2026-06-16,Starter,FinTech,APAC,5,4,75.9,2,,150.15,Monthly,Non-Binary,0
+ACC-10453,2024-01-08,Starter,Logistics,North America,4,2,48.3,3,23.0,191.43,Monthly,Non-Binary,0
+ACC-10454,2026-05-25,Starter,Cybersecurity,APAC,5,2,40.7,2,24.0,153.44,Monthly,Male,0
+ACC-10455,2026-03-13,Starter,Healthcare,LATAM,5,4,68.1,2,15.0,164.38,Monthly,Non-Binary,0
+ACC-10456,2025-02-11,Enterprise,Logistics,APAC,198,171,29.2,0,67.0,6049.32,Monthly,Non-Binary,0
+ACC-10457,2025-09-20,Starter,EdTech,APAC,1,0,80.5,2,,138.12,Monthly,Non-Binary,0
+ACC-10458,2024-03-06,Starter,Logistics,LATAM,3,2,89.8,5,42.0,144.41,Monthly,Female,1
+ACC-10459,2025-09-03,Enterprise,EdTech,APAC,334,143,36.0,0,47.0,7496.51,Annual,Non-Binary,1
+ACC-10460,2026-03-13,Growth,E-Commerce,EMEA,59,35,56.7,0,81.0,2033.25,Monthly,Female,0
+ACC-10461,2024-10-09,Starter,FinTech,EMEA,4,2,47.9,0,72.0,146.79,Monthly,Female,0
+ACC-10462,2025-07-16,Starter,Cybersecurity,North America,3,2,88.1,0,78.0,191.25,Monthly,Female,0
+ACC-10463,2025-08-11,Starter,Healthcare,LATAM,1,0,50.7,1,6.0,178.19,Monthly,Male,0
+ACC-10464,2024-09-20,Professional,E-Commerce,North America,24,16,63.9,2,7.0,572.24,Monthly,Non-Binary,0
+ACC-10465,2025-11-28,Professional,Healthcare,APAC,24,14,41.1,0,15.0,676.15,Monthly,Male,1
+ACC-10466,2025-02-26,Professional,Healthcare,EMEA,22,12,71.7,2,37.0,631.05,Monthly,Male,1
+ACC-10467,2025-07-21,Starter,EdTech,APAC,2,1,58.2,2,26.0,132.6,Monthly,Female,0
+ACC-10468,2026-01-24,Starter,Cybersecurity,EMEA,2,1,82.6,2,0.0,171.27,Monthly,Male,0
+ACC-10469,2026-03-08,Starter,Healthcare,APAC,1,0,86.3,6,43.0,148.62,Monthly,Female,1
+ACC-10470,2025-01-15,Starter,Logistics,North America,5,4,77.9,0,45.0,137.95,Monthly,Male,0
+ACC-10471,2024-08-15,Enterprise,Logistics,APAC,350,278,63.9,1,33.0,7575.83,Annual,Male,1
+ACC-10472,2024-05-03,Professional,EdTech,EMEA,20,19,88.2,0,,684.2,Monthly,Male,0
+ACC-10473,2025-09-19,Starter,FinTech,APAC,3,1,67.6,0,29.0,193.45,Monthly,Male,0
+ACC-10474,2025-03-10,Professional,E-Commerce,EMEA,19,12,60.1,2,-13.0,820.01,Monthly,Male,1
+ACC-10475,2025-12-03,Starter,Healthcare,EMEA,2,1,44.7,2,55.0,167.29,Monthly,Non-Binary,1
+ACC-10476,2024-06-02,Growth,Healthcare,EMEA,37,33,53.9,0,14.0,1691.41,Annual,Non-Binary,1
+ACC-10477,2024-11-03,Professional,Cybersecurity,APAC,23,15,80.3,2,79.0,570.79,Monthly,Male,1
+ACC-10478,2026-05-09,Starter,Healthcare,APAC,1,0,77.0,5,49.0,191.73,Monthly,Male,0
+ACC-10479,2025-02-25,Professional,E-Commerce,APAC,17,12,83.6,1,61.0,611.08,Monthly,Female,1
+ACC-10480,2024-11-28,Professional,Healthcare,APAC,21,19,87.3,0,100.0,661.05,Monthly,Male,0
+ACC-10481,2025-10-17,Professional,EdTech,EMEA,19,14,63.8,2,78.0,814.39,Monthly,Female,0
+ACC-10482,2024-11-17,Starter,Healthcare,APAC,3,1,100.0,6,12.0,175.12,Monthly,Female,1
+ACC-10483,2024-06-20,Growth,E-Commerce,LATAM,34,19,61.0,0,33.0,2198.04,Annual,Male,0
+ACC-10484,2024-04-15,Professional,Healthcare,EMEA,8,5,59.1,2,78.0,568.93,Monthly,Male,0
+ACC-10485,2025-09-24,Professional,FinTech,North America,8,3,82.2,3,45.0,599.15,Monthly,Male,0
+ACC-10486,2025-06-23,Starter,Cybersecurity,EMEA,2,1,48.5,1,10.0,134.95,Monthly,Female,1
+ACC-10487,2025-03-31,Growth,EdTech,APAC,37,22,76.7,0,51.0,1819.08,Annual,Non-Binary,0
+ACC-10488,2025-05-08,Professional,Logistics,APAC,13,7,69.5,6,-31.0,831.2,Monthly,Male,0
+ACC-10489,2025-06-19,Starter,E-Commerce,North America,2,1,71.2,0,100.0,134.42,Monthly,Female,0
+ACC-10490,2026-02-23,Professional,EdTech,APAC,15,13,75.6,1,53.0,750.51,Monthly,Female,0
+ACC-10491,2024-09-12,Starter,Logistics,LATAM,2,1,78.0,0,7.0,138.32,Monthly,Male,1
+ACC-10492,2025-10-26,Professional,Logistics,APAC,14,5,85.6,1,62.0,600.85,Monthly,Male,0
+ACC-10493,2025-04-08,Starter,Cybersecurity,LATAM,3,1,55.2,0,-2.0,133.14,Monthly,Non-Binary,1
+ACC-10494,2024-10-15,Enterprise,FinTech,EMEA,305,229,43.2,0,18.0,7043.73,Monthly,Female,0
+ACC-10495,2026-03-15,Professional,E-Commerce,LATAM,17,12,39.5,1,-21.0,732.77,Monthly,Male,0
+ACC-10496,2026-03-05,Growth,Healthcare,North America,60,29,20.6,4,35.0,2098.74,Monthly,Male,1
+ACC-10497,2024-09-11,Starter,FinTech,North America,4,1,51.3,0,42.0,163.44,Monthly,Non-Binary,1
+ACC-10498,2025-02-02,Professional,FinTech,EMEA,16,8,83.5,0,27.0,754.93,Monthly,Male,0
+ACC-10499,2025-10-15,Professional,FinTech,APAC,12,4,100.0,2,1.0,675.14,Monthly,Male,0
+ACC-10500,2024-01-16,Starter,Cybersecurity,LATAM,2,0,73.1,3,87.0,144.6,Monthly,Male,0
+ACC-10501,2025-09-02,Enterprise,Logistics,LATAM,126,85,87.7,1,16.0,7991.73,Annual,Non-Binary,0
+ACC-10502,2024-12-30,Starter,Cybersecurity,North America,2,1,53.6,1,33.0,185.21,Monthly,Female,0
+ACC-10503,2026-01-20,Enterprise,Cybersecurity,APAC,274,141,83.3,7,-32.0,8162.69,Annual,Male,1
+ACC-10504,2025-12-14,Professional,EdTech,APAC,12,5,89.6,1,20.0,742.13,Monthly,Non-Binary,0
+ACC-10505,2025-06-27,Professional,Logistics,EMEA,20,11,56.6,1,0.0,716.02,Monthly,Female,1
+ACC-10506,2024-07-08,Starter,Cybersecurity,LATAM,1,0,84.1,2,73.0,152.45,Monthly,Non-Binary,1
+ACC-10507,2025-06-20,Professional,Cybersecurity,LATAM,23,18,64.4,3,34.0,616.17,Monthly,Female,0
+ACC-10508,2026-05-05,Starter,FinTech,North America,2,0,76.2,3,78.0,164.52,Monthly,Female,0
+ACC-10509,2025-05-16,Starter,Cybersecurity,LATAM,5,3,75.4,2,9.0,181.7,Monthly,Non-Binary,0
+ACC-10510,2025-11-02,Professional,FinTech,North America,8,4,73.3,5,48.0,602.19,Monthly,Female,0
+ACC-10511,2024-02-29,Professional,EdTech,APAC,14,10,71.4,2,63.0,727.17,Monthly,Non-Binary,1
+ACC-10512,2026-01-12,Starter,Healthcare,North America,2,1,52.7,0,15.0,159.49,Monthly,Female,1
+ACC-10513,2024-04-18,Professional,Healthcare,LATAM,17,10,68.3,0,62.0,615.36,Monthly,Non-Binary,1
+ACC-10514,2024-12-11,Starter,Healthcare,LATAM,2,1,77.2,3,65.0,174.49,Monthly,Non-Binary,1
+ACC-10515,2026-02-21,Professional,E-Commerce,APAC,16,8,71.1,0,51.0,755.01,Monthly,Male,0
+ACC-10516,2025-04-08,Growth,Cybersecurity,APAC,26,20,76.3,0,,1684.65,Monthly,Male,0
+ACC-10517,2024-08-15,Starter,E-Commerce,North America,2,1,55.5,0,52.0,182.51,Monthly,Male,0
+ACC-10518,2024-02-08,Starter,Logistics,EMEA,4,2,74.3,0,-11.0,152.36,Monthly,Female,0
+ACC-10519,2025-08-07,Starter,E-Commerce,APAC,4,3,62.1,5,56.0,149.3,Monthly,Female,0
+ACC-10520,2025-10-19,Professional,EdTech,North America,7,6,76.4,0,-11.0,793.93,Monthly,Non-Binary,1
+ACC-10521,2025-03-02,Starter,E-Commerce,APAC,1,0,81.6,4,53.0,194.93,Monthly,Male,0
+ACC-10522,2024-11-08,Professional,Cybersecurity,LATAM,7,2,49.7,0,27.0,623.14,Monthly,Female,1
+ACC-10523,2026-01-19,Professional,Healthcare,North America,20,14,87.5,0,-4.0,781.74,Monthly,Non-Binary,1
+ACC-10524,2024-12-10,Professional,EdTech,EMEA,21,15,75.0,1,67.0,776.07,Monthly,Female,0
+ACC-10525,2024-05-13,Starter,Logistics,LATAM,2,1,70.6,3,35.0,185.85,Monthly,Non-Binary,0
+ACC-10526,2024-03-14,Starter,Logistics,EMEA,3,1,77.0,5,-6.0,175.25,Monthly,Female,0
+ACC-10527,2024-07-14,Professional,EdTech,APAC,17,12,79.3,1,,652.51,Monthly,Male,1
+ACC-10528,2024-05-29,Enterprise,Logistics,LATAM,200,158,48.9,6,79.0,6855.19,Annual,Non-Binary,1
+ACC-10529,2025-09-27,Growth,FinTech,North America,26,20,86.2,0,75.0,1935.29,Annual,Female,0
+ACC-10530,2025-07-13,Starter,Healthcare,EMEA,5,3,78.1,1,8.0,170.43,Monthly,Female,0
+ACC-10531,2025-08-19,Professional,Cybersecurity,North America,7,3,96.0,4,60.0,797.43,Monthly,Male,0
+ACC-10532,2025-11-01,Professional,E-Commerce,North America,8,5,22.5,0,26.0,833.57,Monthly,Male,1
+ACC-10533,2026-06-07,Professional,FinTech,North America,13,12,99.6,0,82.0,633.53,Monthly,Male,1
+ACC-10534,2024-07-22,Starter,Logistics,North America,5,3,71.5,4,,129.64,Monthly,Female,0
+ACC-10535,2026-02-01,Professional,E-Commerce,LATAM,6,3,79.3,0,10.0,745.27,Monthly,Male,0
+ACC-10536,2025-10-02,Starter,Logistics,APAC,3,1,72.6,7,59.0,194.81,Monthly,Female,1
+ACC-10537,2024-05-20,Starter,E-Commerce,LATAM,1,0,58.7,8,29.0,184.7,Monthly,Non-Binary,0
+ACC-10538,2024-11-15,Starter,Healthcare,EMEA,5,4,64.3,0,12.0,185.05,Monthly,Male,1
+ACC-10539,2024-11-12,Professional,Cybersecurity,EMEA,10,6,59.2,0,26.0,619.59,Monthly,Female,1
+ACC-10540,2025-06-29,Enterprise,E-Commerce,North America,155,130,66.9,0,49.0,8371.25,Annual,Non-Binary,0
+ACC-10541,2026-02-02,Professional,EdTech,APAC,10,5,59.2,0,24.0,647.93,Monthly,Male,0
+ACC-10542,2025-08-03,Growth,Logistics,APAC,64,27,,0,18.0,2075.94,Monthly,Non-Binary,0
+ACC-10543,2025-10-27,Growth,Healthcare,LATAM,80,39,67.4,0,9.0,2230.37,Monthly,Non-Binary,0
+ACC-10544,2024-08-15,Starter,FinTech,APAC,2,0,71.3,0,100.0,181.76,Monthly,Male,0
+ACC-10545,2026-06-27,Growth,EdTech,APAC,51,34,66.5,0,10.0,1751.65,Annual,Male,0
+ACC-10546,2024-04-21,Starter,Logistics,North America,4,2,99.3,1,25.0,131.35,Monthly,Non-Binary,0
+ACC-10547,2025-01-31,Professional,Cybersecurity,North America,7,6,75.1,4,-22.0,779.79,Monthly,Non-Binary,0
+ACC-10548,2025-03-08,Growth,E-Commerce,LATAM,29,17,67.1,2,-7.0,2250.51,Annual,Female,0
+ACC-10549,2026-03-08,Professional,Cybersecurity,North America,23,20,85.1,1,24.0,693.83,Monthly,Female,0
+ACC-10550,2024-04-02,Starter,Logistics,EMEA,3,2,63.6,6,26.0,158.14,Monthly,Male,1
+ACC-10551,2025-12-24,Professional,FinTech,North America,17,12,100.0,0,30.0,718.56,Monthly,Female,0
+ACC-10552,2025-07-17,Enterprise,Logistics,EMEA,168,131,71.9,0,2.0,6613.61,Annual,Male,0
+ACC-10553,2024-02-22,Starter,Healthcare,EMEA,4,2,58.1,5,60.0,142.26,Monthly,Non-Binary,0
+ACC-10554,2024-01-04,Professional,FinTech,EMEA,14,6,89.9,1,19.0,719.59,Monthly,Female,1
+ACC-10555,2024-08-10,Growth,Logistics,LATAM,55,48,58.4,2,49.0,1981.0,Monthly,Female,1
+ACC-10556,2024-07-08,Growth,E-Commerce,EMEA,67,60,52.9,0,,1706.75,Annual,Female,0
+ACC-10557,2024-02-20,Growth,E-Commerce,APAC,37,28,56.5,1,48.0,2172.0,Annual,Female,0
+ACC-10558,2026-02-06,Professional,Logistics,EMEA,17,11,51.1,0,14.0,579.93,Monthly,Male,0
+ACC-10559,2024-03-07,Growth,FinTech,LATAM,34,22,57.1,1,48.0,1909.14,Annual,Non-Binary,0
+ACC-10560,2024-02-29,Professional,Cybersecurity,EMEA,24,23,58.5,3,76.0,727.1,Monthly,Non-Binary,1
+ACC-10561,2025-09-15,Professional,Logistics,APAC,14,7,70.5,2,-28.0,561.41,Monthly,Male,0
+ACC-10562,2026-01-16,Starter,Logistics,LATAM,4,2,30.5,4,86.0,161.92,Monthly,Non-Binary,1
+ACC-10563,2024-01-25,Starter,Healthcare,North America,4,2,57.7,2,44.0,129.19,Monthly,Female,1
+ACC-10564,2026-04-05,Professional,E-Commerce,APAC,6,3,59.9,3,72.0,603.25,Monthly,Non-Binary,1
+ACC-10565,2024-04-26,Starter,E-Commerce,APAC,3,1,80.3,5,90.0,179.66,Monthly,Female,0
+ACC-10566,2026-08-02,Growth,Healthcare,APAC,77,31,69.8,3,73.0,1583.59,Annual,Male,0
+ACC-10567,2026-03-13,Growth,Logistics,APAC,79,32,69.7,5,42.0,1809.52,Annual,Male,1
+ACC-10568,2024-03-08,Professional,Healthcare,APAC,14,11,83.6,6,21.0,731.35,Monthly,Male,0
+ACC-10569,2025-09-01,Professional,Healthcare,LATAM,15,8,83.8,10,79.0,768.68,Monthly,Female,1
+ACC-10570,2026-04-29,Starter,Healthcare,APAC,3,1,38.5,0,23.0,150.45,Monthly,Male,0
+ACC-10571,2025-06-02,Starter,Healthcare,North America,1,0,79.5,0,29.0,190.65,Monthly,Male,1
+ACC-10572,2024-05-26,Professional,Logistics,APAC,22,16,69.5,0,-54.0,600.12,Monthly,Male,1
+ACC-10573,2024-11-14,Starter,Logistics,North America,1,0,76.4,5,80.0,172.18,Monthly,Female,0
+ACC-10574,2025-08-14,Professional,Cybersecurity,APAC,12,5,50.9,1,87.0,773.94,Monthly,Female,0
+ACC-10575,2024-06-01,Starter,EdTech,North America,2,1,88.4,0,1.0,187.95,Monthly,Male,1
+ACC-10576,2024-11-22,Starter,Logistics,APAC,3,1,90.0,0,27.0,139.96,Monthly,Non-Binary,0
+ACC-10577,2025-03-30,Starter,Logistics,APAC,1,0,33.6,1,32.0,163.37,Monthly,Non-Binary,1
+ACC-10578,2024-07-02,Starter,FinTech,LATAM,5,2,84.4,0,38.0,138.6,Monthly,Male,0
+ACC-10579,2025-08-04,Starter,Healthcare,North America,2,1,72.8,2,73.0,171.96,Monthly,Male,0
+ACC-10580,2024-08-25,Professional,Cybersecurity,LATAM,10,5,65.8,1,37.0,669.36,Monthly,Male,0
+ACC-10581,2025-04-09,Professional,Cybersecurity,APAC,6,5,95.3,0,53.0,587.22,Monthly,Male,0
+ACC-10582,2025-08-11,Growth,E-Commerce,APAC,32,14,72.6,0,-2.0,1961.16,Annual,Non-Binary,0
+ACC-10583,2025-08-27,Professional,E-Commerce,LATAM,13,12,33.7,0,9.0,791.98,Monthly,Male,1
+ACC-10584,2025-08-28,Starter,E-Commerce,EMEA,4,2,78.0,0,-5.0,174.21,Monthly,Non-Binary,0
+ACC-10585,2025-12-29,Starter,Cybersecurity,North America,5,4,66.3,0,74.0,151.75,Monthly,Non-Binary,0
+ACC-10586,2025-02-19,Starter,EdTech,EMEA,1,0,40.7,4,-49.0,181.89,Monthly,Male,1
+ACC-10587,2024-08-10,Starter,EdTech,North America,2,1,60.6,1,69.0,153.22,Monthly,Female,1
+ACC-10588,2025-09-22,Professional,EdTech,APAC,20,9,71.4,1,48.0,825.27,Monthly,Male,1
+ACC-10589,2026-01-05,Professional,Cybersecurity,APAC,8,5,76.2,7,5.0,691.61,Monthly,Male,0
+ACC-10590,2026-07-11,Growth,E-Commerce,North America,26,11,50.7,2,28.0,2108.95,Monthly,Male,0
+ACC-10591,2025-12-20,Starter,FinTech,EMEA,5,2,80.9,1,-26.0,172.17,Monthly,Male,0
+ACC-10592,2024-05-22,Professional,Healthcare,EMEA,23,17,43.3,0,13.0,790.79,Monthly,Male,1
+ACC-10593,2024-01-12,Enterprise,Cybersecurity,EMEA,450,356,58.0,1,41.0,6733.53,Annual,Female,1
+ACC-10594,2026-07-04,Starter,Healthcare,LATAM,5,4,66.3,0,19.0,138.08,Monthly,Male,0
+ACC-10595,2024-07-09,Growth,EdTech,APAC,26,13,99.6,6,35.0,1981.2,Annual,Female,1
+ACC-10596,2024-02-08,Starter,Logistics,APAC,5,4,72.1,2,55.0,187.32,Monthly,Female,0
+ACC-10597,2025-06-13,Professional,Healthcare,APAC,22,15,54.8,2,89.0,772.58,Monthly,Male,0
+ACC-10598,2025-10-10,Professional,Cybersecurity,North America,24,21,89.6,1,39.0,595.33,Monthly,Non-Binary,0
+ACC-10599,2026-07-16,Growth,EdTech,LATAM,72,39,67.0,1,71.0,2271.2,Annual,Non-Binary,0
+ACC-10600,2026-03-14,Starter,FinTech,APAC,5,2,66.3,2,47.0,166.18,Monthly,Non-Binary,1
+ACC-10601,2025-05-11,Starter,E-Commerce,North America,1,0,65.7,3,52.0,172.8,Monthly,Male,1
+ACC-10602,2024-01-15,Starter,E-Commerce,APAC,1,0,97.7,2,67.0,194.35,Monthly,Male,1
+ACC-10603,2024-08-29,Starter,Healthcare,APAC,4,2,44.7,0,52.0,190.85,Monthly,Non-Binary,0
+ACC-10604,2026-02-09,Starter,Healthcare,EMEA,4,1,62.6,3,-1.0,155.66,Monthly,Male,0
+ACC-10605,2025-10-19,Starter,Cybersecurity,APAC,3,1,86.9,0,84.0,133.18,Monthly,Female,0
+ACC-10606,2025-11-30,Professional,Logistics,EMEA,21,18,76.8,5,24.0,559.43,Monthly,Male,0
+ACC-10607,2024-11-19,Starter,EdTech,LATAM,5,2,33.6,0,74.0,130.92,Monthly,Non-Binary,0
+ACC-10608,2024-10-03,Professional,Cybersecurity,APAC,9,7,66.4,1,33.0,555.81,Monthly,Male,0
+ACC-10609,2024-12-11,Professional,Healthcare,EMEA,16,11,85.1,0,4.0,837.34,Monthly,Non-Binary,0
+ACC-10610,2025-04-01,Starter,FinTech,North America,3,2,66.2,3,16.0,152.79,Monthly,Non-Binary,0
+ACC-10611,2025-10-15,Professional,FinTech,EMEA,9,4,66.0,0,8.0,618.11,Monthly,Non-Binary,0
+ACC-10612,2025-12-13,Growth,Logistics,EMEA,44,22,15.7,0,23.0,1597.66,Annual,Female,1
+ACC-10613,2024-06-14,Enterprise,EdTech,APAC,112,55,91.9,3,44.0,7075.08,Monthly,Male,0
+ACC-10614,2024-03-12,Enterprise,E-Commerce,EMEA,282,156,47.2,2,-17.0,5961.55,Monthly,Male,1
+ACC-10615,2026-01-02,Growth,Healthcare,North America,28,17,51.0,2,53.0,1558.08,Annual,Male,1
+ACC-10616,2025-10-17,Starter,EdTech,EMEA,1,0,50.0,1,12.0,187.31,Monthly,Non-Binary,1
+ACC-10617,2025-12-25,Enterprise,Logistics,North America,287,252,85.6,1,50.0,7491.72,Annual,Non-Binary,0
+ACC-10618,2026-04-17,Professional,FinTech,LATAM,9,5,46.5,0,61.0,768.35,Monthly,Non-Binary,0
+ACC-10619,2025-10-24,Professional,EdTech,North America,17,16,84.1,4,89.0,598.19,Monthly,Non-Binary,0
+ACC-10620,2025-07-21,Growth,Cybersecurity,EMEA,68,51,40.4,0,-21.0,1908.82,Monthly,Female,1
+ACC-10621,2025-03-24,Professional,EdTech,North America,10,5,71.3,3,,801.29,Monthly,Non-Binary,0
+ACC-10622,2025-10-20,Starter,EdTech,North America,3,1,50.9,3,14.0,180.12,Monthly,Non-Binary,1
+ACC-10623,2024-02-13,Starter,FinTech,APAC,4,1,84.2,0,48.0,185.93,Monthly,Non-Binary,0
+ACC-10624,2025-08-16,Enterprise,Logistics,EMEA,457,342,81.2,1,88.0,7263.16,Annual,Non-Binary,0
+ACC-10625,2025-10-26,Enterprise,FinTech,EMEA,404,214,49.1,2,57.0,7773.1,Annual,Non-Binary,0
+ACC-10626,2024-04-26,Professional,Healthcare,North America,25,10,73.1,4,5.0,616.47,Monthly,Female,1
+ACC-10627,2024-05-03,Professional,Cybersecurity,LATAM,23,13,82.0,0,33.0,767.24,Monthly,Male,0
+ACC-10628,2024-03-05,Growth,Logistics,EMEA,35,15,48.7,1,92.0,1541.08,Annual,Male,1
+ACC-10629,2024-04-12,Professional,Logistics,North America,18,14,71.3,1,,639.06,Monthly,Female,0
+ACC-10630,2025-10-29,Starter,Healthcare,North America,5,2,38.0,5,66.0,132.18,Monthly,Non-Binary,1
+ACC-10631,2024-10-04,Professional,Healthcare,EMEA,20,16,72.1,2,-20.0,594.41,Monthly,Non-Binary,0
+ACC-10632,2024-03-31,Starter,Healthcare,LATAM,3,2,74.6,0,39.0,180.97,Monthly,Non-Binary,1
+ACC-10633,2025-06-03,Enterprise,FinTech,APAC,401,211,89.4,1,78.0,6320.47,Monthly,Non-Binary,1
+ACC-10634,2024-06-29,Growth,Cybersecurity,LATAM,29,17,80.0,0,93.0,2120.31,Monthly,Male,0
+ACC-10635,2026-01-28,Professional,EdTech,North America,23,20,72.2,0,54.0,580.12,Monthly,Female,0
+ACC-10636,2025-08-16,Starter,Healthcare,LATAM,3,2,51.5,0,75.0,176.7,Monthly,Non-Binary,1
+ACC-10637,2024-08-30,Growth,E-Commerce,EMEA,50,44,69.4,1,51.0,1967.64,Monthly,Female,1
+ACC-10638,2025-01-31,Professional,Healthcare,LATAM,10,6,39.9,0,80.0,713.05,Monthly,Female,1
+ACC-10639,2025-12-09,Starter,E-Commerce,EMEA,5,2,93.5,4,-39.0,148.76,Monthly,Female,0
+ACC-10640,2025-09-10,Professional,E-Commerce,EMEA,25,21,46.3,1,2.0,722.94,Monthly,Male,0
+ACC-10641,2025-08-28,Starter,Logistics,LATAM,4,2,74.1,0,6.0,173.55,Monthly,Female,0
+ACC-10642,2024-08-15,Starter,E-Commerce,LATAM,5,4,77.6,1,45.0,174.31,Monthly,Non-Binary,0
+ACC-10643,2025-06-27,Enterprise,Cybersecurity,North America,489,248,100.0,4,4.0,7336.08,Annual,Male,1
+ACC-10644,2024-05-15,Starter,FinTech,LATAM,3,2,,1,5.0,135.97,Monthly,Female,0
+ACC-10645,2026-02-04,Professional,Healthcare,LATAM,6,2,71.5,1,7.0,577.66,Monthly,Non-Binary,1
+ACC-10646,2025-10-10,Professional,E-Commerce,LATAM,8,7,68.0,2,17.0,739.05,Monthly,Non-Binary,1
+ACC-10647,2024-03-23,Professional,E-Commerce,EMEA,16,12,96.6,0,52.0,642.52,Monthly,Non-Binary,0
+ACC-10648,2025-01-09,Starter,FinTech,North America,4,2,77.1,0,88.0,158.97,Monthly,Male,0
+ACC-10649,2024-12-08,Professional,Logistics,EMEA,23,13,49.5,2,71.0,558.62,Monthly,Female,0
+ACC-10650,2026-02-18,Professional,Cybersecurity,EMEA,16,10,80.2,0,30.0,773.7,Monthly,Non-Binary,1
+ACC-10651,2025-05-12,Starter,E-Commerce,APAC,5,4,57.3,0,30.0,166.96,Monthly,Male,0
+ACC-10652,2025-01-11,Growth,E-Commerce,LATAM,55,42,47.2,0,-15.0,1661.16,Monthly,Non-Binary,0
+ACC-10653,2024-04-24,Enterprise,FinTech,EMEA,185,115,55.2,2,93.0,6738.37,Monthly,Male,1
+ACC-10654,2024-12-21,Enterprise,Logistics,EMEA,411,388,75.2,0,,7905.14,Monthly,Male,0
+ACC-10655,2025-08-15,Growth,Logistics,APAC,57,42,37.7,0,4.0,2017.46,Annual,Male,1
+ACC-10656,2024-06-24,Professional,Logistics,EMEA,13,10,100.0,4,70.0,600.08,Monthly,Male,0
+ACC-10657,2024-06-19,Starter,E-Commerce,APAC,5,4,53.3,1,37.0,150.82,Monthly,Male,0
+ACC-10658,2024-08-31,Growth,Cybersecurity,EMEA,46,26,66.7,1,32.0,1851.01,Monthly,Female,0
+ACC-10659,2024-05-31,Professional,FinTech,APAC,20,18,77.1,3,79.0,576.08,Monthly,Male,1
+ACC-10660,2026-08-08,Starter,EdTech,EMEA,3,2,76.8,0,52.0,159.69,Monthly,Male,0
+ACC-10661,2026-02-11,Professional,E-Commerce,LATAM,10,9,75.8,1,-40.0,588.87,Monthly,Male,0
+ACC-10662,2024-05-22,Starter,FinTech,LATAM,5,3,55.9,1,22.0,172.88,Monthly,Female,0
+ACC-10663,2025-09-14,Professional,FinTech,APAC,24,10,83.1,1,41.0,663.93,Monthly,Female,0
+ACC-10664,2025-11-18,Starter,FinTech,LATAM,1,0,75.7,1,47.0,157.37,Monthly,Non-Binary,0
+ACC-10665,2024-05-31,Professional,FinTech,APAC,17,12,76.0,3,,786.44,Monthly,Male,0
+ACC-10666,2026-01-15,Starter,EdTech,North America,4,3,100.0,0,61.0,155.45,Monthly,Female,0
+ACC-10667,2026-05-05,Enterprise,EdTech,LATAM,154,78,70.6,3,16.0,7196.95,Annual,Female,0
+ACC-10668,2024-01-07,Enterprise,FinTech,LATAM,170,133,66.0,0,10.0,6188.31,Annual,Female,1
+ACC-10669,2025-07-21,Starter,Healthcare,LATAM,4,2,65.7,1,18.0,141.15,Monthly,Male,0
+ACC-10670,2026-03-21,Professional,EdTech,EMEA,10,8,68.3,0,0.0,664.46,Monthly,Female,1
+ACC-10671,2024-07-02,Professional,Cybersecurity,APAC,13,9,70.8,7,65.0,720.36,Monthly,Male,1
+ACC-10672,2025-05-07,Enterprise,Logistics,APAC,402,171,71.2,2,-5.0,5811.67,Annual,Non-Binary,1
+ACC-10673,2024-06-15,Starter,Cybersecurity,North America,5,4,59.8,0,28.0,191.35,Monthly,Male,1
+ACC-10674,2025-03-05,Starter,FinTech,APAC,3,2,55.1,10,-3.0,135.82,Monthly,Male,1
+ACC-10675,2025-09-05,Professional,Cybersecurity,EMEA,23,11,85.6,0,-28.0,830.08,Monthly,Female,1
+ACC-10676,2025-07-01,Starter,Cybersecurity,APAC,5,3,62.6,1,,172.75,Monthly,Female,1
+ACC-10677,2026-08-01,Starter,EdTech,LATAM,2,1,95.5,0,54.0,150.14,Monthly,Male,0
+ACC-10678,2025-04-16,Growth,Logistics,North America,78,35,76.9,2,18.0,1721.91,Annual,Male,0
+ACC-10679,2025-12-27,Starter,EdTech,APAC,3,2,64.7,0,24.0,159.57,Monthly,Female,0
+ACC-10680,2024-05-08,Professional,Cybersecurity,EMEA,10,5,68.8,0,36.0,842.81,Monthly,Male,0
+ACC-10681,2024-07-20,Starter,EdTech,LATAM,1,0,77.0,0,18.0,155.15,Monthly,Female,0
+ACC-10682,2024-11-04,Starter,E-Commerce,North America,1,0,75.8,4,49.0,155.85,Monthly,Female,1
+ACC-10683,2024-04-02,Enterprise,Healthcare,APAC,259,124,91.0,1,-31.0,7549.25,Annual,Female,0
+ACC-10684,2026-04-19,Professional,Logistics,North America,6,2,50.6,0,83.0,843.98,Monthly,Female,1
+ACC-10685,2024-04-11,Starter,Logistics,North America,2,1,57.5,2,0.0,191.58,Monthly,Non-Binary,1
+ACC-10686,2026-05-04,Starter,Cybersecurity,North America,3,1,95.0,0,90.0,155.74,Monthly,Female,0
+ACC-10687,2024-04-22,Growth,E-Commerce,North America,57,41,80.2,0,10.0,1978.31,Annual,Male,0
+ACC-10688,2024-10-17,Starter,EdTech,North America,4,2,83.8,1,2.0,180.16,Monthly,Male,0
+ACC-10689,2024-07-12,Starter,EdTech,APAC,1,0,48.0,0,33.0,177.11,Monthly,Male,1
+ACC-10690,2025-06-19,Professional,FinTech,LATAM,9,6,34.9,2,34.0,727.8,Monthly,Male,1
+ACC-10691,2024-07-22,Starter,Healthcare,North America,3,2,66.0,0,-3.0,166.98,Monthly,Male,0
+ACC-10692,2025-02-13,Professional,E-Commerce,APAC,21,13,85.3,0,36.0,713.53,Monthly,Non-Binary,1
+ACC-10693,2024-05-05,Professional,Healthcare,LATAM,21,15,72.0,3,62.0,804.54,Monthly,Female,0
+ACC-10694,2025-11-25,Starter,FinTech,North America,1,0,45.1,0,43.0,178.12,Monthly,Male,1
+ACC-10695,2026-02-08,Professional,FinTech,North America,21,12,100.0,1,74.0,624.71,Monthly,Non-Binary,0
+ACC-10696,2025-07-13,Professional,E-Commerce,APAC,7,3,69.3,0,-3.0,576.36,Monthly,Non-Binary,1
+ACC-10697,2024-06-30,Starter,EdTech,North America,5,4,87.2,5,53.0,154.52,Monthly,Female,1
+ACC-10698,2025-11-22,Professional,EdTech,North America,23,21,100.0,2,-9.0,597.48,Monthly,Non-Binary,0
+ACC-10699,2024-09-26,Growth,Logistics,North America,50,48,50.5,4,65.0,2284.71,Monthly,Male,1
+ACC-10700,2026-05-07,Starter,Logistics,North America,3,2,53.2,0,13.0,143.1,Monthly,Female,0
+ACC-10701,2024-12-19,Professional,EdTech,North America,19,15,82.1,3,11.0,698.77,Monthly,Male,1
+ACC-10702,2024-03-08,Professional,Logistics,North America,9,4,68.6,5,,672.62,Monthly,Non-Binary,1
+ACC-10703,2024-01-21,Professional,EdTech,LATAM,24,20,50.3,2,26.0,781.2,Monthly,Male,0
+ACC-10704,2025-11-22,Professional,EdTech,North America,16,8,32.4,1,36.0,720.71,Monthly,Non-Binary,0
+ACC-10705,2024-07-25,Starter,E-Commerce,APAC,4,2,40.2,0,16.0,177.8,Monthly,Male,0
+ACC-10706,2025-10-01,Starter,Logistics,LATAM,1,0,75.6,4,43.0,188.87,Monthly,Female,1
+ACC-10707,2024-12-21,Growth,EdTech,LATAM,58,35,59.1,1,29.0,2304.6,Annual,Female,1
+ACC-10708,2026-02-20,Professional,E-Commerce,LATAM,11,6,72.7,0,41.0,625.2,Monthly,Non-Binary,0
+ACC-10709,2025-10-15,Professional,Healthcare,LATAM,25,21,76.0,6,10.0,803.24,Monthly,Male,0
+ACC-10710,2025-04-18,Professional,FinTech,EMEA,13,8,70.9,0,100.0,649.5,Monthly,Male,0
+ACC-10711,2024-07-27,Professional,E-Commerce,North America,14,12,89.5,3,-2.0,787.2,Monthly,Non-Binary,0
+ACC-10712,2024-06-02,Professional,EdTech,EMEA,6,3,86.5,2,61.0,829.13,Monthly,Female,0
+ACC-10713,2026-07-16,Professional,EdTech,LATAM,12,5,69.3,1,30.0,807.87,Monthly,Non-Binary,0
+ACC-10714,2026-05-22,Growth,Cybersecurity,EMEA,76,37,71.2,0,71.0,1840.55,Annual,Non-Binary,0
+ACC-10715,2025-11-18,Starter,FinTech,LATAM,1,0,91.0,3,30.0,162.0,Monthly,Male,0
+ACC-10716,2025-11-11,Professional,Logistics,North America,22,19,89.9,0,66.0,583.33,Monthly,Non-Binary,0
+ACC-10717,2026-01-24,Starter,E-Commerce,APAC,4,1,84.8,0,28.0,176.46,Monthly,Non-Binary,0
+ACC-10718,2026-06-02,Enterprise,EdTech,LATAM,354,271,51.5,6,9.0,7511.55,Annual,Male,1
+ACC-10719,2026-06-19,Professional,Cybersecurity,EMEA,17,10,75.6,1,36.0,779.34,Monthly,Male,0
+ACC-10720,2025-11-09,Professional,Logistics,North America,13,9,86.2,1,30.0,653.15,Monthly,Non-Binary,0
+ACC-10721,2026-06-06,Professional,Cybersecurity,North America,20,19,64.7,2,31.0,592.97,Monthly,Non-Binary,0
+ACC-10722,2026-04-22,Enterprise,E-Commerce,APAC,163,105,56.8,3,52.0,6739.3,Annual,Female,0
+ACC-10723,2026-06-06,Growth,EdTech,North America,56,37,83.4,1,10.0,1869.37,Annual,Male,0
+ACC-10724,2024-09-24,Growth,FinTech,EMEA,48,46,82.3,0,31.0,2012.8,Annual,Non-Binary,1
+ACC-10725,2025-10-18,Professional,FinTech,North America,20,12,55.1,0,50.0,612.24,Monthly,Non-Binary,1
+ACC-10726,2024-06-10,Professional,E-Commerce,North America,22,20,50.1,1,29.0,764.28,Monthly,Female,1
+ACC-10727,2025-04-07,Growth,Cybersecurity,LATAM,42,31,57.5,0,44.0,1833.61,Annual,Male,0
+ACC-10728,2025-02-06,Starter,EdTech,APAC,4,1,90.6,0,21.0,143.21,Monthly,Female,0
+ACC-10729,2025-04-18,Professional,Cybersecurity,EMEA,14,9,73.0,1,34.0,750.11,Monthly,Female,0
+ACC-10730,2024-06-23,Professional,Healthcare,North America,9,4,72.1,4,35.0,773.21,Monthly,Male,1
+ACC-10731,2024-08-17,Enterprise,Cybersecurity,LATAM,481,288,80.0,0,18.0,7591.14,Annual,Female,0
+ACC-10732,2026-01-14,Professional,Healthcare,EMEA,19,10,,0,12.0,552.67,Monthly,Male,1
+ACC-10733,2025-01-13,Enterprise,Healthcare,LATAM,86,48,35.0,4,-1.0,7149.98,Annual,Female,0
+ACC-10734,2025-03-09,Starter,Healthcare,LATAM,5,2,65.3,0,25.0,160.77,Monthly,Non-Binary,1
+ACC-10735,2025-11-17,Enterprise,EdTech,APAC,210,179,73.7,0,8.0,6005.54,Annual,Non-Binary,1
+ACC-10736,2024-07-02,Professional,Healthcare,North America,11,5,71.3,0,74.0,818.51,Monthly,Non-Binary,0
+ACC-10737,2024-09-23,Starter,E-Commerce,LATAM,1,0,72.6,0,27.0,144.17,Monthly,Female,0
+ACC-10738,2026-07-13,Starter,E-Commerce,LATAM,3,2,65.0,0,41.0,179.44,Monthly,Male,1
+ACC-10739,2025-05-18,Professional,Healthcare,APAC,23,14,46.1,2,39.0,662.79,Monthly,Non-Binary,1
+ACC-10740,2024-02-06,Starter,FinTech,EMEA,4,2,79.8,2,59.0,148.45,Monthly,Female,1
+ACC-10741,2024-12-31,Growth,EdTech,North America,55,24,45.2,0,-18.0,1973.11,Monthly,Male,1
+ACC-10742,2026-05-04,Starter,Healthcare,APAC,2,1,61.1,0,31.0,192.01,Monthly,Female,1
+ACC-10743,2026-07-31,Starter,FinTech,EMEA,1,0,60.8,8,43.0,191.48,Monthly,Male,1
+ACC-10744,2025-01-17,Starter,Cybersecurity,North America,5,2,46.8,0,49.0,179.83,Monthly,Male,0
+ACC-10745,2025-10-05,Growth,Cybersecurity,LATAM,68,62,89.3,0,49.0,2273.29,Annual,Male,0
+ACC-10746,2026-06-02,Professional,Cybersecurity,EMEA,15,11,50.5,1,23.0,644.26,Monthly,Female,0
+ACC-10747,2024-09-18,Enterprise,EdTech,North America,285,135,56.9,0,13.0,6642.71,Monthly,Male,0
+ACC-10748,2024-11-01,Growth,E-Commerce,EMEA,73,58,87.6,0,21.0,2016.77,Annual,Female,0
+ACC-10749,2024-07-23,Starter,FinTech,APAC,4,2,91.3,0,1.0,181.56,Monthly,Non-Binary,0
+ACC-10750,2024-07-09,Starter,EdTech,APAC,4,1,42.9,1,52.0,148.84,Monthly,Non-Binary,1
+ACC-10751,2025-06-23,Professional,Cybersecurity,EMEA,8,4,67.9,0,28.0,595.55,Monthly,Male,0
+ACC-10752,2026-07-13,Professional,Healthcare,EMEA,13,6,73.8,4,84.0,823.37,Monthly,Non-Binary,0
+ACC-10753,2025-03-11,Starter,FinTech,North America,4,2,48.2,3,-9.0,163.58,Monthly,Non-Binary,1
+ACC-10754,2024-01-17,Starter,Logistics,North America,1,0,85.1,0,42.0,191.76,Monthly,Non-Binary,0
+ACC-10755,2025-08-24,Starter,Cybersecurity,APAC,4,2,73.4,1,40.0,158.89,Monthly,Male,0
+ACC-10756,2024-03-21,Growth,Healthcare,EMEA,69,45,,5,30.0,2308.86,Annual,Female,1
+ACC-10757,2025-12-09,Starter,Cybersecurity,LATAM,4,3,53.6,4,-22.0,178.95,Monthly,Male,1
+ACC-10758,2024-03-30,Professional,Cybersecurity,LATAM,10,9,,3,56.0,784.73,Monthly,Male,0
+ACC-10759,2025-10-26,Enterprise,FinTech,EMEA,401,172,98.0,1,6.0,6680.53,Monthly,Male,0
+ACC-10760,2024-01-23,Growth,Healthcare,LATAM,35,26,78.5,1,12.0,1819.16,Annual,Male,1
+ACC-10761,2024-10-28,Growth,Logistics,EMEA,29,24,41.0,7,,1766.45,Annual,Female,0
+ACC-10762,2025-05-14,Enterprise,EdTech,APAC,383,248,85.1,1,33.0,8324.62,Annual,Female,0
+ACC-10763,2024-01-20,Growth,Healthcare,North America,46,30,63.3,0,24.0,1734.26,Annual,Non-Binary,1
+ACC-10764,2025-12-15,Professional,EdTech,APAC,6,3,85.3,1,48.0,838.36,Monthly,Male,1
+ACC-10765,2026-07-19,Professional,Logistics,EMEA,25,18,84.0,8,57.0,765.47,Monthly,Non-Binary,0
+ACC-10766,2026-05-03,Starter,Cybersecurity,LATAM,3,2,61.7,3,11.0,150.56,Monthly,Male,0
+ACC-10767,2024-06-26,Professional,Cybersecurity,LATAM,11,7,60.6,4,62.0,667.64,Monthly,Female,1
+ACC-10768,2025-07-24,Enterprise,E-Commerce,EMEA,214,190,63.0,0,-3.0,7797.14,Annual,Female,0
+ACC-10769,2025-03-16,Growth,FinTech,North America,40,30,57.5,0,16.0,1963.63,Annual,Male,1
+ACC-10770,2026-05-23,Growth,FinTech,APAC,68,61,54.8,6,91.0,1983.39,Annual,Female,0
+ACC-10771,2025-09-16,Professional,FinTech,North America,23,16,57.1,0,45.0,824.57,Monthly,Non-Binary,0
+ACC-10772,2024-10-26,Growth,E-Commerce,EMEA,57,42,60.9,2,1.0,1987.18,Annual,Non-Binary,0
+ACC-10773,2025-03-01,Growth,FinTech,EMEA,79,73,77.1,0,78.0,2119.38,Monthly,Male,0
+ACC-10774,2025-10-06,Starter,Cybersecurity,LATAM,2,1,100.0,0,1.0,169.58,Monthly,Male,0
+ACC-10775,2026-07-08,Starter,EdTech,LATAM,4,3,,1,11.0,140.84,Monthly,Male,0
+ACC-10776,2024-12-12,Starter,FinTech,North America,3,1,30.8,2,35.0,165.18,Monthly,Female,1
+ACC-10777,2024-02-29,Starter,Cybersecurity,EMEA,5,2,97.6,1,45.0,159.55,Monthly,Non-Binary,1
+ACC-10778,2024-01-09,Growth,Cybersecurity,APAC,65,45,43.4,1,52.0,2317.69,Monthly,Male,0
+ACC-10779,2024-12-19,Professional,Logistics,LATAM,12,5,59.2,0,,574.41,Monthly,Non-Binary,0
+ACC-10780,2025-07-07,Professional,Cybersecurity,EMEA,12,5,50.3,0,40.0,777.36,Monthly,Non-Binary,1
+ACC-10781,2026-06-30,Growth,Healthcare,North America,42,19,66.6,4,17.0,2205.67,Annual,Female,1
+ACC-10782,2024-09-22,Professional,Cybersecurity,North America,17,7,100.0,1,-7.0,675.85,Monthly,Male,0
+ACC-10783,2024-12-13,Professional,Logistics,North America,24,11,53.9,3,27.0,644.79,Monthly,Male,0
+ACC-10784,2024-11-02,Professional,Logistics,EMEA,24,21,96.8,0,59.0,836.25,Monthly,Male,0
+ACC-10785,2025-04-10,Starter,E-Commerce,EMEA,1,0,53.4,0,63.0,158.26,Monthly,Male,0
+ACC-10786,2025-04-01,Starter,Healthcare,LATAM,1,0,71.7,1,57.0,131.3,Monthly,Female,1
+ACC-10787,2025-03-09,Growth,E-Commerce,LATAM,72,64,80.6,0,100.0,1808.05,Monthly,Non-Binary,1
+ACC-10788,2024-08-05,Professional,Healthcare,North America,21,12,54.7,2,40.0,834.38,Monthly,Non-Binary,0
+ACC-10789,2024-05-03,Enterprise,FinTech,LATAM,101,47,94.3,1,48.0,7208.82,Annual,Female,0
+ACC-10790,2026-03-21,Starter,E-Commerce,LATAM,2,1,50.9,0,44.0,171.29,Monthly,Female,1
+ACC-10791,2026-04-18,Starter,E-Commerce,EMEA,4,3,46.6,0,66.0,188.85,Monthly,Female,0
+ACC-10792,2025-04-08,Professional,Logistics,APAC,18,9,60.0,0,38.0,691.19,Monthly,Non-Binary,0
+ACC-10793,2025-11-14,Starter,Cybersecurity,LATAM,4,3,61.0,0,25.0,137.49,Monthly,Male,0
+ACC-10794,2024-12-13,Professional,EdTech,EMEA,7,5,91.6,4,28.0,676.96,Monthly,Male,1
+ACC-10795,2025-10-07,Growth,Cybersecurity,North America,67,62,88.5,0,23.0,1966.07,Annual,Non-Binary,0
+ACC-10796,2025-05-29,Professional,FinTech,EMEA,9,8,,6,77.0,772.29,Monthly,Male,1
+ACC-10797,2026-04-06,Growth,Healthcare,LATAM,46,37,78.7,2,17.0,1799.06,Annual,Female,1
+ACC-10798,2026-05-30,Starter,Healthcare,LATAM,5,2,92.3,8,61.0,153.64,Monthly,Female,0
+ACC-10799,2024-09-18,Professional,E-Commerce,EMEA,10,6,64.4,6,41.0,787.04,Monthly,Female,1
+ACC-10800,2024-02-29,Enterprise,Healthcare,North America,244,204,96.1,1,-10.0,6479.19,Monthly,Non-Binary,0
+ACC-10801,2024-09-02,Enterprise,FinTech,North America,333,144,63.6,0,-21.0,6192.87,Annual,Female,1
+ACC-10802,2025-02-20,Starter,E-Commerce,LATAM,1,0,85.2,0,41.0,154.5,Monthly,Non-Binary,0
+ACC-10803,2026-02-20,Starter,Logistics,North America,5,3,54.8,1,84.0,172.37,Monthly,Female,1
+ACC-10804,2025-07-07,Professional,Healthcare,EMEA,13,10,66.0,8,23.0,754.83,Monthly,Male,1
+ACC-10805,2024-06-20,Starter,EdTech,APAC,1,0,79.1,3,84.0,161.38,Monthly,Non-Binary,0
+ACC-10806,2026-05-10,Starter,E-Commerce,EMEA,5,3,75.0,2,32.0,158.34,Monthly,Non-Binary,1
+ACC-10807,2026-01-12,Starter,EdTech,North America,5,3,69.5,1,12.0,185.75,Monthly,Female,0
+ACC-10808,2024-09-24,Starter,Cybersecurity,APAC,4,3,56.3,7,37.0,141.27,Monthly,Non-Binary,1
+ACC-10809,2026-07-24,Professional,Logistics,APAC,6,4,,0,,637.58,Monthly,Female,1
+ACC-10810,2025-07-05,Starter,Logistics,LATAM,1,0,40.2,0,30.0,147.61,Monthly,Male,1
+ACC-10811,2026-04-27,Professional,FinTech,APAC,17,10,67.8,0,44.0,827.43,Monthly,Male,0
+ACC-10812,2024-07-16,Enterprise,FinTech,LATAM,461,374,73.0,0,,6871.54,Annual,Male,1
+ACC-10813,2024-08-14,Starter,FinTech,APAC,2,0,59.4,1,45.0,130.16,Monthly,Non-Binary,0
+ACC-10814,2026-04-20,Professional,Healthcare,North America,9,3,75.1,1,42.0,677.79,Monthly,Female,0
+ACC-10815,2025-08-25,Starter,Cybersecurity,EMEA,2,1,87.8,5,-11.0,159.7,Monthly,Female,0
+ACC-10816,2026-05-18,Growth,Cybersecurity,APAC,65,43,72.4,0,2.0,1942.26,Monthly,Female,1
+ACC-10817,2025-03-18,Professional,Cybersecurity,North America,14,13,70.0,0,16.0,670.95,Monthly,Male,1
+ACC-10818,2024-10-11,Professional,FinTech,EMEA,23,16,52.6,0,,681.07,Monthly,Female,1
+ACC-10819,2024-08-19,Starter,Logistics,North America,4,3,82.4,5,-20.0,192.74,Monthly,Non-Binary,1
+ACC-10820,2025-03-18,Professional,FinTech,North America,24,22,68.8,0,51.0,789.62,Monthly,Male,0
+ACC-10821,2026-05-02,Starter,EdTech,EMEA,1,0,73.8,1,-19.0,157.87,Monthly,Male,1
+ACC-10822,2025-04-02,Professional,EdTech,North America,9,8,67.9,2,70.0,601.98,Monthly,Non-Binary,0
+ACC-10823,2024-03-04,Growth,Cybersecurity,North America,45,36,73.0,2,35.0,1970.47,Annual,Female,0
+ACC-10824,2024-04-08,Professional,E-Commerce,LATAM,19,9,39.9,1,0.0,778.35,Monthly,Male,0
+ACC-10825,2025-09-26,Professional,EdTech,LATAM,16,13,34.8,3,61.0,694.12,Monthly,Non-Binary,1
+ACC-10826,2024-01-13,Starter,Healthcare,North America,5,3,71.0,1,100.0,142.65,Monthly,Female,0
+ACC-10827,2025-03-07,Starter,Logistics,APAC,4,3,71.8,4,2.0,166.06,Monthly,Male,0
+ACC-10828,2025-10-29,Starter,E-Commerce,LATAM,3,1,66.3,1,8.0,175.97,Monthly,Non-Binary,0
+ACC-10829,2024-01-09,Starter,E-Commerce,APAC,5,4,81.7,7,26.0,143.97,Monthly,Male,1
+ACC-10830,2024-12-18,Growth,Logistics,North America,66,46,47.8,2,62.0,1790.01,Annual,Male,1
+ACC-10831,2025-08-02,Professional,EdTech,APAC,25,15,43.5,1,2.0,566.92,Monthly,Non-Binary,1
+ACC-10832,2026-07-31,Growth,FinTech,LATAM,70,40,66.8,1,45.0,1685.73,Annual,Female,0
+ACC-10833,2025-02-13,Growth,E-Commerce,LATAM,49,26,88.9,2,64.0,2326.51,Monthly,Female,1
+ACC-10834,2024-01-31,Starter,Healthcare,APAC,2,0,95.2,0,53.0,173.19,Monthly,Female,0
+ACC-10835,2024-07-19,Starter,Logistics,EMEA,1,0,,0,28.0,129.55,Monthly,Female,0
+ACC-10836,2024-08-03,Professional,EdTech,North America,20,10,89.7,1,-10.0,573.75,Monthly,Male,1
+ACC-10837,2024-03-07,Enterprise,Logistics,LATAM,487,262,60.4,2,-5.0,6372.45,Annual,Non-Binary,1
+ACC-10838,2026-02-20,Starter,EdTech,EMEA,5,3,56.7,0,56.0,152.25,Monthly,Female,1
+ACC-10839,2026-05-21,Starter,Cybersecurity,APAC,5,3,76.9,4,46.0,145.51,Monthly,Female,1
+ACC-10840,2025-06-04,Growth,Logistics,North America,49,28,70.8,0,24.0,2086.66,Annual,Female,0
+ACC-10841,2024-10-01,Professional,EdTech,LATAM,18,14,54.3,3,66.0,648.84,Monthly,Male,1
+ACC-10842,2025-02-09,Starter,Healthcare,LATAM,2,1,80.3,2,0.0,157.63,Monthly,Female,0
+ACC-10843,2026-02-08,Starter,Logistics,North America,1,0,38.1,1,50.0,138.05,Monthly,Female,1
+ACC-10844,2025-04-06,Professional,Logistics,APAC,19,17,100.0,1,65.0,721.95,Monthly,Male,1
+ACC-10845,2024-09-28,Starter,Healthcare,LATAM,1,0,51.1,1,18.0,143.22,Monthly,Female,1
+ACC-10846,2024-05-01,Professional,E-Commerce,EMEA,17,11,75.3,0,56.0,628.0,Monthly,Female,0
+ACC-10847,2025-12-23,Starter,E-Commerce,APAC,5,4,73.5,3,10.0,182.04,Monthly,Female,0
+ACC-10848,2026-03-12,Starter,E-Commerce,APAC,4,2,,2,35.0,171.13,Monthly,Male,1
+ACC-10849,2024-08-20,Professional,Healthcare,LATAM,21,11,48.3,2,39.0,679.74,Monthly,Female,0
+ACC-10850,2024-11-16,Professional,EdTech,APAC,19,8,25.3,0,96.0,600.28,Monthly,Female,0
+ACC-10851,2025-08-14,Growth,FinTech,APAC,73,64,56.0,0,40.0,2233.08,Annual,Female,1
+ACC-10852,2025-07-04,Starter,EdTech,LATAM,3,1,55.6,6,-7.0,144.88,Monthly,Non-Binary,1
+ACC-10853,2024-07-28,Starter,E-Commerce,LATAM,4,3,73.8,0,19.0,183.86,Monthly,Male,0
+ACC-10854,2024-06-24,Professional,EdTech,APAC,23,22,51.8,5,6.0,652.23,Monthly,Female,1
+ACC-10855,2024-10-17,Starter,Healthcare,North America,2,1,76.8,2,67.0,174.53,Monthly,Male,1
+ACC-10856,2026-05-30,Starter,FinTech,EMEA,4,3,65.7,0,60.0,171.39,Monthly,Male,0
+ACC-10857,2026-06-10,Professional,EdTech,EMEA,15,12,56.0,1,33.0,794.22,Monthly,Female,0
+ACC-10858,2026-01-03,Professional,E-Commerce,EMEA,14,10,72.7,0,-23.0,824.1,Monthly,Non-Binary,0
+ACC-10859,2024-12-02,Growth,Logistics,EMEA,55,37,92.7,2,2.0,1821.65,Monthly,Non-Binary,0
+ACC-10860,2026-05-12,Growth,EdTech,APAC,65,37,74.3,0,9.0,1747.2,Monthly,Non-Binary,0
+ACC-10861,2026-07-21,Professional,EdTech,LATAM,24,22,35.9,0,-31.0,806.89,Monthly,Male,1
+ACC-10862,2025-07-04,Growth,Healthcare,APAC,70,37,89.1,4,26.0,2195.22,Annual,Non-Binary,1
+ACC-10863,2024-03-19,Enterprise,Logistics,North America,480,245,77.9,0,55.0,7135.42,Monthly,Male,0
+ACC-10864,2025-10-16,Professional,EdTech,North America,18,10,52.2,3,37.0,680.63,Monthly,Female,0
+ACC-10865,2026-07-28,Starter,E-Commerce,North America,2,1,88.7,0,43.0,140.09,Monthly,Non-Binary,1
+ACC-10866,2025-03-24,Starter,Cybersecurity,EMEA,2,1,47.2,1,-4.0,166.16,Monthly,Non-Binary,1
+ACC-10867,2024-05-07,Starter,FinTech,EMEA,5,4,,2,90.0,129.3,Monthly,Male,0
+ACC-10868,2024-08-09,Starter,EdTech,APAC,1,0,83.3,7,47.0,141.4,Monthly,Female,0
+ACC-10869,2025-12-07,Growth,Cybersecurity,North America,29,13,73.8,2,,1679.12,Annual,Male,0
+ACC-10870,2024-04-03,Enterprise,E-Commerce,EMEA,88,77,59.7,2,57.0,7582.09,Annual,Female,0
+ACC-10871,2024-06-20,Starter,FinTech,EMEA,1,0,46.5,2,43.0,192.16,Monthly,Non-Binary,1
+ACC-10872,2025-02-08,Professional,Logistics,EMEA,9,6,75.6,1,17.0,621.35,Monthly,Non-Binary,0
+ACC-10873,2025-02-02,Starter,Cybersecurity,APAC,2,1,57.4,2,21.0,137.4,Monthly,Female,0
+ACC-10874,2025-02-24,Professional,FinTech,North America,25,14,28.9,9,0.0,773.29,Monthly,Female,1
+ACC-10875,2024-04-07,Enterprise,Logistics,EMEA,437,264,39.5,5,47.0,6387.34,Annual,Male,1
+ACC-10876,2025-05-08,Starter,Healthcare,APAC,1,0,80.4,0,42.0,187.97,Monthly,Non-Binary,0
+ACC-10877,2025-08-24,Professional,Cybersecurity,EMEA,13,12,46.6,0,66.0,684.97,Monthly,Non-Binary,0
+ACC-10878,2024-03-22,Starter,EdTech,EMEA,1,0,64.8,3,7.0,133.78,Monthly,Non-Binary,1
+ACC-10879,2025-09-04,Starter,FinTech,EMEA,4,3,59.2,2,67.0,136.3,Monthly,Non-Binary,0
+ACC-10880,2024-08-22,Starter,EdTech,APAC,3,2,43.0,0,57.0,173.21,Monthly,Female,0
+ACC-10881,2026-06-12,Professional,Healthcare,EMEA,22,16,,2,8.0,813.11,Monthly,Non-Binary,0
+ACC-10882,2025-10-11,Growth,FinTech,EMEA,34,27,81.4,0,15.0,2328.34,Annual,Female,0
+ACC-10883,2026-01-12,Starter,Logistics,North America,4,2,49.3,1,93.0,188.94,Monthly,Male,0
+ACC-10884,2025-04-04,Professional,E-Commerce,APAC,14,13,74.7,0,52.0,775.42,Monthly,Non-Binary,1
+ACC-10885,2025-03-08,Starter,Healthcare,LATAM,5,4,93.1,0,60.0,145.59,Monthly,Male,0
+ACC-10886,2026-05-24,Growth,FinTech,LATAM,64,39,49.9,3,45.0,1552.78,Monthly,Male,1
+ACC-10887,2025-07-29,Professional,EdTech,APAC,21,13,51.9,0,41.0,743.29,Monthly,Male,0
+ACC-10888,2026-06-01,Starter,Healthcare,North America,5,4,83.3,7,-1.0,145.7,Monthly,Female,0
+ACC-10889,2024-11-11,Enterprise,E-Commerce,LATAM,100,86,57.3,0,26.0,6995.91,Annual,Male,0
+ACC-10890,2024-12-22,Starter,EdTech,APAC,5,2,46.8,0,89.0,153.04,Monthly,Non-Binary,0
+ACC-10891,2025-05-04,Starter,EdTech,EMEA,1,0,71.8,5,5.0,182.91,Monthly,Female,1
+ACC-10892,2024-05-30,Professional,E-Commerce,LATAM,13,8,86.4,0,62.0,799.06,Monthly,Non-Binary,0
+ACC-10893,2025-12-24,Starter,FinTech,LATAM,5,2,77.8,12,-30.0,170.52,Monthly,Male,1
+ACC-10894,2025-06-29,Professional,Cybersecurity,APAC,24,15,75.6,4,74.0,791.2,Monthly,Non-Binary,0
+ACC-10895,2025-08-09,Professional,FinTech,North America,10,7,48.3,0,27.0,729.26,Monthly,Non-Binary,1
+ACC-10896,2024-01-02,Professional,FinTech,EMEA,8,4,80.4,0,9.0,808.01,Monthly,Male,0
+ACC-10897,2025-01-18,Starter,EdTech,EMEA,2,1,94.0,0,19.0,138.47,Monthly,Female,1
+ACC-10898,2024-03-01,Professional,Healthcare,EMEA,12,8,88.6,0,-50.0,558.34,Monthly,Female,0
+ACC-10899,2024-10-27,Starter,Cybersecurity,EMEA,1,0,,3,58.0,175.97,Monthly,Female,0
+ACC-10900,2024-03-03,Starter,EdTech,North America,3,1,87.7,1,47.0,141.73,Monthly,Female,0
+ACC-10901,2025-06-16,Starter,FinTech,LATAM,3,2,55.8,0,-52.0,186.02,Monthly,Non-Binary,1
+ACC-10902,2025-01-04,Starter,E-Commerce,APAC,4,3,31.7,1,-49.0,151.72,Monthly,Female,0
+ACC-10903,2025-02-15,Growth,FinTech,LATAM,64,42,79.5,1,83.0,2178.66,Annual,Non-Binary,0
+ACC-10904,2025-12-03,Growth,E-Commerce,LATAM,52,28,63.5,6,53.0,1905.79,Annual,Non-Binary,0
+ACC-10905,2026-04-06,Growth,FinTech,APAC,40,28,62.3,0,6.0,2041.55,Annual,Female,0
+ACC-10906,2025-01-29,Starter,EdTech,North America,3,2,57.8,1,20.0,157.66,Monthly,Non-Binary,0
+ACC-10907,2025-05-24,Professional,Cybersecurity,North America,15,9,52.6,9,36.0,760.3,Monthly,Female,1
+ACC-10908,2025-11-09,Professional,EdTech,North America,13,9,76.6,0,3.0,635.98,Monthly,Male,0
+ACC-10909,2024-01-30,Professional,FinTech,LATAM,16,12,83.5,0,42.0,779.72,Monthly,Non-Binary,0
+ACC-10910,2024-05-19,Professional,Cybersecurity,North America,21,20,94.5,2,14.0,625.12,Monthly,Non-Binary,1
+ACC-10911,2024-12-17,Enterprise,Logistics,North America,409,230,42.0,0,20.0,6224.07,Annual,Non-Binary,0
+ACC-10912,2024-03-30,Starter,E-Commerce,North America,1,0,85.1,0,50.0,192.68,Monthly,Male,1
+ACC-10913,2026-05-23,Enterprise,Logistics,APAC,458,346,70.3,0,,7835.99,Annual,Female,0
+ACC-10914,2026-03-27,Growth,EdTech,APAC,68,59,78.4,1,31.0,2153.48,Monthly,Male,0
+ACC-10915,2026-05-07,Growth,E-Commerce,EMEA,69,63,57.0,3,52.0,1921.94,Annual,Male,0
+ACC-10916,2024-11-23,Growth,Cybersecurity,North America,70,66,100.0,2,70.0,1764.21,Annual,Non-Binary,1
+ACC-10917,2025-12-22,Professional,Healthcare,LATAM,7,2,81.0,2,38.0,833.41,Monthly,Male,0
+ACC-10918,2026-05-27,Growth,Healthcare,North America,45,32,66.5,0,-60.0,1540.76,Annual,Female,0
+ACC-10919,2025-04-29,Professional,E-Commerce,LATAM,18,15,46.6,2,33.0,699.69,Monthly,Non-Binary,1
+ACC-10920,2024-05-14,Professional,Healthcare,LATAM,24,18,53.8,2,36.0,807.68,Monthly,Female,1
+ACC-10921,2025-12-13,Professional,Healthcare,EMEA,15,13,68.0,1,47.0,787.58,Monthly,Male,0
+ACC-10922,2026-05-26,Professional,FinTech,APAC,9,6,52.4,1,37.0,591.25,Monthly,Non-Binary,0
+ACC-10923,2024-04-08,Enterprise,EdTech,EMEA,107,48,63.8,4,22.0,8029.25,Annual,Female,1
+ACC-10924,2024-02-04,Professional,Healthcare,LATAM,13,5,41.0,3,73.0,763.1,Monthly,Female,1
+ACC-10925,2026-03-25,Starter,Cybersecurity,LATAM,1,0,80.1,0,46.0,170.65,Monthly,Non-Binary,0
+ACC-10926,2024-03-25,Professional,FinTech,North America,21,9,46.7,2,27.0,726.12,Monthly,Female,0
+ACC-10927,2025-12-11,Professional,Logistics,LATAM,24,16,79.6,1,35.0,583.45,Monthly,Male,0
+ACC-10928,2024-11-29,Professional,Logistics,EMEA,23,15,,4,-60.0,800.6,Monthly,Female,0
+ACC-10929,2025-06-15,Professional,Logistics,LATAM,23,13,100.0,0,25.0,670.53,Monthly,Female,0
+ACC-10930,2026-06-01,Growth,Cybersecurity,North America,26,15,63.2,6,23.0,1924.05,Monthly,Female,1
+ACC-10931,2025-07-29,Professional,Cybersecurity,EMEA,7,4,76.8,1,-23.0,601.89,Monthly,Female,1
+ACC-10932,2024-11-03,Professional,EdTech,North America,22,21,42.9,0,13.0,683.34,Monthly,Female,1
+ACC-10933,2026-07-21,Professional,Cybersecurity,APAC,25,12,93.7,0,22.0,774.66,Monthly,Non-Binary,0
+ACC-10934,2024-05-25,Growth,Healthcare,North America,34,28,73.5,0,27.0,1696.03,Monthly,Female,0
+ACC-10935,2024-09-18,Professional,EdTech,North America,18,16,65.2,1,29.0,645.87,Monthly,Non-Binary,1
+ACC-10936,2024-07-27,Starter,EdTech,EMEA,1,0,66.9,5,42.0,140.73,Monthly,Non-Binary,0
+ACC-10937,2026-04-21,Professional,Cybersecurity,EMEA,16,12,83.6,0,0.0,631.4,Monthly,Male,1
+ACC-10938,2024-04-22,Starter,E-Commerce,North America,5,4,78.6,1,53.0,127.76,Monthly,Non-Binary,0
+ACC-10939,2024-10-07,Starter,E-Commerce,EMEA,1,0,92.3,1,15.0,137.71,Monthly,Female,1
+ACC-10940,2026-04-21,Enterprise,Healthcare,APAC,259,118,80.3,2,30.0,5577.73,Annual,Non-Binary,0
+ACC-10941,2026-02-08,Professional,FinTech,EMEA,11,6,57.9,1,49.0,688.91,Monthly,Male,0
+ACC-10942,2025-08-29,Professional,Logistics,LATAM,14,13,89.3,0,100.0,735.34,Monthly,Male,1
+ACC-10943,2026-07-29,Starter,EdTech,APAC,3,1,83.7,0,63.0,140.15,Monthly,Female,0
+ACC-10944,2024-10-20,Professional,E-Commerce,LATAM,19,10,55.6,0,-5.0,597.77,Monthly,Non-Binary,0
+ACC-10945,2026-02-28,Starter,FinTech,APAC,3,2,70.6,0,19.0,155.0,Monthly,Male,0
+ACC-10946,2026-01-31,Starter,Logistics,North America,3,2,45.6,0,41.0,162.06,Monthly,Female,1
+ACC-10947,2025-05-24,Professional,Logistics,EMEA,23,12,55.7,0,64.0,726.1,Monthly,Male,1
+ACC-10948,2025-03-11,Enterprise,Cybersecurity,North America,459,354,52.7,0,49.0,7564.99,Annual,Non-Binary,0
+ACC-10949,2025-04-04,Enterprise,Cybersecurity,North America,170,75,54.1,5,83.0,6137.22,Annual,Non-Binary,0
+ACC-10950,2024-06-23,Enterprise,EdTech,LATAM,428,406,53.2,1,-1.0,5789.48,Annual,Male,1
+ACC-10951,2024-09-28,Starter,E-Commerce,LATAM,2,0,37.6,3,1.0,161.01,Monthly,Male,0
+ACC-10952,2026-07-02,Starter,Cybersecurity,North America,5,3,49.5,3,,137.86,Monthly,Male,0
+ACC-10953,2026-06-30,Starter,FinTech,North America,2,1,72.8,0,10.0,140.35,Monthly,Male,0
+ACC-10954,2024-05-06,Starter,Logistics,EMEA,4,2,82.9,1,39.0,180.2,Monthly,Male,1
+ACC-10955,2026-07-02,Starter,E-Commerce,APAC,2,1,92.3,4,73.0,153.06,Monthly,Male,0
+ACC-10956,2026-02-04,Growth,Healthcare,EMEA,48,21,97.9,3,44.0,2275.03,Monthly,Male,0
+ACC-10957,2024-06-13,Starter,Cybersecurity,APAC,2,1,59.9,1,42.0,138.76,Monthly,Female,1
+ACC-10958,2026-02-08,Professional,Cybersecurity,EMEA,22,9,87.7,2,-30.0,651.21,Monthly,Male,0
+ACC-10959,2024-06-08,Starter,FinTech,North America,3,1,68.1,8,71.0,183.95,Monthly,Female,1
+ACC-10960,2025-05-06,Growth,EdTech,North America,57,43,78.6,0,28.0,1775.48,Monthly,Male,0
+ACC-10961,2026-06-03,Professional,Healthcare,APAC,13,10,54.7,4,-5.0,725.33,Monthly,Female,1
+ACC-10962,2026-05-25,Growth,Cybersecurity,EMEA,40,29,82.2,0,64.0,2199.76,Annual,Female,0
+ACC-10963,2024-07-23,Enterprise,EdTech,North America,289,188,67.1,0,50.0,8063.09,Annual,Non-Binary,0
+ACC-10964,2025-06-06,Starter,EdTech,LATAM,4,2,56.2,2,27.0,191.74,Monthly,Female,1
+ACC-10965,2026-07-05,Starter,EdTech,EMEA,1,0,95.5,1,32.0,180.35,Monthly,Male,0
+ACC-10966,2024-04-13,Starter,EdTech,APAC,4,2,92.8,0,38.0,152.89,Monthly,Non-Binary,0
+ACC-10967,2025-01-04,Starter,FinTech,EMEA,3,1,73.2,2,30.0,172.77,Monthly,Male,0
+ACC-10968,2024-05-13,Starter,EdTech,North America,5,2,71.5,1,100.0,171.22,Monthly,Female,0
+ACC-10969,2024-03-17,Growth,Healthcare,LATAM,47,24,65.9,1,52.0,1595.99,Monthly,Female,1
+ACC-10970,2025-03-04,Professional,FinTech,EMEA,14,11,80.8,0,100.0,563.49,Monthly,Female,0
+ACC-10971,2024-03-10,Professional,Cybersecurity,North America,19,9,35.7,0,25.0,601.71,Monthly,Male,0
+ACC-10972,2025-08-02,Starter,Healthcare,APAC,1,0,54.8,0,30.0,171.44,Monthly,Female,0
+ACC-10973,2026-02-07,Growth,FinTech,EMEA,61,49,68.2,0,27.0,2012.97,Monthly,Male,0
+ACC-10974,2025-12-14,Starter,Logistics,EMEA,1,0,30.1,6,96.0,189.65,Monthly,Non-Binary,0
+ACC-10975,2024-10-01,Starter,Healthcare,APAC,5,3,64.7,1,-12.0,131.88,Monthly,Non-Binary,0
+ACC-10976,2024-10-03,Starter,Healthcare,APAC,1,0,,2,35.0,151.58,Monthly,Female,0
+ACC-10977,2024-03-26,Starter,Logistics,APAC,5,4,81.2,7,51.0,190.65,Monthly,Male,0
+ACC-10978,2024-08-12,Starter,FinTech,North America,3,2,100.0,1,14.0,168.04,Monthly,Male,0
+ACC-10979,2026-02-02,Growth,Logistics,North America,66,48,64.9,3,10.0,1756.61,Annual,Non-Binary,0
+ACC-10980,2025-04-01,Starter,Healthcare,LATAM,2,1,30.7,1,34.0,194.37,Monthly,Female,0
+ACC-10981,2025-08-06,Starter,Healthcare,EMEA,4,3,74.1,0,,173.68,Monthly,Female,0
+ACC-10982,2024-05-26,Starter,EdTech,EMEA,1,0,80.8,0,35.0,149.71,Monthly,Female,0
+ACC-10983,2026-02-07,Starter,Logistics,EMEA,1,0,62.0,1,-5.0,185.32,Monthly,Non-Binary,0
+ACC-10984,2024-09-11,Starter,Cybersecurity,North America,1,0,67.6,0,43.0,178.93,Monthly,Female,1
+ACC-10985,2024-03-28,Starter,FinTech,APAC,2,0,79.0,2,-11.0,156.93,Monthly,Non-Binary,0
+ACC-10986,2024-09-06,Starter,E-Commerce,LATAM,1,0,74.0,1,79.0,187.01,Monthly,Female,1
+ACC-10987,2025-06-07,Growth,FinTech,APAC,26,18,85.2,7,,1632.17,Monthly,Female,0
+ACC-10988,2026-06-24,Professional,Healthcare,LATAM,21,15,35.2,5,13.0,571.1,Monthly,Non-Binary,1
+ACC-10989,2025-01-04,Starter,FinTech,APAC,1,0,65.9,0,24.0,169.04,Monthly,Female,0
+ACC-10990,2026-07-03,Professional,Cybersecurity,LATAM,25,13,54.2,5,37.0,830.02,Monthly,Female,0
+ACC-10991,2026-04-10,Enterprise,Cybersecurity,APAC,479,420,72.5,2,37.0,7449.5,Annual,Male,0
+ACC-10992,2025-08-14,Professional,EdTech,North America,14,6,48.7,1,37.0,703.76,Monthly,Female,0
+ACC-10993,2025-03-10,Growth,E-Commerce,APAC,64,25,67.3,6,-7.0,2034.29,Annual,Male,1
+ACC-10994,2025-05-24,Enterprise,EdTech,LATAM,353,287,39.5,1,59.0,6766.29,Monthly,Non-Binary,1
+ACC-10995,2024-03-30,Professional,Logistics,EMEA,17,8,,0,32.0,835.06,Monthly,Non-Binary,0
+ACC-10996,2026-07-22,Professional,Healthcare,North America,17,7,63.1,0,34.0,611.34,Monthly,Female,0
+ACC-10997,2024-08-03,Starter,Logistics,LATAM,2,1,75.8,0,60.0,179.57,Monthly,Female,0
+ACC-10998,2025-03-10,Starter,Cybersecurity,North America,3,2,39.5,4,36.0,184.57,Monthly,Non-Binary,0
+ACC-10999,2025-01-09,Growth,Healthcare,North America,41,20,55.5,3,,2324.42,Annual,Female,1
+ACC-11000,2025-06-24,Growth,EdTech,EMEA,52,50,86.6,1,22.0,1583.99,Annual,Non-Binary,0
+ACC-11001,2024-02-02,Starter,Healthcare,North America,5,2,65.8,2,,190.02,Monthly,Non-Binary,0
+ACC-11002,2025-05-28,Professional,EdTech,APAC,13,9,77.3,7,19.0,687.03,Monthly,Non-Binary,1
+ACC-11003,2025-09-25,Starter,Healthcare,EMEA,1,0,70.5,0,100.0,160.9,Monthly,Male,0
+ACC-11004,2024-11-16,Professional,FinTech,LATAM,18,12,66.3,3,35.0,650.23,Monthly,Male,0
+ACC-11005,2025-01-06,Starter,FinTech,North America,5,2,54.2,0,1.0,152.22,Monthly,Female,0
+ACC-11006,2024-07-11,Starter,Logistics,North America,5,3,77.9,1,89.0,137.95,Monthly,Male,0
+ACC-11007,2024-02-19,Professional,FinTech,LATAM,8,3,71.9,5,21.0,716.92,Monthly,Female,1
+ACC-11008,2026-02-08,Enterprise,Logistics,EMEA,440,321,61.4,2,41.0,6608.69,Annual,Male,0
+ACC-11009,2025-08-24,Professional,Logistics,EMEA,21,8,78.0,1,17.0,690.18,Monthly,Female,0
+ACC-11010,2024-08-25,Professional,Cybersecurity,North America,10,8,52.8,0,62.0,664.83,Monthly,Non-Binary,1
+ACC-11011,2026-03-15,Professional,Cybersecurity,APAC,16,11,100.0,1,59.0,821.82,Monthly,Male,0
+ACC-11012,2024-08-01,Starter,Cybersecurity,LATAM,5,2,69.9,6,2.0,162.82,Monthly,Female,1
+ACC-11013,2025-07-14,Starter,FinTech,EMEA,1,0,73.2,0,19.0,186.19,Monthly,Male,0
+ACC-11014,2024-04-01,Starter,E-Commerce,APAC,1,0,64.0,1,7.0,161.36,Monthly,Male,0
+ACC-11015,2025-08-05,Enterprise,EdTech,EMEA,227,113,78.8,1,63.0,7918.7,Annual,Female,0
+ACC-11016,2024-03-26,Starter,E-Commerce,APAC,4,1,73.5,2,97.0,155.31,Monthly,Male,0
+ACC-11017,2026-03-20,Starter,Cybersecurity,North America,2,1,66.2,3,9.0,188.71,Monthly,Non-Binary,0
+ACC-11018,2025-02-01,Starter,EdTech,North America,4,3,57.2,5,-11.0,160.89,Monthly,Female,0
+ACC-11019,2026-01-19,Growth,FinTech,North America,75,67,50.6,0,18.0,2085.43,Annual,Female,1
+ACC-11020,2026-01-29,Enterprise,EdTech,EMEA,313,183,60.6,1,,6259.74,Annual,Non-Binary,0
+ACC-11021,2026-03-03,Professional,E-Commerce,North America,7,5,72.9,0,47.0,653.92,Monthly,Non-Binary,0
+ACC-11022,2025-03-09,Starter,Healthcare,North America,3,1,87.7,0,18.0,137.76,Monthly,Non-Binary,1
+ACC-11023,2025-06-21,Professional,E-Commerce,LATAM,14,12,44.0,1,56.0,591.03,Monthly,Male,0
+ACC-11024,2024-12-23,Starter,E-Commerce,EMEA,4,2,60.6,2,58.0,171.74,Monthly,Female,1
+ACC-11025,2025-07-28,Professional,E-Commerce,LATAM,12,7,54.0,3,37.0,661.5,Monthly,Female,1
+ACC-11026,2024-06-03,Starter,Cybersecurity,APAC,4,3,97.1,2,47.0,173.2,Monthly,Female,0
+ACC-11027,2026-05-02,Professional,Logistics,North America,20,11,96.3,1,48.0,789.09,Monthly,Male,0
+ACC-11028,2025-01-21,Enterprise,EdTech,EMEA,178,155,69.4,2,57.0,6868.59,Monthly,Non-Binary,0
+ACC-11029,2025-05-29,Growth,FinTech,APAC,67,35,83.4,4,51.0,1609.82,Annual,Male,0
+ACC-11030,2025-04-14,Professional,E-Commerce,North America,17,11,54.3,3,5.0,578.63,Monthly,Female,1
+ACC-11031,2024-10-17,Starter,Cybersecurity,LATAM,5,3,53.5,0,40.0,183.36,Monthly,Non-Binary,1
+ACC-11032,2026-02-06,Starter,EdTech,North America,5,4,40.8,5,28.0,192.4,Monthly,Male,1
+ACC-11033,2024-08-16,Starter,E-Commerce,LATAM,4,2,87.5,1,41.0,138.37,Monthly,Female,0
+ACC-11034,2025-12-21,Starter,EdTech,LATAM,4,1,76.6,0,-17.0,173.34,Monthly,Non-Binary,1
+ACC-11035,2025-11-20,Growth,E-Commerce,APAC,52,34,72.6,15,,1531.16,Annual,Male,1
+ACC-11036,2024-06-23,Growth,Cybersecurity,APAC,41,20,58.8,3,10.0,1757.17,Annual,Male,0
+ACC-11037,2025-10-13,Growth,Logistics,LATAM,51,27,61.8,0,58.0,2319.82,Monthly,Female,0
+ACC-11038,2025-08-13,Growth,Logistics,North America,79,39,37.4,2,18.0,2045.25,Monthly,Non-Binary,1
+ACC-11039,2025-09-24,Starter,FinTech,EMEA,5,2,63.1,1,,194.28,Monthly,Female,1
+ACC-11040,2024-09-02,Enterprise,Cybersecurity,APAC,355,322,71.0,3,69.0,7658.03,Annual,Female,0
+ACC-11041,2024-03-25,Starter,E-Commerce,North America,2,1,35.5,7,26.0,154.4,Monthly,Male,1
+ACC-11042,2024-10-16,Enterprise,FinTech,North America,120,84,64.6,1,-9.0,5811.78,Annual,Female,0
+ACC-11043,2024-03-16,Starter,EdTech,North America,4,2,45.6,3,1.0,177.41,Monthly,Male,1
+ACC-11044,2024-11-01,Professional,EdTech,EMEA,11,9,48.3,0,32.0,556.25,Monthly,Female,0
+ACC-11045,2025-09-20,Starter,E-Commerce,APAC,5,4,100.0,8,-32.0,185.52,Monthly,Male,0
+ACC-11046,2024-01-24,Starter,Logistics,North America,5,4,57.4,2,16.0,142.03,Monthly,Non-Binary,1
+ACC-11047,2024-08-13,Growth,FinTech,APAC,43,19,83.2,5,35.0,2284.55,Annual,Female,1
+ACC-11048,2026-04-08,Professional,E-Commerce,LATAM,19,14,44.0,2,-30.0,659.74,Monthly,Non-Binary,1
+ACC-11049,2024-04-15,Starter,Cybersecurity,APAC,5,4,69.9,0,39.0,142.81,Monthly,Male,0
+ACC-11050,2026-02-04,Professional,EdTech,LATAM,16,8,72.3,0,56.0,736.18,Monthly,Non-Binary,0
+ACC-11051,2024-06-20,Professional,E-Commerce,North America,22,9,33.9,1,44.0,832.65,Monthly,Male,1
+ACC-11052,2024-01-31,Growth,Logistics,APAC,77,73,52.7,2,35.0,1998.24,Monthly,Male,1
+ACC-11053,2026-03-09,Starter,E-Commerce,APAC,3,1,58.5,3,19.0,185.27,Monthly,Female,1
+ACC-11054,2025-07-29,Starter,Logistics,APAC,1,0,61.1,6,-24.0,179.29,Monthly,Female,0
+ACC-11055,2026-07-03,Professional,Cybersecurity,North America,19,11,68.6,1,0.0,613.01,Monthly,Non-Binary,0
+ACC-11056,2025-03-07,Growth,EdTech,North America,54,33,85.4,3,34.0,2283.3,Monthly,Male,1
+ACC-11057,2024-10-18,Starter,FinTech,North America,2,1,55.7,0,16.0,149.1,Monthly,Male,0
+ACC-11058,2026-04-29,Professional,FinTech,LATAM,15,6,80.4,4,16.0,629.28,Monthly,Female,0
+ACC-11059,2024-02-18,Professional,E-Commerce,LATAM,15,14,57.2,0,16.0,674.2,Monthly,Non-Binary,1
+ACC-11060,2024-08-17,Enterprise,E-Commerce,North America,134,124,43.7,5,88.0,6634.64,Annual,Female,1
+ACC-11061,2026-07-12,Starter,FinTech,EMEA,3,2,60.0,1,38.0,141.69,Monthly,Non-Binary,0
+ACC-11062,2024-03-17,Growth,FinTech,North America,70,53,56.7,1,26.0,2095.44,Annual,Male,1
+ACC-11063,2024-05-09,Enterprise,Logistics,LATAM,380,256,87.6,1,12.0,8296.8,Annual,Female,0
+ACC-11064,2025-05-04,Professional,FinTech,EMEA,14,12,62.1,1,38.0,790.0,Monthly,Non-Binary,0
+ACC-11065,2025-07-25,Starter,E-Commerce,North America,2,1,64.9,1,84.0,136.71,Monthly,Male,1
+ACC-11066,2026-04-18,Starter,Cybersecurity,EMEA,4,2,100.0,2,48.0,182.81,Monthly,Male,0
+ACC-11067,2025-12-26,Growth,Logistics,APAC,80,50,70.4,0,47.0,1960.39,Annual,Male,1
+ACC-11068,2024-07-11,Starter,EdTech,EMEA,1,0,61.2,0,97.0,184.37,Monthly,Male,0
+ACC-11069,2026-06-16,Professional,FinTech,EMEA,9,5,28.5,3,82.0,570.25,Monthly,Male,0
+ACC-11070,2024-09-28,Starter,Cybersecurity,LATAM,1,0,71.0,6,-6.0,179.56,Monthly,Male,0
+ACC-11071,2025-03-27,Professional,Logistics,APAC,17,9,49.1,0,-40.0,798.94,Monthly,Female,1
+ACC-11072,2024-06-29,Professional,E-Commerce,EMEA,14,7,63.9,5,30.0,829.47,Monthly,Male,0
+ACC-11073,2024-08-12,Professional,Cybersecurity,EMEA,7,6,89.5,0,-10.0,747.61,Monthly,Female,1
+ACC-11074,2025-02-06,Starter,Healthcare,LATAM,1,0,45.7,1,-10.0,183.61,Monthly,Male,1
+ACC-11075,2025-09-02,Growth,E-Commerce,APAC,32,16,81.6,0,16.0,1725.41,Annual,Non-Binary,1
+ACC-11076,2024-11-18,Starter,Cybersecurity,EMEA,1,0,64.8,0,31.0,161.54,Monthly,Female,0
+ACC-11077,2024-01-22,Starter,EdTech,LATAM,2,1,65.1,0,100.0,164.67,Monthly,Male,0
+ACC-11078,2026-06-13,Professional,EdTech,North America,21,10,45.8,1,63.0,664.67,Monthly,Male,0
+ACC-11079,2026-03-04,Enterprise,Healthcare,EMEA,492,435,61.4,1,-15.0,6828.76,Annual,Female,0
+ACC-11080,2025-01-08,Enterprise,E-Commerce,LATAM,261,164,50.5,5,47.0,7818.12,Annual,Male,1
+ACC-11081,2024-10-03,Professional,Logistics,LATAM,6,2,66.9,4,-8.0,765.89,Monthly,Female,1
+ACC-11082,2025-08-14,Starter,EdTech,North America,4,2,49.2,3,34.0,190.27,Monthly,Female,1
+ACC-11083,2025-11-26,Starter,FinTech,APAC,5,4,68.6,2,55.0,188.22,Monthly,Non-Binary,0
+ACC-11084,2024-11-12,Growth,EdTech,LATAM,63,47,67.9,0,19.0,1636.12,Monthly,Male,1
+ACC-11085,2024-04-22,Growth,Logistics,APAC,69,44,56.0,1,40.0,1825.69,Annual,Male,1
+ACC-11086,2025-05-13,Professional,Cybersecurity,EMEA,8,6,97.6,0,,720.39,Monthly,Male,0
+ACC-11087,2025-05-15,Starter,Logistics,North America,3,2,,0,81.0,156.71,Monthly,Female,1
+ACC-11088,2025-11-12,Starter,E-Commerce,APAC,5,4,54.4,0,46.0,133.64,Monthly,Non-Binary,0
+ACC-11089,2024-08-12,Starter,Logistics,North America,1,0,75.4,0,26.0,183.9,Monthly,Male,1
+ACC-11090,2025-09-03,Professional,FinTech,APAC,11,8,64.6,0,31.0,833.01,Monthly,Male,1
+ACC-11091,2024-05-18,Professional,Cybersecurity,EMEA,23,14,75.5,1,41.0,810.33,Monthly,Male,1
+ACC-11092,2026-03-12,Enterprise,EdTech,EMEA,350,324,79.9,5,87.0,7037.57,Annual,Male,1
+ACC-11093,2025-04-22,Professional,EdTech,APAC,19,17,,0,-41.0,708.71,Monthly,Male,1
+ACC-11094,2026-07-17,Growth,FinTech,EMEA,63,59,62.2,2,-18.0,1792.85,Annual,Non-Binary,1
+ACC-11095,2025-02-16,Growth,FinTech,LATAM,77,63,73.9,2,63.0,1924.02,Monthly,Female,1
+ACC-11096,2025-08-31,Starter,Cybersecurity,North America,1,0,54.7,5,60.0,191.34,Monthly,Male,0
+ACC-11097,2024-07-28,Starter,Logistics,North America,5,2,100.0,3,4.0,178.38,Monthly,Non-Binary,1
+ACC-11098,2025-10-05,Growth,Cybersecurity,EMEA,77,70,82.2,1,18.0,2309.52,Monthly,Male,0
+ACC-11099,2024-07-28,Starter,FinTech,North America,1,0,57.1,2,82.0,148.72,Monthly,Female,0
+ACC-11100,2026-04-19,Starter,EdTech,LATAM,2,0,65.6,0,68.0,175.5,Monthly,Female,1
+ACC-11101,2024-01-23,Professional,EdTech,EMEA,10,9,92.8,0,14.0,693.78,Monthly,Non-Binary,0
+ACC-11102,2025-05-06,Professional,Logistics,EMEA,15,12,68.1,0,-9.0,842.57,Monthly,Male,0
+ACC-11103,2026-03-30,Professional,EdTech,LATAM,20,16,,1,75.0,780.67,Monthly,Non-Binary,0
+ACC-11104,2025-08-17,Professional,Logistics,LATAM,7,4,44.3,3,35.0,716.27,Monthly,Female,0
+ACC-11105,2026-06-22,Starter,E-Commerce,EMEA,4,3,50.9,1,24.0,136.35,Monthly,Male,1
+ACC-11106,2024-03-05,Professional,E-Commerce,LATAM,10,5,57.8,1,-9.0,825.69,Monthly,Non-Binary,0
+ACC-11107,2024-11-06,Professional,Healthcare,APAC,8,3,69.2,0,-17.0,685.97,Monthly,Non-Binary,0
+ACC-11108,2025-12-15,Professional,Healthcare,APAC,24,19,60.8,4,12.0,717.98,Monthly,Female,0
+ACC-11109,2024-04-08,Starter,FinTech,EMEA,1,0,66.1,0,53.0,185.5,Monthly,Female,0
+ACC-11110,2026-07-10,Growth,Cybersecurity,EMEA,74,52,61.8,2,-27.0,1567.32,Monthly,Female,0
+ACC-11111,2026-02-20,Starter,Cybersecurity,North America,3,1,69.6,0,3.0,172.18,Monthly,Male,1
+ACC-11112,2025-08-10,Professional,EdTech,EMEA,12,10,75.1,4,22.0,748.05,Monthly,Non-Binary,0
+ACC-11113,2026-04-13,Starter,Cybersecurity,EMEA,5,4,78.0,0,,145.41,Monthly,Male,1
+ACC-11114,2025-01-03,Starter,FinTech,EMEA,4,2,54.2,2,16.0,176.13,Monthly,Female,1
+ACC-11115,2026-05-02,Enterprise,Cybersecurity,LATAM,323,144,59.9,1,-1.0,7882.23,Annual,Female,1
+ACC-11116,2025-10-02,Growth,FinTech,LATAM,62,59,65.4,1,36.0,1789.78,Monthly,Male,0
+ACC-11117,2024-08-17,Professional,FinTech,APAC,14,6,78.4,1,77.0,640.68,Monthly,Female,1
+ACC-11118,2025-08-12,Starter,E-Commerce,North America,2,1,68.4,1,-8.0,136.98,Monthly,Non-Binary,1
+ACC-11119,2025-10-30,Professional,FinTech,LATAM,7,6,61.1,0,41.0,829.91,Monthly,Male,0
+ACC-11120,2026-04-16,Growth,Healthcare,EMEA,41,39,67.2,0,-1.0,1660.18,Annual,Non-Binary,0
+ACC-11121,2025-03-02,Professional,FinTech,APAC,25,16,78.3,0,25.0,590.24,Monthly,Female,0
+ACC-11122,2025-06-03,Professional,FinTech,North America,17,9,68.5,0,50.0,796.15,Monthly,Male,0
+ACC-11123,2026-03-03,Enterprise,FinTech,North America,275,267,69.9,1,25.0,5719.24,Annual,Female,0
+ACC-11124,2025-12-19,Starter,EdTech,EMEA,4,2,100.0,0,30.0,144.1,Monthly,Male,0
+ACC-11125,2024-12-17,Enterprise,E-Commerce,APAC,199,164,,0,-4.0,6152.6,Annual,Female,0
+ACC-11126,2026-06-13,Growth,Logistics,North America,30,21,45.8,0,14.0,2293.17,Monthly,Female,1
+ACC-11127,2024-05-12,Starter,Cybersecurity,EMEA,5,3,65.5,2,52.0,171.66,Monthly,Male,0
+ACC-11128,2025-12-23,Starter,Logistics,EMEA,3,1,38.7,2,-40.0,162.1,Monthly,Male,0
+ACC-11129,2026-07-03,Professional,Cybersecurity,EMEA,16,6,100.0,0,27.0,648.83,Monthly,Non-Binary,0
+ACC-11130,2024-03-21,Enterprise,Cybersecurity,LATAM,347,329,73.3,2,27.0,8405.92,Monthly,Male,0
+ACC-11131,2025-12-16,Starter,Healthcare,North America,4,3,26.5,1,24.0,163.99,Monthly,Female,1
+ACC-11132,2024-03-02,Starter,EdTech,APAC,3,2,87.9,0,,140.26,Monthly,Female,0
+ACC-11133,2024-07-07,Professional,Healthcare,EMEA,23,10,24.2,1,55.0,587.88,Monthly,Male,1
+ACC-11134,2026-04-09,Starter,FinTech,APAC,5,2,68.6,2,43.0,156.59,Monthly,Male,1
+ACC-11135,2025-07-20,Professional,EdTech,North America,15,14,57.3,2,-15.0,580.21,Monthly,Female,1
+ACC-11136,2025-01-25,Professional,Logistics,APAC,13,9,63.7,0,31.0,789.5,Monthly,Female,0
+ACC-11137,2025-08-07,Starter,Healthcare,APAC,4,2,71.3,1,22.0,173.81,Monthly,Male,0
+ACC-11138,2024-11-10,Growth,Logistics,North America,79,41,74.5,1,0.0,1824.53,Monthly,Female,0
+ACC-11139,2025-10-15,Starter,FinTech,APAC,5,4,100.0,0,5.0,144.65,Monthly,Male,1
+ACC-11140,2025-03-27,Growth,Logistics,APAC,75,61,79.0,1,5.0,1599.59,Monthly,Female,0
+ACC-11141,2024-04-27,Professional,Healthcare,North America,11,6,62.6,2,16.0,689.73,Monthly,Female,0
+ACC-11142,2026-01-01,Starter,Cybersecurity,EMEA,3,2,57.8,0,17.0,146.82,Monthly,Female,0
+ACC-11143,2024-04-21,Professional,FinTech,EMEA,22,11,56.2,2,23.0,614.13,Monthly,Male,1
+ACC-11144,2025-10-19,Starter,E-Commerce,LATAM,4,3,90.9,1,5.0,136.56,Monthly,Female,1
+ACC-11145,2024-10-28,Starter,EdTech,APAC,5,2,24.7,0,76.0,171.43,Monthly,Male,0
+ACC-11146,2024-08-04,Enterprise,FinTech,North America,480,470,41.4,0,85.0,8073.65,Annual,Non-Binary,0
+ACC-11147,2026-01-13,Enterprise,EdTech,North America,413,253,63.9,1,56.0,6927.41,Annual,Non-Binary,0
+ACC-11148,2026-01-20,Starter,Logistics,LATAM,1,0,39.7,3,67.0,183.97,Monthly,Non-Binary,1
+ACC-11149,2026-05-06,Professional,E-Commerce,APAC,15,10,66.7,2,-40.0,807.21,Monthly,Female,1
+ACC-11150,2024-04-28,Starter,EdTech,APAC,2,1,51.9,1,23.0,186.33,Monthly,Non-Binary,1
+ACC-11151,2024-08-23,Professional,E-Commerce,LATAM,19,15,77.1,2,32.0,670.57,Monthly,Non-Binary,0
+ACC-11152,2025-08-21,Enterprise,Healthcare,LATAM,488,307,82.4,4,-21.0,5844.87,Monthly,Non-Binary,1
+ACC-11153,2026-06-21,Professional,Healthcare,LATAM,11,9,79.6,1,2.0,573.73,Monthly,Non-Binary,0
+ACC-11154,2024-04-13,Growth,Cybersecurity,LATAM,79,37,79.6,1,,1631.32,Monthly,Non-Binary,0
+ACC-11155,2024-12-28,Professional,Logistics,LATAM,18,16,89.3,0,47.0,729.96,Monthly,Male,0
+ACC-11156,2024-02-16,Starter,E-Commerce,North America,1,0,69.9,1,-34.0,180.62,Monthly,Non-Binary,0
+ACC-11157,2024-07-06,Professional,EdTech,EMEA,22,16,90.4,2,100.0,656.29,Monthly,Non-Binary,0
+ACC-11158,2024-11-24,Starter,Cybersecurity,LATAM,4,1,68.0,4,-11.0,133.21,Monthly,Male,0
+ACC-11159,2024-02-19,Starter,E-Commerce,LATAM,5,3,38.0,0,-9.0,180.76,Monthly,Male,1
+ACC-11160,2024-05-26,Starter,EdTech,APAC,1,0,55.1,3,59.0,167.39,Monthly,Female,0
+ACC-11161,2024-05-01,Starter,E-Commerce,APAC,3,1,60.0,2,96.0,191.33,Monthly,Female,0
+ACC-11162,2025-11-13,Enterprise,E-Commerce,North America,186,129,92.6,2,38.0,6076.75,Monthly,Female,0
+ACC-11163,2025-05-15,Professional,FinTech,EMEA,17,13,85.6,5,35.0,585.67,Monthly,Female,1
+ACC-11164,2024-10-29,Professional,Logistics,EMEA,9,3,80.3,0,-29.0,792.54,Monthly,Male,0
+ACC-11165,2026-04-02,Starter,E-Commerce,North America,1,0,97.8,5,53.0,128.06,Monthly,Male,0
+ACC-11166,2025-12-05,Starter,Cybersecurity,North America,3,1,100.0,1,46.0,172.85,Monthly,Non-Binary,0
+ACC-11167,2025-10-04,Starter,Logistics,North America,1,0,75.8,2,23.0,162.73,Monthly,Non-Binary,0
+ACC-11168,2025-05-11,Professional,E-Commerce,LATAM,21,20,50.0,1,50.0,586.89,Monthly,Female,0
+ACC-11169,2025-03-20,Enterprise,Cybersecurity,EMEA,393,309,76.4,0,0.0,6461.53,Annual,Female,1
+ACC-11170,2024-12-23,Starter,EdTech,EMEA,4,2,64.1,0,60.0,148.64,Monthly,Non-Binary,0
+ACC-11171,2026-03-26,Growth,Cybersecurity,LATAM,48,39,66.9,4,48.0,1789.63,Monthly,Male,0
+ACC-11172,2024-11-29,Growth,E-Commerce,LATAM,33,26,100.0,4,40.0,1657.36,Monthly,Male,0
+ACC-11173,2026-05-10,Professional,Cybersecurity,EMEA,25,20,100.0,0,26.0,816.09,Monthly,Male,0
+ACC-11174,2026-03-01,Professional,EdTech,North America,14,5,87.3,0,-10.0,747.7,Monthly,Non-Binary,1
+ACC-11175,2025-05-12,Professional,E-Commerce,North America,16,9,38.6,0,22.0,684.13,Monthly,Male,0
+ACC-11176,2024-04-22,Starter,Healthcare,EMEA,5,2,,0,-15.0,162.23,Monthly,Non-Binary,1
+ACC-11177,2024-12-07,Professional,EdTech,North America,23,20,82.8,2,59.0,573.92,Monthly,Non-Binary,0
+ACC-11178,2024-08-22,Professional,Healthcare,LATAM,11,8,70.0,3,22.0,692.02,Monthly,Non-Binary,0
+ACC-11179,2026-02-12,Starter,FinTech,North America,5,2,92.8,4,65.0,151.63,Monthly,Female,0
+ACC-11180,2026-03-01,Starter,FinTech,EMEA,2,1,69.3,1,65.0,179.46,Monthly,Non-Binary,0
+ACC-11181,2024-03-19,Professional,Healthcare,APAC,22,21,68.9,2,56.0,771.67,Monthly,Female,0
+ACC-11182,2026-01-23,Starter,Logistics,EMEA,5,4,53.0,0,67.0,133.82,Monthly,Female,0
+ACC-11183,2024-10-07,Professional,Cybersecurity,North America,12,10,78.4,6,-10.0,573.66,Monthly,Male,0
+ACC-11184,2025-02-20,Starter,EdTech,North America,5,3,45.0,12,8.0,155.47,Monthly,Female,1
+ACC-11185,2025-02-07,Starter,FinTech,LATAM,3,1,95.9,1,44.0,171.02,Monthly,Non-Binary,0
+ACC-11186,2025-05-03,Starter,Healthcare,LATAM,5,3,62.4,0,-11.0,129.76,Monthly,Male,0
+ACC-11187,2026-06-04,Enterprise,FinTech,EMEA,123,114,72.8,1,33.0,6178.02,Annual,Female,0
+ACC-11188,2026-02-24,Professional,Logistics,EMEA,14,11,65.1,5,8.0,554.06,Monthly,Female,1
+ACC-11189,2024-10-01,Starter,Cybersecurity,LATAM,2,0,72.2,5,13.0,163.1,Monthly,Female,1
+ACC-11190,2025-05-09,Professional,E-Commerce,LATAM,23,10,47.6,2,45.0,747.09,Monthly,Non-Binary,1
+ACC-11191,2024-05-10,Starter,Cybersecurity,North America,1,0,77.6,0,13.0,158.78,Monthly,Male,0
+ACC-11192,2025-05-22,Growth,FinTech,North America,57,45,64.3,0,4.0,1658.21,Annual,Male,0
+ACC-11193,2026-08-02,Starter,EdTech,APAC,3,2,65.9,2,39.0,145.19,Monthly,Non-Binary,1
+ACC-11194,2026-01-01,Starter,E-Commerce,EMEA,3,2,89.1,0,79.0,153.93,Monthly,Non-Binary,0
+ACC-11195,2025-06-20,Starter,Cybersecurity,EMEA,4,3,100.0,0,36.0,134.45,Monthly,Female,0
+ACC-11196,2024-07-11,Enterprise,FinTech,APAC,315,130,87.6,5,17.0,6502.58,Annual,Non-Binary,0
+ACC-11197,2025-10-05,Starter,E-Commerce,EMEA,1,0,67.7,0,55.0,158.25,Monthly,Male,0
+ACC-11198,2026-02-24,Professional,E-Commerce,APAC,14,10,41.4,1,42.0,559.63,Monthly,Non-Binary,0
+ACC-11199,2024-07-01,Professional,FinTech,EMEA,24,9,54.1,0,8.0,765.19,Monthly,Male,1
+ACC-11200,2026-06-11,Growth,E-Commerce,APAC,39,22,81.0,0,,2328.94,Monthly,Non-Binary,1
+ACC-11201,2024-06-17,Enterprise,Logistics,EMEA,120,51,65.1,0,7.0,6177.54,Annual,Female,0
+ACC-11202,2024-11-05,Professional,Cybersecurity,LATAM,9,8,70.6,0,61.0,626.65,Monthly,Male,0
+ACC-11203,2024-11-20,Professional,E-Commerce,APAC,8,6,88.4,6,30.0,672.97,Monthly,Non-Binary,0
+ACC-11204,2025-07-27,Growth,Cybersecurity,EMEA,70,31,61.1,0,-4.0,1984.16,Annual,Male,0
+ACC-11205,2026-05-25,Professional,Healthcare,North America,17,11,96.6,1,61.0,598.8,Monthly,Male,0
+ACC-11206,2024-07-02,Enterprise,Healthcare,LATAM,265,173,,3,12.0,7187.33,Annual,Male,0
+ACC-11207,2026-08-01,Starter,E-Commerce,APAC,1,0,87.5,3,2.0,183.67,Monthly,Non-Binary,1
+ACC-11208,2025-10-02,Starter,Cybersecurity,APAC,1,0,42.2,0,20.0,160.96,Monthly,Male,1
+ACC-11209,2024-06-26,Enterprise,Cybersecurity,LATAM,134,68,,0,,5686.85,Annual,Male,1
+ACC-11210,2024-03-25,Starter,Cybersecurity,EMEA,4,1,100.0,2,91.0,184.15,Monthly,Female,0
+ACC-11211,2025-11-01,Starter,Logistics,APAC,5,2,66.9,1,15.0,171.19,Monthly,Female,0
+ACC-11212,2024-01-15,Professional,Logistics,APAC,19,16,59.4,0,-4.0,583.11,Monthly,Non-Binary,1
+ACC-11213,2024-09-30,Growth,Logistics,EMEA,54,37,63.2,1,76.0,1651.9,Annual,Non-Binary,0
+ACC-11214,2024-10-07,Starter,Cybersecurity,North America,5,3,77.4,1,25.0,175.16,Monthly,Male,1
+ACC-11215,2026-07-29,Starter,EdTech,North America,1,0,73.2,1,24.0,145.67,Monthly,Female,0
+ACC-11216,2025-10-15,Enterprise,Healthcare,North America,451,288,56.6,0,36.0,8100.9,Annual,Female,1
+ACC-11217,2024-02-24,Enterprise,Healthcare,EMEA,223,104,64.1,2,6.0,7515.71,Monthly,Male,0
+ACC-11218,2024-09-22,Starter,Healthcare,EMEA,4,1,57.1,3,49.0,139.55,Monthly,Male,0
+ACC-11219,2025-12-04,Growth,Logistics,LATAM,79,47,57.7,1,24.0,2013.35,Monthly,Non-Binary,0
+ACC-11220,2024-12-16,Professional,E-Commerce,APAC,23,15,93.0,5,-5.0,657.61,Monthly,Female,1
+ACC-11221,2024-09-24,Growth,E-Commerce,EMEA,59,28,93.5,5,58.0,1838.94,Annual,Male,0
+ACC-11222,2025-08-25,Starter,Logistics,LATAM,1,0,57.2,4,39.0,191.64,Monthly,Non-Binary,1
+ACC-11223,2024-12-10,Starter,EdTech,LATAM,1,0,61.5,0,57.0,172.68,Monthly,Male,0
+ACC-11224,2025-08-12,Growth,EdTech,LATAM,56,23,84.4,8,29.0,2014.63,Annual,Non-Binary,0
+ACC-11225,2026-02-20,Professional,E-Commerce,North America,9,8,46.2,5,36.0,599.78,Monthly,Female,0
+ACC-11226,2024-06-19,Professional,FinTech,EMEA,25,20,57.3,2,16.0,766.52,Monthly,Non-Binary,1
+ACC-11227,2024-04-02,Growth,Healthcare,APAC,77,65,63.7,3,79.0,1885.32,Monthly,Female,0
+ACC-11228,2024-03-23,Starter,Healthcare,APAC,2,1,51.3,0,0.0,171.7,Monthly,Male,1
+ACC-11229,2025-05-03,Starter,Logistics,APAC,2,1,85.3,0,68.0,141.64,Monthly,Female,0
+ACC-11230,2025-12-24,Starter,EdTech,LATAM,2,1,53.4,2,60.0,165.87,Monthly,Male,1
+ACC-11231,2026-01-17,Starter,E-Commerce,APAC,4,2,45.7,2,53.0,184.16,Monthly,Non-Binary,0
+ACC-11232,2026-06-25,Professional,Logistics,North America,11,8,85.2,1,31.0,690.91,Monthly,Female,0
+ACC-11233,2025-10-23,Growth,Logistics,LATAM,57,36,59.2,3,-7.0,2179.1,Monthly,Female,1
+ACC-11234,2024-10-18,Starter,Healthcare,LATAM,3,2,91.7,0,,162.9,Monthly,Female,1
+ACC-11235,2025-06-13,Professional,Healthcare,LATAM,20,9,80.4,0,21.0,784.86,Monthly,Non-Binary,0
+ACC-11236,2024-11-22,Professional,EdTech,North America,24,13,,2,31.0,839.07,Monthly,Female,1
+ACC-11237,2026-02-28,Professional,Cybersecurity,LATAM,15,7,65.4,7,30.0,807.03,Monthly,Male,0
+ACC-11238,2025-12-30,Growth,EdTech,APAC,49,30,46.9,1,13.0,2179.11,Annual,Male,0
+ACC-11239,2024-01-08,Starter,Cybersecurity,North America,3,1,30.6,1,27.0,170.14,Monthly,Female,1
+ACC-11240,2024-10-15,Growth,EdTech,North America,57,36,84.2,3,68.0,1882.83,Annual,Male,0
+ACC-11241,2025-07-09,Starter,E-Commerce,APAC,3,2,63.6,0,-34.0,168.64,Monthly,Female,1
+ACC-11242,2026-01-19,Starter,FinTech,North America,1,0,88.1,6,73.0,141.93,Monthly,Male,0
+ACC-11243,2025-05-20,Starter,Cybersecurity,EMEA,4,3,64.9,1,67.0,131.01,Monthly,Non-Binary,0
+ACC-11244,2024-03-19,Growth,Cybersecurity,LATAM,28,25,100.0,3,-8.0,1961.17,Annual,Female,0
+ACC-11245,2026-08-07,Starter,Logistics,North America,3,1,75.9,0,73.0,153.75,Monthly,Male,0
+ACC-11246,2024-04-29,Professional,Cybersecurity,North America,24,20,33.0,8,34.0,769.63,Monthly,Male,1
+ACC-11247,2025-08-10,Growth,Cybersecurity,North America,74,41,51.7,0,59.0,1860.67,Monthly,Male,0
+ACC-11248,2025-11-25,Professional,FinTech,LATAM,14,10,73.9,0,10.0,637.32,Monthly,Female,1
+ACC-11249,2025-09-05,Professional,E-Commerce,APAC,9,8,61.4,3,,589.63,Monthly,Male,0
+ACC-11250,2025-03-06,Starter,E-Commerce,LATAM,5,3,60.1,1,40.0,193.04,Monthly,Non-Binary,0
+ACC-11251,2024-06-04,Starter,E-Commerce,APAC,4,2,74.6,2,14.0,163.88,Monthly,Male,1
+ACC-11252,2025-05-13,Starter,FinTech,North America,5,2,76.8,0,28.0,191.69,Monthly,Non-Binary,1
+ACC-11253,2025-04-23,Starter,E-Commerce,LATAM,1,0,58.1,2,50.0,163.56,Monthly,Non-Binary,1
+ACC-11254,2026-01-31,Professional,FinTech,APAC,13,11,56.7,1,-43.0,670.17,Monthly,Non-Binary,1
+ACC-11255,2024-08-04,Growth,FinTech,LATAM,44,35,43.8,3,26.0,1572.34,Annual,Female,0
+ACC-11256,2026-02-08,Enterprise,Logistics,LATAM,223,127,43.1,0,62.0,6947.7,Monthly,Male,0
+ACC-11257,2025-07-02,Growth,Cybersecurity,APAC,40,18,54.2,0,21.0,1562.66,Annual,Non-Binary,0
+ACC-11258,2024-01-04,Professional,Healthcare,LATAM,16,9,63.1,0,64.0,704.65,Monthly,Male,0
+ACC-11259,2025-02-24,Starter,Logistics,LATAM,2,1,46.7,1,64.0,153.0,Monthly,Male,1
+ACC-11260,2024-11-28,Enterprise,Logistics,LATAM,372,236,65.0,2,52.0,6084.52,Annual,Female,0
+ACC-11261,2025-06-07,Starter,Logistics,LATAM,2,0,52.7,0,20.0,136.07,Monthly,Non-Binary,0
+ACC-11262,2024-05-15,Professional,Cybersecurity,EMEA,8,5,70.3,1,-36.0,557.13,Monthly,Male,1
+ACC-11263,2025-04-17,Professional,EdTech,EMEA,9,7,63.6,0,43.0,638.82,Monthly,Female,0
+ACC-11264,2024-03-12,Enterprise,Healthcare,LATAM,427,307,52.1,1,25.0,6548.44,Annual,Non-Binary,0
+ACC-11265,2025-07-04,Starter,EdTech,APAC,1,0,75.2,0,74.0,141.2,Monthly,Non-Binary,0
+ACC-11266,2026-04-28,Growth,FinTech,APAC,51,43,49.5,2,46.0,2099.22,Annual,Male,0
+ACC-11267,2026-02-15,Growth,FinTech,EMEA,72,45,90.1,0,-1.0,1549.79,Monthly,Male,0
+ACC-11268,2024-04-09,Starter,EdTech,EMEA,3,2,87.2,0,27.0,189.14,Monthly,Male,0
+ACC-11269,2026-03-17,Starter,E-Commerce,LATAM,4,3,46.0,2,77.0,168.93,Monthly,Male,0
+ACC-11270,2026-06-20,Starter,E-Commerce,North America,3,1,70.6,1,13.0,150.62,Monthly,Female,0
+ACC-11271,2025-12-31,Starter,Cybersecurity,APAC,4,2,61.7,0,32.0,161.91,Monthly,Male,0
+ACC-11272,2024-08-21,Professional,EdTech,APAC,12,7,,1,43.0,808.02,Monthly,Non-Binary,1
+ACC-11273,2025-09-25,Starter,Logistics,LATAM,2,1,78.4,2,48.0,132.53,Monthly,Male,0
+ACC-11274,2024-06-22,Professional,EdTech,LATAM,21,18,,2,59.0,560.79,Monthly,Non-Binary,1
+ACC-11275,2024-07-30,Enterprise,E-Commerce,EMEA,392,202,58.7,1,4.0,5642.97,Annual,Male,0
+ACC-11276,2026-05-16,Starter,EdTech,North America,5,2,69.5,1,23.0,159.68,Monthly,Non-Binary,1
+ACC-11277,2025-07-20,Professional,E-Commerce,North America,23,19,67.7,0,69.0,806.08,Monthly,Male,0
+ACC-11278,2025-10-28,Starter,E-Commerce,EMEA,2,1,66.1,3,68.0,141.41,Monthly,Non-Binary,0
+ACC-11279,2026-01-30,Professional,Logistics,APAC,8,5,64.5,6,79.0,787.4,Monthly,Female,0
+ACC-11280,2024-04-10,Starter,Logistics,LATAM,5,4,71.9,0,73.0,158.73,Monthly,Male,0
+ACC-11281,2024-04-12,Starter,FinTech,LATAM,5,4,100.0,3,20.0,192.84,Monthly,Female,1
+ACC-11282,2024-07-18,Professional,FinTech,LATAM,25,17,57.0,0,4.0,801.84,Monthly,Non-Binary,0
+ACC-11283,2024-06-29,Professional,E-Commerce,LATAM,22,10,62.8,0,42.0,567.62,Monthly,Non-Binary,0
+ACC-11284,2024-10-08,Starter,Logistics,EMEA,5,4,93.8,2,27.0,162.41,Monthly,Male,1
+ACC-11285,2026-07-03,Enterprise,EdTech,North America,164,107,94.5,1,16.0,5982.27,Annual,Male,0
+ACC-11286,2025-12-04,Starter,EdTech,APAC,5,2,36.2,1,87.0,139.03,Monthly,Non-Binary,1
+ACC-11287,2025-04-28,Starter,E-Commerce,APAC,1,0,66.9,8,-16.0,172.25,Monthly,Non-Binary,1
+ACC-11288,2025-09-16,Starter,EdTech,EMEA,2,0,53.8,7,41.0,167.67,Monthly,Female,0
+ACC-11289,2025-04-28,Growth,E-Commerce,EMEA,35,28,45.9,4,100.0,2168.41,Annual,Male,0
+ACC-11290,2024-01-06,Professional,EdTech,LATAM,7,6,87.6,1,100.0,698.47,Monthly,Male,0
+ACC-11291,2024-07-26,Professional,E-Commerce,North America,14,7,25.2,1,,553.59,Monthly,Non-Binary,0
+ACC-11292,2025-09-24,Starter,Logistics,EMEA,5,3,74.7,3,78.0,151.14,Monthly,Female,1
+ACC-11293,2026-03-10,Starter,EdTech,LATAM,4,2,60.9,0,12.0,166.1,Monthly,Female,0
+ACC-11294,2025-07-04,Starter,FinTech,APAC,3,1,74.9,0,-4.0,148.33,Monthly,Male,0
+ACC-11295,2026-06-13,Starter,Cybersecurity,LATAM,2,1,60.9,2,33.0,192.4,Monthly,Female,1
+ACC-11296,2025-06-27,Starter,Logistics,APAC,3,1,50.4,0,88.0,145.73,Monthly,Non-Binary,0
+ACC-11297,2026-07-15,Professional,Cybersecurity,APAC,12,10,72.6,2,24.0,717.78,Monthly,Male,1
+ACC-11298,2025-09-10,Starter,Cybersecurity,APAC,1,0,45.2,6,81.0,174.4,Monthly,Male,1
+ACC-11299,2025-01-17,Professional,FinTech,North America,24,22,83.0,11,16.0,833.94,Monthly,Non-Binary,1
+ACC-11300,2025-08-11,Starter,Logistics,LATAM,3,2,55.0,1,7.0,156.98,Monthly,Male,1
+ACC-11301,2026-05-16,Growth,Logistics,EMEA,55,44,72.3,2,15.0,2237.34,Monthly,Non-Binary,0
+ACC-11302,2026-06-29,Professional,E-Commerce,LATAM,16,8,84.8,0,58.0,553.38,Monthly,Male,0
+ACC-11303,2025-02-15,Professional,Cybersecurity,LATAM,15,7,,1,43.0,620.24,Monthly,Female,0
+ACC-11304,2026-05-26,Starter,EdTech,EMEA,2,1,68.3,0,39.0,140.04,Monthly,Male,1
+ACC-11305,2026-06-07,Professional,Logistics,APAC,10,5,76.5,0,13.0,676.66,Monthly,Non-Binary,0
+ACC-11306,2025-07-07,Starter,Logistics,North America,3,1,77.4,2,2.0,189.33,Monthly,Female,0
+ACC-11307,2024-08-26,Starter,Healthcare,LATAM,2,1,89.4,1,30.0,149.05,Monthly,Male,0
+ACC-11308,2026-06-07,Starter,EdTech,North America,2,1,60.6,1,35.0,138.08,Monthly,Male,0
+ACC-11309,2024-06-28,Growth,Logistics,North America,72,55,93.8,1,43.0,2080.84,Monthly,Female,0
+ACC-11310,2024-11-20,Professional,Logistics,APAC,12,10,86.9,1,32.0,592.35,Monthly,Non-Binary,0
+ACC-11311,2024-01-08,Starter,FinTech,LATAM,4,3,74.0,3,-39.0,181.79,Monthly,Female,1
+ACC-11312,2025-12-19,Growth,EdTech,APAC,56,25,49.2,1,88.0,1844.38,Annual,Female,0
+ACC-11313,2025-08-01,Starter,Healthcare,EMEA,1,0,79.1,0,50.0,132.03,Monthly,Female,0
+ACC-11314,2025-11-07,Starter,Logistics,EMEA,3,2,100.0,5,4.0,171.79,Monthly,Non-Binary,0
+ACC-11315,2026-04-08,Starter,Logistics,EMEA,2,1,39.8,0,-9.0,157.75,Monthly,Non-Binary,1
+ACC-11316,2025-09-28,Starter,Cybersecurity,APAC,3,1,50.8,0,50.0,185.62,Monthly,Male,1
+ACC-11317,2025-07-06,Starter,Healthcare,LATAM,4,3,63.2,1,45.0,145.72,Monthly,Female,0
+ACC-11318,2024-03-08,Starter,Healthcare,North America,1,0,100.0,4,39.0,186.47,Monthly,Male,1
+ACC-11319,2025-05-02,Starter,Logistics,North America,4,3,73.4,1,85.0,154.7,Monthly,Male,0
+ACC-11320,2025-05-19,Professional,Cybersecurity,North America,12,9,97.7,4,16.0,704.75,Monthly,Male,1
+ACC-11321,2024-04-07,Starter,Cybersecurity,North America,4,2,48.3,2,59.0,157.98,Monthly,Non-Binary,0
+ACC-11322,2025-04-18,Professional,E-Commerce,APAC,22,20,89.6,0,35.0,674.8,Monthly,Non-Binary,0
+ACC-11323,2025-11-08,Growth,E-Commerce,LATAM,73,65,85.6,2,1.0,1754.39,Annual,Male,1
+ACC-11324,2025-10-11,Growth,Healthcare,North America,36,22,84.0,3,16.0,1558.19,Annual,Female,0
+ACC-11325,2024-08-07,Starter,Cybersecurity,LATAM,4,3,62.9,0,71.0,168.44,Monthly,Male,0
+ACC-11326,2026-07-02,Professional,Logistics,APAC,14,9,52.4,2,31.0,709.34,Monthly,Male,1
+ACC-11327,2024-09-26,Professional,FinTech,APAC,17,10,75.9,1,,610.11,Monthly,Non-Binary,0
+ACC-11328,2025-07-17,Starter,EdTech,North America,3,1,32.6,0,-9.0,163.76,Monthly,Female,1
+ACC-11329,2026-04-19,Enterprise,Logistics,EMEA,429,310,,0,51.0,7145.95,Annual,Male,0
+ACC-11330,2026-05-30,Starter,Logistics,EMEA,5,2,41.1,0,34.0,191.43,Monthly,Non-Binary,1
+ACC-11331,2024-06-11,Professional,Logistics,EMEA,11,8,47.3,0,38.0,594.53,Monthly,Male,0
+ACC-11332,2025-09-16,Enterprise,Cybersecurity,EMEA,106,79,84.7,0,-18.0,6040.37,Monthly,Non-Binary,1
+ACC-11333,2024-11-25,Enterprise,EdTech,LATAM,119,60,100.0,0,9.0,6177.13,Annual,Male,1
+ACC-11334,2026-02-12,Enterprise,Logistics,North America,327,245,69.7,1,49.0,7042.89,Annual,Female,0
+ACC-11335,2025-10-23,Enterprise,Healthcare,LATAM,180,158,47.8,0,12.0,8239.11,Monthly,Female,0
+ACC-11336,2026-01-13,Enterprise,Healthcare,LATAM,308,213,70.7,3,26.0,7701.34,Annual,Female,1
+ACC-11337,2024-04-15,Professional,Logistics,APAC,21,13,100.0,4,42.0,746.76,Monthly,Non-Binary,0
+ACC-11338,2024-03-13,Professional,Logistics,LATAM,14,11,58.5,4,-4.0,644.13,Monthly,Female,0
+ACC-11339,2025-12-09,Professional,EdTech,EMEA,15,7,43.7,0,8.0,670.61,Monthly,Non-Binary,0
+ACC-11340,2026-06-09,Professional,Logistics,APAC,19,12,71.4,1,33.0,626.23,Monthly,Female,1
+ACC-11341,2025-10-17,Starter,Cybersecurity,APAC,5,3,41.4,1,89.0,133.56,Monthly,Male,1
+ACC-11342,2025-08-22,Starter,FinTech,LATAM,4,2,45.6,0,48.0,162.37,Monthly,Female,1
+ACC-11343,2025-09-13,Growth,Cybersecurity,LATAM,64,57,55.0,0,1.0,2305.85,Monthly,Non-Binary,0
+ACC-11344,2024-04-07,Starter,Cybersecurity,North America,1,0,85.0,0,36.0,128.82,Monthly,Non-Binary,0
+ACC-11345,2025-10-24,Professional,EdTech,North America,20,9,47.0,0,,784.15,Monthly,Male,1
+ACC-11346,2026-07-18,Growth,Cybersecurity,LATAM,62,39,55.6,0,,1980.55,Monthly,Non-Binary,0
+ACC-11347,2025-01-02,Enterprise,FinTech,LATAM,222,173,48.4,1,100.0,6428.42,Annual,Male,0
+ACC-11348,2025-07-25,Enterprise,E-Commerce,EMEA,286,225,75.8,1,13.0,5781.74,Monthly,Female,0
+ACC-11349,2025-09-23,Professional,FinTech,APAC,13,9,66.8,3,2.0,592.56,Monthly,Male,1
+ACC-11350,2024-07-09,Professional,E-Commerce,LATAM,12,11,83.8,1,49.0,693.13,Monthly,Non-Binary,0
+ACC-11351,2024-11-26,Professional,E-Commerce,EMEA,9,4,60.3,4,-4.0,564.35,Monthly,Female,1
+ACC-11352,2025-09-25,Professional,E-Commerce,EMEA,12,9,35.7,1,67.0,743.98,Monthly,Male,1
+ACC-11353,2024-12-14,Professional,E-Commerce,EMEA,17,16,61.4,2,56.0,577.03,Monthly,Non-Binary,0
+ACC-11354,2024-08-18,Enterprise,E-Commerce,North America,361,199,50.0,2,-17.0,6670.0,Monthly,Male,1
+ACC-11355,2026-06-15,Starter,Cybersecurity,EMEA,2,0,,5,37.0,191.19,Monthly,Female,1
+ACC-11356,2025-02-28,Starter,FinTech,LATAM,5,4,77.0,0,24.0,166.21,Monthly,Male,0
+ACC-11357,2024-09-24,Professional,Cybersecurity,LATAM,14,10,57.6,5,32.0,825.44,Monthly,Non-Binary,1
+ACC-11358,2025-12-10,Starter,Logistics,APAC,2,1,48.8,0,33.0,129.46,Monthly,Female,1
+ACC-11359,2024-11-17,Starter,Logistics,LATAM,1,0,92.3,4,35.0,166.26,Monthly,Non-Binary,0
+ACC-11360,2025-08-11,Enterprise,Healthcare,LATAM,305,244,96.1,2,-23.0,5562.31,Annual,Male,0
+ACC-11361,2025-10-27,Starter,Logistics,LATAM,1,0,63.0,1,14.0,189.4,Monthly,Non-Binary,1
+ACC-11362,2024-09-15,Starter,Cybersecurity,APAC,1,0,67.6,3,33.0,167.0,Monthly,Non-Binary,0
+ACC-11363,2025-07-05,Enterprise,Healthcare,LATAM,372,299,56.6,0,26.0,7645.25,Annual,Male,0
+ACC-11364,2025-09-16,Growth,Cybersecurity,APAC,63,43,82.1,0,-18.0,2324.18,Monthly,Female,0
+ACC-11365,2025-09-07,Professional,Healthcare,EMEA,11,10,80.7,2,58.0,659.29,Monthly,Female,0
+ACC-11366,2025-12-18,Starter,FinTech,LATAM,4,3,73.2,2,35.0,170.57,Monthly,Non-Binary,0
+ACC-11367,2025-12-25,Starter,E-Commerce,APAC,4,2,67.4,1,9.0,186.39,Monthly,Female,0
+ACC-11368,2025-04-07,Starter,Cybersecurity,North America,1,0,58.0,2,35.0,157.46,Monthly,Male,0
+ACC-11369,2024-06-21,Professional,Cybersecurity,APAC,22,16,47.2,0,44.0,598.57,Monthly,Female,0
+ACC-11370,2024-06-25,Growth,Logistics,APAC,57,30,77.0,2,5.0,1848.91,Monthly,Female,0
+ACC-11371,2024-06-30,Professional,Healthcare,APAC,11,10,39.7,1,7.0,578.24,Monthly,Non-Binary,1
+ACC-11372,2024-10-25,Professional,Logistics,North America,17,15,81.8,3,22.0,805.1,Monthly,Male,0
+ACC-11373,2026-07-31,Starter,Healthcare,EMEA,3,2,82.4,0,18.0,144.09,Monthly,Non-Binary,0
+ACC-11374,2024-09-09,Enterprise,Cybersecurity,North America,499,292,85.4,2,46.0,6517.17,Monthly,Male,0
+ACC-11375,2024-04-03,Starter,EdTech,North America,3,2,63.1,1,34.0,145.36,Monthly,Non-Binary,0
+ACC-11376,2024-11-24,Growth,Cybersecurity,EMEA,74,61,55.2,0,38.0,2009.45,Annual,Male,0
+ACC-11377,2024-04-16,Starter,EdTech,North America,3,1,96.9,0,-27.0,146.06,Monthly,Male,0
+ACC-11378,2026-05-01,Growth,E-Commerce,North America,31,18,81.2,2,72.0,2051.45,Annual,Non-Binary,0
+ACC-11379,2024-01-29,Starter,E-Commerce,North America,1,0,78.1,3,30.0,128.27,Monthly,Non-Binary,0
+ACC-11380,2025-06-04,Growth,Cybersecurity,LATAM,58,30,62.4,0,-28.0,1734.27,Monthly,Non-Binary,0
+ACC-11381,2024-11-23,Professional,Healthcare,EMEA,12,11,69.0,2,60.0,600.87,Monthly,Non-Binary,0
+ACC-11382,2024-04-29,Starter,EdTech,EMEA,3,1,80.2,1,-16.0,170.03,Monthly,Non-Binary,0
+ACC-11383,2026-07-28,Enterprise,EdTech,EMEA,153,93,64.0,0,31.0,6363.48,Monthly,Male,0
+ACC-11384,2026-06-18,Enterprise,Cybersecurity,APAC,86,67,79.4,1,23.0,5638.71,Monthly,Female,0
+ACC-11385,2024-01-11,Enterprise,EdTech,APAC,473,293,50.4,12,39.0,7039.09,Monthly,Non-Binary,1
+ACC-11386,2024-03-09,Professional,FinTech,EMEA,23,18,87.1,1,21.0,654.36,Monthly,Male,0
+ACC-11387,2025-07-03,Professional,Cybersecurity,LATAM,15,13,52.9,0,55.0,583.93,Monthly,Male,0
+ACC-11388,2026-05-16,Starter,Healthcare,North America,4,2,59.4,1,33.0,193.38,Monthly,Non-Binary,0
+ACC-11389,2024-07-07,Starter,Healthcare,North America,1,0,71.5,0,74.0,191.84,Monthly,Male,0
+ACC-11390,2025-05-30,Starter,Logistics,North America,2,1,,0,50.0,166.35,Monthly,Non-Binary,1
+ACC-11391,2025-04-18,Starter,E-Commerce,EMEA,2,1,58.5,1,75.0,189.77,Monthly,Male,0
+ACC-11392,2025-11-04,Starter,Healthcare,EMEA,4,2,73.6,1,49.0,144.6,Monthly,Male,0
+ACC-11393,2024-11-21,Starter,Healthcare,EMEA,1,0,80.4,2,57.0,152.47,Monthly,Non-Binary,1
+ACC-11394,2024-02-09,Professional,Healthcare,APAC,9,6,,0,,651.36,Monthly,Male,1
+ACC-11395,2026-02-19,Starter,EdTech,North America,1,0,77.9,1,,154.44,Monthly,Female,1
+ACC-11396,2025-12-03,Professional,Logistics,LATAM,18,14,87.5,0,36.0,695.2,Monthly,Male,1
+ACC-11397,2026-07-30,Starter,Cybersecurity,LATAM,2,1,92.7,0,45.0,190.72,Monthly,Male,0
+ACC-11398,2025-01-11,Professional,EdTech,APAC,19,10,73.7,0,24.0,592.11,Monthly,Female,0
+ACC-11399,2024-05-08,Professional,Logistics,EMEA,12,8,30.8,0,98.0,828.41,Monthly,Male,0
+ACC-11400,2024-12-11,Professional,EdTech,LATAM,18,17,66.5,2,64.0,728.82,Monthly,Male,0
+ACC-11401,2025-11-06,Professional,Logistics,EMEA,17,16,100.0,2,-9.0,667.44,Monthly,Non-Binary,0
+ACC-11402,2024-05-24,Starter,E-Commerce,EMEA,4,3,36.6,3,39.0,144.01,Monthly,Male,1
+ACC-11403,2024-07-23,Enterprise,Logistics,LATAM,161,94,100.0,1,23.0,7458.35,Annual,Female,0
+ACC-11404,2025-08-04,Enterprise,FinTech,EMEA,429,298,57.4,0,81.0,8337.8,Annual,Male,0
+ACC-11405,2024-11-20,Growth,Healthcare,EMEA,73,52,64.3,0,100.0,1861.45,Annual,Male,0
+ACC-11406,2024-04-09,Growth,Logistics,North America,27,12,70.9,2,54.0,1666.97,Annual,Non-Binary,0
+ACC-11407,2024-06-03,Starter,E-Commerce,EMEA,2,1,56.7,7,73.0,188.86,Monthly,Non-Binary,0
+ACC-11408,2025-12-21,Professional,EdTech,LATAM,15,7,51.2,0,5.0,802.28,Monthly,Male,0
+ACC-11409,2025-06-29,Growth,Healthcare,LATAM,36,15,52.6,0,15.0,1555.83,Annual,Female,0
+ACC-11410,2024-05-30,Professional,Healthcare,North America,9,3,33.5,0,-9.0,717.21,Monthly,Non-Binary,0
+ACC-11411,2025-12-05,Starter,Healthcare,North America,3,2,80.9,6,89.0,174.89,Monthly,Non-Binary,0
+ACC-11412,2024-03-28,Enterprise,Cybersecurity,APAC,150,101,100.0,3,35.0,7277.93,Annual,Male,0
+ACC-11413,2024-11-24,Starter,Cybersecurity,EMEA,3,2,65.4,0,15.0,188.85,Monthly,Non-Binary,1
+ACC-11414,2025-01-08,Professional,Logistics,LATAM,12,11,71.3,1,9.0,709.53,Monthly,Female,1
+ACC-11415,2025-10-26,Starter,E-Commerce,EMEA,2,1,84.3,1,28.0,188.21,Monthly,Female,0
+ACC-11416,2024-03-23,Starter,Cybersecurity,LATAM,3,1,66.5,2,58.0,159.63,Monthly,Non-Binary,0
+ACC-11417,2025-01-24,Starter,Logistics,North America,2,0,100.0,0,,128.77,Monthly,Male,0
+ACC-11418,2026-05-24,Professional,E-Commerce,APAC,19,15,83.5,1,34.0,756.85,Monthly,Non-Binary,0
+ACC-11419,2024-09-30,Starter,Healthcare,LATAM,1,0,70.2,0,22.0,140.96,Monthly,Male,1
+ACC-11420,2026-04-05,Growth,FinTech,North America,30,17,56.1,3,19.0,2154.36,Annual,Female,1
+ACC-11421,2024-01-14,Growth,FinTech,North America,30,20,86.4,3,78.0,1897.54,Annual,Non-Binary,1
+ACC-11422,2024-05-04,Professional,E-Commerce,North America,10,5,59.9,0,12.0,639.21,Monthly,Non-Binary,0
+ACC-11423,2026-03-21,Professional,FinTech,North America,12,7,51.3,0,72.0,746.63,Monthly,Male,0
+ACC-11424,2025-05-22,Professional,EdTech,EMEA,11,4,79.4,2,31.0,559.44,Monthly,Non-Binary,1
+ACC-11425,2024-01-07,Growth,EdTech,EMEA,38,31,89.2,1,47.0,2215.52,Annual,Non-Binary,0
+ACC-11426,2024-07-10,Professional,Cybersecurity,North America,13,9,100.0,6,76.0,702.27,Monthly,Female,0
+ACC-11427,2025-03-12,Professional,Logistics,APAC,17,14,67.3,4,-17.0,808.65,Monthly,Female,1
+ACC-11428,2024-03-07,Enterprise,E-Commerce,APAC,257,123,83.3,0,7.0,7713.0,Annual,Female,0
+ACC-11429,2026-02-01,Professional,Cybersecurity,LATAM,16,9,51.8,1,77.0,629.97,Monthly,Female,1
+ACC-11430,2024-09-25,Professional,Cybersecurity,North America,20,12,91.6,0,60.0,787.97,Monthly,Non-Binary,0
+ACC-11431,2026-02-01,Starter,EdTech,APAC,2,1,54.3,0,54.0,169.1,Monthly,Non-Binary,0
+ACC-11432,2025-04-19,Professional,EdTech,APAC,20,16,99.1,1,20.0,755.99,Monthly,Male,0
+ACC-11433,2026-06-10,Enterprise,Healthcare,APAC,88,85,60.9,2,-22.0,7375.58,Annual,Male,0
+ACC-11434,2024-01-17,Starter,Healthcare,EMEA,4,3,,2,46.0,184.43,Monthly,Female,0
+ACC-11435,2024-07-13,Starter,E-Commerce,APAC,4,2,63.5,0,44.0,135.09,Monthly,Female,0
+ACC-11436,2024-04-18,Starter,Cybersecurity,North America,1,0,75.9,1,59.0,183.9,Monthly,Male,0
+ACC-11437,2025-05-17,Professional,EdTech,EMEA,15,7,68.8,1,-20.0,675.13,Monthly,Male,0
+ACC-11438,2024-05-12,Professional,Logistics,North America,15,11,56.7,0,52.0,783.97,Monthly,Non-Binary,0
+ACC-11439,2024-01-19,Starter,Logistics,LATAM,4,2,54.1,4,84.0,132.6,Monthly,Female,1
+ACC-11440,2025-07-22,Starter,E-Commerce,LATAM,3,1,34.2,1,70.0,128.3,Monthly,Male,0
+ACC-11441,2025-08-30,Enterprise,Cybersecurity,EMEA,500,277,100.0,6,-17.0,8194.02,Annual,Non-Binary,0
+ACC-11442,2025-09-30,Starter,FinTech,LATAM,3,2,67.6,1,27.0,143.39,Monthly,Female,1
+ACC-11443,2025-04-05,Enterprise,Cybersecurity,APAC,475,270,35.7,0,51.0,7534.26,Annual,Female,0
+ACC-11444,2024-01-04,Starter,Healthcare,EMEA,3,2,68.7,0,-7.0,143.18,Monthly,Non-Binary,0
+ACC-11445,2025-09-11,Starter,E-Commerce,LATAM,5,2,54.1,2,33.0,178.39,Monthly,Male,1
+ACC-11446,2024-03-03,Professional,FinTech,APAC,22,15,69.6,1,58.0,706.83,Monthly,Non-Binary,0
+ACC-11447,2024-07-28,Professional,FinTech,APAC,15,12,82.0,1,20.0,830.11,Monthly,Male,0
+ACC-11448,2025-10-02,Starter,EdTech,EMEA,4,2,48.9,0,65.0,183.04,Monthly,Male,1
+ACC-11449,2025-12-24,Enterprise,EdTech,APAC,164,87,56.9,1,-5.0,7647.29,Monthly,Female,1
+ACC-11450,2024-05-25,Starter,E-Commerce,LATAM,3,2,46.7,1,0.0,193.01,Monthly,Male,1
+ACC-11451,2024-10-16,Starter,E-Commerce,North America,3,1,60.4,1,,137.38,Monthly,Non-Binary,0
+ACC-11452,2024-03-06,Professional,Cybersecurity,EMEA,10,5,66.3,3,86.0,746.47,Monthly,Male,0
+ACC-11453,2024-03-24,Starter,E-Commerce,APAC,4,3,27.6,1,40.0,189.99,Monthly,Male,0
+ACC-11454,2024-06-07,Professional,Cybersecurity,LATAM,8,4,57.9,0,25.0,811.07,Monthly,Non-Binary,1
+ACC-11455,2024-02-27,Enterprise,E-Commerce,EMEA,410,355,72.5,0,59.0,7321.49,Monthly,Female,0
+ACC-11456,2025-05-27,Starter,Healthcare,EMEA,3,1,57.2,0,35.0,134.23,Monthly,Female,1
+ACC-11457,2025-11-16,Professional,E-Commerce,LATAM,23,15,18.1,6,29.0,741.77,Monthly,Female,1
+ACC-11458,2025-12-19,Starter,EdTech,North America,1,0,81.6,1,37.0,162.37,Monthly,Male,0
+ACC-11459,2026-02-01,Starter,Logistics,North America,5,3,53.6,1,20.0,133.48,Monthly,Non-Binary,1
+ACC-11460,2024-07-19,Growth,Logistics,APAC,51,41,46.8,1,49.0,1591.46,Annual,Male,0
+ACC-11461,2024-07-08,Enterprise,Cybersecurity,LATAM,492,309,85.7,6,-12.0,7073.6,Monthly,Female,0
+ACC-11462,2025-11-21,Growth,Cybersecurity,APAC,78,52,86.3,1,22.0,1590.54,Annual,Non-Binary,0
+ACC-11463,2024-01-25,Professional,E-Commerce,EMEA,6,5,69.6,0,21.0,738.02,Monthly,Non-Binary,0
+ACC-11464,2025-02-04,Enterprise,EdTech,APAC,326,219,54.8,0,25.0,6542.81,Annual,Male,1
+ACC-11465,2024-04-19,Growth,Healthcare,North America,65,61,82.3,2,75.0,1910.9,Annual,Non-Binary,0
+ACC-11466,2024-02-24,Starter,EdTech,EMEA,3,2,81.3,3,85.0,134.72,Monthly,Female,1
+ACC-11467,2024-01-23,Starter,E-Commerce,LATAM,3,2,40.5,2,0.0,174.12,Monthly,Non-Binary,0
+ACC-11468,2026-02-01,Enterprise,Healthcare,North America,88,77,52.4,0,28.0,6976.31,Annual,Non-Binary,1
+ACC-11469,2024-01-24,Growth,Cybersecurity,APAC,30,17,85.5,0,61.0,1837.92,Annual,Male,0
+ACC-11470,2026-04-30,Starter,FinTech,LATAM,4,2,61.5,0,-1.0,146.01,Monthly,Male,0
+ACC-11471,2025-05-05,Starter,E-Commerce,APAC,2,0,56.5,0,79.0,161.94,Monthly,Non-Binary,0
+ACC-11472,2024-02-15,Starter,EdTech,North America,5,2,57.9,0,-7.0,161.1,Monthly,Non-Binary,0
+ACC-11473,2024-03-31,Growth,FinTech,APAC,55,23,89.4,3,55.0,1668.47,Annual,Male,0
+ACC-11474,2026-01-22,Professional,Logistics,EMEA,19,15,49.3,5,59.0,612.57,Monthly,Male,1
+ACC-11475,2026-02-08,Starter,E-Commerce,EMEA,4,3,75.1,2,40.0,193.83,Monthly,Non-Binary,1
+ACC-11476,2025-10-22,Starter,Healthcare,APAC,4,1,94.0,1,15.0,157.35,Monthly,Male,0
+ACC-11477,2024-12-15,Starter,Logistics,EMEA,5,4,65.7,0,19.0,167.69,Monthly,Non-Binary,0
+ACC-11478,2026-04-23,Growth,Cybersecurity,LATAM,58,45,51.8,6,15.0,1615.64,Monthly,Female,1
+ACC-11479,2024-08-20,Enterprise,Cybersecurity,EMEA,247,101,72.2,0,-75.0,6805.5,Annual,Non-Binary,1
+ACC-11480,2025-08-13,Starter,Cybersecurity,LATAM,3,2,70.9,1,79.0,152.91,Monthly,Female,1
+ACC-11481,2024-01-01,Professional,Healthcare,EMEA,9,4,53.5,1,13.0,636.54,Monthly,Non-Binary,0
+ACC-11482,2025-07-08,Starter,EdTech,APAC,1,0,87.8,1,,191.28,Monthly,Female,0
+ACC-11483,2024-09-16,Starter,Cybersecurity,North America,4,1,,0,9.0,145.22,Monthly,Female,1
+ACC-11484,2024-08-01,Professional,E-Commerce,LATAM,19,16,100.0,1,22.0,759.07,Monthly,Male,0
+ACC-11485,2025-05-26,Professional,Cybersecurity,LATAM,17,12,30.8,1,37.0,668.96,Monthly,Female,1
+ACC-11486,2025-12-06,Starter,Logistics,North America,5,4,,0,96.0,148.63,Monthly,Male,1
+ACC-11487,2024-09-15,Starter,EdTech,North America,5,4,66.9,1,49.0,153.36,Monthly,Male,0
+ACC-11488,2024-12-11,Enterprise,EdTech,LATAM,98,70,81.7,1,9.0,6773.7,Annual,Non-Binary,0
+ACC-11489,2024-01-11,Professional,Logistics,LATAM,24,12,84.1,0,,780.86,Monthly,Female,0
+ACC-11490,2025-12-14,Starter,Healthcare,LATAM,5,3,81.5,0,-25.0,127.68,Monthly,Male,0
+ACC-11491,2026-07-12,Professional,Cybersecurity,LATAM,15,7,64.1,0,,627.89,Monthly,Female,1
+ACC-11492,2024-07-22,Professional,Cybersecurity,EMEA,21,17,64.1,2,81.0,602.14,Monthly,Female,0
+ACC-11493,2024-11-05,Professional,Healthcare,LATAM,13,12,59.0,0,51.0,592.95,Monthly,Female,1
+ACC-11494,2024-06-17,Professional,Cybersecurity,North America,10,8,94.9,3,30.0,592.98,Monthly,Female,0
+ACC-11495,2025-12-26,Starter,Cybersecurity,LATAM,5,2,86.6,0,-7.0,173.83,Monthly,Female,1
+ACC-11496,2024-03-07,Starter,Logistics,LATAM,1,0,84.1,3,1.0,185.0,Monthly,Female,1
+ACC-11497,2024-06-14,Starter,Healthcare,North America,1,0,54.3,1,26.0,129.93,Monthly,Female,0
+ACC-11498,2024-03-09,Professional,Logistics,APAC,24,13,74.0,5,-4.0,617.33,Monthly,Male,1
+ACC-11499,2025-01-15,Starter,Healthcare,LATAM,1,0,63.5,2,44.0,193.03,Monthly,Female,0
+ACC-11500,2024-11-23,Professional,FinTech,APAC,21,10,55.1,0,70.0,840.91,Monthly,Female,0

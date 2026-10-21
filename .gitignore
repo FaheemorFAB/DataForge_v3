@@ -34,6 +34,7 @@ build/
 # Databases & local state
 *.db
 *.sqlite
+!inputs/**/*.db
 instance/
 .antigravity/
 .gemini/
@@ -41,6 +42,7 @@ instance/
 # Data parquets / uploads
 *.parquet
 *.csv
+!inputs/**
 !dataforge/**/*.json
 !frontend/**/*.json
 !package*.json
