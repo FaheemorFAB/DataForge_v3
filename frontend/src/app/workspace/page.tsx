@@ -485,7 +485,7 @@ function WorkspaceContent() {
 
       {/* ══ MAIN CONTENT ══ */}
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-        {(isLoadingWorkspace && !profile) || isLoadingSample || (uploadId && !profile && !apiError) ? (
+        {!mounted || (isLoadingWorkspace && !profile) || isLoadingSample || (uploadId && !profile && !apiError) ? (
           <div className="min-h-full flex flex-col items-center justify-center p-8 text-center animate-fadeIn">
             <Spinner
               size="lg"

@@ -14,12 +14,15 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       data-theme="dark"
       data-font="inter"
       data-scroll-behavior="smooth"
     >
       <head>
         <script
+          id="theme-init"
+          async
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('analyst-theme')||'light';document.documentElement.setAttribute('data-theme',t);var dark=['dark','dracula','slate','emerald','nord','luxury'];if(dark.indexOf(t)!==-1){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}var f=localStorage.getItem('analyst-font')||'inter';document.documentElement.setAttribute('data-font',f)}catch(e){}})()`,
           }}

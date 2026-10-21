@@ -72,7 +72,20 @@ class TeamManager:
             return {"organizations": {}, "memberships": [], "audit_logs": []}
         try:
             with open(p, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+            # Remove any legacy hardcoded demo members
+            memberships = data.get("memberships", [])
+            data["memberships"] = [
+                m for m in memberships
+                if not str(m.get("id", "")).startswith("mem_seed_")
+                and m.get("user_email") not in (
+                    "sarah.chen@company.com",
+                    "marcus.vance@company.com",
+                    "elena.rostova@company.com",
+                )
+                and m.get("user_id") not in (901, 902, 903)
+            ]
+            return data
         except Exception as e:
             log.warning("Failed to parse teams store, resetting: %s", e)
             return {"organizations": {}, "memberships": [], "audit_logs": []}
@@ -126,38 +139,7 @@ class TeamManager:
                 "joined_at": now_iso,
             }
 
-            # Add seeded demo collaborators for team demonstration
-            colleagues = [
-                {
-                    "id": f"mem_seed_1_{org_id}",
-                    "org_id": org_id,
-                    "user_id": 901,
-                    "user_email": "sarah.chen@company.com",
-                    "user_name": "Sarah Chen",
-                    "role": "Analyst",
-                    "joined_at": now_iso,
-                },
-                {
-                    "id": f"mem_seed_2_{org_id}",
-                    "org_id": org_id,
-                    "user_id": 902,
-                    "user_email": "marcus.vance@company.com",
-                    "user_name": "Marcus Vance",
-                    "role": "Analyst",
-                    "joined_at": now_iso,
-                },
-                {
-                    "id": f"mem_seed_3_{org_id}",
-                    "org_id": org_id,
-                    "user_id": 903,
-                    "user_email": "elena.rostova@company.com",
-                    "user_name": "Elena Rostova",
-                    "role": "Viewer",
-                    "joined_at": now_iso,
-                },
-            ]
-
-            data.setdefault("memberships", []).extend([user_member, *colleagues])
+            data.setdefault("memberships", []).append(user_member)
 
             # Seed audit log
             audit_entry = {
@@ -168,7 +150,7 @@ class TeamManager:
                 "action": "CREATE_ORGANIZATION",
                 "target": org_name,
                 "timestamp": now_iso,
-                "metadata": {"plan": "Enterprise", "initial_members": 4},
+                "metadata": {"plan": "Enterprise", "initial_members": 1},
             }
             data.setdefault("audit_logs", []).append(audit_entry)
 

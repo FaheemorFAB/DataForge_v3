@@ -31,7 +31,7 @@ const AVAILABLE_ALGORITHMS = [
 ];
 
 export function AutoMLTab() {
-  const { profile, cleanProfile, uploadId, setActiveTab } = useWorkspace();
+  const { profile, cleanProfile, uploadId, setActiveTab, automlMeta, setAutomlMeta } = useWorkspace();
   const effectiveProfile = cleanProfile || profile;
 
   // Configuration States
@@ -63,6 +63,15 @@ export function AutoMLTab() {
   const [isDeployingModel, setIsDeployingModel] = useState(false);
   const [deploySuccessMsg, setDeploySuccessMsg] = useState("");
   const [deployErrorMsg, setDeployErrorMsg] = useState("");
+
+  // Restore previous AutoML result on refresh
+  useEffect(() => {
+    if (automlMeta && !automlResult) {
+      setAutomlResult(automlMeta);
+      if (automlMeta.target) setAutomlTarget(automlMeta.target);
+      if (automlMeta.task) setDetectedTask(automlMeta.task);
+    }
+  }, [automlMeta]);
 
   const deployChampionToRegistry = async () => {
     if (!automlResult) return;
@@ -301,6 +310,7 @@ export function AutoMLTab() {
 
       const result = await pollTask(data.task_id);
       setAutomlResult(result);
+      if (setAutomlMeta) setAutomlMeta(result);
     } catch (e: any) {
       setAutomlError(String(e.message || e));
     } finally {

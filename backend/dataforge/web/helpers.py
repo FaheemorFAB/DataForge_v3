@@ -188,28 +188,31 @@ def _persist(upload_id: str, key: str, obj):
             json.dump(obj, f, default=str)
 
     if STORAGE_OK:
-        try:
-            user_id = _get_upload_user_id(upload_id)
-            if user_id is None:
-                return
-            store = get_store()
-            if key in ("df_raw", "df_clean") and isinstance(obj, pd.DataFrame):
-                csv_key = "raw" if key == "df_raw" else "clean"
-                path    = store.upload_dataframe(user_id, upload_id, obj, csv_key)
-            elif isinstance(obj, bytes):
-                path = store.upload_joblib(user_id, upload_id, key, obj)
-            else:
-                path = store.upload_json(user_id, upload_id, key, obj)
+        import threading
+        def _bg_upload(uid=upload_id, k=key, target=obj):
+            try:
+                user_id = _get_upload_user_id(uid)
+                if user_id is None:
+                    return
+                store = get_store()
+                if k in ("df_raw", "df_clean") and isinstance(target, pd.DataFrame):
+                    csv_key = "raw" if k == "df_raw" else "clean"
+                    path = store.upload_dataframe(user_id, uid, target, csv_key)
+                elif isinstance(target, bytes):
+                    path = store.upload_joblib(user_id, uid, k, target)
+                else:
+                    path = store.upload_json(user_id, uid, k, target)
 
-            if key == "df_raw":
-                try:
-                    up = db_get("uploads", upload_id) or {}
-                    if (up.get("source_type") or "csv") != "sheets":
-                        db_update("uploads", upload_id, {"storage_path": path})
-                except Exception:
-                    pass
-        except Exception as _exc:
-            current_app.logger.warning("Supabase _persist failed (key=%s): %s", key, _exc)
+                if k == "df_raw":
+                    try:
+                        up = db_get("uploads", uid) or {}
+                        if (up.get("source_type") or "csv") != "sheets":
+                            db_update("uploads", uid, {"storage_path": path})
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        threading.Thread(target=_bg_upload, daemon=True).start()
 
 
 def _load_persisted(upload_id: str, key: str):

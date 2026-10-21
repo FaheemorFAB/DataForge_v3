@@ -646,28 +646,17 @@ export default function WorkspaceLaunchModal({
         uploadId = data.upload_id;
       }
 
-      // Stage 2: Profiling & Schema detection
-      setGenerationStage(2);
-      setGenerationProgress(65);
-      setGenerationStatus("Dataset ingested! Analyzing column distributions & data types...");
-      await new Promise((r) => setTimeout(r, 450));
-
-      // Stage 3: DuckDB Engine & Canvas synthesis
-      setGenerationStage(3);
-      setGenerationProgress(90);
-      setGenerationStatus("Mounting DuckDB analytics engine and preparing interactive canvas...");
-      await new Promise((r) => setTimeout(r, 450));
-
-      // Stage 4: Ready to enter workspace
+      // Stage 4: Ingestion complete — enter workspace immediately
       setGenerationStage(4);
       setGenerationProgress(100);
-      setGenerationStatus("Redirecting in a few seconds...");
+      setGenerationStatus("Dataset ready! Launching workspace...");
 
       if (typeof window !== "undefined") {
         localStorage.setItem("df_user_role", "Admin");
+        localStorage.setItem("df_last_upload_id", uploadId);
       }
 
-      await new Promise((r) => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 80));
 
       // Direct navigation to workspace — DO NOT call onClose() to eliminate landing page flash
       if (typeof window !== "undefined") {

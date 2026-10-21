@@ -124,6 +124,9 @@ def get_tier_for_email(email: Optional[str]) -> Optional[str]:
     return None
 
 
+_SUBSCRIPTION_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+
+
 class EntitlementService:
     """Central authority for subscription tier checks and metered quota usage."""
 
@@ -131,6 +134,12 @@ class EntitlementService:
     def get_subscription(cls, user_id: int, email: Optional[str] = None) -> Dict[str, Any]:
         """Fetches active subscription plan for the user, checking lifetime email overrides first."""
         resolved_email = (email or "").strip().lower()
+        now = datetime.now(timezone.utc).timestamp()
+        cache_key = f"{user_id}:{resolved_email}"
+        cached = _SUBSCRIPTION_CACHE.get(cache_key)
+        if cached and (now - cached[0] < 120.0):
+            return cached[1]
+
         if not resolved_email and user_id:
             try:
                 from dataforge.api.repositories.user import user_repo
@@ -145,7 +154,7 @@ class EntitlementService:
             override_tier = get_tier_for_email(resolved_email)
             if override_tier and override_tier in PLAN_TIERS:
                 limits = PLAN_TIERS[override_tier]
-                return {
+                res = {
                     **limits,
                     "user_id": user_id,
                     "email": resolved_email,
@@ -153,6 +162,8 @@ class EntitlementService:
                     "status": "active",
                     "is_lifetime": True,
                 }
+                _SUBSCRIPTION_CACHE[cache_key] = (now, res)
+                return res
 
         # 1. Check Supabase / Postgres if configured
         if db_client:
@@ -161,7 +172,9 @@ class EntitlementService:
                 if row:
                     plan_key = row.get("plan", "free").lower()
                     limits = PLAN_TIERS.get(plan_key, PLAN_TIERS["free"])
-                    return {**limits, **row}
+                    res = {**limits, **row}
+                    _SUBSCRIPTION_CACHE[cache_key] = (now, res)
+                    return res
             except Exception as e:
                 log.warning("DB subscription lookup failed for user %s: %s", user_id, e)
 
@@ -172,7 +185,9 @@ class EntitlementService:
                 data = json.loads(sub_file.read_text(encoding="utf-8"))
                 plan_key = data.get("plan", "free").lower()
                 limits = PLAN_TIERS.get(plan_key, PLAN_TIERS["free"])
-                return {**limits, **data}
+                res = {**limits, **data}
+                _SUBSCRIPTION_CACHE[cache_key] = (now, res)
+                return res
             except Exception:
                 pass
 
@@ -183,6 +198,7 @@ class EntitlementService:
             "status": "active",
             **PLAN_TIERS["free"],
         }
+        _SUBSCRIPTION_CACHE[cache_key] = (now, default_sub)
         return default_sub
 
     @classmethod
@@ -277,16 +293,19 @@ class EntitlementService:
             usage_file = _SUBS_DIR / f"usage_{user_id}_{month}.json"
             usage_file.write_text(json.dumps(usage, indent=2), encoding="utf-8")
 
-            # Save to DB
+            # Save to DB (non-blocking background thread)
             if db_client:
-                try:
-                    existing = db_first("usage_records", {"user_id": user_id, "period_month": month})
-                    if existing:
-                        db_update("usage_records", existing["id"], usage)
-                    else:
-                        db_insert("usage_records", usage)
-                except Exception:
-                    pass
+                import threading
+                def _bg_record_usage(u_id=user_id, p_month=month, u_data=dict(usage)):
+                    try:
+                        existing = db_first("usage_records", {"user_id": u_id, "period_month": p_month})
+                        if existing:
+                            db_update("usage_records", existing["id"], u_data)
+                        else:
+                            db_insert("usage_records", u_data)
+                    except Exception:
+                        pass
+                threading.Thread(target=_bg_record_usage, daemon=True).start()
 
             return usage
 
@@ -296,12 +315,13 @@ class EntitlementService:
         user_id: int,
         metric: str,
         requested_units: float = 1.0,
+        email: Optional[str] = None,
     ) -> Tuple[bool, str]:
         """
         Validates whether the user has sufficient plan quota for the requested operation.
         Returns: (is_allowed, reason_if_denied)
         """
-        sub = cls.get_subscription(user_id)
+        sub = cls.get_subscription(user_id, email=email)
         plan_name = sub.get("name", "Free Starter")
         plan_key = sub.get("plan", "free")
 

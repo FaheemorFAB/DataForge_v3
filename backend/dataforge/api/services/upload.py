@@ -54,8 +54,16 @@ class UploadService:
 
     def _log_upload(self, profile: dict, source_type: str, user: User,
                     source_config: Optional[dict] = None) -> Optional[str]:
+        import uuid
+        local_id = f"df_{uuid.uuid4().hex[:10]}"
+        user_id = getattr(user, "id", None)
+        # If user is local dev user (id=1 or integer), remote Supabase users FK constraint (23503)
+        # will fail after a slow HTTPS roundtrip. Use local_id immediately.
+        if user_id == 1 or not isinstance(user_id, str):
+            return local_id
+
         data = {
-            "user_id": user.id,
+            "user_id": user_id,
             "filename": profile.get("filename", ""),
             "original_name": profile.get("filename", ""),
             "rows": profile.get("rows", 0),
@@ -67,8 +75,7 @@ class UploadService:
         res = upload_repo.create(data)
         if res and res.get("id"):
             return str(res.get("id"))
-        import uuid
-        return f"df_{uuid.uuid4().hex[:10]}"
+        return local_id
 
     def check_duplicate(self, user_id: int, filename: str) -> Optional[dict]:
         """Return existing upload info if a file with the same name was already uploaded."""

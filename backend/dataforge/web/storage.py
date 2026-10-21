@@ -169,24 +169,31 @@ def _save(upload_id: str, key: str, obj):
             tmp.write_text(json.dumps(obj, default=str), encoding="utf-8")
             tmp.replace(path_final)
 
-    # Best-effort sync to Supabase Storage when configured (write-through)
+    # Best-effort sync to Supabase Storage when configured (non-blocking background write-through)
     try:
-        from dataforge.db import db_get
-        from dataforge.supabase_storage import get_store, STORAGE_OK
+        from dataforge.supabase_storage import STORAGE_OK
         if STORAGE_OK:
-            up = db_get("uploads", upload_id)
-            user_id = up.get("user_id") if up else None
-            if user_id is not None:
-                store = get_store()
-                if isinstance(obj, pd.DataFrame):
-                    csv_key = "raw" if key == "df_raw" else "clean"
-                    store.upload_dataframe(user_id, upload_id, obj, csv_key)
-                elif isinstance(obj, bytes):
-                    store.upload_joblib(user_id, upload_id, key, obj)
-                elif key == "eda_html" and isinstance(obj, str):
-                    store.upload_html(user_id, upload_id, key, obj)
-                else:
-                    store.upload_json(user_id, upload_id, key, obj)
+            import threading
+            def _sync_remote(uid=upload_id, k=key, target_obj=obj):
+                try:
+                    from dataforge.db import db_get
+                    from dataforge.supabase_storage import get_store
+                    up = db_get("uploads", uid)
+                    user_id = up.get("user_id") if up else None
+                    if user_id is not None:
+                        store = get_store()
+                        if isinstance(target_obj, pd.DataFrame):
+                            csv_key = "raw" if k == "df_raw" else "clean"
+                            store.upload_dataframe(user_id, uid, target_obj, csv_key)
+                        elif isinstance(target_obj, bytes):
+                            store.upload_joblib(user_id, uid, k, target_obj)
+                        elif k == "eda_html" and isinstance(target_obj, str):
+                            store.upload_html(user_id, uid, k, target_obj)
+                        else:
+                            store.upload_json(user_id, uid, k, target_obj)
+                except Exception:
+                    pass
+            threading.Thread(target=_sync_remote, daemon=True).start()
     except Exception:
         pass
 

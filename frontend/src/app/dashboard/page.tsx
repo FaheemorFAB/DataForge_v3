@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 import UserMenu from "../components/UserMenu";
 import Logo from "../components/Logo";
@@ -125,35 +126,21 @@ export default function DashboardPage() {
   const [editAvatarId, setEditAvatarId] = useState<string>("avatar-1");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>("");
 
-  // Teams State
+  // Teams State (Members are ingested via email invite only)
   const [teams, setTeams] = useState<TeamItem[]>([
     {
       id: "team-1",
-      name: "Core Analytics Studio",
+      name: "Enterprise Workspace",
       myRole: "Admin",
       members: [
-        { id: "m-1", name: "Alex Morgan", email: "alex.morgan@dataforge.internal", role: "Admin", avatarId: "avatar-6", avatarUrl: "/avatars/avatar-6.svg" },
-        { id: "m-2", name: "Sarah Chen", email: "sarah.chen@dataforge.internal", role: "Analyst", avatarId: "avatar-3", avatarUrl: "/avatars/avatar-3.svg" },
-        { id: "m-3", name: "Marcus Vance", email: "marcus.v@dataforge.internal", role: "Analyst", avatarId: "avatar-2", avatarUrl: "/avatars/avatar-2.svg" },
-      ],
-    },
-    {
-      id: "team-2",
-      name: "Production Data Platform",
-      myRole: "Analyst",
-      members: [
-        { id: "m-4", name: "David Kim", email: "david.kim@dataforge.internal", role: "Admin", avatarId: "avatar-4", avatarUrl: "/avatars/avatar-4.svg" },
-        { id: "m-5", name: "Liam O'Connor", email: "liam.oc@dataforge.internal", role: "Analyst", avatarId: "avatar-8", avatarUrl: "/avatars/avatar-8.svg" },
-        { id: "m-6", name: "Elena Rostova", email: "elena.r@dataforge.internal", role: "Viewer", avatarId: "avatar-1", avatarUrl: "/avatars/avatar-1.svg" },
-      ],
-    },
-    {
-      id: "team-3",
-      name: "Growth & Revenue Quants",
-      myRole: "Analyst",
-      members: [
-        { id: "m-7", name: "Maya Patel", email: "maya.patel@dataforge.internal", role: "Admin", avatarId: "avatar-5", avatarUrl: "/avatars/avatar-5.svg" },
-        { id: "m-8", name: "Amara Okafor", email: "amara.o@dataforge.internal", role: "Analyst", avatarId: "avatar-7", avatarUrl: "/avatars/avatar-7.svg" },
+        {
+          id: "m-owner",
+          name: "Enterprise Lead",
+          email: "analyst@dataforge.app",
+          role: "Admin",
+          avatarId: "avatar-6",
+          avatarUrl: "/avatars/avatar-6.svg",
+        },
       ],
     },
   ]);
@@ -264,16 +251,93 @@ export default function DashboardPage() {
       }
     } catch (e) {}
 
-    // 3. Check cached teams
+    // 3. Check and clean cached teams
     try {
       const rawTeams = localStorage.getItem("df_teams_data");
       if (rawTeams) {
         const parsed = JSON.parse(rawTeams);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setTeams(parsed);
+          const MOCK_EMAILS = [
+            "alex.morgan@dataforge.internal",
+            "sarah.chen@dataforge.internal",
+            "marcus.v@dataforge.internal",
+            "david.kim@dataforge.internal",
+            "liam.oc@dataforge.internal",
+            "elena.r@dataforge.internal",
+            "maya.patel@dataforge.internal",
+            "amara.o@dataforge.internal",
+            "sarah.chen@company.com",
+            "marcus.vance@company.com",
+            "elena.rostova@company.com",
+          ];
+          const cleaned = parsed.map((t: TeamItem) => ({
+            ...t,
+            members: Array.isArray(t.members) ? t.members.filter(m => !MOCK_EMAILS.includes(m.email)) : [],
+          })).filter((t: TeamItem) => t.members.length > 0);
+          if (cleaned.length > 0) {
+            setTeams(cleaned);
+          }
         }
       }
     } catch (e) {}
+
+    // Fetch live teams and members from backend
+    const fetchTeams = async () => {
+      try {
+        const res = await apiFetch("/teams");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.organizations) && data.organizations.length > 0) {
+            const orgTeams: TeamItem[] = await Promise.all(
+              data.organizations.map(async (org: any) => {
+                let memberList: TeamMember[] = [];
+                try {
+                  const mRes = await apiFetch(`/teams/${org.id}/members`);
+                  if (mRes.ok) {
+                    const mData = await mRes.json();
+                    if (Array.isArray(mData.members)) {
+                      memberList = mData.members.map((m: any, idx: number) => ({
+                        id: m.id || `m-${m.user_id || idx}`,
+                        name: m.user_name || m.user_email.split("@")[0],
+                        email: m.user_email,
+                        role: m.role || "Analyst",
+                        avatarId: `avatar-${(idx % 8) + 1}`,
+                        avatarUrl: `/avatars/avatar-${(idx % 8) + 1}.svg`,
+                      }));
+                    }
+                  }
+                } catch {}
+                if (memberList.length === 0) {
+                  memberList = [{
+                    id: `m-${org.owner_id || 1}`,
+                    name: "Enterprise Lead",
+                    email: "analyst@dataforge.app",
+                    role: (org.my_role as TeamRole) || "Admin",
+                    avatarId: "avatar-6",
+                    avatarUrl: "/avatars/avatar-6.svg",
+                  }];
+                }
+                return {
+                  id: org.id,
+                  name: org.name,
+                  myRole: (org.my_role as TeamRole) || "Admin",
+                  members: memberList,
+                };
+              })
+            );
+            if (orgTeams.length > 0) {
+              setTeams(orgTeams);
+              try {
+                localStorage.setItem("df_teams_data", JSON.stringify(orgTeams));
+              } catch {}
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch teams:", err);
+      }
+    };
+    fetchTeams();
 
     // 4. Fetch datasets
     const fetchDashboard = async () => {
@@ -575,8 +639,22 @@ export default function DashboardPage() {
       localStorage.setItem("df_teams_data", JSON.stringify(updatedTeams));
     } catch {}
 
+    // Dispatch invitation email and audit log to backend if team exists
+    if (selectedTeamId) {
+      apiFetch(`/teams/${selectedTeamId}/invite`, {
+        method: "POST",
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          name: inviteName.trim(),
+          role: inviteRole,
+        }),
+      }).catch((err: any) => {
+        console.warn("Backend team invite sync note:", err);
+      });
+    }
+
     setInviteModalOpen(false);
-    setSaveSuccessMsg(`Added ${newMember.name} as ${newMember.role}`);
+    setSaveSuccessMsg(`Sent invitation to ${newMember.email} as ${newMember.role}`);
     setTimeout(() => setSaveSuccessMsg(""), 3000);
   };
 

@@ -27,7 +27,30 @@ except RuntimeError:
     db_client = None  # Expected during some blind local imports before .env loads
 
 
+def _is_valid_uuid(val: Any) -> bool:
+    if not val:
+        return False
+    import uuid
+    try:
+        uuid.UUID(str(val))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
 def db_get(table: str, id_val: Any) -> Optional[dict]:
+    # Check local project store first for uploads table to avoid remote network latency
+    if table == "uploads" and id_val:
+        try:
+            from dataforge.api.storage.manager import load
+            local_meta = load(str(id_val), "meta")
+            if local_meta and isinstance(local_meta, dict):
+                return local_meta
+        except Exception:
+            pass
+        if not _is_valid_uuid(id_val):
+            return None
+
     if not db_client: return None
     try:
         res = db_client.table(table).select("*").eq("id", id_val).execute()

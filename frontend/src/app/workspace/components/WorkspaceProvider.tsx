@@ -34,6 +34,9 @@ interface WorkspaceContextType {
   // Cleanup
   cleanResult: any;
   setCleanResult: (result: any) => void;
+  // AutoML
+  automlMeta: any;
+  setAutomlMeta: (meta: any) => void;
   // Error state
   apiError: { code: number; message: string } | null;
   setApiError: (err: { code: number; message: string } | null) => void;
@@ -49,7 +52,7 @@ interface WorkspaceContextType {
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
-  const [activeTab, setActiveTab] = useState("preview");
+  const [activeTab, setActiveTabState] = useState("preview");
   const [uploadId, setUploadId] = useState<string | undefined>(undefined);
   const [profile, setProfile] = useState<any>(null);
   const [cleanProfile, setCleanProfile] = useState<any>(null);
@@ -62,26 +65,52 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [chatSessions, setChatSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [cleanResult, setCleanResult] = useState<any>(null);
+  const [automlMeta, setAutomlMeta] = useState<any>(null);
   const [apiError, setApiError] = useState<{ code: number; message: string } | null>(null);
   const [shareMeta, setShareMeta] = useState<any>(null);
-  const [isLoadingWorkspace, setIsLoadingWorkspace] = useState<boolean>(() => {
+  const [isLoadingWorkspace, setIsLoadingWorkspace] = useState<boolean>(true);
+
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabState(tab);
     if (typeof window !== "undefined") {
-      const urlParams = new URLSearchParams(window.location.search);
-      return !!urlParams.get("upload_id");
+      try {
+        localStorage.setItem("df_active_tab", tab);
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set("tab", tab);
+        window.history.replaceState(null, "", `${window.location.pathname}?${urlParams.toString()}`);
+      } catch {}
     }
-    return false;
-  });
+  }, []);
 
   useEffect(() => {
     let uid = "";
     let shareToken = "";
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
-      const urlUid = urlParams.get('upload_id');
+      let urlUid = urlParams.get('upload_id');
       const urlToken = urlParams.get('share_token');
+      const urlTab = urlParams.get('tab');
+
+      if (urlTab) {
+        setActiveTabState(urlTab);
+      } else {
+        const cachedTab = localStorage.getItem("df_active_tab");
+        if (cachedTab) setActiveTabState(cachedTab);
+      }
+
+      if (!urlUid) {
+        const cachedUid = localStorage.getItem("df_last_upload_id");
+        if (cachedUid) {
+          urlUid = cachedUid;
+          urlParams.set("upload_id", cachedUid);
+          window.history.replaceState(null, "", `${window.location.pathname}?${urlParams.toString()}`);
+        }
+      }
+
       if (urlUid) {
         setUploadId(urlUid);
         uid = urlUid;
+        localStorage.setItem("df_last_upload_id", urlUid);
       }
       if (urlToken) {
         shareToken = urlToken;
@@ -121,6 +150,18 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           }
           if (data.clean_profile) {
             setCleanProfile(data.clean_profile);
+          }
+          if (data.clean_meta) {
+            setCleanResult(data.clean_meta);
+          }
+          if (data.automl_meta) {
+            setAutomlMeta(data.automl_meta);
+          }
+          if (Array.isArray(data.chat_sessions) && data.chat_sessions.length > 0) {
+            setChatSessions(data.chat_sessions);
+          }
+          if (data.active_session_id) {
+            setActiveSessionId(data.active_session_id);
           }
         } else if (res.status === 401) {
           if (typeof window !== "undefined") {
@@ -204,6 +245,13 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         if (data.source_type) setSourceType(data.source_type);
         if (data.clean_profile) setCleanProfile(data.clean_profile);
         if (data.clean_meta) setCleanResult(data.clean_meta);
+        if (data.automl_meta) setAutomlMeta(data.automl_meta);
+        if (Array.isArray(data.chat_sessions) && data.chat_sessions.length > 0) {
+          setChatSessions(data.chat_sessions);
+        }
+        if (data.active_session_id) {
+          setActiveSessionId(data.active_session_id);
+        }
         return data;
       }
     } catch (err) {
@@ -227,6 +275,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     chatSessions, setChatSessions,
     activeSessionId, setActiveSessionId,
     cleanResult, setCleanResult,
+    automlMeta, setAutomlMeta,
     apiError, setApiError,
     shareMeta, setShareMeta,
     isLoadingWorkspace,

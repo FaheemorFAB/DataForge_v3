@@ -105,11 +105,15 @@ async def api_upload(
 
     from dataforge.api.services.entitlements import EntitlementService
     size_mb = len(raw) / (1024 * 1024)
-    allowed_storage, storage_reason = EntitlementService.check_entitlement(current_user.id, "storage_mb", size_mb)
+    allowed_storage, storage_reason = EntitlementService.check_entitlement(
+        current_user.id, "storage_mb", size_mb, email=current_user.email
+    )
     if not allowed_storage:
         raise HTTPException(status_code=402, detail=storage_reason)
 
-    allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
+    allowed_rows, rows_reason = EntitlementService.check_entitlement(
+        current_user.id, "rows", len(df), email=current_user.email
+    )
     if not allowed_rows:
         raise HTTPException(status_code=402, detail=rows_reason)
 
