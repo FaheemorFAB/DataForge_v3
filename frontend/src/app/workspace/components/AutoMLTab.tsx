@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { 
   Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders, 
   Cpu, Check, Download, Play, RefreshCw, Search, Filter, 
-  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle
+  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag
 } from "lucide-react";
 
 interface FeatureInfo {
@@ -428,19 +428,20 @@ export function AutoMLTab() {
 
         {/* Model Name Input */}
         <div>
-          <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: "var(--txt-m)" }}>
-            Model Identifier
+          <label className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 mb-1.5" style={{ color: "var(--txt-m)" }}>
+            <Tag size={12} className="text-indigo-500" />
+            <span>Model Name</span>
           </label>
           <input
             type="text"
             value={customModelName}
             onChange={e => setCustomModelName(e.target.value)}
-            placeholder={automlTarget ? `${automlTarget} Predictor` : "e.g. Churn XGBoost Model"}
-            className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl outline-none transition-all"
+            placeholder={automlTarget ? `${automlTarget} Predictor` : "e.g. Loan Risk Ensemble v1"}
+            className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl outline-none transition-all shadow-sm"
             style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}
           />
           <span className="block mt-1 text-[10px]" style={{ color: "var(--txt-f)" }}>
-            Auto-stored in Model Catalog
+            Saved to Model Catalog on training
           </span>
         </div>
 
@@ -825,18 +826,34 @@ export function AutoMLTab() {
 
       {/* -- EXECUTION LAUNCH BAR -- */}
       <div className="flex items-center justify-between p-4 rounded-2xl flex-wrap gap-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-        <div className="text-xs" style={{ color: "var(--txt-m)" }}>
-          {selectedFeatures.length > 0 && selectedAlgos.length > 0 ? (
-            <span>Ready to train with <strong style={{ color: "var(--txt)" }}>{selectedFeatures.length} features</strong> across <strong style={{ color: "var(--txt)" }}>{selectedAlgos.length} model types</strong>.</span>
-          ) : (
-            <span className="text-amber-500 font-semibold">Select a target, at least 1 feature, and 1 algorithm to launch.</span>
-          )}
+        <div className="flex items-center gap-3 flex-wrap flex-1 min-w-[300px]">
+          <div className="flex-1 min-w-[220px]">
+            <label className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 mb-1" style={{ color: "var(--txt-m)" }}>
+              <Tag size={11} className="text-indigo-500" />
+              <span>Model Name</span>
+            </label>
+            <input
+              type="text"
+              value={customModelName}
+              onChange={e => setCustomModelName(e.target.value)}
+              placeholder={automlTarget ? `${automlTarget} Predictor` : "e.g. Loan Default Classifier v1"}
+              className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none transition-all shadow-sm"
+              style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}
+            />
+          </div>
+          <div className="text-xs pt-3" style={{ color: "var(--txt-m)" }}>
+            {selectedFeatures.length > 0 && selectedAlgos.length > 0 ? (
+              <span>Ready with <strong style={{ color: "var(--txt)" }}>{selectedFeatures.length} features</strong> across <strong style={{ color: "var(--txt)" }}>{selectedAlgos.length} model types</strong>.</span>
+            ) : (
+              <span className="text-amber-500 font-semibold">Select target, features &amp; models.</span>
+            )}
+          </div>
         </div>
 
         <button 
           onClick={runAutoml} 
           disabled={isTraining || !automlTarget || selectedFeatures.length === 0 || selectedAlgos.length === 0} 
-          className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
           {isTraining ? (
             <>

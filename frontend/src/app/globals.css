@@ -19,33 +19,95 @@ option {
   color: var(--txt);
 }
 
-/* ── Light Mode High-Contrast Typography ────────────────────────────────────── */
+/* ── Light vs Dark Contrast Typography ────────────────────────────────────── */
+:root,
 html[data-theme="light"],
-html[data-theme="light"] body {
+html[data-theme="cupcake"],
+html[data-theme="solarized"],
+html[data-theme="lavender"],
+html[data-theme="matcha"] {
+  --txt: #000000;
+  --txt-m: #0f172a;
+  --txt-f: #334155;
+}
+
+html[data-theme="dark"],
+html[data-theme="dracula"],
+html[data-theme="slate"],
+html[data-theme="emerald"],
+html[data-theme="nord"],
+html[data-theme="luxury"] {
+  --txt: #ffffff;
+  --txt-m: #e2e8f0;
+  --txt-f: #94a3b8;
+}
+
+/* Light Theme: Deep Black / Dark Slate Text on Light Backgrounds */
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]),
+html[data-theme="light"],
+html[data-theme="cupcake"],
+html[data-theme="solarized"],
+html[data-theme="lavender"],
+html[data-theme="matcha"] {
   color: #000000;
 }
-html[data-theme="light"] .text-gray-400,
-html[data-theme="light"] .text-slate-400,
-html[data-theme="light"] .text-zinc-400,
-html[data-theme="light"] .text-neutral-400 {
-  color: #1e293b !important;
-}
-html[data-theme="light"] .text-gray-500,
-html[data-theme="light"] .text-slate-500,
-html[data-theme="light"] .text-zinc-500,
-html[data-theme="light"] .text-neutral-500 {
+
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-100"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-200"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-gray-100"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-gray-200"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-zinc-100"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-zinc-200"],
+html[data-theme="light"] [class*="text-slate-100"],
+html[data-theme="light"] [class*="text-slate-200"],
+html[data-theme="light"] [class*="text-gray-100"],
+html[data-theme="light"] [class*="text-gray-200"],
+html[data-theme="light"] [class*="text-zinc-100"],
+html[data-theme="light"] [class*="text-zinc-200"] {
   color: #0f172a !important;
 }
-html[data-theme="light"] .text-gray-600,
-html[data-theme="light"] .text-slate-600,
-html[data-theme="light"] .text-zinc-600 {
-  color: #020617 !important;
+
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-300"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-400"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-gray-300"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-gray-400"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-zinc-300"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-zinc-400"],
+html[data-theme="light"] [class*="text-slate-300"],
+html[data-theme="light"] [class*="text-slate-400"],
+html[data-theme="light"] [class*="text-gray-300"],
+html[data-theme="light"] [class*="text-gray-400"],
+html[data-theme="light"] [class*="text-zinc-300"],
+html[data-theme="light"] [class*="text-zinc-400"] {
+  color: #1e293b !important;
 }
-html[data-theme="light"] [style*="color: var(--txt-m)"] {
+
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-500"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-gray-500"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-zinc-500"],
+html[data-theme="light"] [class*="text-slate-500"],
+html[data-theme="light"] [class*="text-gray-500"],
+html[data-theme="light"] [class*="text-zinc-500"] {
   color: #0f172a !important;
 }
-html[data-theme="light"] [style*="color: var(--txt-f)"] {
-  color: #1e293b !important;
+
+/* Dark Theme: Crisp Pure White Text on Dark Screen */
+html[data-theme="dark"] body,
+html[data-theme="dracula"] body,
+html[data-theme="slate"] body,
+html[data-theme="emerald"] body,
+html[data-theme="nord"] body,
+html[data-theme="luxury"] body {
+  color: #ffffff;
+}
+
+html[data-theme="dark"] h1, html[data-theme="dark"] h2, html[data-theme="dark"] h3, html[data-theme="dark"] h4, html[data-theme="dark"] h5, html[data-theme="dark"] h6,
+html[data-theme="dracula"] h1, html[data-theme="dracula"] h2, html[data-theme="dracula"] h3, html[data-theme="dracula"] h4, html[data-theme="dracula"] h5, html[data-theme="dracula"] h6,
+html[data-theme="slate"] h1, html[data-theme="slate"] h2, html[data-theme="slate"] h3, html[data-theme="slate"] h4, html[data-theme="slate"] h5, html[data-theme="slate"] h6,
+html[data-theme="emerald"] h1, html[data-theme="emerald"] h2, html[data-theme="emerald"] h3, html[data-theme="emerald"] h4, html[data-theme="emerald"] h5, html[data-theme="emerald"] h6,
+html[data-theme="nord"] h1, html[data-theme="nord"] h2, html[data-theme="nord"] h3, html[data-theme="nord"] h4, html[data-theme="nord"] h5, html[data-theme="nord"] h6,
+html[data-theme="luxury"] h1, html[data-theme="luxury"] h2, html[data-theme="luxury"] h3, html[data-theme="luxury"] h4, html[data-theme="luxury"] h5, html[data-theme="luxury"] h6 {
+  color: #ffffff !important;
 }
 
 
@@ -68,39 +130,45 @@ html[data-theme="light"] .mesh { background: radial-gradient(circle at 10% 10%, 
 html[data-theme="light"] .stat-box { background: rgba(0, 0, 0, .04); border-color: rgba(0, 0, 0, .08); }
 
 /* ── Light Mode High Contrast Text Overrides ──────────────────────────────── */
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]),
 html[data-theme="light"],
-html[data-theme="light"] body {
+html[data-theme="cupcake"],
+html[data-theme="solarized"],
+html[data-theme="lavender"],
+html[data-theme="matcha"] {
   color: #000000 !important;
 }
 
-html[data-theme="light"] h1,
-html[data-theme="light"] h2,
-html[data-theme="light"] h3,
-html[data-theme="light"] h4,
-html[data-theme="light"] h5,
-html[data-theme="light"] h6 {
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) h1,
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) h2,
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) h3,
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) h4,
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) h5,
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) h6,
+html[data-theme="light"] h1, html[data-theme="light"] h2, html[data-theme="light"] h3,
+html[data-theme="light"] h4, html[data-theme="light"] h5, html[data-theme="light"] h6 {
   color: #000000 !important;
 }
 
-html[data-theme="light"] p,
-html[data-theme="light"] .dt td,
-html[data-theme="light"] .dt th,
-html[data-theme="light"] label {
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) p,
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) .dt td,
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) .dt th,
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) label,
+html[data-theme="light"] p, html[data-theme="light"] .dt td, html[data-theme="light"] .dt th, html[data-theme="light"] label {
   color: #0f172a !important;
 }
 
-html[data-theme="light"] [class*="text-gray-400"],
-html[data-theme="light"] [class*="text-gray-500"],
-html[data-theme="light"] [class*="text-slate-400"],
-html[data-theme="light"] [class*="text-zinc-400"],
-html[data-theme="light"] [class*="text-neutral-400"] {
-  color: #0f172a !important;
-}
-
-html[data-theme="light"] [class*="text-gray-300"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-100"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-200"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-300"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-400"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-slate-500"],
+html[data-theme="light"] [class*="text-slate-100"],
+html[data-theme="light"] [class*="text-slate-200"],
 html[data-theme="light"] [class*="text-slate-300"],
-html[data-theme="light"] [class*="text-zinc-300"] {
-  color: #334155 !important;
+html[data-theme="light"] [class*="text-slate-400"],
+html[data-theme="light"] [class*="text-slate-500"] {
+  color: #0f172a !important;
 }
 
 html[data-theme="light"] .opacity-40,

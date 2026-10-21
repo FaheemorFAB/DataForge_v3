@@ -870,38 +870,46 @@ export function InsightCard({
       ) : null}
 
       {/* Evidence & Verification Drawer (Section 4.2 & 5.1) */}
-      <div className="mt-auto border-t px-4 py-2.5" style={{ borderColor: "var(--border)", background: "rgba(0,0,0,0.15)" }}>
+      <div className="mt-auto border-t px-4 py-2.5 transition-all" style={{ borderColor: "var(--border)", background: "var(--inp-bg)" }}>
         <button
           onClick={() => setEvidenceOpen(o => !o)}
-          className="w-full flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+          className="w-full flex items-center justify-between text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+          style={{ color: "var(--txt-m)" }}
         >
           <span className="flex items-center gap-1.5">
-            <Shield size={11} className="text-indigo-400" />
+            <Shield size={11} className="text-indigo-500" />
             Evidence &amp; Statistical Support
           </span>
           <ChevronDown size={11} className={`transform transition-transform ${evidenceOpen ? "rotate-180" : ""}`} />
         </button>
 
         {evidenceOpen && (
-          <div className="pt-2.5 mt-2 border-t border-white/5 space-y-2 text-[10px]">
+          <div className="pt-2.5 mt-2 border-t space-y-2 text-[10px]" style={{ borderColor: "var(--border)" }}>
             {ins.sample_size && (
               <div className="flex justify-between font-mono">
-                <span className="text-slate-400">Sample Size (N):</span>
-                <span className="font-bold text-slate-200">{ins.sample_size.toLocaleString()} rows</span>
+                <span style={{ color: "var(--txt-m)" }}>Sample Size (N):</span>
+                <span className="font-bold" style={{ color: "var(--txt)" }}>{ins.sample_size.toLocaleString()} rows</span>
               </div>
             )}
             {ins.evidence_query && (
               <div className="space-y-1">
-                <span className="text-slate-400 font-mono">Evidence Query:</span>
-                <pre className="p-2 rounded bg-black/40 border border-white/10 text-indigo-300 font-mono text-[9px] overflow-x-auto select-all">
+                <span className="font-mono font-medium" style={{ color: "var(--txt-m)" }}>Evidence Query:</span>
+                <pre
+                  className="p-2.5 rounded-lg font-mono text-[10px] overflow-x-auto select-all"
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    color: "var(--txt)",
+                  }}
+                >
                   {ins.evidence_query}
                 </pre>
               </div>
             )}
             {ins.caveats && ins.caveats.length > 0 && (
               <div className="space-y-0.5">
-                <span className="text-slate-400">Caveats &amp; Honesty Note:</span>
-                <ul className="list-disc list-inside text-amber-400/90 text-[9px] space-y-0.5">
+                <span className="font-medium" style={{ color: "var(--txt-m)" }}>Caveats &amp; Honesty Note:</span>
+                <ul className="list-disc list-inside text-amber-600 font-medium text-[9.5px] space-y-0.5">
                   {ins.caveats.map((c: string, ci: number) => (
                     <li key={ci}>{c}</li>
                   ))}
@@ -978,26 +986,26 @@ function ColumnRolesModal({
               <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>Correct or customize semantic tags. Changes persist per dataset.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/10 text-slate-400 cursor-pointer"><X size={16} /></button>
+          <button onClick={onClose} className="p-1 rounded-lg cursor-pointer" style={{ color: "var(--txt-m)" }}><X size={16} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-3">
           <table className="w-full text-left text-xs font-mono">
             <thead>
-              <tr className="border-b text-[9px] uppercase tracking-wider text-slate-400" style={{ borderColor: "var(--border)" }}>
+              <tr className="border-b text-[9px] uppercase tracking-wider" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
                 <th className="pb-2">Column Name</th>
                 <th className="pb-2">Current Role</th>
                 <th className="pb-2">Override Semantic Role</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
               {colList.map(col => {
                 const currentRole = roles[col] || schema?.column_roles?.[col]?.role || "auto";
                 return (
                   <tr key={col} className="py-2">
                     <td className="py-2.5 font-bold" style={{ color: "var(--txt)" }}>{col}</td>
                     <td className="py-2.5">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-white/5 text-slate-300 border border-white/10">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border" style={{ background: "var(--inp-bg)", color: "var(--txt-m)", borderColor: "var(--border)" }}>
                         {currentRole}
                       </span>
                     </td>
@@ -1005,7 +1013,8 @@ function ColumnRolesModal({
                       <select
                         value={currentRole}
                         onChange={e => setRoles(r => ({ ...r, [col]: e.target.value }))}
-                        className="px-2 py-1 rounded bg-black/40 border border-white/10 text-xs font-sans text-slate-200 outline-none"
+                        className="px-2 py-1 rounded border text-xs font-sans outline-none"
+                        style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
                       >
                         <option value="kpi">Measure / KPI</option>
                         <option value="driver">Candidate Driver</option>
@@ -1023,8 +1032,8 @@ function ColumnRolesModal({
           </table>
         </div>
 
-        <div className="px-6 py-4 border-t flex justify-end gap-2" style={{ borderColor: "var(--border)", background: "rgba(0,0,0,0.1)" }}>
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-bold text-slate-300 hover:bg-white/5 cursor-pointer">Cancel</button>
+        <div className="px-6 py-4 border-t flex justify-end gap-2" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-bold cursor-pointer" style={{ color: "var(--txt-m)" }}>Cancel</button>
           <button
             onClick={saveRoles}
             disabled={isSaving}
@@ -1330,34 +1339,35 @@ function ExecutiveBriefingCard({
       }}
     >
       {/* Top Banner Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-indigo-500/15">
+      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-white shadow-md shadow-indigo-500/20" style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
             <Brain size={18} />
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm font-black uppercase tracking-wider text-white">AI Executive Briefing</h3>
-              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+              <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>AI Executive Briefing</h3>
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                 <Shield size={10} /> Numerically Grounded &amp; Validated
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">Automated synthesis anchored to computed statistical findings</p>
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>Automated synthesis anchored to computed statistical findings</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {targetMetric && (
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
-              <Target size={12} /> Target KPI: <span className="text-white font-mono">{targetMetric}</span>
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
+              <Target size={12} className="text-indigo-500" /> Target KPI: <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{targetMetric}</span>
             </span>
           )}
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer"
+            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}
             title="Copy briefing to clipboard"
           >
-            {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
             {copied ? "Copied!" : "Copy"}
           </button>
         </div>
@@ -1365,9 +1375,9 @@ function ExecutiveBriefingCard({
 
       {/* Inquiry Callout if user entered steering prompt */}
       {focusPrompt && (
-        <div className="px-3.5 py-2 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center gap-2 text-xs text-indigo-200">
-          <Sparkles size={13} className="text-amber-400 shrink-0" />
-          <span>Active Investigation Hypothesis: <strong className="text-white font-semibold">"{focusPrompt}"</strong></span>
+        <div className="px-3.5 py-2 rounded-xl border flex items-center gap-2 text-xs" style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}>
+          <Sparkles size={13} className="text-amber-500 shrink-0" />
+          <span>Active Investigation Hypothesis: <strong className="font-semibold" style={{ color: "var(--txt)" }}>"{focusPrompt}"</strong></span>
         </div>
       )}
 
@@ -1398,14 +1408,14 @@ function ExecutiveBriefingCard({
                 key={i}
                 className="rounded-xl p-4 border transition-all"
                 style={{
-                  background: "rgba(15, 23, 42, 0.4)",
-                  borderColor: "rgba(255, 255, 255, 0.08)",
+                  background: "var(--surface)",
+                  borderColor: "var(--border)",
                 }}
               >
-                <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-white/5">
+                <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b" style={{ borderColor: "var(--border)" }}>
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full" style={{ background: accentColor }} />
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-200">{sec.title}</h4>
+                    <h4 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>{sec.title}</h4>
                   </div>
                   {sec.badge && (
                     <span
@@ -1418,8 +1428,8 @@ function ExecutiveBriefingCard({
                 </div>
                 <div className="space-y-1.5">
                   {sec.bullets.map((b, bIdx) => (
-                    <p key={bIdx} className="text-xs text-slate-300 leading-relaxed flex items-start gap-2">
-                      <span className="text-slate-500 mt-1 shrink-0">•</span>
+                    <p key={bIdx} className="text-xs leading-relaxed flex items-start gap-2" style={{ color: "var(--txt-m)" }}>
+                      <span className="mt-1 shrink-0" style={{ color: "var(--txt-f)" }}>•</span>
                       <span>{b}</span>
                     </p>
                   ))}
@@ -1429,7 +1439,7 @@ function ExecutiveBriefingCard({
           })}
         </div>
       ) : (
-        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{summary}</p>
+        <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "var(--txt)" }}>{summary}</p>
       )}
     </div>
   );
@@ -1660,8 +1670,8 @@ export function InsightsTab() {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Target KPI Anchor Selector (Section 4.1 & 5.1) */}
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <Target size={13} className="text-amber-400" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Anchor KPI:</span>
+            <Target size={13} className="text-amber-500" />
+            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Anchor KPI:</span>
             <select
               value={targetMetric}
               onChange={e => {
@@ -1682,10 +1692,10 @@ export function InsightsTab() {
           {/* Semantic Roles Review Button */}
           <button
             onClick={() => setRolesModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold text-slate-300 hover:text-white hover:bg-white/5 transition-all cursor-pointer"
-            style={{ borderColor: "var(--border)" }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer"
+            style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--txt)" }}
           >
-            <Tag size={12} className="text-indigo-400" /> Review Roles
+            <Tag size={12} className="text-indigo-500" /> Review Roles
           </button>
 
           {/* Top-N Count Selector: 3, 6, 9 */}
@@ -1703,8 +1713,9 @@ export function InsightsTab() {
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     active
                       ? "bg-indigo-600 text-white shadow-sm"
-                      : "text-slate-400 hover:text-white"
+                      : "hover:bg-slate-500/10"
                   }`}
+                  style={!active ? { color: "var(--txt-m)" } : undefined}
                 >
                   {n} Findings
                 </button>
@@ -1725,17 +1736,25 @@ export function InsightsTab() {
       {/* Investigate with AI Steering Bar (Section 4.5 & 5.1) */}
       <div className="rounded-2xl p-4 border" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.06),rgba(139,92,246,0.03))", borderColor: "rgba(99,102,241,0.2)" }}>
         <form onSubmit={e => { e.preventDefault(); runInsights(); }} className="flex gap-2 items-center flex-wrap">
-          <div className="flex items-center gap-2 flex-1 min-w-[260px] bg-black/30 border border-white/10 rounded-xl px-3 py-2">
-            <Sparkles size={14} className="text-indigo-400 shrink-0" />
+          <div
+            className="flex items-center gap-2 flex-1 min-w-[260px] border rounded-xl px-3 py-2 transition-all"
+            style={{
+              background: "var(--surface)",
+              borderColor: "var(--border)",
+              color: "var(--txt)",
+            }}
+          >
+            <Sparkles size={14} className="text-indigo-500 shrink-0" />
             <input
               type="text"
               value={focusPrompt}
               onChange={e => setFocusPrompt(e.target.value)}
               placeholder="Investigate hypothesis or steer analysis, e.g. 'Investigate margin decline in North region'..."
-              className="bg-transparent border-none outline-none w-full text-xs text-white placeholder-slate-500 font-sans"
+              className="bg-transparent border-none outline-none w-full text-xs font-sans"
+              style={{ color: "var(--txt)" }}
             />
             {focusPrompt && (
-              <button type="button" onClick={() => setFocusPrompt("")} className="text-slate-500 hover:text-slate-300 cursor-pointer">
+              <button type="button" onClick={() => setFocusPrompt("")} className="cursor-pointer opacity-60 hover:opacity-100" style={{ color: "var(--txt-m)" }}>
                 <X size={12} />
               </button>
             )}

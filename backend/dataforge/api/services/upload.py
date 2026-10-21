@@ -39,6 +39,8 @@ class UploadService:
             "source_type": source_type,
             "rows": profile.get("rows", len(df)),
             "cols": profile.get("cols", len(df.columns)),
+            "storage_path": json.dumps(source_config) if source_config else None,
+            "source_config": source_config,
         }
         save(upload_id, "meta", meta)
         save(upload_id, "df_raw", df)

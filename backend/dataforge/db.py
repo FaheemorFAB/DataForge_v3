@@ -95,9 +95,21 @@ def db_insert(table: str, data: dict) -> dict:
         return {}
 
 def db_update(table: str, id_val: Any, data: dict) -> dict:
+    if table == "uploads" and id_val:
+        try:
+            from dataforge.api.storage.manager import load, save
+            local_meta = load(str(id_val), "meta") or {}
+            if isinstance(local_meta, dict):
+                local_meta.update(data)
+                save(str(id_val), "meta", local_meta)
+        except Exception:
+            pass
     if not db_client: return {}
     try:
-        res = db_client.table(table).update(data).eq("id", id_val).execute()
+        supabase_data = dict(data)
+        if table == "uploads":
+            supabase_data.pop("source_config", None)
+        res = db_client.table(table).update(supabase_data).eq("id", id_val).execute()
         return res.data[0] if res.data else {}
     except Exception as exc:
         logger.error("Supabase db_update failed (table=%s, id=%s): %s", table, id_val, exc)

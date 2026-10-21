@@ -150,13 +150,26 @@ async def api_workspace_state(
     filename = up_row.get("filename", "")
 
     if df_raw is None and df_clean is None:
-        if src == "sheets" and up_row.get("storage_path"):
+        if src == "sheets":
             try:
-                src_cfg = json.loads(up_row.get("storage_path", "{}"))
-                sid = src_cfg.get("sheet_id", "")
+                sc = up_row.get("source_config") or up_row.get("storage_path")
+                if isinstance(sc, str) and sc.strip():
+                    try:
+                        src_cfg = json.loads(sc)
+                    except Exception:
+                        src_cfg = {}
+                elif isinstance(sc, dict):
+                    src_cfg = sc
+                else:
+                    src_cfg = {}
+                sid = (src_cfg.get("sheet_id") or "").strip()
+                if not sid and src_cfg.get("url"):
+                    m = re.search(r"/spreadsheets/d/(?:e/)?([a-zA-Z0-9_-]+)", src_cfg.get("url", ""))
+                    if m:
+                        sid = m.group(1)
                 if sid:
                     from dataforge.sheets_connector import SheetsConnector
-                    df_raw = SheetsConnector().load_public(sid)
+                    df_raw = SheetsConnector().load_public(sid, gid=str(src_cfg.get("gid") or "0"), sheet_name=src_cfg.get("sheet_name"))
                     save(upload_id, "df_raw", df_raw)
                     profile = df_profile(df_raw, filename)
                     save(upload_id, "profile", profile)
@@ -292,23 +305,54 @@ async def api_sync_sheets(
     if up_row.get("source_type") != "sheets":
         raise HTTPException(400, "This project was not loaded from Google Sheets")
 
-    storage_path = up_row.get("storage_path", "")
-    try:
-        src_cfg = json.loads(storage_path) if storage_path else {}
-    except Exception:
-        raise HTTPException(400, "Google Sheets config not available. Re-connect the sheet first.")
+    storage_path = up_row.get("storage_path")
+    source_config = up_row.get("source_config")
+
+    src_cfg = {}
+    if isinstance(source_config, dict):
+        src_cfg = source_config
+    elif isinstance(storage_path, dict):
+        src_cfg = storage_path
+    elif isinstance(storage_path, str) and storage_path.strip():
+        try:
+            src_cfg = json.loads(storage_path)
+        except Exception:
+            pass
+    elif isinstance(source_config, str) and source_config.strip():
+        try:
+            src_cfg = json.loads(source_config)
+        except Exception:
+            pass
 
     sheet_id = (src_cfg.get("sheet_id") or "").strip()
     if not sheet_id and src_cfg.get("url"):
-        m = re.search(r"/spreadsheets/d/([a-zA-Z0-9_-]+)", src_cfg.get("url", ""))
+        m = re.search(r"/spreadsheets/d/(?:e/)?([a-zA-Z0-9_-]+)", src_cfg.get("url", ""))
         if m:
             sheet_id = m.group(1)
+
+    if not sheet_id:
+        fn = up_row.get("filename", "")
+        m = re.search(r"sheet_([a-zA-Z0-9_-]+)", fn)
+        if m:
+            sheet_id = m.group(1)
+
     if not sheet_id:
         raise HTTPException(400, "Sheet ID not found. Re-connect the Google Sheet once.")
 
+    gid = str(src_cfg.get("gid") or "0")
+    sheet_name = src_cfg.get("sheet_name")
+    url = src_cfg.get("url")
+
     try:
         from dataforge.sheets_connector import SheetsConnector
-        df = SheetsConnector().load_public(sheet_id)
+        conn = SheetsConnector()
+        if url:
+            try:
+                df = conn.load_from_url(url, sheet_name=sheet_name, gid=gid)
+            except Exception:
+                df = conn.load_public(sheet_id, gid=gid, sheet_name=sheet_name)
+        else:
+            df = conn.load_public(sheet_id, gid=gid, sheet_name=sheet_name)
     except Exception as exc:
         raise HTTPException(400, f"Could not sync with Google Sheets: {exc}")
 
@@ -383,6 +427,8 @@ async def api_sync_sheets(
             "rows": profile.get("rows", 0),
             "cols": profile.get("cols", 0),
             "missing_pct": profile.get("missing_pct", 0.0),
+            "storage_path": json.dumps(src_cfg) if src_cfg else (storage_path if isinstance(storage_path, str) else None),
+            "source_config": src_cfg,
         })
     except Exception:
         pass
