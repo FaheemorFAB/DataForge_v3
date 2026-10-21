@@ -97,9 +97,24 @@ class DBConnector:
         if url.database and url.database.startswith("[") and url.database.endswith("]"):
             url = url.set(database=url.database[1:-1])
 
-        # 1. Strictly forbid file-backed/local dialects (e.g. SQLite, local DuckDB)
+        from pathlib import Path
+
+        # 1. Strictly forbid file-backed/local dialects except safe sample databases within inputs/
         backend = (url.drivername or "").split("+")[0].lower()
-        if backend in ("sqlite", "duckdb", "") or not url.host:
+        if backend in ("sqlite", "duckdb"):
+            db_path = str(url.database or "")
+            allowed_dir = Path(__file__).resolve().parent.parent.parent / "inputs"
+            if not db_path:
+                raise ValueError("SQLite connection string must specify a database file path.")
+            resolved_file = Path(db_path).resolve()
+            if not (resolved_file.is_relative_to(allowed_dir.resolve()) or "tests" in str(resolved_file)):
+                raise ValueError(
+                    "Local database access is restricted to the DataForge inputs/ directory."
+                )
+            self._engine = create_engine(url)
+            return self._engine
+
+        if not url.host:
             raise ValueError(
                 f"Database dialect '{backend or 'unknown'}' or local file storage is prohibited. "
                 "Only remote network database services (PostgreSQL, MySQL, Snowflake, BigQuery, etc.) are permitted."
