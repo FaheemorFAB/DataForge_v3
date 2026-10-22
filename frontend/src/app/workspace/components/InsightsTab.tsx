@@ -1194,22 +1194,63 @@ function ExecutiveBriefingCard({
     if (!summary) return [];
 
     const CANONICAL_SECTIONS = [
-      { key: "takeaway", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(executive takeaway|executive summary|core takeaway|key takeaway|core synthesis|executive intelligence briefing)(?:\*\*)?:?$/i, title: "Executive Takeaway", iconType: "takeaway", badge: "Executive Summary" },
-      { key: "drivers", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(key drivers\s*(&|and)?\s*dynamics|key drivers\s*(&|and)?\s*correlation dynamics|key drivers|correlation dynamics|underlying drivers)(?:\*\*)?:?$/i, title: "Key Drivers & Dynamics", iconType: "driver", badge: "Drivers & Dynamics" },
-      { key: "strategy", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(strategic recommendations|strategic recommendation|recommendations|operational next steps|action items|recommended actions)(?:\*\*)?:?$/i, title: "Strategic Recommendations", iconType: "action", badge: "Strategy" },
-      { key: "quality", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(data quality\s*(&|and)?\s*completeness|data quality|data completeness|data integrity)(?:\*\*)?:?$/i, title: "Data Quality & Completeness", iconType: "quality", badge: "Integrity" },
-      { key: "trend", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(performance trajectory|performance trends|secular trends|trend dynamics)(?:\*\*)?:?$/i, title: "Performance Trajectory", iconType: "trend", badge: "Dynamics" },
-      { key: "context", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(demographic\s*(&|and)?\s*segment context|demographic context|segment context|cohort context)(?:\*\*)?:?$/i, title: "Demographic & Segment Context", iconType: "context", badge: "Cohort Context" },
-      { key: "risk", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(risk assessment\s*(&|and)?\s*anomalies|risk assessment|risks\s*(&|and)?\s*anomalies|anomalies\s*(&|and)?\s*outliers)(?:\*\*)?:?$/i, title: "Risk Assessment & Anomalies", iconType: "risk", badge: "Risk & Caution" },
+      {
+        key: "takeaway",
+        title: "Executive Takeaway",
+        iconType: "takeaway",
+        badge: "Executive Summary",
+        pattern: /^(?:[#*\-•\s\d.)]+)?(?:executive takeaway|executive summary|core takeaway|key takeaway|core synthesis|executive intelligence briefing)[*:\s]*$/i,
+        inlinePattern: /^(?:[#*\-•\s\d.)]+)?(?:executive takeaway|executive summary|core takeaway|key takeaway|core synthesis|executive intelligence briefing)[*:\s]+(.+)$/i,
+      },
+      {
+        key: "drivers",
+        title: "Key Drivers & Dynamics",
+        iconType: "driver",
+        badge: "Drivers & Dynamics",
+        pattern: /^(?:[#*\-•\s\d.)]+)?(?:key drivers\s*(?:&|and)?\s*dynamics|key drivers\s*(?:&|and)?\s*correlation dynamics|key drivers|correlation dynamics|underlying drivers)[*:\s]*$/i,
+        inlinePattern: /^(?:[#*\-•\s\d.)]+)?(?:key drivers\s*(?:&|and)?\s*dynamics|key drivers\s*(?:&|and)?\s*correlation dynamics|key drivers|correlation dynamics|underlying drivers)[*:\s]+(.+)$/i,
+      },
+      {
+        key: "strategy",
+        title: "Strategic Recommendations",
+        iconType: "action",
+        badge: "Strategy",
+        pattern: /^(?:[#*\-•\s\d.)]+)?(?:strategic recommendations|strategic recommendation|recommendations|operational next steps|action items|recommended actions)[*:\s]*$/i,
+        inlinePattern: /^(?:[#*\-•\s\d.)]+)?(?:strategic recommendations|strategic recommendation|recommendations|operational next steps|action items|recommended actions)[*:\s]+(.+)$/i,
+      },
+      {
+        key: "quality",
+        title: "Data Quality & Completeness",
+        iconType: "quality",
+        badge: "Integrity",
+        pattern: /^(?:[#*\-•\s\d.)]+)?(?:data quality\s*(?:&|and)?\s*completeness|data quality|data completeness|data integrity)[*:\s]*$/i,
+        inlinePattern: /^(?:[#*\-•\s\d.)]+)?(?:data quality\s*(?:&|and)?\s*completeness|data quality|data completeness|data integrity)[*:\s]+(.+)$/i,
+      },
+      {
+        key: "trend",
+        title: "Performance Trajectory",
+        iconType: "trend",
+        badge: "Dynamics",
+        pattern: /^(?:[#*\-•\s\d.)]+)?(?:performance trajectory|performance trends|secular trends|trend dynamics)[*:\s]*$/i,
+        inlinePattern: /^(?:[#*\-•\s\d.)]+)?(?:performance trajectory|performance trends|secular trends|trend dynamics)[*:\s]+(.+)$/i,
+      },
+      {
+        key: "context",
+        title: "Demographic & Segment Context",
+        iconType: "context",
+        badge: "Cohort Context",
+        pattern: /^(?:[#*\-•\s\d.)]+)?(?:demographic\s*(?:&|and)?\s*segment context|demographic context|segment context|cohort context)[*:\s]*$/i,
+        inlinePattern: /^(?:[#*\-•\s\d.)]+)?(?:demographic\s*(?:&|and)?\s*segment context|demographic context|segment context|cohort context)[*:\s]+(.+)$/i,
+      },
+      {
+        key: "risk",
+        title: "Risk Assessment & Anomalies",
+        iconType: "risk",
+        badge: "Risk & Caution",
+        pattern: /^(?:[#*\-•\s\d.)]+)?(?:risk assessment\s*(?:&|and)?\s*anomalies|risk assessment|risks\s*(?:&|and)?\s*anomalies|anomalies\s*(?:&|and)?\s*outliers)[*:\s]*$/i,
+        inlinePattern: /^(?:[#*\-•\s\d.)]+)?(?:risk assessment\s*(?:&|and)?\s*anomalies|risk assessment|risks\s*(?:&|and)?\s*anomalies|anomalies\s*(?:&|and)?\s*outliers)[*:\s]+(.+)$/i,
+      },
     ];
-
-    const matchCanonical = (raw: string) => {
-      const trimmed = raw.trim();
-      for (const s of CANONICAL_SECTIONS) {
-        if (s.pattern.test(trimmed)) return s;
-      }
-      return null;
-    };
 
     const lines = summary.split("\n");
     const parsed: { title: string; bullets: string[]; iconType: string; badge?: string }[] = [];
@@ -1221,36 +1262,36 @@ function ExecutiveBriefingCard({
       if (line.startsWith("User Hypothesis Inquiry:")) continue;
 
       // 1. Check Canonical Standalone Header (e.g. "1. Executive Takeaway:", "**Executive Takeaway:**", "### 2. Key Drivers & Dynamics:")
-      const canonicalMatch = matchCanonical(line);
-      if (canonicalMatch) {
-        curSection = {
-          title: canonicalMatch.title,
-          bullets: [],
-          iconType: canonicalMatch.iconType,
-          badge: canonicalMatch.badge,
-        };
-        parsed.push(curSection);
-        continue;
+      let standaloneMatch = false;
+      for (const s of CANONICAL_SECTIONS) {
+        if (s.pattern.test(line)) {
+          curSection = {
+            title: s.title,
+            bullets: [],
+            iconType: s.iconType,
+            badge: s.badge,
+          };
+          parsed.push(curSection);
+          standaloneMatch = true;
+          break;
+        }
       }
+      if (standaloneMatch) continue;
 
       // 2. Check Inline Canonical Header (e.g. "**1. Executive Takeaway:** Narrative begins here...")
       let inlineHandled = false;
       for (const s of CANONICAL_SECTIONS) {
-        const keywordMatch = s.pattern.source.match(/\(([^)]+)\)/);
-        if (keywordMatch && keywordMatch[1]) {
-          const inlineRegex = new RegExp(`^(?:(?:\\d+[\\.\\)]|#+)\\s*)?(?:\\*\\*)?(?:${keywordMatch[1]})(?:\\*\\*)?:\\s*(.+)$`, "i");
-          const m = line.match(inlineRegex);
-          if (m && m[1]) {
-            curSection = {
-              title: s.title,
-              bullets: [m[1].trim()],
-              iconType: s.iconType,
-              badge: s.badge,
-            };
-            parsed.push(curSection);
-            inlineHandled = true;
-            break;
-          }
+        const m = line.match(s.inlinePattern);
+        if (m && m[1]) {
+          curSection = {
+            title: s.title,
+            bullets: [m[1].trim()],
+            iconType: s.iconType,
+            badge: s.badge,
+          };
+          parsed.push(curSection);
+          inlineHandled = true;
+          break;
         }
       }
       if (inlineHandled) continue;
