@@ -1192,6 +1192,25 @@ function ExecutiveBriefingCard({
 
   const sections = useMemo(() => {
     if (!summary) return [];
+
+    const CANONICAL_SECTIONS = [
+      { key: "takeaway", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(executive takeaway|executive summary|core takeaway|key takeaway|core synthesis|executive intelligence briefing)(?:\*\*)?:?$/i, title: "Executive Takeaway", iconType: "takeaway", badge: "Executive Summary" },
+      { key: "drivers", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(key drivers\s*(&|and)?\s*dynamics|key drivers\s*(&|and)?\s*correlation dynamics|key drivers|correlation dynamics|underlying drivers)(?:\*\*)?:?$/i, title: "Key Drivers & Dynamics", iconType: "driver", badge: "Drivers & Dynamics" },
+      { key: "strategy", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(strategic recommendations|strategic recommendation|recommendations|operational next steps|action items|recommended actions)(?:\*\*)?:?$/i, title: "Strategic Recommendations", iconType: "action", badge: "Strategy" },
+      { key: "quality", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(data quality\s*(&|and)?\s*completeness|data quality|data completeness|data integrity)(?:\*\*)?:?$/i, title: "Data Quality & Completeness", iconType: "quality", badge: "Integrity" },
+      { key: "trend", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(performance trajectory|performance trends|secular trends|trend dynamics)(?:\*\*)?:?$/i, title: "Performance Trajectory", iconType: "trend", badge: "Dynamics" },
+      { key: "context", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(demographic\s*(&|and)?\s*segment context|demographic context|segment context|cohort context)(?:\*\*)?:?$/i, title: "Demographic & Segment Context", iconType: "context", badge: "Cohort Context" },
+      { key: "risk", pattern: /^(?:(?:\d+[\.\)]|#+)\s*)?(?:\*\*)?(risk assessment\s*(&|and)?\s*anomalies|risk assessment|risks\s*(&|and)?\s*anomalies|anomalies\s*(&|and)?\s*outliers)(?:\*\*)?:?$/i, title: "Risk Assessment & Anomalies", iconType: "risk", badge: "Risk & Caution" },
+    ];
+
+    const matchCanonical = (raw: string) => {
+      const trimmed = raw.trim();
+      for (const s of CANONICAL_SECTIONS) {
+        if (s.pattern.test(trimmed)) return s;
+      }
+      return null;
+    };
+
     const lines = summary.split("\n");
     const parsed: { title: string; bullets: string[]; iconType: string; badge?: string }[] = [];
     let curSection: { title: string; bullets: string[]; iconType: string; badge?: string } | null = null;
@@ -1201,23 +1220,60 @@ function ExecutiveBriefingCard({
       if (!line || line.startsWith("═") || line.startsWith("Executive Intelligence Briefing")) continue;
       if (line.startsWith("User Hypothesis Inquiry:")) continue;
 
-      // Detect if line is a section header:
-      // e.g. "### 3. STRATEGIC RECOMMENDATIONS:", "3. STRATEGIC RECOMMENDATIONS", "**3. Strategic Recommendations:**", "Data Quality & Completeness:"
-      const isHeader =
-        line.startsWith("###") ||
-        line.startsWith("##") ||
-        line.endsWith(":") ||
-        (/^(\d+[\.\)]\s*)?(\*\*)?[A-Z0-9\s&/\\-]{3,}(\*\*)?:?$/i.test(line) && line.length < 80);
+      // 1. Check Canonical Standalone Header (e.g. "1. Executive Takeaway:", "**Executive Takeaway:**", "### 2. Key Drivers & Dynamics:")
+      const canonicalMatch = matchCanonical(line);
+      if (canonicalMatch) {
+        curSection = {
+          title: canonicalMatch.title,
+          bullets: [],
+          iconType: canonicalMatch.iconType,
+          badge: canonicalMatch.badge,
+        };
+        parsed.push(curSection);
+        continue;
+      }
 
-      if (isHeader) {
-        // Strip leading numbers ("3. ", "1. ", "(1) "), hashes, colons, asterisks
-        let cleanTitle = line
-          .replace(/^[#*\s\d.]+/, "")
-          .replace(/[:#*]+$/, "")
-          .replace(/\*\*/g, "")
-          .trim();
+      // 2. Check Inline Canonical Header (e.g. "**1. Executive Takeaway:** Narrative begins here...")
+      let inlineHandled = false;
+      for (const s of CANONICAL_SECTIONS) {
+        const keywordMatch = s.pattern.source.match(/\(([^)]+)\)/);
+        if (keywordMatch && keywordMatch[1]) {
+          const inlineRegex = new RegExp(`^(?:(?:\\d+[\\.\\)]|#+)\\s*)?(?:\\*\\*)?(?:${keywordMatch[1]})(?:\\*\\*)?:\\s*(.+)$`, "i");
+          const m = line.match(inlineRegex);
+          if (m && m[1]) {
+            curSection = {
+              title: s.title,
+              bullets: [m[1].trim()],
+              iconType: s.iconType,
+              badge: s.badge,
+            };
+            parsed.push(curSection);
+            inlineHandled = true;
+            break;
+          }
+        }
+      }
+      if (inlineHandled) continue;
 
-        // Convert ALL-CAPS titles like "STRATEGIC RECOMMENDATIONS" into Title Case "Strategic Recommendations"
+      // 3. Check Generic Standalone Header (e.g. "### Regional Findings:", "Next Steps:")
+      const stripped = line
+        .replace(/^[#*\-•\s\d.)]+/, "")
+        .replace(/[:#*]+$/, "")
+        .replace(/\*\*/g, "")
+        .trim();
+
+      const isGenericHeader =
+        (line.startsWith("###") ||
+         line.startsWith("##") ||
+         line.endsWith(":") ||
+         line.endsWith(":**") ||
+         line.endsWith("**:")) &&
+        stripped.length > 2 &&
+        stripped.length < 70 &&
+        !stripped.slice(0, -1).includes(".");
+
+      if (isGenericHeader) {
+        let cleanTitle = stripped;
         if (cleanTitle === cleanTitle.toUpperCase() && cleanTitle.length > 3) {
           cleanTitle = cleanTitle.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
         }
@@ -1250,18 +1306,24 @@ function ExecutiveBriefingCard({
 
         curSection = { title: cleanTitle, bullets: [], iconType, badge };
         parsed.push(curSection);
-      } else if (curSection) {
-        // It's a bullet under the current section
-        const bulletText = line
-          .replace(/^([•\-\*]+|\d+[\.\)])\s*/, "") // Strip leading bullet or number markers
-          .trim();
-        if (bulletText) curSection.bullets.push(bulletText);
-      } else {
-        // Fallback before any section header
-        parsed.push({ title: "Core Synthesis", bullets: [line], iconType: "takeaway", badge: "Executive Summary" });
+        continue;
+      }
+
+      // 4. Regular Bullet or Narrative Content
+      const bulletText = line.replace(/^([•\-\*]+|\d+[\.\)])\s*/, "").trim();
+      if (bulletText) {
+        if (curSection) {
+          curSection.bullets.push(bulletText);
+        } else {
+          // If no section header was encountered yet, initialize an Executive Takeaway section
+          curSection = { title: "Executive Takeaway", bullets: [bulletText], iconType: "takeaway", badge: "Executive Summary" };
+          parsed.push(curSection);
+        }
       }
     }
-    return parsed;
+
+    // Filter out any empty sections that have no bullet content
+    return parsed.filter(s => s.bullets.length > 0);
   }, [summary]);
 
   return (
@@ -1344,7 +1406,9 @@ function ExecutiveBriefingCard({
             return (
               <div
                 key={i}
-                className="rounded-xl p-4 border transition-all flex flex-col justify-between"
+                className={`rounded-xl p-4 border transition-all flex flex-col justify-between ${
+                  sections.length === 3 && i === 0 ? "md:col-span-2" : ""
+                }`}
                 style={{
                   background: "var(--surface)",
                   borderColor: "var(--border)",
@@ -1365,13 +1429,18 @@ function ExecutiveBriefingCard({
                       </span>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    {sec.bullets.map((b, bIdx) => (
-                      <div key={bIdx} className="text-xs leading-relaxed flex items-start gap-2.5" style={{ color: "var(--txt-m)" }}>
-                        <span className="mt-1 shrink-0 font-bold text-[10px]" style={{ color: accentColor }}>•</span>
-                        <div className="flex-1 min-w-0">{renderFormattedText(b, true)}</div>
-                      </div>
-                    ))}
+                  <div className="space-y-2.5">
+                    {sec.bullets.map((b, bIdx) => {
+                      const isSingleLongPara = sec.bullets.length === 1 && b.length > 100;
+                      return (
+                        <div key={bIdx} className="text-xs leading-relaxed flex items-start gap-2.5" style={{ color: "var(--txt-m)" }}>
+                          {!isSingleLongPara && (
+                            <span className="mt-1 shrink-0 font-bold text-[10px]" style={{ color: accentColor }}>•</span>
+                          )}
+                          <div className="flex-1 min-w-0">{renderFormattedText(b, true)}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
