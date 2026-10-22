@@ -102,14 +102,14 @@ const JOIN_TYPES: {
   symbol: string;
   desc: string;
 }[] = [
-  { id: "LEFT", label: "Left Join", symbol: "◐", desc: "All base rows + matched secondary rows" },
-  { id: "INNER", label: "Inner Join", symbol: "∩", desc: "Only rows with matching keys in both" },
-  { id: "RIGHT", label: "Right Join", symbol: "◑", desc: "All secondary rows + matched base rows" },
-  { id: "FULL", label: "Full Outer", symbol: "◯", desc: "All rows from both tables preserved" },
-  { id: "SEMI", label: "Semi Join", symbol: "⊂", desc: "Filter base rows having matching keys in secondary" },
-  { id: "ANTI", label: "Anti Join", symbol: "⊄", desc: "Filter base rows with NO match in secondary" },
-  { id: "CROSS", label: "Cross Join", symbol: "×", desc: "Cartesian product of all combinations" },
-];
+    { id: "LEFT", label: "Left Join", symbol: "◐", desc: "All base rows + matched secondary rows" },
+    { id: "INNER", label: "Inner Join", symbol: "∩", desc: "Only rows with matching keys in both" },
+    { id: "RIGHT", label: "Right Join", symbol: "◑", desc: "All secondary rows + matched base rows" },
+    { id: "FULL", label: "Full Outer", symbol: "◯", desc: "All rows from both tables preserved" },
+    { id: "SEMI", label: "Semi Join", symbol: "⊂", desc: "Filter base rows having matching keys in secondary" },
+    { id: "ANTI", label: "Anti Join", symbol: "⊄", desc: "Filter base rows with NO match in secondary" },
+    { id: "CROSS", label: "Cross Join", symbol: "×", desc: "Cartesian product of all combinations" },
+  ];
 
 const FILTER_OPERATORS: { id: TableFilter["operator"]; label: string }[] = [
   { id: "=", label: "equals (=)" },
@@ -739,16 +739,6 @@ export function JoinCanvasTab() {
               <h1 className="text-sm font-black tracking-tight" style={{ color: "var(--txt)" }}>
                 Combine &amp; Link Data Tables
               </h1>
-              <span
-                className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
-                style={{
-                  background: "var(--glow)",
-                  color: "var(--accent)",
-                  border: "1px solid var(--accent)",
-                }}
-              >
-                Smart Link Engine
-              </span>
             </div>
             <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
               Easily merge datasets together (e.g. attach customer info to transactions) without writing any code.
@@ -766,22 +756,20 @@ export function JoinCanvasTab() {
           >
             <button
               onClick={() => setActiveMode("visual")}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition ${
-                activeMode === "visual"
-                  ? "bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition ${activeMode === "visual"
+                ? "bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 border border-indigo-500/40 shadow-sm font-bold"
+                : "text-[var(--txt-m)] hover:text-[var(--txt)]"
+                }`}
             >
               <Sliders size={12} />
               <span>Visual Canvas</span>
             </button>
             <button
               onClick={() => setActiveMode("sql")}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition ${
-                activeMode === "sql"
-                  ? "bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition ${activeMode === "sql"
+                ? "bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 border border-indigo-500/40 shadow-sm font-bold"
+                : "text-[var(--txt-m)] hover:text-[var(--txt)]"
+                }`}
             >
               <Terminal size={12} />
               <span>SQL Studio</span>
@@ -849,12 +837,7 @@ export function JoinCanvasTab() {
           <button
             onClick={() => handlePreview()}
             disabled={executingPreview || (!baseTable && activeMode === "visual")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
-            style={{
-              background: "rgba(99, 102, 241, 0.15)",
-              border: "1px solid rgba(99, 102, 241, 0.4)",
-              color: "#818cf8",
-            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition hover:scale-[1.02] disabled:opacity-50 cursor-pointer bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/40 text-indigo-700 dark:text-indigo-300"
           >
             <Play size={13} className={executingPreview ? "animate-spin" : ""} />
             <span>{executingPreview ? "Running..." : "Run Preview"}</span>
@@ -879,13 +862,12 @@ export function JoinCanvasTab() {
       {/* -- TOAST STATUS ---- */}
       {statusMessage && (
         <div
-          className={`mx-5 mt-3 px-4 py-2.5 rounded-xl text-xs font-medium flex items-center justify-between border transition-all ${
-            statusMessage.type === "success"
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-              : statusMessage.type === "error"
-              ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
-              : "bg-blue-500/10 border-blue-500/30 text-blue-400"
-          }`}
+          className={`mx-5 mt-3 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between border transition-all ${statusMessage.type === "success"
+            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+            : statusMessage.type === "error"
+              ? "bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-400"
+              : "bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-400"
+            }`}
         >
           <div className="flex items-center gap-2">
             {statusMessage.type === "success" ? <Check size={14} /> : <AlertCircle size={14} />}
@@ -908,8 +890,7 @@ export function JoinCanvasTab() {
         >
           <div className="flex items-center gap-2.5">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: "rgba(99, 102, 241, 0.2)", color: "#818cf8" }}
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-indigo-500/20 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300"
             >
               <Sparkles size={14} />
             </div>
@@ -928,20 +909,14 @@ export function JoinCanvasTab() {
               <button
                 key={i}
                 onClick={() => applyInferred(r)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition hover:scale-[1.02] cursor-pointer"
-                style={{
-                  background: "rgba(99, 102, 241, 0.12)",
-                  borderColor: "rgba(99, 102, 241, 0.3)",
-                  color: "#a5b4fc",
-                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition hover:scale-[1.02] cursor-pointer bg-indigo-500/15 hover:bg-indigo-500/25 border-indigo-500/30 text-indigo-900 dark:text-indigo-200"
                 title={r.reason}
               >
                 <span>
                   {r.left_table}.{r.left_column} ↔ {r.right_table}.{r.right_column}
                 </span>
                 <span
-                  className="px-1 py-0.5 rounded text-[8px] uppercase tracking-wider font-black"
-                  style={{ background: "rgba(16, 185, 129, 0.2)", color: "#10b981" }}
+                  className="px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider font-black bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30"
                 >
                   {Math.round(r.confidence * 100)}%
                 </span>
@@ -987,11 +962,10 @@ export function JoinCanvasTab() {
                         setBaseTable(t.name);
                         setJoins((prev) => prev.filter((j) => j.table !== t.name));
                       }}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border transition ${
-                        baseTable === t.name
-                          ? "ring-2 ring-[var(--accent)] border-[var(--accent)] shadow-md"
-                          : "hover:border-zinc-500 opacity-80"
-                      }`}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border transition ${baseTable === t.name
+                        ? "ring-2 ring-[var(--accent)] border-[var(--accent)] shadow-md"
+                        : "hover:border-zinc-500 opacity-80"
+                        }`}
                       style={{
                         background:
                           baseTable === t.name
@@ -1004,8 +978,8 @@ export function JoinCanvasTab() {
                       <Database size={13} style={{ color: "var(--accent)" }} />
                       <span>{t.name}</span>
                       <span
-                        className="px-1.5 py-0.5 rounded text-[9px] font-mono"
-                        style={{ background: "rgba(255,255,255,0.06)", color: "var(--txt-m)" }}
+                        className="px-1.5 py-0.5 rounded text-[9px] font-mono border"
+                        style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
                       >
                         {t.row_count.toLocaleString()} rows
                       </span>
@@ -1032,12 +1006,7 @@ export function JoinCanvasTab() {
                   {availableSecondaryTables.length > 0 && (
                     <div className="relative group">
                       <button
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition hover:opacity-80"
-                        style={{
-                          background: "rgba(99, 102, 241, 0.1)",
-                          borderColor: "rgba(99, 102, 241, 0.3)",
-                          color: "#818cf8",
-                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition hover:opacity-80 bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/30 text-indigo-700 dark:text-indigo-300"
                       >
                         <Plus size={12} />
                         <span>Join Table</span>
@@ -1129,8 +1098,7 @@ export function JoinCanvasTab() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span
-                              className="px-2 py-0.5 rounded text-[10px] font-mono font-bold"
-                              style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8" }}
+                              className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/15 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300"
                             >
                               Step {idx + 1}
                             </span>
@@ -1139,7 +1107,7 @@ export function JoinCanvasTab() {
                               <ArrowRight size={12} className="text-zinc-500" />
                               <span style={{ color: "var(--accent)" }}>{j.table}</span>
                               {j.rollup && (
-                                <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                <span className="px-1.5 py-0.2 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
                                   Aggregated (CTE)
                                 </span>
                               )}
@@ -1150,11 +1118,10 @@ export function JoinCanvasTab() {
                             {/* Pre-Join Rollup Toggle Button */}
                             <button
                               onClick={() => toggleRollup(idx)}
-                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border transition ${
-                                j.rollup
-                                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                                  : "border-[var(--border)] text-[var(--txt-m)] hover:text-[var(--txt)]"
-                              }`}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border transition ${j.rollup
+                                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                : "border-[var(--border)] text-[var(--txt-m)] hover:text-[var(--txt)]"
+                                }`}
                               title="Aggregate secondary table before joining (GROUP BY + SUM/COUNT/AVG)"
                             >
                               <BarChart2 size={11} />
@@ -1177,11 +1144,10 @@ export function JoinCanvasTab() {
                             <button
                               key={jt.id}
                               onClick={() => updateJoinType(idx, jt.id)}
-                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition flex items-center gap-1 ${
-                                j.join_type === jt.id
-                                  ? "bg-indigo-600/20 border-indigo-500 text-indigo-300 ring-1 ring-indigo-500"
-                                  : "border-zinc-800 hover:border-zinc-600 text-zinc-400"
-                              }`}
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition flex items-center gap-1 ${j.join_type === jt.id
+                                ? "bg-indigo-500/15 border-indigo-500 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500"
+                                : "border-[var(--border)] hover:border-indigo-400 text-[var(--txt-m)] hover:text-[var(--txt)]"
+                                }`}
                               title={jt.desc}
                             >
                               <span>{jt.symbol}</span>
@@ -1260,13 +1226,13 @@ export function JoinCanvasTab() {
                             }}
                           >
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                              <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400">
                                 <BarChart2 size={13} />
                                 <span>Pre-Join Group By & Aggregation Rollup</span>
                               </div>
                               <button
                                 onClick={() => addRollupMetric(idx)}
-                                className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30"
+                                className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300"
                               >
                                 <Plus size={11} />
                                 <span>Add Metric</span>
@@ -1275,7 +1241,7 @@ export function JoinCanvasTab() {
 
                             {/* Group By selector */}
                             <div className="flex items-center gap-2 text-xs">
-                              <span className="text-[10px] font-mono text-zinc-400">GROUP BY:</span>
+                              <span className="text-[10px] font-mono text-[var(--txt-m)]">GROUP BY:</span>
                               <select
                                 value={j.rollup.group_by[0] || ""}
                                 onChange={(e) => {
@@ -1395,12 +1361,7 @@ export function JoinCanvasTab() {
 
                   <button
                     onClick={addFilter}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition hover:opacity-80"
-                    style={{
-                      background: "rgba(245, 158, 11, 0.1)",
-                      borderColor: "rgba(245, 158, 11, 0.3)",
-                      color: "#fbbf24",
-                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border transition hover:opacity-80 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-700 dark:text-amber-400"
                   >
                     <Plus size={12} />
                     <span>Add Filter</span>
@@ -1604,11 +1565,10 @@ export function JoinCanvasTab() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setViewingTab("preview")}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  viewingTab === "preview"
-                    ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/40"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition ${viewingTab === "preview"
+                  ? "bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 border border-indigo-500/40 shadow-sm"
+                  : "text-[var(--txt-m)] hover:text-[var(--txt)]"
+                  }`}
               >
                 <Table size={13} />
                 <span>Data Preview</span>
@@ -1624,11 +1584,10 @@ export function JoinCanvasTab() {
 
               <button
                 onClick={() => setViewingTab("sql")}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition ${
-                  viewingTab === "sql"
-                    ? "bg-indigo-600/20 text-indigo-300 border border-indigo-500/40"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition ${viewingTab === "sql"
+                  ? "bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 border border-indigo-500/40 shadow-sm"
+                  : "text-[var(--txt-m)] hover:text-[var(--txt)]"
+                  }`}
               >
                 <Code2 size={13} />
                 <span>Generated SQL</span>
@@ -1636,7 +1595,7 @@ export function JoinCanvasTab() {
             </div>
 
             {previewData && (
-              <div className="flex items-center gap-3 text-[11px] font-mono text-zinc-400">
+              <div className="flex items-center gap-3 text-[11px] font-mono text-[var(--txt-m)]">
                 <span>⏱ {previewData.execution_time_ms} ms</span>
                 <span>·</span>
                 <span>📊 {previewData.total_estimated_rows.toLocaleString()} est. total</span>
@@ -1650,8 +1609,7 @@ export function JoinCanvasTab() {
               !previewData ? (
                 <div className="h-full flex flex-col items-center justify-center p-8 text-center gap-3">
                   <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center border"
-                    style={{ background: "rgba(99,102,241,0.1)", borderColor: "rgba(99,102,241,0.3)", color: "#818cf8" }}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center border bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400"
                   >
                     <GitMerge size={22} />
                   </div>

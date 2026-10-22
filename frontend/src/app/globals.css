@@ -91,6 +91,18 @@ html[data-theme="light"] [class*="text-zinc-500"] {
   color: #0f172a !important;
 }
 
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-indigo-200"],
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-indigo-300"],
+html[data-theme="light"] [class*="text-indigo-200"],
+html[data-theme="light"] [class*="text-indigo-300"] {
+  color: #312e81 !important;
+}
+
+:root:not([data-theme*="dark"]):not([data-theme="dracula"]):not([data-theme="slate"]):not([data-theme="emerald"]):not([data-theme="nord"]):not([data-theme="luxury"]) [class*="text-indigo-400"],
+html[data-theme="light"] [class*="text-indigo-400"] {
+  color: #3730a3 !important;
+}
+
 /* Dark Theme: Crisp Pure White Text on Dark Screen */
 html[data-theme="dark"] body,
 html[data-theme="dracula"] body,
