@@ -116,3 +116,51 @@ def test_export_docker_package_zip():
         assert "Dockerfile" in names
         assert "app.py" in names
         assert "requirements.txt" in names
+
+
+def test_apply_model_to_workspace_integration(monkeypatch):
+    from fastapi.testclient import TestClient
+    from dataforge.api.app import create_app
+    from dataforge.api.deps import get_current_user
+    from dataforge.api.services.auth import User
+    from dataforge.api.storage.manager import save, load
+    from dataforge.api.repositories.upload import UploadRepository
+
+    upload_id = "test_apply_workspace_99"
+    df_sample = pd.DataFrame({
+        "age": [32, 54, 21],
+        "income": [65000, 120000, 32000],
+        "support_calls": [1, 5, 0],
+        "tenure_months": [18, 48, 6],
+    })
+    save(upload_id, "df_raw", df_sample)
+    save(upload_id, "df_clean", df_sample.copy())
+    save(upload_id, "meta", {"id": upload_id, "user_id": 1, "filename": "sample_clients.csv"})
+
+    orig_get = UploadRepository.get_by_id
+    monkeypatch.setattr(
+        UploadRepository,
+        "get_by_id",
+        lambda self, uid: {"id": uid, "user_id": 1, "filename": "sample_clients.csv"} if str(uid) == upload_id else orig_get(self, uid)
+    )
+
+    app = create_app()
+    app.dependency_overrides[get_current_user] = lambda: User(id=1, email="test@dataforge.app", name="Tester")
+    client = TestClient(app)
+
+    res = client.post(
+        "/api/models/model_churn_lgbm_v1/apply-to-workspace",
+        json={"upload_id": upload_id},
+    )
+    assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+    body = res.json()
+    assert body["ok"] is True
+    assert body["rows_scored"] == 3
+    assert len(body["new_columns"]) >= 1
+
+    # Verify column was actually added to df_clean in storage
+    df_updated = load(upload_id, "df_clean")
+    assert df_updated is not None
+    assert body["new_columns"][0] in df_updated.columns
+    assert len(df_updated) == 3
+

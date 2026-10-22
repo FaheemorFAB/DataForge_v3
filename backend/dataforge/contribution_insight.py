@@ -60,6 +60,8 @@ class ContributionInsight(BaseInsight):
                 "chart_data":  {"labels": labels, "values": values, "dim": dim},
                 "dimension":   dim,
                 "metric":      metric,
+                "columns_involved": [dim, metric],
+                "is_protected": is_prot,
             }
         except Exception:
             return None

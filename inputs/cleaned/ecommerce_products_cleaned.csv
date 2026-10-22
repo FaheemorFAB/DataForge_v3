@@ -1,0 +1,21 @@
+sku_id,product_name,category,unit_cost_usd,retail_price_usd,target_margin_pct,in_stock_units
+SKU-101,Smartphone,Electronics,295.73,492.32,39.9,1207
+SKU-102,Wireless Earbuds,Electronics,74.78,129.57,42.3,1447
+SKU-103,Gaming Monitor,Electronics,317.43,457.28,30.6,122
+SKU-104,Mechanical Keyboard,Electronics,294.28,667.88,55.9,471
+SKU-105,USB-C Dock,Electronics,238.86,644.56,62.9,345
+SKU-106,Air Fryer,Home & Kitchen,172.32,258.48,33.3,721
+SKU-107,Espresso Machine,Home & Kitchen,275.07,391.35,29.7,765
+SKU-108,Robot Vacuum,Home & Kitchen,145.45,261.37,44.4,398
+SKU-109,Ergonomic Desk,Home & Kitchen,346.32,503.17,31.2,530
+SKU-110,Chef Knife Set,Home & Kitchen,16.63,31.44,47.1,719
+SKU-111,Merino Wool Sweater,Apparel,168.37,307.46,45.2,1199
+SKU-112,Waterproof Jacket,Apparel,131.89,255.99,48.5,772
+SKU-113,Running Shoes,Apparel,93.43,199.75,53.2,391
+SKU-114,Denim Jeans,Apparel,129.04,217.0,40.5,60
+SKU-115,Yoga Leggings,Apparel,17.31,32.41,46.6,21
+SKU-116,Standing Mat,Office Supplies,308.28,500.01,38.3,1025
+SKU-117,Noise Canceling Headset,Office Supplies,286.75,431.3,33.5,1358
+SKU-118,Desk Lamp,Office Supplies,217.93,462.81,52.9,440
+SKU-119,Laser Printer,Office Supplies,25.33,65.07,61.1,570
+SKU-120,Paper Shredder,Office Supplies,39.51,102.38,61.4,523
