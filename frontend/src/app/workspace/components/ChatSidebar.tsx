@@ -66,8 +66,8 @@ function ChatMessageChart({ chartData }: { chartData: any }) {
     document.documentElement.getAttribute("data-theme") || "dark"
   );
 
-  const textColor = isLight ? "#1e293b" : "#d4d4d8";
-  const gridColor = isLight ? "rgba(0,0,0,0.07)" : "rgba(255,255,255,0.08)";
+  const textColor = isLight ? "#000000" : "#FFFFFF";
+  const gridColor = isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)";
 
   const isPieLike = ["pie_chart", "pie", "doughnut_chart", "doughnut"].includes(currentType);
 
@@ -396,7 +396,7 @@ export function ChatSidebar() {
 
   const threadRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
+  const isAnalyzingRef = useRef(false);
 
   // Contextual smart suggestions derived from the latest assistant response
   const latestSuggestions = React.useMemo(() => {
@@ -421,7 +421,7 @@ export function ChatSidebar() {
   }, [uploadId]);
 
   const loadSessions = async () => {
-    if (!uploadId) return;
+    if (!uploadId || isAnalyzingRef.current) return;
     try {
       const res = await apiFetch(`/workspace/state?upload_id=${encodeURIComponent(uploadId)}`);
       if (res.ok) {
@@ -613,9 +613,19 @@ export function ChatSidebar() {
     const targetSessionId = activeSessionId || "default";
     const newMessage = { role: "user", content: queryText, ts: Date.now() };
 
-    setMessages((prev) => [...prev, newMessage]);
-    setQuery("");
+    isAnalyzingRef.current = true;
     setIsAnalyzing(true);
+    // Optimistically append user message to thread
+    setMessages((prev) => [...prev, newMessage]);
+    // Synchronize local session cache so session switching never loses active messages
+    setChatSessions((prev) =>
+      prev.map((s) => (s.id === targetSessionId ? { ...s, messages: [...(s.messages || []), newMessage] } : s))
+    );
+    // Clear input query and reset textarea height
+    setQuery("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
     scrollToBottom();
 
     try {
@@ -630,11 +640,7 @@ export function ChatSidebar() {
       });
       if (res.ok) {
         const data = await res.json();
-        // Automatic state synchronisation when dataset is cleaned or transformed by Ask AI
-        if (data.dataset_updated) {
-          await refreshWorkspace();
-        }
-        if (data.chat_sessions) {
+        if (data.chat_sessions && Array.isArray(data.chat_sessions)) {
           setChatSessions(data.chat_sessions);
         }
         if (data.active_session_id) {
@@ -655,6 +661,10 @@ export function ChatSidebar() {
             return nextMsgs;
           });
         }
+        // Automatic state synchronisation when dataset is cleaned or transformed by Ask AI
+        if (data.dataset_updated) {
+          await refreshWorkspace();
+        }
       } else {
         const errData = await res.json().catch(() => ({}));
         setMessages((prev) => [
@@ -668,6 +678,7 @@ export function ChatSidebar() {
     } catch (e: any) {
       setMessages((prev) => [...prev, { role: "assistant", content: "Error: " + e.message }]);
     } finally {
+      isAnalyzingRef.current = false;
       setIsAnalyzing(false);
       scrollToBottom();
     }

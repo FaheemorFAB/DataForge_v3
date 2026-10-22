@@ -76,6 +76,7 @@ export function CleanerTab() {
   const [rules, setRules] = useState<any[]>([]);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffResult, setDiffResult] = useState<any>(null);
+  const [activeDiffCol, setActiveDiffCol] = useState<string>("");
   const [diffFilter, setDiffFilter] = useState<"all" | "modified">("all");
   const [diffError, setDiffError] = useState("");
   const [showCodeModal, setShowCodeModal] = useState(false);
@@ -243,6 +244,11 @@ export function CleanerTab() {
       }
       setDiffResult(data.diff);
       setDiffFilter("all");
+      if (data.diff?.columns_targeted?.length > 0) {
+        setActiveDiffCol(data.diff.columns_targeted[0]);
+      } else if (data.diff?.column) {
+        setActiveDiffCol(data.diff.column);
+      }
     } catch (err: any) {
       setDiffError(err.message || "Failed to preview diff");
     } finally {
@@ -393,7 +399,7 @@ export function CleanerTab() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Type Filter Pills */}
+                  {/* Type Filter Tabs */}
                   <div className="flex p-0.5 rounded-lg border text-[10px]" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
                     {[
                       { id: "all", label: "All" },
@@ -405,7 +411,7 @@ export function CleanerTab() {
                       <button
                         key={f.id}
                         onClick={() => setTypeFilter(f.id as any)}
-                        className="px-2 py-1 rounded font-bold transition-all cursor-pointer"
+                        className="px-2 py-1 rounded-md font-bold transition-all cursor-pointer"
                         style={{
                           background: typeFilter === f.id ? "var(--accent)" : "transparent",
                           color: typeFilter === f.id ? "#ffffff" : "var(--txt-m)",
@@ -416,8 +422,8 @@ export function CleanerTab() {
                     ))}
                   </div>
 
-                  <button onClick={selectAllFiltered} className="text-[10px] font-bold px-2 py-1 rounded border hover:opacity-80 transition-opacity" style={{ borderColor: "var(--border)", color: "var(--txt-m)", background: "var(--card)" }}>Select Filtered</button>
-                  <button onClick={clearSelection} className="text-[10px] font-bold px-2 py-1 rounded border text-red-400 hover:bg-red-500/10" style={{ borderColor: "rgba(239,68,68,0.3)" }}>Clear</button>
+                  <button onClick={selectAllFiltered} className="text-[10px] font-bold px-2 py-1 rounded-md border hover:opacity-80 transition-opacity" style={{ borderColor: "var(--border)", color: "var(--txt-m)", background: "var(--card)" }}>Select Filtered</button>
+                  <button onClick={clearSelection} className="text-[10px] font-bold px-2 py-1 rounded-md border text-red-400 hover:bg-red-500/10" style={{ borderColor: "rgba(239,68,68,0.3)" }}>Clear</button>
                 </div>
               </div>
 
@@ -434,7 +440,7 @@ export function CleanerTab() {
                 />
               </div>
 
-              {/* Column Pills Grid */}
+              {/* Column Selectors - Rectangular with checkmark and focus states */}
               <div className="max-h-40 overflow-y-auto p-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 no-scrollbar">
                 {filteredColumns.map((c: any) => {
                   const name = typeof c === "string" ? c : c.name;
@@ -444,19 +450,19 @@ export function CleanerTab() {
                     <button
                       key={name}
                       onClick={() => toggleColumnSelection(name)}
-                      className="px-2.5 py-1.5 rounded-xl text-left border flex items-center justify-between gap-1.5 transition-all text-[11px] font-mono cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-md text-left border flex items-center justify-between gap-1.5 transition-all text-[11px] font-mono cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       style={{
-                        background: isSelected ? "var(--glow)" : "var(--inp-bg)",
+                        background: isSelected ? "var(--surface-2, rgba(99,102,241,0.08))" : "var(--inp-bg)",
                         borderColor: isSelected ? "var(--accent)" : "var(--border)",
-                        color: isSelected ? "var(--accent)" : "var(--txt)",
-                        boxShadow: isSelected ? "0 0 10px var(--glow)" : "none",
+                        color: "var(--txt)",
+                        boxShadow: "none",
                       }}
                     >
-                      <span className="truncate flex-1">{name}</span>
+                      <span className="truncate flex-1 font-medium">{name}</span>
                       {nullPct > 0 && (
-                        <span className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-500 font-bold shrink-0">{nullPct}% null</span>
+                        <span className="text-[9px] px-1 rounded bg-amber-500/15 text-amber-500 font-bold shrink-0">{nullPct}% null</span>
                       )}
-                      {isSelected ? <Check size={12} className="shrink-0" style={{ color: "var(--accent)" }} /> : null}
+                      {isSelected ? <Check size={12} className="shrink-0 text-indigo-500" /> : null}
                     </button>
                   );
                 })}
@@ -809,102 +815,131 @@ export function CleanerTab() {
               )}
 
               {/* -- Live Diff Preview Card ---- */}
-              {diffResult && (
-                <div className="mt-4 p-4 rounded-xl border space-y-4" style={{ background: "rgba(99,102,241,0.03)", borderColor: "rgba(99,102,241,0.2)" }}>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                        <Sparkles size={13} /> Simulation Preview for '{diffResult.column}'
-                      </p>
-                      {diffResult.total_changed_rows !== undefined && (
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${diffResult.total_changed_rows > 0
-                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                          : "bg-gray-500/15 text-gray-400 border-gray-500/30"
-                          }`}>
-                          {diffResult.total_changed_rows > 0 && <CheckCircle2 size={11} />}
-                          {diffResult.total_changed_rows > 0
-                            ? `${diffResult.total_changed_rows} ${diffResult.total_changed_rows === 1 ? "row" : "rows"} modified`
-                            : "0 rows modified"}
+              {diffResult && (() => {
+                const targetedCols: string[] = diffResult.columns_targeted || (diffResult.column ? [diffResult.column] : []);
+                const currentDiffCol = (diffResult.by_column && activeDiffCol && diffResult.by_column[activeDiffCol])
+                  ? activeDiffCol
+                  : (targetedCols[0] || diffResult.column);
+                const colData = (diffResult.by_column && currentDiffCol && diffResult.by_column[currentDiffCol])
+                  ? diffResult.by_column[currentDiffCol]
+                  : diffResult;
+                const totalCells = diffResult.total_changed_cells ?? diffResult.total_changed_rows ?? 0;
+
+                return (
+                  <div className="mt-4 p-4 rounded-xl border space-y-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs font-black uppercase tracking-wider text-indigo-500 flex items-center gap-1.5">
+                          <Sparkles size={13} /> Simulation Preview · {targetedCols.length} {targetedCols.length === 1 ? "column" : "columns"}
+                        </p>
+                        <span className="text-xs font-mono font-bold" style={{ color: "var(--txt-m)" }}>
+                          ({totalCells} {totalCells === 1 ? "cell" : "cells"} modified)
                         </span>
+                      </div>
+                      <button onClick={() => setDiffResult(null)} className="cursor-pointer" style={{ color: "var(--txt-m)" }}><X size={14} /></button>
+                    </div>
+
+                    {/* Multi-column tab selector if multiple columns targeted */}
+                    {targetedCols.length > 1 && (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t" style={{ borderColor: "var(--border)" }}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider mr-1" style={{ color: "var(--txt-m)" }}>Inspecting:</span>
+                        {targetedCols.map((cName) => {
+                          const isCurrent = currentDiffCol === cName;
+                          const cChanged = diffResult.by_column?.[cName]?.total_changed_rows ?? 0;
+                          return (
+                            <button
+                              key={cName}
+                              type="button"
+                              onClick={() => setActiveDiffCol(cName)}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-mono font-bold transition-all border cursor-pointer ${isCurrent
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                : "hover:opacity-80"
+                                }`}
+                              style={!isCurrent ? { background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" } : undefined}
+                            >
+                              {cName} ({cChanged} {cChanged === 1 ? "change" : "changes"})
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="p-2.5 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                        <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--txt-m)" }}>Missing Values</span>
+                        <span className="font-mono" style={{ color: "var(--txt)" }}>{colData.stats_before?.nulls ?? 0} → <strong className="text-emerald-500">{colData.stats_after?.nulls ?? 0}</strong></span>
+                      </div>
+                      {colData.stats_before?.mean !== undefined && (
+                        <div className="p-2.5 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                          <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--txt-m)" }}>Mean (Average)</span>
+                          <span className="font-mono" style={{ color: "var(--txt)" }}>{colData.stats_before?.mean} → <strong className="text-indigo-500">{colData.stats_after?.mean}</strong></span>
+                        </div>
+                      )}
+                      {colData.stats_before?.median !== undefined && (
+                        <div className="p-2.5 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                          <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--txt-m)" }}>Median</span>
+                          <span className="font-mono" style={{ color: "var(--txt)" }}>{colData.stats_before?.median} → <strong className="text-indigo-500">{colData.stats_after?.median}</strong></span>
+                        </div>
+                      )}
+                      {colData.stats_before?.std !== undefined && (
+                        <div className="p-2.5 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                          <span className="text-[10px] uppercase font-bold block" style={{ color: "var(--txt-m)" }}>Std Dev</span>
+                          <span className="font-mono" style={{ color: "var(--txt)" }}>{colData.stats_before?.std} → <strong className="text-indigo-500">{colData.stats_after?.std}</strong></span>
+                        </div>
                       )}
                     </div>
-                    <button onClick={() => setDiffResult(null)} className="text-gray-500 hover:text-gray-300"><X size={14} /></button>
-                  </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    <div className="p-2.5 rounded-lg border bg-black/20" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                      <span className="text-[10px] uppercase font-bold text-gray-500 block">Missing Values</span>
-                      <span className="font-mono text-gray-300">{diffResult.stats_before?.nulls ?? 0} → <strong className="text-emerald-400">{diffResult.stats_after?.nulls ?? 0}</strong></span>
-                    </div>
-                    {diffResult.stats_before?.mean !== undefined && (
-                      <div className="p-2.5 rounded-lg border bg-black/20" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                        <span className="text-[10px] uppercase font-bold text-gray-500 block">Mean (Average)</span>
-                        <span className="font-mono text-gray-300">{diffResult.stats_before?.mean} → <strong className="text-indigo-400">{diffResult.stats_after?.mean}</strong></span>
-                      </div>
-                    )}
-                    {diffResult.stats_before?.median !== undefined && (
-                      <div className="p-2.5 rounded-lg border bg-black/20" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                        <span className="text-[10px] uppercase font-bold text-gray-500 block">Median</span>
-                        <span className="font-mono text-gray-300">{diffResult.stats_before?.median} → <strong className="text-indigo-400">{diffResult.stats_after?.median}</strong></span>
-                      </div>
-                    )}
-                    {diffResult.stats_before?.std !== undefined && (
-                      <div className="p-2.5 rounded-lg border bg-black/20" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                        <span className="text-[10px] uppercase font-bold text-gray-500 block">Std Dev</span>
-                        <span className="font-mono text-gray-300">{diffResult.stats_before?.std} → <strong className="text-indigo-400">{diffResult.stats_after?.std}</strong></span>
-                      </div>
-                    )}
-                  </div>
+                    {/* Sample Rows Diff Table Toolbar & Table */}
+                    {colData.sample_diff && colData.sample_diff.length > 0 && (() => {
+                      const changedCount = colData.sample_diff.filter((r: any) => r.changed).length;
+                      const displayedRows = diffFilter === "modified"
+                        ? colData.sample_diff.filter((r: any) => r.changed)
+                        : colData.sample_diff;
 
-                  {/* Sample Rows Diff Table Toolbar & Table */}
-                  {diffResult.sample_diff && diffResult.sample_diff.length > 0 && (() => {
-                    const changedCount = diffResult.sample_diff.filter((r: any) => r.changed).length;
-                    const displayedRows = diffFilter === "modified"
-                      ? diffResult.sample_diff.filter((r: any) => r.changed)
-                      : diffResult.sample_diff;
+                      return (
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center justify-between flex-wrap gap-2 text-[11px]">
+                            <span className="font-medium" style={{ color: "var(--txt-m)" }}>
+                              {changedCount > 0 ? (
+                                <>
+                                  Showing <strong className="text-emerald-500">{changedCount}</strong> modified sample records in <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{currentDiffCol}</span>
+                                </>
+                              ) : (
+                                <span>No rows modified in <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{currentDiffCol}</span></span>
+                              )}
+                            </span>
 
-                    return (
-                      <div className="space-y-2 mt-2">
-                        <div className="flex items-center justify-between flex-wrap gap-2 text-[11px]">
-                          <span className="text-gray-400 font-medium">
-                            {changedCount > 0 ? (
-                              <>
-                                Showing <strong className="text-emerald-400">{changedCount}</strong> modified sample records first
-                              </>
-                            ) : (
-                              <span className="text-gray-500">No rows modified by this rule</span>
+                            {changedCount > 0 && (
+                              <div className="flex items-center gap-1 p-0.5 rounded-lg border text-[10px]" style={{ background: "var(--surface-2, var(--card))", borderColor: "var(--border)" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setDiffFilter("all")}
+                                  className={`px-2.5 py-0.5 rounded font-bold transition-all cursor-pointer ${diffFilter === "all"
+                                    ? "bg-indigo-600 text-white shadow-sm"
+                                    : ""
+                                    }`}
+                                  style={diffFilter !== "all" ? { color: "var(--txt-m)" } : undefined}
+                                >
+                                  All Sample ({colData.sample_diff.length})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDiffFilter("modified")}
+                                  className={`px-2.5 py-0.5 rounded font-bold transition-all cursor-pointer ${diffFilter === "modified"
+                                    ? "bg-emerald-600 text-white shadow-sm"
+                                    : ""
+                                    }`}
+                                  style={diffFilter !== "modified" ? { color: "var(--txt-m)" } : undefined}
+                                >
+                                  Modified Only ({changedCount})
+                                </button>
+                              </div>
                             )}
-                          </span>
+                          </div>
 
-                          {changedCount > 0 && (
-                            <div className="flex items-center gap-1 bg-black/30 p-0.5 rounded-lg border border-white/[0.06] text-[10px]">
-                              <button
-                                type="button"
-                                onClick={() => setDiffFilter("all")}
-                                className={`px-2.5 py-0.5 rounded font-bold transition-all ${diffFilter === "all"
-                                  ? "bg-indigo-600 text-white shadow-sm"
-                                  : "text-gray-400 hover:text-gray-200"
-                                  }`}
-                              >
-                                All Sample ({diffResult.sample_diff.length})
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDiffFilter("modified")}
-                                className={`px-2.5 py-0.5 rounded font-bold transition-all ${diffFilter === "modified"
-                                  ? "bg-emerald-600 text-white shadow-sm"
-                                  : "text-gray-400 hover:text-gray-200"
-                                  }`}
-                              >
-                                Modified Only ({changedCount})
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="rounded-lg border overflow-hidden" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+                        <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
                           <table className="w-full text-[11px] font-mono">
-                            <thead className="bg-black/40 text-gray-400 uppercase text-[9px] tracking-wider">
+                            <thead className="uppercase text-[9px] tracking-wider" style={{ background: "var(--surface-2, var(--card))", color: "var(--txt-m)" }}>
                               <tr>
                                 <th className="p-2.5 text-left font-bold">Row</th>
                                 <th className="p-2.5 text-left font-bold">Before Simulation</th>
@@ -920,51 +955,47 @@ export function CleanerTab() {
                                 return (
                                   <tr
                                     key={idx}
-                                    className={`border-t border-white/[0.04] transition-colors ${row.changed
-                                      ? isRemoved
-                                        ? "bg-red-500/[0.05] hover:bg-red-500/[0.09]"
-                                        : "bg-emerald-500/[0.05] hover:bg-emerald-500/[0.09]"
-                                      : "hover:bg-white/[0.02]"
-                                      }`}
+                                    className="border-t transition-colors"
+                                    style={{ borderColor: "var(--border)" }}
                                   >
-                                    <td className="p-2.5 text-gray-500 font-semibold">#{row.row}</td>
+                                    <td className="p-2.5 font-semibold" style={{ color: "var(--txt-m)" }}>#{row.row}</td>
                                     <td className="p-2.5">
                                       {isNullBefore ? (
-                                        <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-bold text-[10px] border border-red-500/30">
+                                        <span className="px-1.5 py-0.5 rounded bg-red-500/15 text-red-500 font-bold text-[10px] border border-red-500/30">
                                           NaN
                                         </span>
                                       ) : row.changed ? (
-                                        <span className="line-through text-red-400/80 mr-1.5 font-medium">
+                                        <span className="line-through text-red-500/80 mr-1.5 font-medium">
                                           {row.before}
                                         </span>
                                       ) : (
-                                        <span className="text-gray-300">{row.before}</span>
+                                        <span style={{ color: "var(--txt)" }}>{row.before}</span>
                                       )}
                                     </td>
                                     <td className="p-2.5">
                                       {isRemoved ? (
-                                        <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-bold text-[10px] border border-red-500/30">
+                                        <span className="px-1.5 py-0.5 rounded bg-red-500/15 text-red-500 font-bold text-[10px] border border-red-500/30">
                                           DROPPED
                                         </span>
                                       ) : row.changed ? (
-                                        <span className="font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30">
+                                        <span className="font-bold text-emerald-500 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30">
                                           {row.after}
                                         </span>
                                       ) : (
-                                        <span className="text-gray-400">{row.after}</span>
+                                        <span style={{ color: "var(--txt-m)" }}>{row.after}</span>
                                       )}
                                     </td>
                                     <td className="p-2.5 text-right">
                                       {isRemoved ? (
-                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-red-500/15 text-red-500 border border-red-500/30">
                                           Removed
                                         </span>
                                       ) : row.changed ? (
-                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
                                           Modified
                                         </span>
                                       ) : (
-                                        <span className="text-[9px] text-gray-600 font-normal">Unchanged</span>
+                                        <span className="text-[9px] font-normal" style={{ color: "var(--txt-m)" }}>Unchanged</span>
                                       )}
                                     </td>
                                   </tr>
@@ -977,7 +1008,8 @@ export function CleanerTab() {
                     );
                   })()}
                 </div>
-              )}
+              );
+            })()}
             </div>
           </div>
 

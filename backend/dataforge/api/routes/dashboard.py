@@ -50,7 +50,7 @@ async def api_correlation_matrix(
     if df is None:
         raise HTTPException(400, "Dataset not loaded")
 
-    num_cols = df.select_dtypes(include=np.number).columns.tolist()[:10]
+    num_cols = [c for c in df.select_dtypes(include=np.number).columns if not is_id_like_col(c, df[c])][:10]
     if len(num_cols) < 2:
         return JSONResponse(content={"ok": True, "columns": [], "matrix": []})
 
@@ -258,9 +258,9 @@ def _compute_chart_data(df, config):
         values = [round(float(v), 2) for v in grp.values]
 
     elif chart_type == "heatmap":
-        num_cols = df.select_dtypes(include=np.number).columns.tolist()
+        num_cols = [c for c in df.select_dtypes(include=np.number).columns if not is_id_like_col(c, df[c])]
         for col in df.select_dtypes(include=["object", "string"]).columns:
-            if col not in num_cols:
+            if col not in num_cols and not is_id_like_col(col, df[col]):
                 s_num = robust_numeric_series(df[col])
                 if s_num.notna().sum() >= max(5, int(len(df) * 0.5)):
                     num_cols.append(col)
@@ -421,13 +421,17 @@ async def api_dashboard_stats(
         schema  = _load(target_upload_id, "last_schema") or {}
         profile = _load(target_upload_id, "profile") or {}
 
-        numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+        all_numeric = df.select_dtypes(include=np.number).columns.tolist()
         for col in df.select_dtypes(include=["object", "string"]).columns:
-            if col not in numeric_cols:
+            if col not in all_numeric:
                 s_num = robust_numeric_series(df[col])
                 if s_num.notna().sum() >= max(5, int(len(df) * 0.6)):
-                    numeric_cols.append(col)
-        cat_cols = [c for c in df.columns if c not in numeric_cols]
+                    all_numeric.append(col)
+
+        # Separate true business metrics from IDs/entity keys
+        id_cols = [c for c in df.columns if is_id_like_col(c, df[c])]
+        valid_numeric_cols = [c for c in all_numeric if c not in id_cols]
+        cat_cols = [c for c in df.columns if c not in all_numeric and c not in id_cols]
 
         # KPI stats formatting
         stats = []
@@ -445,17 +449,56 @@ async def api_dashboard_stats(
         if metric and metric not in df.columns and metric.lower() in col_map:
             metric = col_map[metric.lower()]
 
-        dim_col    = dim or (cat_cols[0] if cat_cols else None)
-        metric_col = metric or (numeric_cols[0] if numeric_cols else None)
+        dim_col = dim or (cat_cols[0] if cat_cols else None)
+
+        if metric and metric in df.columns:
+            metric_col = metric
+        elif valid_numeric_cols:
+            metric_col = valid_numeric_cols[0]
+            for m in valid_numeric_cols:
+                if any(k in m.lower() for k in ["revenue", "sales", "profit", "amount", "price", "cost", "score", "marks", "balance", "total", "gdp", "value", "quantity"]):
+                    metric_col = m
+                    break
+        elif id_cols:
+            metric_col = id_cols[0]
+        else:
+            metric_col = None
 
         if metric_col and metric_col in df.columns:
-            s = robust_numeric_series(df[metric_col]).dropna()
-            if len(s) > 0:
+            is_id = is_id_like_col(metric_col, df[metric_col])
+            if is_id:
+                s_id = df[metric_col].dropna()
+                u_cnt = s_id.nunique()
+                is_100_pct = u_cnt == len(s_id)
+                sub_txt = f"ID Range: {s_id.min()} to {s_id.max()} (100% Unique)" if is_100_pct else f"ID Range: {s_id.min()} to {s_id.max()} ({u_cnt:,} distinct)"
                 stats.append({
-                    "label": f"Total {metric_col}",
-                    "value": format_stat_val(metric_col, float(s.sum())),
-                    "sub": f"Avg: {format_stat_val(metric_col, float(s.mean()))}",
-                    "type": "sum",
+                    "label": f"Unique {metric_col}",
+                    "value": f"{u_cnt:,}",
+                    "sub": sub_txt,
+                    "type": "entity_count",
+                    "color": "#6366f1",
+                })
+            elif pd.api.types.is_numeric_dtype(df[metric_col]) or metric_col in all_numeric:
+                s = robust_numeric_series(df[metric_col]).dropna()
+                if len(s) > 0:
+                    stats.append({
+                        "label": f"Total {metric_col}",
+                        "value": format_stat_val(metric_col, float(s.sum())),
+                        "sub": f"Avg: {format_stat_val(metric_col, float(s.mean()))}",
+                        "type": "sum",
+                    })
+            else:
+                s_cat = df[metric_col].dropna()
+                u_cnt = s_cat.nunique()
+                top_v = str(s_cat.mode().iloc[0]) if not s_cat.mode().empty else "N/A"
+                if len(top_v) > 15:
+                    top_v = top_v[:12] + "..."
+                stats.append({
+                    "label": f"Categories: {metric_col}",
+                    "value": f"{u_cnt:,}",
+                    "sub": f"Dominant: '{top_v}'",
+                    "type": "distinct",
+                    "color": "#3b82f6",
                 })
 
         if dim_col and dim_col in df.columns:
@@ -492,7 +535,7 @@ async def api_dashboard_stats(
         # Charts
         charts = []
         if dim_col and dim_col in df.columns:
-            if metric_col and metric_col in df.columns:
+            if metric_col and metric_col in df.columns and metric_col in valid_numeric_cols:
                 s_m = robust_numeric_series(df[metric_col])
                 temp_df = pd.DataFrame({dim_col: df[dim_col], metric_col: s_m}).dropna()
                 grp = temp_df.groupby(dim_col)[metric_col].sum().sort_values(ascending=False).head(15)
@@ -515,8 +558,8 @@ async def api_dashboard_stats(
                     "agg_type": "count",
                 })
 
-        if numeric_cols:
-            col = numeric_cols[0]
+        if valid_numeric_cols:
+            col = valid_numeric_cols[0]
             s = robust_numeric_series(df[col]).dropna()
             if len(s) > 0 and s.nunique() > 1:
                 counts, edges = np.histogram(s, bins=15)
@@ -536,14 +579,15 @@ async def api_dashboard_stats(
 
         # ID stats
         id_stats = None
-        for col in numeric_cols:
+        for col in df.columns:
             if is_id_like_col(col, df[col]):
                 try:
+                    s_id = df[col].dropna()
                     id_stats = {
                         "col": col,
-                        "min": float(df[col].min()),
-                        "max": float(df[col].max()),
-                        "total": int(df[col].nunique()),
+                        "min": float(s_id.min()) if pd.api.types.is_numeric_dtype(s_id) else str(s_id.min()),
+                        "max": float(s_id.max()) if pd.api.types.is_numeric_dtype(s_id) else str(s_id.max()),
+                        "total": int(s_id.nunique()),
                     }
                     break
                 except Exception:
@@ -574,7 +618,9 @@ async def api_dashboard_stats(
             "schema": schema_info, "profile": profile,
             "id_stats": id_stats, "recent_data": recent_data,
             "dim": dim_col, "metric": metric_col,
-            "numeric_cols": numeric_cols, "cat_cols": cat_cols,
+            "valid_metrics": valid_numeric_cols,
+            "id_cols": id_cols,
+            "numeric_cols": valid_numeric_cols, "cat_cols": cat_cols,
         }
 
     result = await run_in_executor(_compute)
@@ -601,28 +647,53 @@ async def api_agentic_auto_dashboard(
             raise ValueError("No dataset found")
 
         # 1. Column classification with robust coercion detection
-        numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+        all_numeric = df.select_dtypes(include=np.number).columns.tolist()
         for col in df.select_dtypes(include=["object", "string"]).columns:
-            if col not in numeric_cols:
+            if col not in all_numeric:
                 s_num = robust_numeric_series(df[col])
                 if s_num.notna().sum() >= max(5, int(len(df) * 0.6)):
-                    numeric_cols.append(col)
+                    all_numeric.append(col)
 
+        # Separate true business metrics from IDs/entity keys
+        id_cols = [c for c in df.columns if is_id_like_col(c, df[c])]
+        valid_numeric_cols = [c for c in all_numeric if c not in id_cols]
         date_cols = [c for c in df.columns if any(kw in c.lower() for kw in ["date", "time", "year", "month", "day"])]
-        cat_cols = [c for c in df.columns if c not in numeric_cols and c not in date_cols]
+        cat_cols = [c for c in df.columns if c not in all_numeric and c not in date_cols and c not in id_cols]
+
+        # Case-insensitive resolution of requested dim / metric from body
+        col_map = {c.lower(): c for c in df.columns}
+        req_metric = body.chart_metric
+        if req_metric and req_metric not in df.columns and req_metric.lower() in col_map:
+            req_metric = col_map[req_metric.lower()]
+
+        req_dim = body.chart_dim
+        if req_dim and req_dim not in df.columns and req_dim.lower() in col_map:
+            req_dim = col_map[req_dim.lower()]
 
         # 2. Primary metric & primary cohort selection
-        primary_metric = numeric_cols[0] if numeric_cols else None
-        for m in numeric_cols:
-            if any(k in m.lower() for k in ["sales", "revenue", "amount", "price", "profit", "cost", "total", "score", "value", "balance", "gdp"]):
-                primary_metric = m
-                break
+        if req_metric and req_metric in df.columns:
+            primary_metric = req_metric
+        elif valid_numeric_cols:
+            primary_metric = valid_numeric_cols[0]
+            for m in valid_numeric_cols:
+                if any(k in m.lower() for k in ["sales", "revenue", "amount", "price", "profit", "cost", "total", "score", "value", "balance", "gdp", "marks"]):
+                    primary_metric = m
+                    break
+        elif id_cols:
+            primary_metric = id_cols[0]
+        else:
+            primary_metric = None
 
-        primary_cat = cat_cols[0] if cat_cols else (df.columns[0] if len(df.columns) > 0 else None)
-        for c in cat_cols:
-            if any(k in c.lower() for k in ["category", "type", "segment", "region", "country", "status", "department", "genre", "state", "city"]):
-                primary_cat = c
-                break
+        if req_dim and req_dim in df.columns:
+            primary_cat = req_dim
+        elif cat_cols:
+            primary_cat = cat_cols[0]
+            for c in cat_cols:
+                if any(k in c.lower() for k in ["category", "type", "segment", "region", "country", "status", "department", "genre", "state", "city", "class"]):
+                    primary_cat = c
+                    break
+        else:
+            primary_cat = df.columns[0] if len(df.columns) > 0 else None
 
         # 3. Executive KPI Cards (Always 4 distinct, meaningful cards)
         stats = []
@@ -634,13 +705,39 @@ async def api_agentic_auto_dashboard(
         })
 
         if primary_metric:
-            s = robust_numeric_series(df[primary_metric]).dropna()
-            if len(s) > 0:
+            is_id = is_id_like_col(primary_metric, df[primary_metric])
+            if is_id:
+                s_id = df[primary_metric].dropna()
+                u_cnt = s_id.nunique()
+                is_100_pct = u_cnt == len(s_id)
+                sub_txt = f"ID Range: {s_id.min()} to {s_id.max()} (100% Unique)" if is_100_pct else f"ID Range: {s_id.min()} to {s_id.max()} ({u_cnt:,} distinct)"
                 stats.append({
-                    "label": f"Total {primary_metric}",
-                    "value": format_stat_val(primary_metric, float(s.sum())),
-                    "sub": f"Mean: {format_stat_val(primary_metric, float(s.mean()))}",
-                    "type": "sum",
+                    "label": f"Unique {primary_metric}",
+                    "value": f"{u_cnt:,}",
+                    "sub": sub_txt,
+                    "type": "entity_count",
+                    "color": "#6366f1",
+                })
+            elif primary_metric in valid_numeric_cols or pd.api.types.is_numeric_dtype(df[primary_metric]):
+                s = robust_numeric_series(df[primary_metric]).dropna()
+                if len(s) > 0:
+                    stats.append({
+                        "label": f"Total {primary_metric}",
+                        "value": format_stat_val(primary_metric, float(s.sum())),
+                        "sub": f"Mean: {format_stat_val(primary_metric, float(s.mean()))}",
+                        "type": "sum",
+                    })
+            else:
+                sc = df[primary_metric].dropna()
+                top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
+                if len(top_v) > 15:
+                    top_v = top_v[:12] + "..."
+                stats.append({
+                    "label": f"Categories: {primary_metric}",
+                    "value": f"{sc.nunique():,}",
+                    "sub": f"Dominant: '{top_v}'",
+                    "type": "distinct",
+                    "color": "#3b82f6",
                 })
         elif primary_cat and len(df) > 0:
             sc = df[primary_cat].dropna()
@@ -656,7 +753,7 @@ async def api_agentic_auto_dashboard(
                     "color": "#6366f1",
                 })
 
-        if primary_cat:
+        if primary_cat and primary_cat != primary_metric:
             sc = df[primary_cat].dropna()
             if len(sc) > 0:
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
@@ -664,6 +761,18 @@ async def api_agentic_auto_dashboard(
                     top_v = top_v[:12] + "..."
                 stats.append({
                     "label": f"Primary Cohort ({primary_cat})",
+                    "value": f"{sc.nunique():,} Categories",
+                    "sub": f"Dominant: {top_v}",
+                    "type": "distinct",
+                })
+        elif len(cat_cols) > 0 and cat_cols[0] != primary_metric:
+            sc = df[cat_cols[0]].dropna()
+            if len(sc) > 0:
+                top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
+                if len(top_v) > 15:
+                    top_v = top_v[:12] + "..."
+                stats.append({
+                    "label": f"Cohort ({cat_cols[0]})",
                     "value": f"{sc.nunique():,} Categories",
                     "sub": f"Dominant: {top_v}",
                     "type": "distinct",
@@ -687,7 +796,7 @@ async def api_agentic_auto_dashboard(
         seen_charts: set[tuple] = set()
 
         # Chart 1: Primary Cohort Breakdown
-        if primary_cat and primary_metric:
+        if primary_cat and primary_metric and primary_metric in valid_numeric_cols:
             s_metric = robust_numeric_series(df[primary_metric])
             temp_df = pd.DataFrame({primary_cat: df[primary_cat], primary_metric: s_metric}).dropna()
             grp = temp_df.groupby(primary_cat)[primary_metric].sum().sort_values(ascending=False).head(12)
@@ -749,7 +858,7 @@ async def api_agentic_auto_dashboard(
         if date_cols:
             d_col = date_cols[0]
             try:
-                if primary_metric:
+                if primary_metric and primary_metric in valid_numeric_cols:
                     s_m = robust_numeric_series(df[primary_metric])
                     temp = pd.DataFrame({d_col: df[d_col], primary_metric: s_m}).dropna().sort_values(by=d_col).head(50)
                     charts.append({
@@ -783,10 +892,10 @@ async def api_agentic_auto_dashboard(
             except Exception:
                 pass
 
-        # Chart 4: Bivariate Correlation Scatter (if >=2 numeric) OR Secondary Categorical Breakdown
-        if len(numeric_cols) >= 2:
-            x_num = numeric_cols[0]
-            y_num = numeric_cols[1]
+        # Chart 4: Bivariate Correlation Scatter (if >=2 valid numeric measures) OR Secondary Categorical Breakdown
+        if len(valid_numeric_cols) >= 2:
+            x_num = valid_numeric_cols[0]
+            y_num = valid_numeric_cols[1]
             x_s = robust_numeric_series(df[x_num])
             y_s = robust_numeric_series(df[y_num])
             sub = pd.DataFrame({x_num: x_s, y_num: y_s}).dropna()
@@ -824,8 +933,8 @@ async def api_agentic_auto_dashboard(
                 seen_charts.add((third_cat, "count"))
                 chart_id_counter += 1
 
-        # Chart 5: Numerical Distribution (Histogram) OR Fourth Categorical Distribution
-        if primary_metric:
+        # Chart 5: Numerical Distribution (Histogram) if primary_metric is a valid metric, OR Fourth Categorical Distribution
+        if primary_metric and primary_metric in valid_numeric_cols:
             s = robust_numeric_series(df[primary_metric]).dropna()
             if len(s) > 0 and s.nunique() > 1:
                 counts, edges = np.histogram(s, bins=12)
@@ -861,7 +970,7 @@ async def api_agentic_auto_dashboard(
                 chart_id_counter += 1
 
         # Chart 6: Statistical Box Plot OR Heatmap Association Matrix
-        target_box_metric = numeric_cols[1] if len(numeric_cols) > 1 else primary_metric
+        target_box_metric = valid_numeric_cols[1] if len(valid_numeric_cols) > 1 else (primary_metric if primary_metric in valid_numeric_cols else None)
         if target_box_metric:
             s = robust_numeric_series(df[target_box_metric]).dropna()
             if len(s) > 0 and s.nunique() > 1:
@@ -916,14 +1025,14 @@ async def api_agentic_auto_dashboard(
 
         # 6. ID Stats
         id_stats = None
-        for col in numeric_cols:
+        for col in df.columns:
             if is_id_like_col(col, df[col]):
                 try:
-                    s_id = robust_numeric_series(df[col]).dropna()
+                    s_id = df[col].dropna()
                     id_stats = {
                         "col": col,
-                        "min": float(s_id.min()),
-                        "max": float(s_id.max()),
+                        "min": float(s_id.min()) if pd.api.types.is_numeric_dtype(s_id) else str(s_id.min()),
+                        "max": float(s_id.max()) if pd.api.types.is_numeric_dtype(s_id) else str(s_id.max()),
                         "total": int(s_id.nunique()),
                     }
                     break
@@ -931,7 +1040,7 @@ async def api_agentic_auto_dashboard(
                     pass
 
         # 7. Agentic Narrative Summary (Never output 'N/A')
-        if primary_metric and primary_cat:
+        if primary_metric and primary_metric in valid_numeric_cols and primary_cat:
             s_m = robust_numeric_series(df[primary_metric]).dropna()
             tot_str = format_stat_val(primary_metric, float(s_m.sum())) if len(s_m) > 0 else "0"
             mean_str = format_stat_val(primary_metric, float(s_m.mean())) if len(s_m) > 0 else "0"
@@ -939,6 +1048,13 @@ async def api_agentic_auto_dashboard(
                 f"The DataForge Agentic Workflow evaluated {len(df):,} records across {len(df.columns)} dimensions. "
                 f"Primary quantitative driver detected is '{primary_metric}' (Total: {tot_str}, Mean: {mean_str}) benchmarked across dominant cohort '{primary_cat}'. "
                 f"Automated visualizations and KPIs were curated by VisualizerAgent and AnalyticsAgent utilizing Pareto distribution, statistical dispersion, and bivariate correlation."
+            )
+        elif primary_metric and is_id_like_col(primary_metric, df[primary_metric]):
+            u_cnt = df[primary_metric].nunique()
+            agentic_summary = (
+                f"The DataForge Agentic Workflow evaluated {len(df):,} records across {len(df.columns)} dimensions. "
+                f"Entity tracking is anchored on '{primary_metric}' with {u_cnt:,} distinct identifiers. "
+                f"Visualizations and cohort metrics were curated by VisualizerAgent and AnalyticsAgent using categorical grouping and cardinality analysis."
             )
         elif primary_metric:
             s_m = robust_numeric_series(df[primary_metric]).dropna()
@@ -970,7 +1086,9 @@ async def api_agentic_auto_dashboard(
             "charts": charts,
             "summary": agentic_summary,
             "pinned_insights": _load(target_upload_id, "pinned_insights") or [],
-            "numeric_cols": numeric_cols,
+            "valid_metrics": valid_numeric_cols,
+            "id_cols": id_cols,
+            "numeric_cols": valid_numeric_cols,
             "cat_cols": cat_cols,
             "dim": primary_cat,
             "metric": primary_metric,

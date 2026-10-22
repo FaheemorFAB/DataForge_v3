@@ -6,6 +6,7 @@ import logging
 from typing import Optional, Dict, Any, List
 import pandas as pd
 import numpy as np
+from dataforge.api.utils.helpers import is_id_like_col
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def build_chart_tool(
         
         # 1. Scatter Chart
         if norm_intent in ("scatter_chart", "scatter"):
-            num_cols = df.select_dtypes(include=np.number).columns.tolist()
+            num_cols = [c for c in df.select_dtypes(include=np.number).columns if not is_id_like_col(c, df[c])]
             x = x_col if x_col and x_col in df.columns else (num_cols[0] if num_cols else None)
             y = y_col if y_col and y_col in df.columns else (num_cols[1] if len(num_cols) > 1 else None)
             if x and y:

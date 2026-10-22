@@ -81,7 +81,7 @@ async def run_insights_task(
                         elif role == "protected" and col not in schema.get("protected_columns", []):
                             schema["protected_columns"].append(col)
 
-            insights = run_insights(df, schema, top_n=top_n, target_metric=target_metric, focus_prompt=focus_prompt)
+            insights = run_insights(df, schema, top_n=max(top_n, 12), target_metric=target_metric, focus_prompt=focus_prompt)
             up = db_get("uploads", upload_id)
             filename = up.get("filename", "Dataset") if up else "Dataset"
 

@@ -35,6 +35,7 @@ import {
   Bot,
   Sparkles,
   LayoutDashboard,
+  Target,
 } from "lucide-react";
 import { Scatter, Line, Bar, Pie, Doughnut, Radar, PolarArea } from "react-chartjs-2";
 import { ForecastCard, InsightCard } from "./InsightsTab";
@@ -128,13 +129,14 @@ function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: 
 // -- KPI Card --
 function KpiCard({ stat, idx }: { stat: any; idx: number }) {
   const color = stat.color || PALETTE[idx % PALETTE.length];
+  const icon = stat.type === "entity_count" ? <Layers size={14} /> : stat.type === "distinct" ? <PieChart size={14} /> : stat.type === "completeness" ? <Activity size={14} /> : stat.type === "rows" ? <LayoutDashboard size={14} /> : <BarChart4 size={14} />;
   return (
     <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid var(--border)", minHeight: 110 }}>
       <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-15 blur-2xl pointer-events-none" style={{ background: color }} />
       <div className="flex items-start justify-between">
         <p className="text-[10px] font-bold uppercase tracking-widest truncate pr-2" style={{ color: "var(--txt-m)" }}>{stat.label}</p>
         <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}>
-          <BarChart4 size={14} />
+          {icon}
         </div>
       </div>
       <div>
@@ -661,6 +663,10 @@ export function DashboardTab() {
   const [dashSummary, setDashSummary] = useState("");
   const [dashIdStats, setDashIdStats] = useState<any>(null);
   const [dashNumericCols, setDashNumericCols] = useState<string[]>([]);
+  const [validMetrics, setValidMetrics] = useState<string[]>([]);
+  const [idCols, setIdCols] = useState<string[]>([]);
+  const [catCols, setCatCols] = useState<string[]>([]);
+  const [selectedMetric, setSelectedMetric] = useState<string>("");
   const [dashInsights, setDashInsights] = useState<any[]>([]);
   const [pinnedInsights, setPinnedInsights] = useState<any[]>([]);
   const [profileCols, setProfileCols] = useState<string[]>([]);
@@ -672,14 +678,15 @@ export function DashboardTab() {
 
   const activeColors = PALETTES[selectedPalette]?.colors || PALETTES.indigo.colors;
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (metricOverride?: string) => {
     if (!uploadId) return;
     setIsDashLoading(true);
+    const metricToUse = metricOverride !== undefined ? metricOverride : selectedMetric;
     try {
       const res = await apiFetch("/dashboard/agentic-auto", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chart_dim: "", chart_metric: "", upload_id: uploadId }),
+        body: JSON.stringify({ chart_dim: "", chart_metric: metricToUse, upload_id: uploadId }),
       });
       if (res.ok) {
         const d = await res.json();
@@ -688,17 +695,28 @@ export function DashboardTab() {
         setDashSummary(d.summary || "");
         setDashIdStats(d.id_stats || null);
         setDashNumericCols(d.numeric_cols || []);
+        setValidMetrics(d.valid_metrics || []);
+        setIdCols(d.id_cols || []);
+        setCatCols(d.cat_cols || []);
         setDashInsights(d.insights || []);
         setPinnedInsights(d.pinned_insights || []);
         if (d.governed_by) setGovernedBy(d.governed_by);
-        setProfileCols(d.cat_cols ? [...(d.cat_cols || []), ...(d.numeric_cols || [])] : profile?.columns?.map((c: any) => c.name) || []);
+        if (d.metric) {
+          setSelectedMetric(d.metric);
+        }
+        setProfileCols(d.cat_cols ? [...(d.valid_metrics || []), ...(d.id_cols || []), ...(d.cat_cols || [])] : profile?.columns?.map((c: any) => c.name) || []);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setIsDashLoading(false);
     }
-  }, [uploadId, profile]);
+  }, [uploadId, profile, selectedMetric]);
+
+  const handleMetricChange = (newMetric: string) => {
+    setSelectedMetric(newMetric);
+    loadDashboard(newMetric);
+  };
 
   const unpinInsight = async (ins: any) => {
     if (!uploadId) return;
@@ -813,6 +831,57 @@ export function DashboardTab() {
 
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Primary KPI Attribute Selector */}
+          {(validMetrics.length > 0 || idCols.length > 0 || catCols.length > 0 || profileCols.length > 0) && (
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+              title="Select which attribute anchors the executive summary KPI"
+            >
+              <Target size={13} className="text-indigo-400 flex-shrink-0" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1">KPI Focus:</span>
+              <select
+                value={selectedMetric}
+                onChange={e => handleMetricChange(e.target.value)}
+                className="bg-transparent border-none outline-none cursor-pointer font-sans text-[11px] font-semibold max-w-[140px] truncate"
+                style={{ color: "var(--txt)" }}
+              >
+                {validMetrics.length > 0 && (
+                  <optgroup label="Quantitative Measures" style={{ background: "var(--surface)", color: "var(--txt)" }}>
+                    {validMetrics.map(col => (
+                      <option key={`m-${col}`} value={col} style={{ background: "var(--surface)", color: "var(--txt)" }}>
+                        {col}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {idCols.length > 0 && (
+                  <optgroup label="Identifiers (Entity Count)" style={{ background: "var(--surface)", color: "var(--txt-m)" }}>
+                    {idCols.map(col => (
+                      <option key={`id-${col}`} value={col} style={{ background: "var(--surface)", color: "var(--txt)" }}>
+                        {col} (ID)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {catCols.length > 0 && (
+                  <optgroup label="Categorical Cohorts" style={{ background: "var(--surface)", color: "var(--txt-m)" }}>
+                    {catCols.map(col => (
+                      <option key={`c-${col}`} value={col} style={{ background: "var(--surface)", color: "var(--txt)" }}>
+                        {col}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {validMetrics.length === 0 && idCols.length === 0 && catCols.length === 0 && profileCols.map(col => (
+                  <option key={`fb-${col}`} value={col} style={{ background: "var(--surface)", color: "var(--txt)" }}>
+                    {col}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Palette / Theme Selector */}
           <div
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold"

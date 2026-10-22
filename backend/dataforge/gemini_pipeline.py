@@ -49,7 +49,7 @@ def _gemini(prompt: str, temperature: float = 0.1, timeout: int = 60) -> str:
     api_key = (os.getenv("GEMINI_API_KEY") or "").strip("'\"")
     if not api_key:
         raise ValueError("GEMINI_API_KEY is not configured. Add it to backend/.env.")
-    model_name = (os.getenv("GEMINI_MODEL") or "gemini-4-argon").strip()
+    model_name = (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
     models_to_try = [model_name, "gemini-2.5-flash", "gemini-flash-latest"]
     models_to_try = list(dict.fromkeys(models_to_try))
 
@@ -188,8 +188,9 @@ def _run_code(code: str, df: pd.DataFrame):
 
 def _build_chart(intent, x_col, y_col, top_n, raw, df):
     try:
+        from dataforge.api.utils.helpers import is_id_like_col
         if intent == "scatter_chart":
-            nc = df.select_dtypes(include=np.number).columns.tolist()
+            nc = [c for c in df.select_dtypes(include=np.number).columns if not is_id_like_col(c, df[c])]
             x  = (x_col if x_col and x_col in df.columns else nc[0] if nc else None)
             y  = (y_col if y_col and y_col in df.columns else nc[1] if len(nc) > 1 else None)
             if x and y:

@@ -10,6 +10,7 @@ import {
   Title, Tooltip, Legend, Filler,
 } from "chart.js";
 import { Scatter, Line, Bar, Doughnut } from "react-chartjs-2";
+import { getChartThemeColors } from "@/lib/chartTheme";
 import {
   Sparkles, Brain, TrendingUp, TrendingDown, AlertTriangle, Activity,
   BarChart2, GitBranch, Layers, Zap, Target, ChevronDown, Pin, Shield, Tag, X, Check,
@@ -62,13 +63,14 @@ function theme(type: string) {
 
 // -- Tooltip config --
 function mkTooltip(color: string) {
+  const tc = getChartThemeColors();
   return {
     displayColors: false,
-    backgroundColor: "rgba(8,8,20,0.97)",
-    borderColor: color,
+    backgroundColor: tc.tooltipBg,
+    borderColor: color || tc.tooltipBorder,
     borderWidth: 1,
-    titleColor: "rgba(255,255,255,0.95)",
-    bodyColor: "rgba(255,255,255,0.7)",
+    titleColor: tc.tooltipText,
+    bodyColor: tc.tooltipText,
     padding: 10,
     cornerRadius: 8,
     callbacks: {
@@ -128,10 +130,11 @@ function renderFormattedText(text: string, isBullet = false): React.ReactNode {
 
 // -- Base chart options --
 function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): any {
+  const tc = getChartThemeColors();
   const scaleBase = {
-    ticks: { color: "#1e293b", font: { size: 11, weight: "bold" as const }, maxTicksLimit: 8 },
-    grid: { color: "rgba(0,0,0,0.06)" },
-    border: { color: "#94a3b8" },
+    ticks: { color: tc.text, font: { size: 11, weight: "bold" as const }, maxTicksLimit: 8 },
+    grid: { color: tc.grid },
+    border: { color: tc.border },
   };
   return {
     responsive: true,
@@ -147,7 +150,7 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
         title: {
           display: true,
           text: xLabel || (horizontal ? "Value" : "Category"),
-          color: "#0f172a",
+          color: tc.text,
           font: { size: 12, weight: "bold" as const },
           padding: { top: 4 },
         },
@@ -163,13 +166,13 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
         title: {
           display: true,
           text: yLabel || (horizontal ? "Category" : "Value"),
-          color: "#0f172a",
+          color: tc.text,
           font: { size: 12, weight: "bold" as const },
           padding: { bottom: 4 },
         },
         ticks: horizontal
           ? {
-            color: "#1e293b",
+            color: tc.text,
             font: { size: 11, weight: "bold" as const },
             callback: function (this: any, val: any) {
               const lbl = this.getLabelForValue ? this.getLabelForValue(val) : val;
@@ -337,7 +340,7 @@ function renderInsightChart(ins: any): React.ReactNode {
           plugins: {
             legend: {
               display: true, position: "right" as const, labels: {
-                color: "#1e293b", font: { size: 11, weight: "bold" }, boxWidth: 12, padding: 12,
+                color: getChartThemeColors().text, font: { size: 11, weight: "bold" }, boxWidth: 12, padding: 12,
                 generateLabels: (chart: any) => {
                   const ds = chart.data.datasets[0];
                   return (chart.data.labels || []).map((lbl: string, i: number) => {
@@ -364,7 +367,7 @@ function renderInsightChart(ins: any): React.ReactNode {
         options={{
           responsive: true, maintainAspectRatio: false, animation: { duration: 500 }, layout: { padding: 8 },
           plugins: {
-            legend: { display: true, position: "right" as const, labels: { color: "#1e293b", font: { size: 11, weight: "bold" }, boxWidth: 12, padding: 12 } },
+            legend: { display: true, position: "right" as const, labels: { color: getChartThemeColors().text, font: { size: 11, weight: "bold" }, boxWidth: 12, padding: 12 } },
             tooltip: { ...mkTooltip(col), callbacks: { label: (ctx: any) => `  ${ctx.label}: ${fmtN(Number(ctx.parsed))} (${total > 0 ? ((Math.abs(Number(ctx.parsed)) / total) * 100).toFixed(1) : 0}%)` } },
           },
         }}
@@ -637,6 +640,7 @@ export function ForecastCard({ ins }: { ins: any }) {
     ],
   };
 
+  const tc = getChartThemeColors();
   const chartOpts: any = {
     responsive: true,
     maintainAspectRatio: false,
@@ -646,7 +650,7 @@ export function ForecastCard({ ins }: { ins: any }) {
       legend: {
         display: true,
         labels: {
-          color: "#000000",
+          color: tc.text,
           font: { size: 11, weight: "bold" },
           boxWidth: 12,
           filter: (item: any) => ["Historical", "Forecast"].includes(item.text),
@@ -662,25 +666,25 @@ export function ForecastCard({ ins }: { ins: any }) {
         title: {
           display: true,
           text: "Date / Time",
-          color: "#000000",
+          color: tc.text,
           font: { size: 12, weight: "bold" },
           padding: { top: 4 },
         },
-        ticks: { color: "#000000", font: { size: 11, weight: "bold" }, maxTicksLimit: 8 },
-        grid: { color: "rgba(0,0,0,0.08)" },
-        border: { color: "#000000" },
+        ticks: { color: tc.text, font: { size: 11, weight: "bold" }, maxTicksLimit: 8 },
+        grid: { color: tc.grid },
+        border: { color: tc.border },
       },
       y: {
         title: {
           display: true,
           text: toLabel(ins.metric || "Value"),
-          color: "#000000",
+          color: tc.text,
           font: { size: 12, weight: "bold" },
           padding: { bottom: 4 },
         },
-        ticks: { color: "#000000", font: { size: 11, weight: "bold" }, callback: (v: any) => fmtN(Number(v)) },
-        grid: { color: "rgba(0,0,0,0.08)" },
-        border: { color: "#000000" },
+        ticks: { color: tc.text, font: { size: 11, weight: "bold" }, callback: (v: any) => fmtN(Number(v)) },
+        grid: { color: tc.grid },
+        border: { color: tc.border },
       },
     },
   };
@@ -701,31 +705,43 @@ export function ForecastCard({ ins }: { ins: any }) {
             <p className="text-[10px] font-mono mt-0.5" style={{ color: "var(--txt-m)" }}>Predictive Analytics · {bestModel}</p>
           </div>
         </div>
-        <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md" style={{ background: "rgba(0,212,255,0.1)", color: "#00d4ff", border: "1px solid rgba(0,212,255,0.25)" }}>
-          forecast
+        <span className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+          forecast model
         </span>
       </div>
 
       {/* Description */}
       <p className="px-5 pb-3 text-[11px] leading-relaxed" style={{ color: "var(--txt-m)" }}>{ins.description}</p>
 
-      {/* KPI pills */}
-      <div className="px-5 pb-4 flex flex-wrap gap-2">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: isPositive ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)", border: `1px solid ${isPositive ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"}` }}>
-          {isPositive ? <TrendingUp size={11} style={{ color: "#10b981" }} /> : <TrendingDown size={11} style={{ color: "#ef4444" }} />}
-          <span className="text-[10px] font-black" style={{ color: isPositive ? "#10b981" : "#ef4444" }}>{isPositive ? "+" : ""}{growthPct.toFixed(1)}% Projected</span>
+      {/* Forecast Metric Tiles */}
+      <div className="px-5 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+          {isPositive ? <TrendingUp size={14} style={{ color: "#10b981" }} /> : <TrendingDown size={14} style={{ color: "#ef4444" }} />}
+          <div className="min-w-0">
+            <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Projected</span>
+            <span className="block text-xs font-mono font-bold" style={{ color: isPositive ? "#10b981" : "#ef4444" }}>{isPositive ? "+" : ""}{growthPct.toFixed(1)}%</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.2)" }}>
-          <Target size={11} style={{ color: "#00d4ff" }} />
-          <span className="text-[10px] font-black" style={{ color: "#00d4ff" }}>Est. {fmtN(stats.proj_end_val ?? 0)}</span>
+        <div className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+          <Target size={14} className="text-cyan-500" />
+          <div className="min-w-0">
+            <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>End Val</span>
+            <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>{fmtN(stats.proj_end_val ?? 0)}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}>
-          <Zap size={11} style={{ color: "#f59e0b" }} />
-          <span className="text-[10px] font-black" style={{ color: "#f59e0b" }}>MAPE {avgMAPE}%</span>
+        <div className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+          <Zap size={14} className="text-amber-500" />
+          <div className="min-w-0">
+            <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Avg MAPE</span>
+            <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>{avgMAPE}%</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)" }}>
-          <BarChart2 size={11} style={{ color: "#8b5cf6" }} />
-          <span className="text-[10px] font-black" style={{ color: "#8b5cf6" }}>{stats.n_points ?? 0} pts</span>
+        <div className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+          <BarChart2 size={14} className="text-indigo-500" />
+          <div className="min-w-0">
+            <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Horizon</span>
+            <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>{stats.n_points ?? 0} pts</span>
+          </div>
         </div>
       </div>
 
@@ -761,7 +777,7 @@ export function ForecastCard({ ins }: { ins: any }) {
       </div>
 
       {/* Chart area */}
-      <div className="mx-3 mb-4 rounded-xl p-3 bg-white border border-slate-300 shadow-inner" style={{ height: 290, position: "relative" }}>
+      <div className="mx-3 mb-4 rounded-xl p-3 border shadow-inner" style={{ background: "var(--card-bg, var(--surface))", borderColor: "var(--border)", height: 290, position: "relative" }}>
         {activeTab === "forecast" && (
           <>
             {runningForecast && (
@@ -786,7 +802,7 @@ export function ForecastCard({ ins }: { ins: any }) {
                 { label: "Residual", data: decomp.residual, borderColor: "rgba(239,68,68,0.6)", backgroundColor: "transparent", borderWidth: 1, pointRadius: 0, tension: 0.3 },
               ],
             }}
-            options={{ ...chartOpts, plugins: { ...chartOpts.plugins, legend: { display: true, labels: { color: "#1e293b", font: { size: 10, weight: "bold" }, boxWidth: 12 } } } }}
+            options={{ ...chartOpts, plugins: { ...chartOpts.plugins, legend: { display: true, labels: { color: tc.text, font: { size: 10, weight: "bold" }, boxWidth: 12 } } } }}
           />
         )}
         {activeTab === "decomp" && !decomp && (
@@ -797,24 +813,24 @@ export function ForecastCard({ ins }: { ins: any }) {
 
         {activeTab === "models" && (
           <div className="h-full overflow-auto flex flex-col gap-3 px-2 py-4">
-            <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "#1e293b" }}>Model Accuracy (MAPE — lower is better)</p>
+            <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--txt)" }}>Model Accuracy (MAPE — lower is better)</p>
             {Object.entries(mapes as Record<string, number>).map(([name, mape]) => {
               const isB = name === bestModel;
               const barW = Math.max(5, Math.min(100, 100 - mape));
               return (
                 <div key={name} className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold flex-shrink-0" style={{ width: 120, color: isB ? "#00d4ff" : "#1e293b" }}>
+                  <span className="text-[10px] font-bold flex-shrink-0" style={{ width: 120, color: isB ? "var(--accent)" : "var(--txt)" }}>
                     {name}{isB ? " ★" : ""}
                   </span>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "rgba(0,0,0,0.08)" }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${barW}%`, background: isB ? "linear-gradient(90deg,#00d4ff,#6366f1)" : "rgba(0,0,0,0.25)" }} />
+                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${barW}%`, background: isB ? "linear-gradient(90deg,#00d4ff,#6366f1)" : "var(--txt-m)" }} />
                   </div>
-                  <span className="text-[10px] font-mono font-bold" style={{ width: 60, textAlign: "right", color: isB ? "#00d4ff" : "#1e293b" }}>{mape.toFixed(1)}% err</span>
+                  <span className="text-[10px] font-mono font-bold" style={{ width: 60, textAlign: "right", color: isB ? "var(--accent)" : "var(--txt-m)" }}>{mape.toFixed(1)}% err</span>
                 </div>
               );
             })}
             {Object.keys(mapes).length === 0 && (
-              <p className="text-[11px]" style={{ color: "#1e293b" }}>No model metrics available.</p>
+              <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>No model metrics available.</p>
             )}
           </div>
         )}
@@ -877,7 +893,7 @@ function DatasetProfileVisual({ ins }: { ins: any }) {
         </div>
         <div className="flex justify-between items-center">
           <span className="font-semibold text-[10px]" style={{ color: "var(--txt-m)" }}>Domain Classification:</span>
-          <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-indigo-500/15 text-indigo-500 border border-indigo-500/30">
+          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--txt)" }}>
             {domain}
           </span>
         </div>
@@ -928,8 +944,8 @@ export function InsightCard({
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="font-black text-sm leading-tight truncate" title={ins.title} style={{ color: "var(--txt)" }}>{ins.title}</p>
             {ins.is_protected && (
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                Demographic Segment
+              <span className="text-[10px] font-semibold" style={{ color: "var(--warn-fg, #f59e0b)" }}>
+                · Demographic Segment
               </span>
             )}
           </div>
@@ -937,10 +953,7 @@ export function InsightCard({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          <span
-            className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md whitespace-nowrap"
-            style={{ background: t.bg, color: t.text, border: `1px solid ${t.border}` }}
-          >
+          <span className="text-[10px] font-medium tracking-wider uppercase" style={{ color: "var(--txt-m)" }}>
             {ins.type?.replace(/_/g, " ")}
           </span>
 
@@ -985,7 +998,7 @@ export function InsightCard({
 
       {/* Visual Content: Chart or Structured Profile */}
       {hasChart ? (
-        <div className="mx-3 mb-3 rounded-xl p-3 bg-white border border-slate-300 shadow-inner" style={{ height: 230, position: "relative" }}>
+        <div className="mx-3 mb-3 rounded-xl p-3 border shadow-inner" style={{ background: "var(--card-bg, var(--surface))", borderColor: "var(--border)", height: 230, position: "relative" }}>
           {renderInsightChart(ins)}
         </div>
       ) : ins.type === "profile" ? (
@@ -1567,8 +1580,7 @@ export function InsightsTab() {
   const runInsights = async (customPrompt?: string, countOverride?: number) => {
     setIsRunning(true);
     setInsightError("");
-    setInsightCards([]);
-    setInsightSummary("");
+    // Keep existing cards and summary while running if they exist, so no screen-wiping / flashing
     const activePrompt = customPrompt !== undefined ? customPrompt : focusPrompt;
     const targetN = countOverride || parseInt(insightTopN, 10) || 6;
 
@@ -1755,7 +1767,9 @@ export function InsightsTab() {
                   type="button"
                   onClick={() => {
                     setInsightTopN(String(n));
-                    runInsights(undefined, n);
+                    if (visibleCards.length < n) {
+                      runInsights(undefined, n);
+                    }
                   }}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${active
                     ? "bg-indigo-600 text-white shadow-sm"

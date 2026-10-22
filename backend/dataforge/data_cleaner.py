@@ -742,7 +742,7 @@ def run_dynamic_cleaning_pipeline(df_raw: pd.DataFrame, rules: list[dict]) -> di
 def compute_rule_diff(df_raw: pd.DataFrame, rule: dict, max_sample_rows: int = 1000) -> dict:
     """
     Simulates a single cleaning rule on a sample of the dataset and returns
-    before/after metrics and row deltas for live UI preview.
+    before/after metrics and row deltas for live UI preview across all selected columns.
     """
     cols = rule.get("columns")
     if not cols:
@@ -753,13 +753,13 @@ def compute_rule_diff(df_raw: pd.DataFrame, rule: dict, max_sample_rows: int = 1
     if not target_cols:
         return {"error": "Target column(s) not found in dataset."}
 
-    col = target_cols[0] # primary inspection column
-
     # Sample dataframe for fast preview - ensure rows with missing values are captured if present
     if len(df_raw) > max_sample_rows:
-        null_indices = df_raw[df_raw[col].isnull()].index
         head_sample = df_raw.head(max_sample_rows)
-        if len(null_indices) > 0 and head_sample[col].isnull().sum() == 0:
+        # Check null indices across any target columns
+        null_mask = df_raw[target_cols].isnull().any(axis=1)
+        null_indices = df_raw[null_mask].index
+        if len(null_indices) > 0 and not head_sample[target_cols].isnull().any().any():
             null_part = df_raw.loc[null_indices[:min(100, len(null_indices))]]
             keep_head = max_sample_rows - len(null_part)
             df_sample = pd.concat([head_sample.head(keep_head), null_part]).sort_index().copy()
@@ -767,25 +767,6 @@ def compute_rule_diff(df_raw: pd.DataFrame, rule: dict, max_sample_rows: int = 1
             df_sample = head_sample.copy()
     else:
         df_sample = df_raw.copy()
-
-    # Compute stats before
-    nulls_before = int(df_sample[col].isnull().sum())
-    is_num = pd.api.types.is_numeric_dtype(df_sample[col])
-    
-    stats_before = {
-        "nulls": nulls_before,
-        "null_pct": round(nulls_before / len(df_sample) * 100, 1),
-    }
-    if is_num and df_sample[col].notna().sum() > 0:
-        stats_before["mean"] = round(float(df_sample[col].mean()), 4)
-        stats_before["median"] = round(float(df_sample[col].median()), 4)
-        stats_before["std"] = round(float(df_sample[col].std()), 4) if df_sample[col].count() > 1 else 0.0
-        stats_before["min"] = round(float(df_sample[col].min()), 4)
-        stats_before["max"] = round(float(df_sample[col].max()), 4)
-
-    # Run single rule simulation
-    sim_result = run_dynamic_cleaning_pipeline(df_sample, [rule])
-    df_sim = sim_result["df_clean"]
 
     # Helper to cleanly format numbers, strings, and missing values
     def _fmt_diff_val(val):
@@ -798,108 +779,118 @@ def compute_rule_diff(df_raw: pd.DataFrame, rule: dict, max_sample_rows: int = 1
             return f"{r:.1f}" if r == int(r) else str(r)
         return str(val)
 
-    # If column was dropped, indicate in response
-    if col not in df_sim.columns:
-        return {
-            "column": col,
-            "action": "drop",
-            "stats_before": stats_before,
-            "stats_after": {"status": "Column Dropped"},
-            "total_changed_rows": len(df_sample),
-            "total_sample_rows": len(df_sample),
-            "sample_diff": [
-                {
-                    "row": int(idx),
-                    "before": _fmt_diff_val(df_sample.loc[idx, col]),
-                    "after": "REMOVED",
-                    "changed": True,
-                }
-                for idx in df_sample.index[:15]
-            ],
+    # Run single rule simulation
+    sim_result = run_dynamic_cleaning_pipeline(df_sample, [rule])
+    df_sim = sim_result["df_clean"]
+
+    def _col_diff(c: str) -> dict:
+        is_num = pd.api.types.is_numeric_dtype(df_sample[c])
+        nulls_before = int(df_sample[c].isnull().sum())
+        stats_before = {
+            "nulls": nulls_before,
+            "null_pct": round(nulls_before / len(df_sample) * 100, 1),
         }
+        if is_num and df_sample[c].notna().sum() > 0:
+            stats_before["mean"] = round(float(df_sample[c].mean()), 4)
+            stats_before["median"] = round(float(df_sample[c].median()), 4)
+            stats_before["std"] = round(float(df_sample[c].std()), 4) if df_sample[c].count() > 1 else 0.0
+            stats_before["min"] = round(float(df_sample[c].min()), 4)
+            stats_before["max"] = round(float(df_sample[c].max()), 4)
 
-    # Compute stats after
-    nulls_after = int(df_sim[col].isnull().sum()) if col in df_sim.columns else 0
-    stats_after = {
-        "nulls": nulls_after,
-        "null_pct": round(nulls_after / max(len(df_sim), 1) * 100, 1),
-    }
-    if is_num and col in df_sim.columns and df_sim[col].notna().sum() > 0:
-        stats_after["mean"] = round(float(df_sim[col].mean()), 4)
-        stats_after["median"] = round(float(df_sim[col].median()), 4)
-        stats_after["std"] = round(float(df_sim[col].std()), 4) if df_sim[col].count() > 1 else 0.0
-        stats_after["min"] = round(float(df_sim[col].min()), 4)
-        stats_after["max"] = round(float(df_sim[col].max()), 4)
+        if c not in df_sim.columns:
+            return {
+                "column": c,
+                "action": "drop",
+                "stats_before": stats_before,
+                "stats_after": {"status": "Column Dropped"},
+                "total_changed_rows": len(df_sample),
+                "sample_diff": [
+                    {
+                        "row": int(idx),
+                        "before": _fmt_diff_val(df_sample.loc[idx, c]),
+                        "after": "REMOVED",
+                        "changed": True,
+                    }
+                    for idx in df_sample.index[:15]
+                ],
+            }
 
-    # Side-by-side comparison sample: prioritize modified rows so users see actual simulation effects
-    changed_diff = []
-    unchanged_diff = []
+        nulls_after = int(df_sim[c].isnull().sum())
+        stats_after = {
+            "nulls": nulls_after,
+            "null_pct": round(nulls_after / max(len(df_sim), 1) * 100, 1),
+        }
+        if is_num and df_sim[c].notna().sum() > 0:
+            stats_after["mean"] = round(float(df_sim[c].mean()), 4)
+            stats_after["median"] = round(float(df_sim[c].median()), 4)
+            stats_after["std"] = round(float(df_sim[c].std()), 4) if df_sim[c].count() > 1 else 0.0
+            stats_after["min"] = round(float(df_sim[c].min()), 4)
+            stats_after["max"] = round(float(df_sim[c].max()), 4)
 
-    for idx in df_sample.index:
-        b_exists = idx in df_sample.index
-        a_exists = (idx in df_sim.index and col in df_sim.columns)
-
-        if not a_exists:
-            # Row was removed / filtered out
-            b_val = _fmt_diff_val(df_sample.loc[idx, col]) if b_exists else "N/A"
-            a_val = "REMOVED"
-            changed_diff.append({
-                "row": int(idx),
-                "before": b_val,
-                "after": a_val,
-                "changed": True,
-            })
-            continue
-
-        b_raw = df_sample.loc[idx, col]
-        a_raw = df_sim.loc[idx, col]
-        b_na = pd.isna(b_raw)
-        a_na = pd.isna(a_raw)
-
-        if b_na and a_na:
-            is_changed = False
-            b_val = "NaN"
-            a_val = "NaN"
-        elif b_na != a_na:
-            is_changed = True
-            b_val = _fmt_diff_val(b_raw)
-            a_val = _fmt_diff_val(a_raw)
-        else:
-            if isinstance(b_raw, (int, float, np.number)) and isinstance(a_raw, (int, float, np.number)):
-                is_changed = bool(abs(float(b_raw) - float(a_raw)) > 1e-6)
+        changed_diff = []
+        unchanged_diff = []
+        for idx in df_sample.index:
+            b_exists = idx in df_sample.index
+            a_exists = (idx in df_sim.index and c in df_sim.columns)
+            if not a_exists:
+                b_val = _fmt_diff_val(df_sample.loc[idx, c]) if b_exists else "N/A"
+                changed_diff.append({"row": int(idx), "before": b_val, "after": "REMOVED", "changed": True})
+                continue
+            b_raw = df_sample.loc[idx, c]
+            a_raw = df_sim.loc[idx, c]
+            b_na = pd.isna(b_raw)
+            a_na = pd.isna(a_raw)
+            if b_na and a_na:
+                is_changed = False
+                b_val = "NaN"
+                a_val = "NaN"
+            elif b_na != a_na:
+                is_changed = True
+                b_val = _fmt_diff_val(b_raw)
+                a_val = _fmt_diff_val(a_raw)
             else:
-                is_changed = bool(str(b_raw) != str(a_raw))
-            b_val = _fmt_diff_val(b_raw)
-            a_val = _fmt_diff_val(a_raw)
+                if isinstance(b_raw, (int, float, np.number)) and isinstance(a_raw, (int, float, np.number)):
+                    is_changed = bool(abs(float(b_raw) - float(a_raw)) > 1e-6)
+                else:
+                    is_changed = bool(str(b_raw) != str(a_raw))
+                b_val = _fmt_diff_val(b_raw)
+                a_val = _fmt_diff_val(a_raw)
+            item = {"row": int(idx), "before": b_val, "after": a_val, "changed": is_changed}
+            if is_changed:
+                changed_diff.append(item)
+            else:
+                unchanged_diff.append(item)
 
-        item = {
-            "row": int(idx),
-            "before": b_val,
-            "after": a_val,
-            "changed": is_changed,
+        sample_diff = changed_diff[:12]
+        slots_left = max(0, 15 - len(sample_diff))
+        if slots_left > 0:
+            sample_diff.extend(unchanged_diff[:slots_left])
+
+        return {
+            "column": c,
+            "stats_before": stats_before,
+            "stats_after": stats_after,
+            "total_changed_rows": len(changed_diff),
+            "sample_diff": sample_diff,
         }
-        if is_changed:
-            changed_diff.append(item)
-        else:
-            unchanged_diff.append(item)
 
-    total_changed = len(changed_diff)
-
-    # Show up to 12 changed rows first, followed by unchanged rows for context up to 15 rows total
-    sample_diff = changed_diff[:12]
-    slots_left = max(0, 15 - len(sample_diff))
-    if slots_left > 0:
-        sample_diff.extend(unchanged_diff[:slots_left])
+    by_column = {c: _col_diff(c) for c in target_cols}
+    primary_c = target_cols[0]
+    primary_res = by_column[primary_c]
+    total_cells = sum(res["total_changed_rows"] for res in by_column.values())
 
     return {
-        "column": col,
+        "column": primary_c,
+        "action": rule.get("action_type") or rule.get("action") or primary_res.get("action"),
         "columns_targeted": target_cols,
-        "stats_before": stats_before,
-        "stats_after": stats_after,
+        "by_column": by_column,
+        "stats_before": primary_res["stats_before"],
+        "stats_after": primary_res["stats_after"],
         "actions_simulated": sim_result.get("struct_actions", []),
-        "total_changed_rows": total_changed,
+        "total_changed_rows": primary_res["total_changed_rows"],
+        "total_changed_cells": total_cells,
         "total_sample_rows": len(df_sample),
-        "sample_diff": sample_diff,
+        "sample_diff": primary_res["sample_diff"],
     }
 
 

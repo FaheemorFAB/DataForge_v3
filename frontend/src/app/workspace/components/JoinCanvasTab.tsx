@@ -792,48 +792,21 @@ export function JoinCanvasTab() {
             </button>
           </div>
 
-          {/* Quick Presets */}
-          <div
-            className="hidden xl:flex items-center gap-1 p-1 rounded-xl border text-[11px]"
-            style={{ borderColor: "var(--border)", background: "var(--input-bg, rgba(255,255,255,0.03))" }}
+          {/* Quick Presets Dropdown */}
+          <select
+            onChange={(e) => {
+              if (e.target.value) handleLoadPreset(e.target.value as "ecommerce" | "saas" | "healthcare");
+            }}
+            defaultValue=""
+            disabled={loadingPreset !== null}
+            className="px-2.5 py-1.5 rounded-lg border text-xs font-medium cursor-pointer"
+            style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
           >
-            <span className="px-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-              Presets:
-            </span>
-            <button
-              onClick={() => handleLoadPreset("ecommerce")}
-              disabled={loadingPreset !== null}
-              className="px-2 py-1 rounded-lg font-semibold transition hover:opacity-80 disabled:opacity-50"
-              style={{
-                background: loadingPreset === "ecommerce" ? "var(--accent)" : "transparent",
-                color: loadingPreset === "ecommerce" ? "#fff" : "var(--txt)",
-              }}
-            >
-              🛒 E-Commerce
-            </button>
-            <button
-              onClick={() => handleLoadPreset("saas")}
-              disabled={loadingPreset !== null}
-              className="px-2 py-1 rounded-lg font-semibold transition hover:opacity-80 disabled:opacity-50"
-              style={{
-                background: loadingPreset === "saas" ? "var(--accent)" : "transparent",
-                color: loadingPreset === "saas" ? "#fff" : "var(--txt)",
-              }}
-            >
-              🏢 SaaS
-            </button>
-            <button
-              onClick={() => handleLoadPreset("healthcare")}
-              disabled={loadingPreset !== null}
-              className="px-2 py-1 rounded-lg font-semibold transition hover:opacity-80 disabled:opacity-50"
-              style={{
-                background: loadingPreset === "healthcare" ? "var(--accent)" : "transparent",
-                color: loadingPreset === "healthcare" ? "#fff" : "var(--txt)",
-              }}
-            >
-              🏥 Healthcare
-            </button>
-          </div>
+            <option value="" disabled>{loadingPreset ? "Loading preset..." : "Load Preset Schema..."}</option>
+            <option value="ecommerce">🛒 E-Commerce (Orders & Customers)</option>
+            <option value="saas">🏢 SaaS (Tenants & Subscriptions)</option>
+            <option value="healthcare">🏥 Healthcare (Patients & Visits)</option>
+          </select>
 
           {/* Add Table */}
           <button
@@ -895,57 +868,62 @@ export function JoinCanvasTab() {
         </div>
       )}
 
-      {/* -- INFERRED RELATIONSHIPS BAR ---- */}
+      {/* -- SUGGESTED RELATIONSHIP BAR ---- */}
       {relationships.length > 0 && activeMode === "visual" && (
         <div
-          className="mx-5 mt-3 p-3 rounded-2xl border flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shrink-0"
+          className="mx-5 mt-3 px-4 py-2 rounded-xl border flex flex-wrap items-center justify-between gap-3 shrink-0"
           style={{
-            background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(255, 67, 16, 0.05))",
-            borderColor: "rgba(99, 102, 241, 0.25)",
+            background: "var(--inp-bg)",
+            borderColor: "var(--border)",
           }}
         >
-          <div className="flex items-center gap-2.5">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-indigo-500/20 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300"
-            >
-              <Sparkles size={14} />
-            </div>
-            <div>
-              <div className="text-xs font-bold" style={{ color: "var(--txt)" }}>
-                Inferred Schema Relationships ({relationships.length} detected)
-              </div>
-              <div className="text-[11px]" style={{ color: "var(--txt-m)" }}>
-                Click to wire key foreign keys directly into your join canvas.
-              </div>
-            </div>
+          <div className="flex items-center gap-2">
+            <Sparkles size={14} className="text-indigo-500 shrink-0" />
+            <span className="text-xs" style={{ color: "var(--txt-m)" }}>
+              Suggested Link: <strong className="font-mono font-bold" style={{ color: "var(--txt)" }}>{relationships[0].left_table}.{relationships[0].left_column} ↔ {relationships[0].right_table}.{relationships[0].right_column}</strong>
+            </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            {relationships.slice(0, 3).map((r, i) => (
-              <button
-                key={i}
-                onClick={() => applyInferred(r)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition hover:scale-[1.02] cursor-pointer bg-indigo-500/15 hover:bg-indigo-500/25 border-indigo-500/30 text-indigo-900 dark:text-indigo-200"
-                title={r.reason}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => applyInferred(relationships[0])}
+              className="px-3 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--border)",
+                color: "var(--txt)",
+              }}
+            >
+              Use Link
+            </button>
+            {relationships.length > 1 && (
+              <select
+                onChange={(e) => {
+                  const idx = parseInt(e.target.value, 10);
+                  if (!isNaN(idx) && relationships[idx]) {
+                    applyInferred(relationships[idx]);
+                  }
+                }}
+                defaultValue=""
+                className="px-2.5 py-1 rounded-lg text-xs border font-medium cursor-pointer"
+                style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt-m)" }}
               >
-                <span>
-                  {r.left_table}.{r.left_column} ↔ {r.right_table}.{r.right_column}
-                </span>
-                <span
-                  className="px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider font-black bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30"
-                >
-                  {Math.round(r.confidence * 100)}%
-                </span>
-              </button>
-            ))}
+                <option value="" disabled>Other suggestions ({relationships.length - 1})...</option>
+                {relationships.slice(1).map((r, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {r.left_table}.{r.left_column} ↔ {r.right_table}.{r.right_column}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
       )}
 
       {/* -- WORKSPACE SPLIT VIEW ---- */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden p-5 gap-5">
+      <div className="flex-1 min-h-0 min-w-0 flex flex-col lg:flex-row overflow-hidden p-5 gap-5">
         {/* -- LEFT PANEL: CONFIGURATION OR SQL STUDIO ---- */}
-        <div className="flex-1 flex flex-col gap-4 overflow-y-auto pr-1">
+        <div className="flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pr-1">
           {activeMode === "visual" ? (
             <>
               {/* 1. Base Table Selector */}
@@ -978,24 +956,26 @@ export function JoinCanvasTab() {
                         setBaseTable(t.name);
                         setJoins((prev) => prev.filter((j) => j.table !== t.name));
                       }}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border transition ${baseTable === t.name
-                        ? "ring-2 ring-[var(--accent)] border-[var(--accent)] shadow-md"
-                        : "hover:border-zinc-500 opacity-80"
-                        }`}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                        baseTable === t.name
+                          ? "bg-[var(--surface)] border-[var(--accent)] shadow-sm"
+                          : "border-[var(--border)] opacity-80 hover:opacity-100"
+                      }`}
                       style={{
-                        background:
-                          baseTable === t.name
-                            ? "rgba(255, 67, 16, 0.12)"
-                            : "var(--input-bg, rgba(255,255,255,0.02))",
+                        background: baseTable === t.name ? "var(--surface)" : "var(--inp-bg)",
                         borderColor: baseTable === t.name ? "var(--accent)" : "var(--border)",
                         color: "var(--txt)",
                       }}
                     >
-                      <Database size={13} style={{ color: "var(--accent)" }} />
+                      {baseTable === t.name ? (
+                        <Check size={13} style={{ color: "var(--accent)" }} />
+                      ) : (
+                        <Database size={13} style={{ color: "var(--txt-m)" }} />
+                      )}
                       <span>{t.name}</span>
                       <span
-                        className="px-1.5 py-0.5 rounded text-[9px] font-mono border"
-                        style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
+                        className="px-1.5 py-0.5 rounded text-[9px] font-mono border ml-1"
+                        style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt-m)" }}
                       >
                         {t.row_count.toLocaleString()} rows
                       </span>
@@ -1154,22 +1134,27 @@ export function JoinCanvasTab() {
                           </div>
                         </div>
 
-                        {/* Join Type Chips */}
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {JOIN_TYPES.map((jt) => (
-                            <button
-                              key={jt.id}
-                              onClick={() => updateJoinType(idx, jt.id)}
-                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition flex items-center gap-1 ${j.join_type === jt.id
-                                ? "bg-indigo-500/15 border-indigo-500 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500"
-                                : "border-[var(--border)] hover:border-indigo-400 text-[var(--txt-m)] hover:text-[var(--txt)]"
-                                }`}
-                              title={jt.desc}
-                            >
-                              <span>{jt.symbol}</span>
-                              <span>{jt.label}</span>
-                            </button>
-                          ))}
+                        {/* Join Type Selector */}
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+                            Join Type:
+                          </span>
+                          <select
+                            value={j.join_type}
+                            onChange={(e) => updateJoinType(idx, e.target.value as any)}
+                            className="border rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                            style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
+                          >
+                            <option value="LEFT">Left Join (All base rows + matching)</option>
+                            <option value="INNER">Inner Join (Only matching rows)</option>
+                            <optgroup label="Advanced Joins">
+                              <option value="RIGHT">Right Join (All secondary rows + matching)</option>
+                              <option value="FULL">Full Outer Join (All rows from both)</option>
+                              <option value="SEMI">Semi Join (Filter base rows with match)</option>
+                              <option value="ANTI">Anti Join (Filter base rows without match)</option>
+                              <option value="CROSS">Cross Join (Cartesian product)</option>
+                            </optgroup>
+                          </select>
                         </div>
 
                         {/* Join Condition Inputs */}
@@ -1627,7 +1612,23 @@ export function JoinCanvasTab() {
               >
                 <Table size={13} />
                 <span>Data Preview</span>
-                {previewData && (
+                {/* Fan-out Warning Banner */}
+          {previewData && baseTable && (() => {
+            const baseObj = tables.find(t => t.name === baseTable);
+            if (baseObj && previewData.total_estimated_rows > baseObj.row_count) {
+              return (
+                <div className="px-4 py-2 border-b bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
+                  <AlertCircle size={14} className="shrink-0 text-amber-500" />
+                  <span>
+                    <strong>Notice:</strong> Joined result ({previewData.total_estimated_rows.toLocaleString()} rows) exceeds base table ({baseObj.row_count.toLocaleString()} rows). This indicates 1-to-many fan-out. Consider using <strong>Pre-Join Rollup</strong> to group secondary records before joining.
+                  </span>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {previewData && (
                   <span
                     className="px-1.5 py-0.5 rounded-full text-[9px] font-mono border"
                     style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}

@@ -165,6 +165,65 @@ def test_categorical_only_dashboard(monkeypatch):
     print("  ALL DASHBOARD API TESTS PASSED")
     print("============================================================\n")
 
-if __name__ == "__main__":
-    test_dashboard_endpoints()
+
+def test_numeric_ids_and_rollnos_never_summed(monkeypatch):
+    """
+    Verifies that:
+    1. Datasets with numeric IDs, roll numbers, reg numbers NEVER calculate sum or mean of IDs.
+    2. Default metric selects genuine quantitative measures (like marks or score).
+    3. If the user explicitly selects roll_no or an ID column via dropdown, it displays Entity Count (distinct), never sum or mean.
+    4. Pure ID rosters automatically anchor on Entity Count.
+    """
+    df_students = pd.DataFrame({
+        "roll_no": list(range(101, 151)),
+        "id": list(range(1, 51)),
+        "student_name": [f"Student {i}" for i in range(50)],
+        "section": ["A", "B", "C", "D", "E"] * 10,
+        "marks": [78.5, 92.0, 65.0, 88.5, 95.0] * 10,
+    })
+    save(1004, "df_raw", df_students)
+    save(1004, "df_clean", df_students)
+
+    orig_get = UploadRepository.get_by_id
+    monkeypatch.setattr(
+        UploadRepository,
+        "get_by_id",
+        lambda self, upload_id: {"id": upload_id, "user_id": 1, "filename": "students.csv"} if str(upload_id) in ("1004", "1005") else orig_get(self, upload_id)
+    )
+
+    # 1. Default metric should be marks, NOT roll_no or id
+    res = client.post("/api/dashboard/agentic-auto?upload_id=1004", json={"upload_id": "1004"})
+    assert res.status_code == 200, res.text
+    d = res.json()
+    labels = [st["label"] for st in d["stats"]]
+    assert "Total marks" in labels, f"Expected marks to be selected, got: {labels}"
+    assert not any("Total roll" in l or "Total id" in l or "Mean roll" in l for l in labels), f"Forbidden math on ID found: {labels}"
+
+    # 2. User explicitly selects roll_no via dropdown
+    res2 = client.post("/api/dashboard/agentic-auto?upload_id=1004", json={"upload_id": "1004", "chart_metric": "roll_no"})
+    assert res2.status_code == 200, res2.text
+    d2 = res2.json()
+    labels2 = [st["label"] for st in d2["stats"]]
+    assert "Unique roll_no" in labels2, f"Expected Unique roll_no, got: {labels2}"
+    card = next(st for st in d2["stats"] if st["label"] == "Unique roll_no")
+    assert card["value"] == "50"
+    assert "ID Range: 101 to 150" in card["sub"]
+    assert card["type"] == "entity_count"
+
+    # 3. Pure ID roster without any numeric measures
+    df_roster = pd.DataFrame({
+        "roll_no": list(range(1, 26)),
+        "name": [f"Person {i}" for i in range(25)],
+        "house": ["Red", "Blue", "Green", "Yellow", "Gold"] * 5,
+    })
+    save(1005, "df_raw", df_roster)
+    save(1005, "df_clean", df_roster)
+
+    res3 = client.post("/api/dashboard/agentic-auto?upload_id=1005", json={"upload_id": "1005"})
+    assert res3.status_code == 200, res3.text
+    d3 = res3.json()
+    labels3 = [st["label"] for st in d3["stats"]]
+    assert "Unique roll_no" in labels3, f"Expected Unique roll_no, got: {labels3}"
+    assert not any("Total roll" in l for l in labels3), f"Forbidden sum found: {labels3}"
+    print("  PASS  Numeric IDs & Roll numbers never summed or averaged")
 

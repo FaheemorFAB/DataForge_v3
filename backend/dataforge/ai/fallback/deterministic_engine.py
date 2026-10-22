@@ -12,6 +12,7 @@ import numpy as np
 from ..schemas import AgentAction
 from ..tools.viz_tool import build_chart_tool
 from ..router.patterns import fuzzy_resolve_all_columns
+from dataforge.api.utils.helpers import is_id_like_col
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,9 @@ logger = logging.getLogger(__name__)
 def run_deterministic_analysis(query: str, df: pd.DataFrame, error_msg: str = "") -> Dict[str, Any]:
     """Safety fallback if external API is unreachable. Computes local pandas analytics."""
     q_lower = query.lower()
-    num_cols = df.select_dtypes(include=np.number).columns.tolist()
+    all_num = df.select_dtypes(include=np.number).columns.tolist()
+    num_cols = [c for c in all_num if not is_id_like_col(c, df[c])]
+    id_cols = [c for c in all_num if is_id_like_col(c, df[c])]
     cat_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
     is_credits_error = "402" in error_msg or "prepayment credits" in error_msg.lower() or "resource_exhausted" in error_msg.lower()
@@ -37,8 +40,8 @@ def run_deterministic_analysis(query: str, df: pd.DataFrame, error_msg: str = ""
 
     # ── Case A: Bivariate Analysis (Two Columns detected) ───────────────
     if target_col and second_col:
-        # Subcase 1: Both numeric -> Correlation & Scatter
-        if target_col in num_cols and second_col in num_cols:
+        # Subcase 1: Both numeric and NEITHER is an ID -> Correlation & Scatter
+        if (target_col in num_cols and second_col in num_cols) and not (is_id_like_col(target_col, df[target_col]) or is_id_like_col(second_col, df[second_col])):
             s1 = df[target_col].dropna()
             s2 = df[second_col].dropna()
             valid_idx = s1.index.intersection(s2.index)
@@ -66,39 +69,95 @@ def run_deterministic_analysis(query: str, df: pd.DataFrame, error_msg: str = ""
                 "agent_actions": [AgentAction(agent="AnalyticsAgent", tool="local_pandas_engine", status="completed", message=f"Computed Pearson correlation between {target_col} and {second_col}.").model_dump()],
             }
 
-        # Subcase 2: One categorical, one numeric -> Groupby aggregation
-        cat_c = target_col if target_col in cat_cols else second_col
-        num_c = second_col if target_col in cat_cols else target_col
-        if cat_c in df.columns and num_c in df.columns and num_c in num_cols:
-            agg_series = df.groupby(cat_c)[num_c].mean().dropna().sort_values(ascending=False).head(10).round(2)
-            top_cat = agg_series.index[0]
-            top_val = agg_series.iloc[0]
-            bot_cat = agg_series.index[-1]
-            bot_val = agg_series.iloc[-1]
-            breakdown_md = "\n".join(f"• **{k}**: {v:,.2f}" for k, v in agg_series.items())
+        # Subcase 2: One categorical/ID, one numeric/measure -> Groupby aggregation
+        cat_c = target_col if (target_col in cat_cols or is_id_like_col(target_col, df[target_col])) else second_col
+        num_c = second_col if cat_c == target_col else target_col
+        if cat_c in df.columns and num_c in df.columns:
+            is_num_id = is_id_like_col(num_c, df[num_c])
+            if is_num_id:
+                # If num_c is an identifier, count unique entities per category, NEVER calculate mean
+                agg_series = df.groupby(cat_c)[num_c].nunique().dropna().sort_values(ascending=False).head(10)
+                top_cat = agg_series.index[0]
+                top_val = agg_series.iloc[0]
+                bot_cat = agg_series.index[-1]
+                bot_val = agg_series.iloc[-1]
+                breakdown_md = "\n".join(f"• **{k}**: {v:,} unique {num_c}" for k, v in agg_series.items())
+                ans = (
+                    f"### Distinct `{num_c}` Count by `{cat_c}`\n\n"
+                    f"Distribution of unique entity identifiers across `{cat_c}` cohorts:\n\n"
+                    f"{breakdown_md}\n\n"
+                    f"• **Top Cohort**: `{top_cat}` ({top_val:,} distinct {num_c})\n"
+                    f"• **Smallest Cohort**: `{bot_cat}` ({bot_val:,} distinct {num_c})"
+                )
+                chart = build_chart_tool(intent="bar_chart", raw_result=agg_series, df=df, x_col=cat_c, y_col=f"Distinct {num_c}")
+                return {
+                    "ok": True,
+                    "answer": ans,
+                    "result": chart,
+                    "intent": "bar_chart",
+                    "code": f"result = df.groupby('{cat_c}')['{num_c}'].nunique().sort_values(ascending=False)",
+                    "insight": f"`{top_cat}` has the highest distinct count of `{num_c}` ({top_val:,}).",
+                    "system_notice": sys_notice,
+                    "agent_actions": [AgentAction(agent="AnalyticsAgent", tool="local_pandas_engine", status="completed", message=f"Counted distinct {num_c} by {cat_c}.").model_dump()],
+                }
+            elif num_c in num_cols:
+                agg_series = df.groupby(cat_c)[num_c].mean().dropna().sort_values(ascending=False).head(10).round(2)
+                top_cat = agg_series.index[0]
+                top_val = agg_series.iloc[0]
+                bot_cat = agg_series.index[-1]
+                bot_val = agg_series.iloc[-1]
+                breakdown_md = "\n".join(f"• **{k}**: {v:,.2f}" for k, v in agg_series.items())
 
-            ans = (
-                f"### Average `{num_c}` by `{cat_c}`\n\n"
-                f"Breakdown of `{num_c}` across top `{cat_c}` categories:\n\n"
-                f"{breakdown_md}\n\n"
-                f"• **Top Performer**: `{top_cat}` ({top_val:,.2f})\n"
-                f"• **Lowest**: `{bot_cat}` ({bot_val:,.2f})"
-            )
-            chart = build_chart_tool(intent="bar_chart", raw_result=agg_series, df=df, x_col=cat_c, y_col=num_c)
-            return {
-                "ok": True,
-                "answer": ans,
-                "result": chart,
-                "intent": "bar_chart",
-                "code": f"result = df.groupby('{cat_c}')['{num_c}'].mean().sort_values(ascending=False)",
-                "insight": f"`{top_cat}` leads `{num_c}` with an average of {top_val:,.2f}.",
-                "system_notice": sys_notice,
-                "agent_actions": [AgentAction(agent="AnalyticsAgent", tool="local_pandas_engine", status="completed", message=f"Grouped {num_c} by {cat_c}.").model_dump()],
-            }
+                ans = (
+                    f"### Average `{num_c}` by `{cat_c}`\n\n"
+                    f"Breakdown of `{num_c}` across top `{cat_c}` categories:\n\n"
+                    f"{breakdown_md}\n\n"
+                    f"• **Top Performer**: `{top_cat}` ({top_val:,.2f})\n"
+                    f"• **Lowest**: `{bot_cat}` ({bot_val:,.2f})"
+                )
+                chart = build_chart_tool(intent="bar_chart", raw_result=agg_series, df=df, x_col=cat_c, y_col=num_c)
+                return {
+                    "ok": True,
+                    "answer": ans,
+                    "result": chart,
+                    "intent": "bar_chart",
+                    "code": f"result = df.groupby('{cat_c}')['{num_c}'].mean().sort_values(ascending=False)",
+                    "insight": f"`{top_cat}` leads `{num_c}` with an average of {top_val:,.2f}.",
+                    "system_notice": sys_notice,
+                    "agent_actions": [AgentAction(agent="AnalyticsAgent", tool="local_pandas_engine", status="completed", message=f"Grouped {num_c} by {cat_c}.").model_dump()],
+                }
 
     # ── Case B: Univariate Analysis (Single Column detected) ────────────
     if target_col:
-        # Numeric distribution
+        # Check if column is an identifier/roll number/index
+        if is_id_like_col(target_col, df[target_col]):
+            s = df[target_col].dropna()
+            u_cnt = s.nunique()
+            is_100_pct = u_cnt == len(s)
+            unq_desc = "100% Unique (Primary Key / Distinct Identifier)" if is_100_pct else f"{u_cnt:,} distinct entities ({(u_cnt/len(s))*100:.1f}% uniqueness)"
+            ans = (
+                f"### Entity Identifier Profile: `{target_col}`\n\n"
+                f"• **Classification**: **Entity Key / Identifier** (Excluded from mathematical operations like sum/mean)\n"
+                f"• **Distinct Entities**: **{u_cnt:,}** ({unq_desc})\n"
+                f"• **Identifier Range**: `{s.min()}` to `{s.max()}` across {len(s):,} non-null records\n"
+                f"• **Missing Data**: {df[target_col].isnull().sum():,} cells ({df[target_col].isnull().mean()*100:.1f}%)\n"
+                f"• **Integrity Note**: Values represent identity references, roll numbers, or database keys."
+            )
+            return {
+                "ok": True,
+                "answer": ans,
+                "result": None,
+                "intent": "entity_summary",
+                "code": f"result = {{'unique': df['{target_col}'].nunique(), 'range': [df['{target_col}'].min(), df['{target_col}'].max()]}}",
+                "insight": f"`{target_col}` is an identifier tracking {u_cnt:,} unique entities.",
+                "system_notice": sys_notice,
+                "agent_actions": [AgentAction(agent="AnalyticsAgent", tool="local_pandas_engine", status="completed", message=f"Audited identifier column {target_col}.").model_dump()],
+                "suggested_actions": [
+                    {"label": f"Count {target_col} by categories", "query": f"count {target_col} by {cat_cols[0] if cat_cols else 'category'}"},
+                ]
+            }
+
+        # Numeric distribution for real measures
         if target_col in num_cols:
             s = df[target_col].dropna()
             q25, q50, q75 = s.quantile(0.25), s.quantile(0.50), s.quantile(0.75)
@@ -188,7 +247,9 @@ def run_deterministic_analysis(query: str, df: pd.DataFrame, error_msg: str = ""
     if "correlation" in q_lower or "correlate" in q_lower or "heatmap" in q_lower:
         if len(num_cols) >= 2:
             corr = df[num_cols[:6]].corr().round(2)
-            ans = f"### Pearson Correlation Matrix\n\nComputed pairwise correlation across top numeric features: {', '.join(f'`{c}`' for c in num_cols[:6])}."
+            ans = f"### Pearson Correlation Matrix\n\nComputed pairwise correlation across top quantitative features: {', '.join(f'`{c}`' for c in num_cols[:6])}."
+            if id_cols:
+                ans += f"\n\n*Note: Identifier features ({', '.join(f'`{c}`' for c in id_cols)}) were excluded as correlation on IDs is statistically meaningless.*"
             return {
                 "ok": True,
                 "answer": ans,
@@ -199,17 +260,31 @@ def run_deterministic_analysis(query: str, df: pd.DataFrame, error_msg: str = ""
                 "system_notice": sys_notice,
                 "agent_actions": [AgentAction(agent="AnalyticsAgent", tool="local_pandas_engine", status="completed", message="Computed Pearson correlation matrix.").model_dump()],
             }
+        elif len(num_cols) < 2 and id_cols:
+            return {
+                "ok": True,
+                "answer": f"### Pearson Correlation Matrix\n\nInsufficient quantitative features for bivariate correlation. The dataset contains identifier columns ({', '.join(f'`{c}`' for c in id_cols)}), which are excluded because computing correlation on IDs produces spurious, meaningless mathematical noise.",
+                "result": None,
+                "intent": "summary",
+                "code": "# Identifiers excluded from correlation analysis",
+                "insight": "Identifier columns excluded from correlation to prevent spurious mathematical artifacts.",
+                "system_notice": sys_notice,
+                "agent_actions": [AgentAction(agent="AnalyticsAgent", tool="local_pandas_engine", status="completed", message="Excluded identifier columns from correlation.").model_dump()],
+            }
 
     # ── Case E: General Dataset Summary Fallback ────────────────────────
     sample_nums = ", ".join(f"`{c}`" for c in num_cols[:4]) if num_cols else "None"
+    sample_ids = ", ".join(f"`{c}`" for c in id_cols[:4]) if id_cols else "None"
     sample_cats = ", ".join(f"`{c}`" for c in cat_cols[:4]) if cat_cols else "None"
+    focus_col = num_cols[0] if num_cols else (cat_cols[0] if cat_cols else df.columns[0])
     return {
         "ok": True,
         "answer": (
             f"### Dataset Overview: {df.shape[0]:,} records ({df.shape[0]:,} rows × {df.shape[1]} columns)\n\n"
-            f"• **Numeric features ({len(num_cols)})**: {sample_nums}\n"
+            f"• **Quantitative measures ({len(num_cols)})**: {sample_nums}\n"
+            f"• **Identifiers ({len(id_cols)})**: {sample_ids}\n"
             f"• **Categorical features ({len(cat_cols)})**: {sample_cats}\n\n"
-            f"You can ask me to analyze distributions (e.g. `distribution of {num_cols[0] if num_cols else df.columns[0]}`), "
+            f"You can ask me to analyze distributions (e.g. `distribution of {focus_col}`), "
             f"compare variables (e.g. `compare {num_cols[0] if num_cols else 'col1'} and {num_cols[1] if len(num_cols)>1 else 'col2'}`), "
             f"or ask CleanerAgent to sanitize your data."
         ),

@@ -41,6 +41,7 @@ from .numeric_summary_insight import NumericSummaryInsight
 from .categorical_insight import CategoricalInsight
 from .outlier_summary_insight import OutlierSummaryInsight
 from .forecast_insight import ForecastInsight
+from dataforge.api.utils.helpers import is_id_like_col
 
 log = logging.getLogger(__name__)
 
@@ -137,10 +138,8 @@ class InsightEngine:
             col_tokens = set(col_lower.replace("-", "_").split("_"))
             is_protected = bool(col_tokens & PROTECTED_WORDS) or (col_lower in PROTECTED_WORDS)
 
-            # 2. Identifier Detection
-            is_id_name = any(col_lower.endswith(f"_{h}") or col_lower == h or col_lower.startswith(f"{h}_") for h in ID_HINTS)
-            is_id_cardinality = (len(df) >= 20 and (n_unique / len(df) > 0.95) and not pd.api.types.is_float_dtype(dtype))
-            is_id = is_id_name or is_id_cardinality
+            # 2. Identifier Detection (Rigorous check to prevent calculating sums/means on IDs)
+            is_id = is_id_like_col(col, df[col])
 
             # 3. Direct datetime type check
             if pd.api.types.is_datetime64_any_dtype(dtype):
