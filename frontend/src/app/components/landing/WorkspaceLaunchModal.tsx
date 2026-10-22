@@ -1087,10 +1087,10 @@ export default function WorkspaceLaunchModal({
                     {[
                       { id: "all", label: "All Sources" },
                       { id: "spreadsheets", label: "Cloud Sheets" },
-                      { id: "warehouses", label: "Warehouses" },
-                      { id: "relational", label: "SQL Databases" },
-                      { id: "storage", label: "Cloud Storage" },
                       { id: "files", label: "Local Files" },
+                      { id: "relational", label: "SQL Databases" },
+                      { id: "warehouses", label: "Warehouses" },
+                      { id: "storage", label: "Cloud Storage" },
                     ].map((cat) => (
                       <button
                         key={cat.id}
@@ -1171,14 +1171,14 @@ export default function WorkspaceLaunchModal({
                 </div>
               )}
 
-              {/* Group 1: Warehouses */}
-              {warehouses.length > 0 && (
+              {/* Group 1: Local Files */}
+              {localFiles.length > 0 && (
                 <div className="space-y-1.5">
                   <div className="text-[11px] font-semibold" style={{ color: "var(--txt-m)" }}>
-                    Warehouses
+                    Local Files
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {warehouses.map((c) => {
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {localFiles.map((c) => {
                       const isSelected = selectedConnector.id === c.id;
                       const Logo = c.Logo;
                       return (
@@ -1186,7 +1186,7 @@ export default function WorkspaceLaunchModal({
                           key={c.id}
                           type="button"
                           onClick={() => handleSelectConnector(c)}
-                          className="p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all duration-150"
+                          className="p-2 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all duration-150"
                           style={{
                             background: isSelected ? "var(--glow)" : "var(--card)",
                             borderColor: isSelected ? "var(--accent)" : "var(--border)",
@@ -1194,7 +1194,7 @@ export default function WorkspaceLaunchModal({
                             color: isSelected ? "var(--txt)" : "var(--txt-m)",
                           }}
                         >
-                          <Logo size={20} />
+                          <Logo size={18} />
                           <span className="text-[10px] truncate w-full text-center font-medium">{c.name}</span>
                         </button>
                       );
@@ -1235,14 +1235,14 @@ export default function WorkspaceLaunchModal({
                 </div>
               )}
 
-              {/* Group 3: Storage */}
-              {cloudStorage.length > 0 && (
+              {/* Group 3: Warehouses */}
+              {warehouses.length > 0 && (
                 <div className="space-y-1.5">
                   <div className="text-[11px] font-semibold" style={{ color: "var(--txt-m)" }}>
-                    Cloud Storage
+                    Warehouses
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
-                    {cloudStorage.map((c) => {
+                    {warehouses.map((c) => {
                       const isSelected = selectedConnector.id === c.id;
                       const Logo = c.Logo;
                       return (
@@ -1267,14 +1267,14 @@ export default function WorkspaceLaunchModal({
                 </div>
               )}
 
-              {/* Group 4: Local Files */}
-              {localFiles.length > 0 && (
+              {/* Group 4: Storage */}
+              {cloudStorage.length > 0 && (
                 <div className="space-y-1.5">
                   <div className="text-[11px] font-semibold" style={{ color: "var(--txt-m)" }}>
-                    Local Files
+                    Cloud Storage
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {localFiles.map((c) => {
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {cloudStorage.map((c) => {
                       const isSelected = selectedConnector.id === c.id;
                       const Logo = c.Logo;
                       return (
@@ -1282,7 +1282,7 @@ export default function WorkspaceLaunchModal({
                           key={c.id}
                           type="button"
                           onClick={() => handleSelectConnector(c)}
-                          className="p-2 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all duration-150"
+                          className="p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1 cursor-pointer transition-all duration-150"
                           style={{
                             background: isSelected ? "var(--glow)" : "var(--card)",
                             borderColor: isSelected ? "var(--accent)" : "var(--border)",
@@ -1290,7 +1290,7 @@ export default function WorkspaceLaunchModal({
                             color: isSelected ? "var(--txt)" : "var(--txt-m)",
                           }}
                         >
-                          <Logo size={18} />
+                          <Logo size={20} />
                           <span className="text-[10px] truncate w-full text-center font-medium">{c.name}</span>
                         </button>
                       );
