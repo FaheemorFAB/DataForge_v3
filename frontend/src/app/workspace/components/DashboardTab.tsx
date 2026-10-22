@@ -70,23 +70,23 @@ export const PALETTES: Record<string, { name: string; colors: string[] }> = {
 const PALETTE = PALETTES.indigo.colors;
 
 const CHART_TYPES = [
-  { id: "bar",        label: "Bar",                icon: "bar" },
-  { id: "line",       label: "Line / Time Series", icon: "line" },
-  { id: "scatter",    label: "Scatter",            icon: "scatter" },
-  { id: "pie",        label: "Pie",                icon: "pie" },
-  { id: "doughnut",   label: "Donut",              icon: "donut" },
-  { id: "boxplot",    label: "Box Plot",           icon: "box" },
-  { id: "radar",      label: "Radar / Spider",     icon: "radar" },
-  { id: "polarArea",  label: "Polar Area",         icon: "polar" },
-  { id: "heatmap",    label: "Correlation Matrix", icon: "heatmap" },
-  { id: "waterfall",  label: "Waterfall Bridge",   icon: "waterfall" },
-  { id: "funnel",     label: "Conversion Funnel",  icon: "funnel" },
-  { id: "combo",      label: "Dual-Axis Combo",    icon: "combo" },
+  { id: "bar", label: "Bar", icon: "bar" },
+  { id: "line", label: "Line / Time Series", icon: "line" },
+  { id: "scatter", label: "Scatter", icon: "scatter" },
+  { id: "pie", label: "Pie", icon: "pie" },
+  { id: "doughnut", label: "Donut", icon: "donut" },
+  { id: "boxplot", label: "Box Plot", icon: "box" },
+  { id: "radar", label: "Radar / Spider", icon: "radar" },
+  { id: "polarArea", label: "Polar Area", icon: "polar" },
+  { id: "heatmap", label: "Correlation Matrix", icon: "heatmap" },
+  { id: "waterfall", label: "Waterfall Bridge", icon: "waterfall" },
+  { id: "funnel", label: "Conversion Funnel", icon: "funnel" },
+  { id: "combo", label: "Dual-Axis Combo", icon: "combo" },
 ];
 
 function fmtNum(v: number): string {
   if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1_000)     return `${(v / 1_000).toFixed(1)}K`;
+  if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
   return v % 1 === 0 ? String(v) : v.toFixed(2);
 }
 
@@ -96,8 +96,8 @@ function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: 
     <p className="text-xs text-center py-10 font-medium" style={{ color: "var(--txt-m)" }}>Invalid data</p>
   );
   const range = data.max - data.min;
-  const pad   = range === 0 ? 1 : range * 0.12;
-  const minX  = data.min - pad;
+  const pad = range === 0 ? 1 : range * 0.12;
+  const minX = data.min - pad;
   const total = (data.max + pad) - minX;
   const toPct = (v: number) => `${Math.max(0, Math.min(100, ((v - minX) / total) * 100)).toFixed(2)}%`;
   return (
@@ -114,7 +114,7 @@ function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: 
         <div className="absolute text-[11px] font-black font-mono -top-7 text-center text-amber-500" style={{ left: toPct(data.median), transform: "translateX(-50%)" }}>{formatted?.median}</div>
       </div>
       <div className="grid grid-cols-3 gap-2 mt-2">
-        {([["Q1", formatted?.q1, "#4f46e5"], ["Median", formatted?.median, "#d97706"], ["Q3", formatted?.q3, "#4f46e5"]] as [string,string,string][]).map(([lbl, val, col]) => (
+        {([["Q1", formatted?.q1, "#4f46e5"], ["Median", formatted?.median, "#d97706"], ["Q3", formatted?.q3, "#4f46e5"]] as [string, string, string][]).map(([lbl, val, col]) => (
           <div key={lbl} className="text-center rounded-lg py-1.5 border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
             <p className="text-[9px] uppercase tracking-widest font-extrabold mb-0.5" style={{ color: "var(--txt-m)" }}>{lbl}</p>
             <p className="text-xs font-black font-mono" style={{ color: col }}>{val}</p>
@@ -264,76 +264,76 @@ function FunnelViz({ labels, values }: { labels: string[]; values: any }) {
 
 // -- Chart renderer --
 function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALETTE) {
-  const color  = activePaletteColors[idx % activePaletteColors.length];
+  const color = activePaletteColors[idx % activePaletteColors.length];
   const xLabel = toLabel(ch.x_col || "Category");
-  const agg    = ch.agg_type && ch.agg_type !== "none" ? ` (${ch.agg_type})` : "";
+  const agg = ch.agg_type && ch.agg_type !== "none" ? ` (${ch.agg_type})` : "";
   const yLabel = toLabel(ch.y_col || "Count") + agg;
 
   const tooltip = {
     callbacks: {
-      title:  (items: any[]) => `${xLabel}: ${items[0]?.label ?? ""}`,
-      label:  (ctx: any) => {
+      title: (items: any[]) => `${xLabel}: ${items[0]?.label ?? ""}`,
+      label: (ctx: any) => {
         const v = ctx.parsed?.y ?? ctx.raw;
         if (typeof v === "number") return `  ${yLabel}: ${fmtNum(v)}`;
         if (v && typeof v.y === "number") return `  ${yLabel}: ${fmtNum(v.y)}`;
         return `  ${v}`;
       },
     },
-    displayColors:   false,
+    displayColors: false,
     backgroundColor: "rgba(8,8,18,0.97)",
-    borderColor:     "rgba(255,255,255,0.15)",
-    borderWidth:     1,
-    titleColor:      "rgba(255,255,255,0.95)",
-    bodyColor:       "rgba(255,255,255,0.75)",
-    padding:         12,
-    cornerRadius:    10,
+    borderColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    titleColor: "rgba(255,255,255,0.95)",
+    bodyColor: "rgba(255,255,255,0.75)",
+    padding: 12,
+    cornerRadius: 10,
   };
 
   const scales: any = {
     x: {
       title: {
         display: true,
-        text:    xLabel,
-        color:   "#0f172a",
-        font:    { size: 12, weight: "bold", family: "inherit" },
+        text: xLabel,
+        color: "#0f172a",
+        font: { size: 12, weight: "bold", family: "inherit" },
         padding: { top: 6 },
       },
       ticks: {
-        color:        "#1e293b",
-        font:         { size: 11, weight: "bold" },
+        color: "#1e293b",
+        font: { size: 11, weight: "bold" },
         maxTicksLimit: 10,
-        maxRotation:  30,
-        autoSkip:     true,
+        maxRotation: 30,
+        autoSkip: true,
       },
-      grid:   { color: "rgba(0,0,0,0.06)" },
+      grid: { color: "rgba(0,0,0,0.06)" },
       border: { color: "#94a3b8" },
     },
     y: {
       title: {
         display: true,
-        text:    yLabel,
-        color:   "#0f172a",
-        font:    { size: 12, weight: "bold", family: "inherit" },
+        text: yLabel,
+        color: "#0f172a",
+        font: { size: 12, weight: "bold", family: "inherit" },
         padding: { bottom: 6 },
       },
       ticks: {
-        color:         "#1e293b",
-        font:          { size: 11, weight: "bold" },
-        callback:      (v: any) => fmtNum(Number(v)),
+        color: "#1e293b",
+        font: { size: 11, weight: "bold" },
+        callback: (v: any) => fmtNum(Number(v)),
         maxTicksLimit: 6,
       },
-      grid:        { color: "rgba(0,0,0,0.06)" },
-      border:      { color: "#94a3b8" },
+      grid: { color: "rgba(0,0,0,0.06)" },
+      border: { color: "#94a3b8" },
       beginAtZero: true,
     },
   };
 
   const common: any = {
-    responsive:          true,
+    responsive: true,
     maintainAspectRatio: false,
-    animation:           { duration: 500 },
-    layout:              { padding: { top: 4, right: 10, bottom: 4, left: 4 } },
-    plugins:             { legend: { display: false }, tooltip },
+    animation: { duration: 500 },
+    layout: { padding: { top: 4, right: 10, bottom: 4, left: 4 } },
+    plugins: { legend: { display: false }, tooltip },
     scales,
   };
 
@@ -528,13 +528,13 @@ function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALET
     data={{
       labels: ch.labels,
       datasets: [{
-        label:           yLabel,
-        data:            ch.values,
+        label: yLabel,
+        data: ch.values,
         backgroundColor: (ch.labels || []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}cc`),
-        borderColor:     (ch.labels || []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
-        borderWidth:     1.5,
-        borderRadius:    6,
-        borderSkipped:   false as const,
+        borderColor: (ch.labels || []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
+        borderWidth: 1.5,
+        borderRadius: 6,
+        borderSkipped: false as const,
       }],
     }}
     options={{
@@ -544,11 +544,11 @@ function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALET
         x: {
           ...scales.x,
           ticks: {
-            color:         "#1e293b",
-            font:          { size: 11, weight: "bold" },
-            maxRotation:   45,
-            minRotation:   0,
-            autoSkip:      true,
+            color: "#1e293b",
+            font: { size: 11, weight: "bold" },
+            maxRotation: 45,
+            minRotation: 0,
+            autoSkip: true,
             maxTicksLimit: 12,
           },
         },
@@ -654,21 +654,21 @@ function ChartCard({ ch, idx, onRemove, activePaletteColors }: { ch: any; idx: n
 // -- Main --
 export function DashboardTab() {
   const { uploadId, profile } = useWorkspace();
-  const [governedBy,        setGovernedBy]        = useState<string>("Unified Analytical Engine & Dynamic Visuals");
-  const [isDashLoading,     setIsDashLoading]     = useState(false);
-  const [dashStats,         setDashStats]          = useState<any[]>([]);
-  const [dashCharts,        setDashCharts]         = useState<any[]>([]);
-  const [dashSummary,       setDashSummary]        = useState("");
-  const [dashIdStats,       setDashIdStats]        = useState<any>(null);
-  const [dashNumericCols,   setDashNumericCols]    = useState<string[]>([]);
-  const [dashInsights,      setDashInsights]       = useState<any[]>([]);
-  const [pinnedInsights,    setPinnedInsights]     = useState<any[]>([]);
-  const [profileCols,       setProfileCols]        = useState<string[]>([]);
-  const [builderOpen,       setBuilderOpen]        = useState(false);
-  const [selectedPalette,   setSelectedPalette]    = useState<string>("indigo");
-  const [customChart,       setCustomChart]        = useState({ id: null as any, chart_type: "bar", x_col: "", y_col: "", agg_type: "count", title: "", is_area: false, top_n: 10 });
-  const [isGeneratingChart, setIsGeneratingChart]  = useState(false);
-  const [customChartError,  setCustomChartError]   = useState("");
+  const [governedBy, setGovernedBy] = useState<string>("Unified Analytical Engine & Dynamic Visuals");
+  const [isDashLoading, setIsDashLoading] = useState(false);
+  const [dashStats, setDashStats] = useState<any[]>([]);
+  const [dashCharts, setDashCharts] = useState<any[]>([]);
+  const [dashSummary, setDashSummary] = useState("");
+  const [dashIdStats, setDashIdStats] = useState<any>(null);
+  const [dashNumericCols, setDashNumericCols] = useState<string[]>([]);
+  const [dashInsights, setDashInsights] = useState<any[]>([]);
+  const [pinnedInsights, setPinnedInsights] = useState<any[]>([]);
+  const [profileCols, setProfileCols] = useState<string[]>([]);
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [selectedPalette, setSelectedPalette] = useState<string>("indigo");
+  const [customChart, setCustomChart] = useState({ id: null as any, chart_type: "bar", x_col: "", y_col: "", agg_type: "count", title: "", is_area: false, top_n: 10 });
+  const [isGeneratingChart, setIsGeneratingChart] = useState(false);
+  const [customChartError, setCustomChartError] = useState("");
 
   const activeColors = PALETTES[selectedPalette]?.colors || PALETTES.indigo.colors;
 
@@ -809,12 +809,8 @@ export function DashboardTab() {
         <div>
           <div className="flex items-center gap-2.5">
             <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Executive Dashboard</h2>
-            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Automated &amp; Deduplicated
-            </span>
           </div>
-          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>{dashCharts.length} chart{dashCharts.length !== 1 ? "s" : ""} · {dashStats.length} KPIs · Unified Analytical Layer</p>
+
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Palette / Theme Selector */}
@@ -854,7 +850,7 @@ export function DashboardTab() {
 
           {/* Refresh Button */}
           <button onClick={() => loadDashboard()} disabled={isDashLoading} className="bp flex items-center gap-1.5 cursor-pointer">
-            {isDashLoading ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : <RefreshCw size={13} />}
+            {isDashLoading ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : <RefreshCw size={13} />}
             {isDashLoading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
@@ -889,7 +885,7 @@ export function DashboardTab() {
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--txt-m)" }}>Index Column — <span className="font-mono">{dashIdStats.col}</span></p>
             <div className="flex gap-6">
-              {([["Unique", dashIdStats.total], ["Min", dashIdStats.min], ["Max", dashIdStats.max]] as [string,any][]).map(([l, v]) => (
+              {([["Unique", dashIdStats.total], ["Min", dashIdStats.min], ["Max", dashIdStats.max]] as [string, any][]).map(([l, v]) => (
                 <div key={l}><p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>{l}</p><p className="text-lg font-black" style={{ color: "#f59e0b" }}>{v}</p></div>
               ))}
             </div>
@@ -931,7 +927,7 @@ export function DashboardTab() {
                     {profileCols.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                {!["histogram","boxplot"].includes(customChart.chart_type) && (
+                {!["histogram", "boxplot"].includes(customChart.chart_type) && (
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>
                       {customChart.chart_type === "scatter" ? "Y Axis (Metric)" : "Y Axis / Value"}
@@ -948,7 +944,7 @@ export function DashboardTab() {
                     </select>
                   </div>
                 )}
-                {!["histogram","boxplot","scatter"].includes(customChart.chart_type) && (
+                {!["histogram", "boxplot", "scatter"].includes(customChart.chart_type) && (
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Aggregation</label>
                     <select value={customChart.agg_type} onChange={e => setCustomChart(c => ({ ...c, agg_type: e.target.value }))} style={sel}>

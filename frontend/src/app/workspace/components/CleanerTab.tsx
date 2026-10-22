@@ -3,8 +3,8 @@
 import React, { useState, useMemo } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
 import { apiFetch } from "@/lib/api";
-import { 
-  Download, AlertTriangle, Sparkles, Sliders, Plus, Trash2, CheckCircle2, 
+import {
+  Download, AlertTriangle, Sparkles, Sliders, Plus, Trash2, CheckCircle2,
   FileCode, Eye, Check, X, Shield, Filter, Search, Copy, Terminal, RefreshCw
 } from 'lucide-react';
 
@@ -114,7 +114,7 @@ export function CleanerTab() {
   }, [rawColumns, colSearch, typeFilter]);
 
   const toggleColumnSelection = (colName: string) => {
-    setSelectedCols(prev => 
+    setSelectedCols(prev =>
       prev.includes(colName) ? prev.filter(c => c !== colName) : [...prev, colName]
     );
   };
@@ -323,13 +323,9 @@ export function CleanerTab() {
             <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
               Enterprise Data Cleaning Studio
             </h2>
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest" style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#818cf8" }}>
-              v3 Enterprise
-            </span>
+
           </div>
-          <p className="text-[0.68rem] mt-1" style={{ color: "var(--txt-m)" }}>
-            Multi-column attribute batching · Advanced statistical & ML imputation (KNN / MICE) · Isolation Forest · Robust scalers · PII redaction · Reproducible Python DAG export
-          </p>
+
         </div>
 
         <div className="flex items-center gap-2">
@@ -386,7 +382,7 @@ export function CleanerTab() {
       {mode === "dynamic" && (
         <div className="space-y-6">
           <div className="rounded-2xl overflow-hidden border shadow-xl" style={{ background: "var(--surface)", borderColor: "rgba(99,102,241,0.2)" }}>
-            
+
             {/* Step 1: Attribute / Column Multi-Select */}
             <div className="p-5 border-b" style={{ borderColor: "var(--border)" }}>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -502,7 +498,7 @@ export function CleanerTab() {
 
               {/* Dynamic Hyperparameter Panels */}
               <div className="p-4 rounded-xl border space-y-4" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
-                
+
                 {/* -- Category: Imputation ---- */}
                 {actionCategory === "impute" && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -821,11 +817,10 @@ export function CleanerTab() {
                         <Sparkles size={13} /> Simulation Preview for '{diffResult.column}'
                       </p>
                       {diffResult.total_changed_rows !== undefined && (
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
-                          diffResult.total_changed_rows > 0
-                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                            : "bg-gray-500/15 text-gray-400 border-gray-500/30"
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${diffResult.total_changed_rows > 0
+                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                          : "bg-gray-500/15 text-gray-400 border-gray-500/30"
+                          }`}>
                           {diffResult.total_changed_rows > 0 && <CheckCircle2 size={11} />}
                           {diffResult.total_changed_rows > 0
                             ? `${diffResult.total_changed_rows} ${diffResult.total_changed_rows === 1 ? "row" : "rows"} modified`
@@ -886,22 +881,20 @@ export function CleanerTab() {
                               <button
                                 type="button"
                                 onClick={() => setDiffFilter("all")}
-                                className={`px-2.5 py-0.5 rounded font-bold transition-all ${
-                                  diffFilter === "all"
-                                    ? "bg-indigo-600 text-white shadow-sm"
-                                    : "text-gray-400 hover:text-gray-200"
-                                }`}
+                                className={`px-2.5 py-0.5 rounded font-bold transition-all ${diffFilter === "all"
+                                  ? "bg-indigo-600 text-white shadow-sm"
+                                  : "text-gray-400 hover:text-gray-200"
+                                  }`}
                               >
                                 All Sample ({diffResult.sample_diff.length})
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setDiffFilter("modified")}
-                                className={`px-2.5 py-0.5 rounded font-bold transition-all ${
-                                  diffFilter === "modified"
-                                    ? "bg-emerald-600 text-white shadow-sm"
-                                    : "text-gray-400 hover:text-gray-200"
-                                }`}
+                                className={`px-2.5 py-0.5 rounded font-bold transition-all ${diffFilter === "modified"
+                                  ? "bg-emerald-600 text-white shadow-sm"
+                                  : "text-gray-400 hover:text-gray-200"
+                                  }`}
                               >
                                 Modified Only ({changedCount})
                               </button>
@@ -927,13 +920,12 @@ export function CleanerTab() {
                                 return (
                                   <tr
                                     key={idx}
-                                    className={`border-t border-white/[0.04] transition-colors ${
-                                      row.changed
-                                        ? isRemoved
-                                          ? "bg-red-500/[0.05] hover:bg-red-500/[0.09]"
-                                          : "bg-emerald-500/[0.05] hover:bg-emerald-500/[0.09]"
-                                        : "hover:bg-white/[0.02]"
-                                    }`}
+                                    className={`border-t border-white/[0.04] transition-colors ${row.changed
+                                      ? isRemoved
+                                        ? "bg-red-500/[0.05] hover:bg-red-500/[0.09]"
+                                        : "bg-emerald-500/[0.05] hover:bg-emerald-500/[0.09]"
+                                      : "hover:bg-white/[0.02]"
+                                      }`}
                                   >
                                     <td className="p-2.5 text-gray-500 font-semibold">#{row.row}</td>
                                     <td className="p-2.5">
@@ -1090,7 +1082,7 @@ export function CleanerTab() {
           <div className="w-full max-w-3xl rounded-3xl p-6 flex flex-col shadow-2xl relative overflow-hidden border max-h-[85vh]"
             onClick={e => e.stopPropagation()}
             style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}>
-            
+
             <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: "var(--border)" }}>
               <div className="flex items-center gap-2">
                 <Terminal size={18} className="text-indigo-400" />
@@ -1128,7 +1120,7 @@ export function CleanerTab() {
           <div className="w-full max-w-md rounded-3xl p-6 md:p-8 flex flex-col items-center text-center shadow-2xl relative overflow-hidden border"
             onClick={(e) => e.stopPropagation()}
             style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}>
-            
+
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 border shadow-lg"
               style={{ background: "rgba(16,185,129,0.12)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
               <CheckCircle2 size={34} />

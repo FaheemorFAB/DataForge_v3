@@ -73,7 +73,7 @@ export function EDATab() {
           if (data.has_biz_report) setBizReportReady(true);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [uploadId]);
 
   const runEda = async () => {
@@ -100,7 +100,7 @@ export function EDATab() {
           } catch (e) {
             errStr = `EDA profiling failed (HTTP ${res.status}): ${text.substring(0, 150)}`;
           }
-        } catch (e) {}
+        } catch (e) { }
         setEdaError(errStr);
         return;
       }
@@ -161,7 +161,7 @@ export function EDATab() {
           } catch (e) {
             errStr = `Report generation failed (HTTP ${res.status}): ${text.substring(0, 150)}`;
           }
-        } catch (e) {}
+        } catch (e) { }
         setBizReportError(errStr);
         return;
       }
@@ -604,12 +604,7 @@ export function EDATab() {
             <h1 className="text-xl font-black uppercase tracking-tight" style={{ color: "var(--txt)" }}>
               Executive Briefing &amp; Presentation Mode
             </h1>
-            <span
-              className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider border"
-              style={{ background: "var(--glow)", borderColor: "var(--accent)", color: "var(--accent)" }}
-            >
-              Enterprise Tier
-            </span>
+
           </div>
           <p className="text-xs mt-1" style={{ color: "var(--txt-m)" }}>
             High-impact takeaway cards, curated presentation slides, and automated business narratives.
@@ -623,9 +618,8 @@ export function EDATab() {
         >
           <button
             onClick={() => setReportView("deck")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              reportView === "deck" ? "shadow-xs font-bold" : "opacity-70 hover:opacity-100"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${reportView === "deck" ? "shadow-xs font-bold" : "opacity-70 hover:opacity-100"
+              }`}
             style={{
               background: reportView === "deck" ? "var(--surface)" : "transparent",
               color: reportView === "deck" ? "var(--accent)" : "var(--txt-m)",
@@ -638,9 +632,8 @@ export function EDATab() {
 
           <button
             onClick={() => setReportView("eda")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              reportView === "eda" ? "shadow-xs font-bold" : "opacity-70 hover:opacity-100"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${reportView === "eda" ? "shadow-xs font-bold" : "opacity-70 hover:opacity-100"
+              }`}
             style={{
               background: reportView === "eda" ? "var(--surface)" : "transparent",
               color: reportView === "eda" ? "var(--accent)" : "var(--txt-m)",
@@ -653,9 +646,8 @@ export function EDATab() {
 
           <button
             onClick={() => setReportView("biz")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              reportView === "biz" ? "shadow-xs font-bold" : "opacity-70 hover:opacity-100"
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${reportView === "biz" ? "shadow-xs font-bold" : "opacity-70 hover:opacity-100"
+              }`}
             style={{
               background: reportView === "biz" ? "var(--surface)" : "transparent",
               color: reportView === "biz" ? "var(--accent)" : "var(--txt-m)",

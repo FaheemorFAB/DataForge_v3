@@ -9,6 +9,7 @@ Previously duplicated across app.py and tasks.py. Now both import from here.
 import json
 import os
 import shutil
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -144,6 +145,18 @@ def _safe_df_for_parquet(df: pd.DataFrame) -> pd.DataFrame:
     return df_copy
 
 
+def _safe_replace(src: Path, dst: Path, retries: int = 5, delay: float = 0.05):
+    """Resilient atomic file replacement supporting Windows/OneDrive filesystem file locks."""
+    for i in range(retries):
+        try:
+            src.replace(dst)
+            return
+        except PermissionError:
+            if i == retries - 1:
+                raise
+            time.sleep(delay * (2 ** i))
+
+
 def _save(upload_id: str, key: str, obj):
     """Atomically write an object to disk (DataFrame → Parquet, bytes → joblib, else → JSON)."""
     path = _upath(upload_id, key)
@@ -158,16 +171,16 @@ def _save(upload_id: str, key: str, obj):
             except Exception:
                 safe_df = _safe_df_for_parquet(obj)
                 safe_df.to_parquet(tmp, index=False, compression="snappy")
-            tmp.replace(path.with_suffix(".parquet"))
+            _safe_replace(tmp, path.with_suffix(".parquet"))
         elif isinstance(obj, bytes):
             tmp = path.with_suffix(".joblib.tmp")
             tmp.write_bytes(obj)
-            tmp.replace(path.with_suffix(".joblib"))
+            _safe_replace(tmp, path.with_suffix(".joblib"))
         else:
             tmp = path.with_suffix(".json.tmp")
             path_final = path.with_suffix(".json")
             tmp.write_text(json.dumps(obj, default=str), encoding="utf-8")
-            tmp.replace(path_final)
+            _safe_replace(tmp, path_final)
 
     # Best-effort sync to Supabase Storage when configured (non-blocking background write-through)
     try:

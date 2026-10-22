@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
 import { apiFetch } from "@/lib/api";
-import { 
-  Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders, 
-  Cpu, Check, Download, Play, RefreshCw, Search, Filter, 
+import {
+  Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders,
+  Cpu, Check, Download, Play, RefreshCw, Search, Filter,
   Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag
 } from "lucide-react";
 
@@ -152,7 +152,7 @@ export function AutoMLTab() {
 
   // Toggle single feature
   const toggleFeature = (colName: string) => {
-    setSelectedFeatures(prev => 
+    setSelectedFeatures(prev =>
       prev.includes(colName) ? prev.filter(c => c !== colName) : [...prev, colName]
     );
   };
@@ -249,7 +249,7 @@ export function AutoMLTab() {
           const data = await res.json();
           if (data.detail) errStr = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
           else if (data.error) errStr = data.error;
-        } catch (e) {}
+        } catch (e) { }
         setAutomlError(errStr);
         setIsTraining(false);
         return;
@@ -311,24 +311,22 @@ export function AutoMLTab() {
               Enterprise AutoML Studio
             </h2>
           </div>
-          <p className="sec-sub text-xs mt-1 font-mono" style={{ color: "var(--txt-m)" }}>
-            FLAML · Whitelist Feature Selection · Target Leakage Guard · Tunable Ensembles
-          </p>
+
         </div>
 
         <div className="flex items-center gap-2.5">
           {automlResult && (
             <>
-              <button 
-                onClick={() => setActiveTab("models")} 
+              <button
+                onClick={() => setActiveTab("models")}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
                 style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>
                 <Boxes size={14} />
                 <span>Models Catalog</span>
               </button>
 
-              <a 
-                href={`/api/automl/download?upload_id=${uploadId}`} 
+              <a
+                href={`/api/automl/download?upload_id=${uploadId}`}
                 download
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all hover:opacity-90"
                 style={{ background: "linear-gradient(135deg, #10b981, #059669)", textDecoration: "none" }}>
@@ -347,15 +345,15 @@ export function AutoMLTab() {
           <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: "var(--txt-m)" }}>
             Target Variable (Y)
           </label>
-          <select 
-            value={automlTarget} 
+          <select
+            value={automlTarget}
             onChange={e => {
               const val = e.target.value;
               setAutomlTarget(val);
               if (!customModelName && val) {
                 setCustomModelName(`${val.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
               }
-            }} 
+            }}
             className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl outline-none transition-all"
             style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
             <option value="">- Select Target Column -</option>
@@ -395,9 +393,9 @@ export function AutoMLTab() {
           <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: "var(--txt-m)" }}>
             Task Objective
           </label>
-          <select 
-            value={automlTask} 
-            onChange={e => setAutomlTask(e.target.value)} 
+          <select
+            value={automlTask}
+            onChange={e => setAutomlTask(e.target.value)}
             className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl outline-none transition-all"
             style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
             <option value="auto-detect">Auto (Inferred from Target)</option>
@@ -414,9 +412,9 @@ export function AutoMLTab() {
           <label className="text-[11px] font-bold uppercase tracking-wider block mb-1.5" style={{ color: "var(--txt-m)" }}>
             Search Time Budget
           </label>
-          <select 
-            value={automlTimeBudget} 
-            onChange={e => setAutomlTimeBudget(e.target.value)} 
+          <select
+            value={automlTimeBudget}
+            onChange={e => setAutomlTimeBudget(e.target.value)}
             className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl outline-none transition-all"
             style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
             <option value="15">15 seconds (Rapid Prototype)</option>
@@ -436,14 +434,14 @@ export function AutoMLTab() {
             Holdout Test Split
           </label>
           <div className="flex items-center gap-3 mt-1.5">
-            <input 
-              type="range" 
-              min="10" 
-              max="40" 
+            <input
+              type="range"
+              min="10"
+              max="40"
               step="5"
-              value={automlTestSize} 
+              value={automlTestSize}
               onChange={e => setAutomlTestSize(e.target.value)}
-              className="flex-1 accent-[var(--accent)]" 
+              className="flex-1 accent-[var(--accent)]"
             />
             <span className="font-mono text-xs font-black px-2 py-1 rounded-md" style={{ background: "var(--border)", color: "var(--txt)" }}>
               {automlTestSize}%
@@ -489,20 +487,20 @@ export function AutoMLTab() {
 
               {/* Batch Selection Action Buttons */}
               <div className="flex items-center gap-2 flex-wrap">
-                <button 
+                <button
                   onClick={selectSafeFeaturesOnly}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold"
                   style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
                   <ShieldCheck size={12} />
                   <span>Select Safe Only</span>
                 </button>
-                <button 
+                <button
                   onClick={selectAllFeatures}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
                   style={{ background: "var(--border)", color: "var(--txt)" }}>
                   Select All
                 </button>
-                <button 
+                <button
                   onClick={deselectAllFeatures}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
                   style={{ background: "var(--border)", color: "var(--txt)" }}>
@@ -530,8 +528,8 @@ export function AutoMLTab() {
             <div className="flex items-center gap-3 flex-wrap">
               <div className="relative flex-1 min-w-[200px]">
                 <Search size={14} className="absolute left-3 top-2.5" style={{ color: "var(--txt-m)" }} />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Search feature names..."
                   value={featureSearch}
                   onChange={e => setFeatureSearch(e.target.value)}
@@ -542,7 +540,7 @@ export function AutoMLTab() {
 
               <div className="flex items-center gap-1">
                 {(["all", "numeric", "categorical", "safe", "leakage"] as const).map(tab => (
-                  <button 
+                  <button
                     key={tab}
                     onClick={() => setFeatureFilter(tab)}
                     className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all ${featureFilter === tab ? 'text-white' : ''}`}
@@ -581,14 +579,14 @@ export function AutoMLTab() {
                     {displayedFeatures.map(f => {
                       const isSelected = selectedFeatures.includes(f.name);
                       return (
-                        <tr 
+                        <tr
                           key={f.name}
                           onClick={() => toggleFeature(f.name)}
                           className="cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
                           style={{ background: isSelected ? "rgba(99,102,241,0.03)" : "transparent" }}>
                           <td className="py-2 px-3 text-center" onClick={e => e.stopPropagation()}>
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={isSelected}
                               onChange={() => toggleFeature(f.name)}
                               className="rounded accent-[var(--accent)]"
@@ -667,7 +665,7 @@ export function AutoMLTab() {
             {AVAILABLE_ALGORITHMS.map(algo => {
               const isChecked = selectedAlgos.includes(algo.id);
               return (
-                <div 
+                <div
                   key={algo.id}
                   onClick={() => toggleAlgorithm(algo.id)}
                   className="p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none"
@@ -675,7 +673,7 @@ export function AutoMLTab() {
                     background: isChecked ? "rgba(99,102,241,0.06)" : "transparent",
                     borderColor: isChecked ? "rgba(99,102,241,0.4)" : "var(--border)",
                   }}>
-                  <div 
+                  <div
                     className="w-4 h-4 rounded mt-0.5 flex items-center justify-center transition-all"
                     style={{
                       background: isChecked ? "var(--accent)" : "transparent",
@@ -719,9 +717,9 @@ export function AutoMLTab() {
               <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
                 Validation Strategy
               </label>
-              <select 
-                value={cvStrategy} 
-                onChange={e => setCvStrategy(e.target.value)} 
+              <select
+                value={cvStrategy}
+                onChange={e => setCvStrategy(e.target.value)}
                 className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
                 style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
                 <option value="auto">Auto (Dataset Adaptive)</option>
@@ -738,7 +736,7 @@ export function AutoMLTab() {
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {[3, 5, 10].map(k => (
-                    <button 
+                    <button
                       key={k}
                       type="button"
                       onClick={() => setCvFolds(k)}
@@ -759,9 +757,9 @@ export function AutoMLTab() {
               <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
                 Loss / Evaluation Metric Override
               </label>
-              <select 
-                value={metricOverride} 
-                onChange={e => setMetricOverride(e.target.value)} 
+              <select
+                value={metricOverride}
+                onChange={e => setMetricOverride(e.target.value)}
                 className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
                 style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
                 <option value="auto">Auto (Adaptive based on Class Balance)</option>
@@ -808,9 +806,9 @@ export function AutoMLTab() {
           </div>
         </div>
 
-        <button 
-          onClick={runAutoml} 
-          disabled={isTraining || !automlTarget || selectedFeatures.length === 0 || selectedAlgos.length === 0} 
+        <button
+          onClick={runAutoml}
+          disabled={isTraining || !automlTarget || selectedFeatures.length === 0 || selectedAlgos.length === 0}
           className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
           {isTraining ? (
@@ -943,7 +941,7 @@ export function AutoMLTab() {
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
                     {(automlResult.leaderboard || []).map((row: any, i: number) => (
-                      <tr 
+                      <tr
                         key={i}
                         style={{ background: row.best ? "rgba(99,102,241,0.08)" : "transparent" }}>
                         <td className="py-2.5 px-3 font-mono font-bold flex items-center gap-1.5" style={{ color: row.best ? "var(--accent)" : "var(--txt)" }}>
@@ -989,12 +987,12 @@ export function AutoMLTab() {
                           {fi.feature}
                         </span>
                         <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                          <div 
-                            className="h-full rounded-full transition-all duration-500" 
-                            style={{ 
-                              background: "linear-gradient(90deg, #6366f1, #3b82f6)", 
-                              width: `${pct}%` 
-                            }} 
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              background: "linear-gradient(90deg, #6366f1, #3b82f6)",
+                              width: `${pct}%`
+                            }}
                           />
                         </div>
                         <span className="w-12 text-right font-mono text-[10px]" style={{ color: "var(--txt-m)" }}>

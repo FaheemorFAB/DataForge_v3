@@ -244,6 +244,46 @@ class DuckDBJoinEngine:
         return suggestions
 
     @classmethod
+    def _build_condition_clause(
+        cls,
+        l_src: str,
+        l_col: str,
+        target_src: str,
+        r_col: str,
+        l_tbl_name: str,
+        target_tbl: str,
+        tables: Dict[str, pd.DataFrame],
+    ) -> str:
+        """
+        Builds a type-safe equality clause for a JOIN condition.
+        If column types are incompatible (e.g. string 'completed' vs float 4.5),
+        uses TRY_CAST to prevent DuckDB from throwing a fatal ConversionException
+        when non-numeric string values are encountered, while safely matching numeric IDs.
+        """
+        l_df = tables.get(l_tbl_name)
+        r_df = tables.get(target_tbl)
+
+        is_mismatched = False
+        if l_df is not None and r_df is not None and l_col in l_df.columns and r_col in r_df.columns:
+            t1 = l_df[l_col].dtype
+            t2 = r_df[r_col].dtype
+            t1_num = pd.api.types.is_numeric_dtype(t1)
+            t2_num = pd.api.types.is_numeric_dtype(t2)
+            t1_str = pd.api.types.is_string_dtype(t1) or pd.api.types.is_object_dtype(t1)
+            t2_str = pd.api.types.is_string_dtype(t2) or pd.api.types.is_object_dtype(t2)
+
+            if (t1_num and t2_str) or (t1_str and t2_num):
+                is_mismatched = True
+
+        if is_mismatched:
+            return (
+                f'(TRY_CAST("{l_src}"."{l_col}" AS DOUBLE) = TRY_CAST("{target_src}"."{r_col}" AS DOUBLE) '
+                f'OR (TRY_CAST("{l_src}"."{l_col}" AS VARCHAR) = TRY_CAST("{target_src}"."{r_col}" AS VARCHAR) '
+                f'AND "{l_src}"."{l_col}" IS NOT NULL AND "{target_src}"."{r_col}" IS NOT NULL))'
+            )
+        return f'"{l_src}"."{l_col}" = "{target_src}"."{r_col}"'
+
+    @classmethod
     def build_sql(
         cls,
         base_table: str,
@@ -377,7 +417,17 @@ class DuckDBJoinEngine:
                 l_tbl_name = _sanitize_table_name(raw_lt if raw_lt else base_table_clean)
                 l_src = table_query_map.get(l_tbl_name, l_tbl_name)
                 if l_col and r_col:
-                    cond_clauses.append(f'"{l_src}"."{l_col}" = "{target_src}"."{r_col}"')
+                    cond_clauses.append(
+                        cls._build_condition_clause(
+                            l_src=l_src,
+                            l_col=l_col,
+                            target_src=target_src,
+                            r_col=r_col,
+                            l_tbl_name=l_tbl_name,
+                            target_tbl=target_tbl,
+                            tables=tables,
+                        )
+                    )
 
             if j_type == "CROSS" or not cond_clauses:
                 sql_lines.append(f'CROSS JOIN "{target_src}"')

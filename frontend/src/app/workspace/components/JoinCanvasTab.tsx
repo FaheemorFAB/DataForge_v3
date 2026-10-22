@@ -539,7 +539,23 @@ export function JoinCanvasTab() {
       const baseObj = tables.find((t) => t.name === baseTable);
       const targetObj = tables.find((t) => t.name === targetTable);
       if (baseObj?.columns?.length && targetObj?.columns?.length) {
-        initialCond = { left_col: baseObj.columns[0].name, right_col: targetObj.columns[0].name, left_table: baseTable };
+        // 1. Prioritize exact matching column names
+        const exactMatch = baseObj.columns.find((bc) =>
+          targetObj.columns.some((tc) => tc.name.toLowerCase() === bc.name.toLowerCase())
+        );
+        if (exactMatch) {
+          const tcMatch = targetObj.columns.find((tc) => tc.name.toLowerCase() === exactMatch.name.toLowerCase())!;
+          initialCond = { left_col: exactMatch.name, right_col: tcMatch.name, left_table: baseTable };
+        } else {
+          // 2. Prioritize key/id columns
+          const baseId = baseObj.columns.find((c) => c.name.toLowerCase().includes("id"));
+          const targetId = targetObj.columns.find((c) => c.name.toLowerCase().includes("id"));
+          if (baseId && targetId) {
+            initialCond = { left_col: baseId.name, right_col: targetId.name, left_table: baseTable };
+          } else {
+            initialCond = { left_col: baseObj.columns[0].name, right_col: targetObj.columns[0].name, left_table: baseTable };
+          }
+        }
       }
     }
 
@@ -1157,64 +1173,103 @@ export function JoinCanvasTab() {
                         </div>
 
                         {/* Join Condition Inputs */}
-                        {j.conditions.map((cond, cIdx) => (
-                          <div
-                            key={cIdx}
-                            className="p-2.5 rounded-xl border flex flex-wrap items-center gap-2 text-xs"
-                            style={{
-                              background: "var(--input-bg, rgba(255,255,255,0.02))",
-                              borderColor: "var(--border)",
-                            }}
-                          >
-                            <span className="text-[10px] font-mono text-zinc-400">ON</span>
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] font-bold text-zinc-300">
-                                {cond.left_table || baseTable}.
-                              </span>
-                              <select
-                                value={cond.left_col}
-                                onChange={(e) => updateCondition(idx, cIdx, "left_col", e.target.value)}
-                                className="border rounded-lg px-2.5 py-1 text-xs font-mono font-medium focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                        {j.conditions.map((cond, cIdx) => {
+                          const leftColObj = baseObj?.columns.find((c) => c.name === cond.left_col);
+                          const rightColObj = targetObj?.columns.find((c) => c.name === cond.right_col);
+                          const isLeftNum = leftColObj && (leftColObj.dtype.toLowerCase().includes("int") || leftColObj.dtype.toLowerCase().includes("float"));
+                          const isRightNum = rightColObj && (rightColObj.dtype.toLowerCase().includes("int") || rightColObj.dtype.toLowerCase().includes("float"));
+                          const isTypeMismatch = Boolean(leftColObj && rightColObj && ((isLeftNum && !isRightNum) || (!isLeftNum && isRightNum)));
+                          const recommendedRel = relationships.find(
+                            (r) =>
+                              (r.left_table === (cond.left_table || baseTable) && r.right_table === j.table) ||
+                              (r.right_table === (cond.left_table || baseTable) && r.left_table === j.table)
+                          );
+
+                          return (
+                            <div key={cIdx} className="flex flex-col gap-1.5">
+                              <div
+                                className="p-2.5 rounded-xl border flex flex-wrap items-center gap-2 text-xs"
                                 style={{
-                                  background: "var(--inp-bg)",
-                                  borderColor: "var(--border)",
-                                  color: "var(--txt)",
+                                  background: "var(--input-bg, rgba(255,255,255,0.02))",
+                                  borderColor: isTypeMismatch ? "rgba(245, 158, 11, 0.4)" : "var(--border)",
                                 }}
                               >
-                                <option value="" disabled>Select Key</option>
-                                {baseObj?.columns.map((c) => (
-                                  <option key={c.name} value={c.name}>
-                                    {c.name} ({c.dtype})
-                                  </option>
-                                ))}
-                              </select>
+                                <span className="text-[10px] font-mono text-zinc-400">ON</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] font-bold text-zinc-300">
+                                    {cond.left_table || baseTable}.
+                                  </span>
+                                  <select
+                                    value={cond.left_col}
+                                    onChange={(e) => updateCondition(idx, cIdx, "left_col", e.target.value)}
+                                    className="border rounded-lg px-2.5 py-1 text-xs font-mono font-medium focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                    style={{
+                                      background: "var(--inp-bg)",
+                                      borderColor: "var(--border)",
+                                      color: "var(--txt)",
+                                    }}
+                                  >
+                                    <option value="" disabled>Select Key</option>
+                                    {baseObj?.columns.map((c) => (
+                                      <option key={c.name} value={c.name}>
+                                        {c.name} ({c.dtype})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <span className="font-bold" style={{ color: "var(--txt-m)" }}>=</span>
+
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[10px] font-bold" style={{ color: "var(--txt-m)" }}>{j.table}.</span>
+                                  <select
+                                    value={cond.right_col}
+                                    onChange={(e) => updateCondition(idx, cIdx, "right_col", e.target.value)}
+                                    className="border rounded-lg px-2.5 py-1 text-xs font-mono font-medium focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                    style={{
+                                      background: "var(--inp-bg)",
+                                      borderColor: "var(--border)",
+                                      color: "var(--txt)",
+                                    }}
+                                  >
+                                    <option value="" disabled>Select Key</option>
+                                    {targetObj?.columns.map((c) => (
+                                      <option key={c.name} value={c.name}>
+                                        {c.name} ({c.dtype})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+
+                              {isTypeMismatch && (
+                                <div className="w-full flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[11px]">
+                                  <div className="flex items-center gap-1.5">
+                                    <AlertCircle size={13} className="shrink-0 text-amber-500" />
+                                    <span>
+                                      Type mismatch: <code className="font-mono font-bold">{leftColObj?.dtype}</code> vs <code className="font-mono font-bold">{rightColObj?.dtype}</code>. Direct comparison may yield 0 matches.
+                                    </span>
+                                  </div>
+                                  {recommendedRel && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const lCol = recommendedRel.left_table === (cond.left_table || baseTable) ? recommendedRel.left_column : recommendedRel.right_column;
+                                        const rCol = recommendedRel.right_table === j.table ? recommendedRel.right_column : recommendedRel.left_column;
+                                        updateCondition(idx, cIdx, "left_col", lCol);
+                                        updateCondition(idx, cIdx, "right_col", rCol);
+                                      }}
+                                      className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-900 dark:text-amber-200 transition cursor-pointer"
+                                    >
+                                      <Sparkles size={11} />
+                                      <span>Use Recommended: {recommendedRel.left_table === (cond.left_table || baseTable) ? recommendedRel.left_column : recommendedRel.right_column} = {recommendedRel.right_table === j.table ? recommendedRel.right_column : recommendedRel.left_column}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
-
-                            <span className="font-bold" style={{ color: "var(--txt-m)" }}>=</span>
-
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] font-bold" style={{ color: "var(--txt-m)" }}>{j.table}.</span>
-                              <select
-                                value={cond.right_col}
-                                onChange={(e) => updateCondition(idx, cIdx, "right_col", e.target.value)}
-                                className="border rounded-lg px-2.5 py-1 text-xs font-mono font-medium focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                                style={{
-                                  background: "var(--inp-bg)",
-                                  borderColor: "var(--border)",
-                                  color: "var(--txt)",
-                                }}
-                              >
-                                <option value="" disabled>Select Key</option>
-                                {targetObj?.columns.map((c) => (
-                                  <option key={c.name} value={c.name}>
-                                    {c.name} ({c.dtype})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                          </div>
-                        ))}
+                          );
+                        })}
 
                         {/* Rollup Configuration Section */}
                         {j.rollup && isRollupOpen && (

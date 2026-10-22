@@ -191,7 +191,13 @@ async def preview_join(
         return JSONResponse(content=safe_jsonable(preview))
     except Exception as exc:
         log.exception("DuckDB preview join failed: %s", exc)
-        raise HTTPException(status_code=400, detail=f"Join failed: {exc}")
+        err_msg = str(exc)
+        if "Conversion Error" in err_msg or "ConversionException" in err_msg:
+            clean_err = err_msg.split("LINE")[0].strip()
+            detail = f"Join Data Type Mismatch: {clean_err}. Ensure selected join columns share compatible data types (e.g., both numbers or both text)."
+        else:
+            detail = f"Join failed: {err_msg.split('LINE')[0].strip()}"
+        raise HTTPException(status_code=400, detail=detail)
 
 
 @router.post("/materialize", summary="Commit and materialize joined dataset into active workspace")
@@ -220,7 +226,13 @@ async def materialize_join(
         return JSONResponse(content=safe_jsonable(result))
     except Exception as exc:
         log.exception("DuckDB materialize join failed: %s", exc)
-        raise HTTPException(status_code=400, detail=f"Materialization failed: {exc}")
+        err_msg = str(exc)
+        if "Conversion Error" in err_msg or "ConversionException" in err_msg:
+            clean_err = err_msg.split("LINE")[0].strip()
+            detail = f"Materialization Data Type Mismatch: {clean_err}. Ensure selected join columns share compatible data types."
+        else:
+            detail = f"Materialization failed: {err_msg.split('LINE')[0].strip()}"
+        raise HTTPException(status_code=400, detail=detail)
 
 
 @router.post("/sql/preview", summary="Preview custom DuckDB SQL query against workspace tables")

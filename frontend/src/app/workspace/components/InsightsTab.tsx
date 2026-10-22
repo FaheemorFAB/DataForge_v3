@@ -24,31 +24,31 @@ ChartJS.register(
 
 // -- Per-type colour palette --
 const TYPE_THEME: Record<string, { bg: string; border: string; text: string; glow: string }> = {
-  trend:              { bg: "rgba(99,102,241,0.12)",  border: "rgba(99,102,241,0.3)",  text: "#6366f1", glow: "#6366f1" },
-  ranking:            { bg: "rgba(16,185,129,0.12)",  border: "rgba(16,185,129,0.3)",  text: "#10b981", glow: "#10b981" },
-  correlation:        { bg: "rgba(245,158,11,0.12)",  border: "rgba(245,158,11,0.3)",  text: "#f59e0b", glow: "#f59e0b" },
-  anomaly:            { bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.3)",   text: "#ef4444", glow: "#ef4444" },
-  distribution:       { bg: "rgba(59,130,246,0.12)",  border: "rgba(59,130,246,0.3)",  text: "#3b82f6", glow: "#3b82f6" },
-  contribution:       { bg: "rgba(20,184,166,0.12)",  border: "rgba(20,184,166,0.3)",  text: "#14b8a6", glow: "#14b8a6" },
-  segment:            { bg: "rgba(139,92,246,0.12)",  border: "rgba(139,92,246,0.3)",  text: "#8b5cf6", glow: "#8b5cf6" },
-  change:             { bg: "rgba(236,72,153,0.12)",  border: "rgba(236,72,153,0.3)",  text: "#ec4899", glow: "#ec4899" },
-  data_quality:       { bg: "rgba(34,197,94,0.12)",   border: "rgba(34,197,94,0.3)",   text: "#22c55e", glow: "#22c55e" },
-  feature_importance: { bg: "rgba(251,146,60,0.12)",  border: "rgba(251,146,60,0.3)",  text: "#fb923c", glow: "#fb923c" },
-  outlier_summary:    { bg: "rgba(239,68,68,0.10)",   border: "rgba(239,68,68,0.25)",  text: "#f87171", glow: "#f87171" },
-  numeric_summary:    { bg: "rgba(99,102,241,0.10)",  border: "rgba(99,102,241,0.25)", text: "#a78bfa", glow: "#a78bfa" },
-  categorical:        { bg: "rgba(20,184,166,0.10)",  border: "rgba(20,184,166,0.25)", text: "#14b8a6", glow: "#14b8a6" },
-  profile:            { bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.1)", text: "rgba(255,255,255,0.5)", glow: "transparent" },
-  forecast:           { bg: "rgba(0,212,255,0.10)",   border: "rgba(0,212,255,0.3)",   text: "#00d4ff", glow: "#00d4ff" },
+  trend: { bg: "rgba(99,102,241,0.12)", border: "rgba(99,102,241,0.3)", text: "#6366f1", glow: "#6366f1" },
+  ranking: { bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.3)", text: "#10b981", glow: "#10b981" },
+  correlation: { bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.3)", text: "#f59e0b", glow: "#f59e0b" },
+  anomaly: { bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.3)", text: "#ef4444", glow: "#ef4444" },
+  distribution: { bg: "rgba(59,130,246,0.12)", border: "rgba(59,130,246,0.3)", text: "#3b82f6", glow: "#3b82f6" },
+  contribution: { bg: "rgba(20,184,166,0.12)", border: "rgba(20,184,166,0.3)", text: "#14b8a6", glow: "#14b8a6" },
+  segment: { bg: "rgba(139,92,246,0.12)", border: "rgba(139,92,246,0.3)", text: "#8b5cf6", glow: "#8b5cf6" },
+  change: { bg: "rgba(236,72,153,0.12)", border: "rgba(236,72,153,0.3)", text: "#ec4899", glow: "#ec4899" },
+  data_quality: { bg: "rgba(34,197,94,0.12)", border: "rgba(34,197,94,0.3)", text: "#22c55e", glow: "#22c55e" },
+  feature_importance: { bg: "rgba(251,146,60,0.12)", border: "rgba(251,146,60,0.3)", text: "#fb923c", glow: "#fb923c" },
+  outlier_summary: { bg: "rgba(239,68,68,0.10)", border: "rgba(239,68,68,0.25)", text: "#f87171", glow: "#f87171" },
+  numeric_summary: { bg: "rgba(99,102,241,0.10)", border: "rgba(99,102,241,0.25)", text: "#a78bfa", glow: "#a78bfa" },
+  categorical: { bg: "rgba(20,184,166,0.10)", border: "rgba(20,184,166,0.25)", text: "#14b8a6", glow: "#14b8a6" },
+  profile: { bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.1)", text: "rgba(255,255,255,0.5)", glow: "transparent" },
+  forecast: { bg: "rgba(0,212,255,0.10)", border: "rgba(0,212,255,0.3)", text: "#00d4ff", glow: "#00d4ff" },
 };
 
 const PIE_PALETTE = [
-  "#6366f1","#10b981","#f59e0b","#ef4444","#8b5cf6",
-  "#06b6d4","#ec4899","#f97316","#84cc16","#14b8a6",
+  "#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#06b6d4", "#ec4899", "#f97316", "#84cc16", "#14b8a6",
 ];
 
 function fmtN(v: number): string {
   if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1_000)     return `${(v / 1_000).toFixed(1)}K`;
+  if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
   return v % 1 === 0 ? String(v) : v.toFixed(2);
 }
 
@@ -169,19 +169,19 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
         },
         ticks: horizontal
           ? {
-              color: "#1e293b",
-              font: { size: 11, weight: "bold" as const },
-              callback: function (this: any, val: any) {
-                const lbl = this.getLabelForValue ? this.getLabelForValue(val) : val;
-                const str = String(lbl ?? "");
-                return str.length > 20 ? str.slice(0, 18) + "…" : str;
-              },
-            }
-          : {
-              ...scaleBase.ticks,
-              callback: (v: any) => fmtN(Number(v)),
-              maxTicksLimit: 6,
+            color: "#1e293b",
+            font: { size: 11, weight: "bold" as const },
+            callback: function (this: any, val: any) {
+              const lbl = this.getLabelForValue ? this.getLabelForValue(val) : val;
+              const str = String(lbl ?? "");
+              return str.length > 20 ? str.slice(0, 18) + "…" : str;
             },
+          }
+          : {
+            ...scaleBase.ticks,
+            callback: (v: any) => fmtN(Number(v)),
+            maxTicksLimit: 6,
+          },
         beginAtZero: !horizontal,
       },
     },
@@ -190,19 +190,19 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
 
 
 // -- Safe chart_data parser helper --
-function getChartData(ins: any): { labels: string[]; values: number[]; [key: string]: any } | null {
+function getChartData(ins: any): { labels: string[]; values: number[];[key: string]: any } | null {
   if (!ins || !ins.chart_data) return null;
   let cd = ins.chart_data;
   if (typeof cd === "string") {
     try { cd = JSON.parse(cd); } catch { return null; }
   }
   if (!cd || typeof cd !== "object") return null;
-  
+
   let labels = cd.labels;
   let values = cd.values;
-  if (typeof labels === "string") { try { labels = JSON.parse(labels); } catch {} }
-  if (typeof values === "string") { try { values = JSON.parse(values); } catch {} }
-  
+  if (typeof labels === "string") { try { labels = JSON.parse(labels); } catch { } }
+  if (typeof values === "string") { try { values = JSON.parse(values); } catch { } }
+
   if (!Array.isArray(labels) || !Array.isArray(values) || labels.length === 0 || values.length === 0) {
     return null;
   }
@@ -211,10 +211,10 @@ function getChartData(ins: any): { labels: string[]; values: number[]; [key: str
 
 // -- 9 Dedicated chart renderers --
 function renderInsightChart(ins: any): React.ReactNode {
-  const cd   = getChartData(ins);
+  const cd = getChartData(ins);
   const type = ins.type as string;
-  const t    = theme(type);
-  const col  = t.text;
+  const t = theme(type);
+  const col = t.text;
 
   if (!cd) return null;
 
@@ -254,7 +254,7 @@ function renderInsightChart(ins: any): React.ReactNode {
           datasets: [{
             label: yLabel, data: sValues,
             backgroundColor: sLabels.map((_, i) => `${PIE_PALETTE[i % PIE_PALETTE.length]}cc`),
-            borderColor:     sLabels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
+            borderColor: sLabels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
             borderWidth: 1.5, borderRadius: 5, borderSkipped: false as const,
           }],
         }}
@@ -335,16 +335,19 @@ function renderInsightChart(ins: any): React.ReactNode {
           animation: { duration: 500 },
           layout: { padding: 8 },
           plugins: {
-            legend: { display: true, position: "right" as const, labels: { color: "#1e293b", font: { size: 11, weight: "bold" }, boxWidth: 12, padding: 12,
-              generateLabels: (chart: any) => {
-                const ds = chart.data.datasets[0];
-                return (chart.data.labels || []).map((lbl: string, i: number) => {
-                  const val = Number(ds.data[i]);
-                  const pct = total > 0 ? ((Math.abs(val) / total) * 100).toFixed(1) : "0";
-                  return { text: `${lbl} (${pct}%)`, fillStyle: PIE_PALETTE[i % PIE_PALETTE.length], strokeStyle: "rgba(0,0,0,0.3)", lineWidth: 1, index: i, hidden: false };
-                });
-              },
-            }},
+            legend: {
+              display: true, position: "right" as const, labels: {
+                color: "#1e293b", font: { size: 11, weight: "bold" }, boxWidth: 12, padding: 12,
+                generateLabels: (chart: any) => {
+                  const ds = chart.data.datasets[0];
+                  return (chart.data.labels || []).map((lbl: string, i: number) => {
+                    const val = Number(ds.data[i]);
+                    const pct = total > 0 ? ((Math.abs(val) / total) * 100).toFixed(1) : "0";
+                    return { text: `${lbl} (${pct}%)`, fillStyle: PIE_PALETTE[i % PIE_PALETTE.length], strokeStyle: "rgba(0,0,0,0.3)", lineWidth: 1, index: i, hidden: false };
+                  });
+                },
+              }
+            },
             tooltip: { ...mkTooltip(col), callbacks: { label: (ctx: any) => `  ${ctx.label}: ${fmtN(Number(ctx.parsed))} (${total > 0 ? ((Math.abs(Number(ctx.parsed)) / total) * 100).toFixed(1) : 0}%)` } },
           },
         }}
@@ -378,7 +381,7 @@ function renderInsightChart(ins: any): React.ReactNode {
           datasets: [{
             label: yLabel, data: values,
             backgroundColor: labels.map((_, i) => `${PIE_PALETTE[i % PIE_PALETTE.length]}bb`),
-            borderColor:     labels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
+            borderColor: labels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
             borderWidth: 1.5, borderRadius: 5, borderSkipped: false as const,
           }],
         }}
@@ -398,7 +401,7 @@ function renderInsightChart(ins: any): React.ReactNode {
           datasets: [{
             label: yLabel, data: values,
             backgroundColor: ["rgba(99,102,241,0.6)", isUp ? "rgba(16,185,129,0.7)" : "rgba(239,68,68,0.7)"],
-            borderColor:     ["#6366f1", isUp ? "#10b981" : "#ef4444"],
+            borderColor: ["#6366f1", isUp ? "#10b981" : "#ef4444"],
             borderWidth: 2, borderRadius: 8, borderSkipped: false as const,
           }],
         }}
@@ -420,7 +423,7 @@ function renderInsightChart(ins: any): React.ReactNode {
             label: "Missing Count",
             data: values,
             backgroundColor: values.map(v => v > 50 ? "rgba(239,68,68,0.7)" : v > 10 ? "rgba(245,158,11,0.7)" : "rgba(34,197,94,0.7)"),
-            borderColor:     values.map(v => v > 50 ? "#ef4444" : v > 10 ? "#f59e0b" : "#22c55e"),
+            borderColor: values.map(v => v > 50 ? "#ef4444" : v > 10 ? "#f59e0b" : "#22c55e"),
             borderWidth: 1.5, borderRadius: 4, borderSkipped: false as const,
           }],
         }}
@@ -441,7 +444,7 @@ function renderInsightChart(ins: any): React.ReactNode {
           datasets: [{
             label: "Importance", data: sValues,
             backgroundColor: sLabels.map((_, i) => `${PIE_PALETTE[i % PIE_PALETTE.length]}cc`),
-            borderColor:     sLabels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
+            borderColor: sLabels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
             borderWidth: 1.5, borderRadius: 5, borderSkipped: false as const,
           }],
         }}
@@ -459,7 +462,7 @@ function renderInsightChart(ins: any): React.ReactNode {
           datasets: [{
             label: "Outlier Count", data: values,
             backgroundColor: values.map(v => v > 0 ? "rgba(239,68,68,0.65)" : "rgba(34,197,94,0.4)"),
-            borderColor:     values.map(v => v > 0 ? "#ef4444" : "#22c55e"),
+            borderColor: values.map(v => v > 0 ? "#ef4444" : "#22c55e"),
             borderWidth: 1.5, borderRadius: 4, borderSkipped: false as const,
           }],
         }}
@@ -476,7 +479,7 @@ function renderInsightChart(ins: any): React.ReactNode {
         datasets: [{
           label: yLabel, data: values,
           backgroundColor: labels.map((_, i) => `${PIE_PALETTE[i % PIE_PALETTE.length]}bb`),
-          borderColor:     labels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
+          borderColor: labels.map((_, i) => PIE_PALETTE[i % PIE_PALETTE.length]),
           borderWidth: 1.5, borderRadius: 5, borderSkipped: false as const,
         }],
       }}
@@ -494,23 +497,23 @@ export function ForecastCard({ ins }: { ins: any }) {
   const { uploadId } = useWorkspace();
 
   const cd = localData ?? (ins.chart_data && typeof ins.chart_data === "string" ? JSON.parse(ins.chart_data) : ins.chart_data);
-  const stats   = cd?.summary_stats || {};
-  const mapes   = cd?.model_mapes   || {};
-  const decomp  = cd?.decomposition;
-  const col     = "#00d4ff";
+  const stats = cd?.summary_stats || {};
+  const mapes = cd?.model_mapes || {};
+  const decomp = cd?.decomposition;
+  const col = "#00d4ff";
 
-  const histLabels  = cd?.labels          || [];
-  const histValues  = cd?.values          || [];
-  const fcLabels    = cd?.forecast_labels || [];
-  const fcValues    = cd?.forecast_values || [];
-  const upper95     = cd?.upper_95        || [];
-  const lower95     = cd?.lower_95        || [];
-  const upper80     = cd?.upper_80        || [];
-  const lower80     = cd?.lower_80        || [];
+  const histLabels = cd?.labels || [];
+  const histValues = cd?.values || [];
+  const fcLabels = cd?.forecast_labels || [];
+  const fcValues = cd?.forecast_values || [];
+  const upper95 = cd?.upper_95 || [];
+  const lower95 = cd?.lower_95 || [];
+  const upper80 = cd?.upper_80 || [];
+  const lower80 = cd?.lower_80 || [];
 
   const allLabels = [...histLabels, ...fcLabels];
-  const n_hist    = histLabels.length;
-  const n_fc      = fcLabels.length;
+  const n_hist = histLabels.length;
+  const n_fc = fcLabels.length;
 
   // Re-run forecast with custom horizon
   const rerunForecast = useCallback(async (h: number) => {
@@ -530,39 +533,39 @@ export function ForecastCard({ ins }: { ins: any }) {
       if (res.ok) {
         const d = await res.json();
         setLocalData({
-          labels:           d.historical_labels || [],
-          values:           d.historical_values || [],
-          forecast_labels:  d.forecast_labels   || [],
-          forecast_values:  d.forecast_values   || [],
-          upper_95:         d.upper_95          || [],
-          lower_95:         d.lower_95          || [],
-          upper_80:         d.upper_80          || [],
-          lower_80:         d.lower_80          || [],
-          decomposition:    d.decomposition,
-          freq:             d.freq,
-          horizon:          d.horizon,
-          model_mapes:      d.model_mapes       || {},
-          best_model:       d.best_model,
-          summary_stats:    d.summary_stats     || {},
+          labels: d.historical_labels || [],
+          values: d.historical_values || [],
+          forecast_labels: d.forecast_labels || [],
+          forecast_values: d.forecast_values || [],
+          upper_95: d.upper_95 || [],
+          lower_95: d.lower_95 || [],
+          upper_80: d.upper_80 || [],
+          lower_80: d.lower_80 || [],
+          decomposition: d.decomposition,
+          freq: d.freq,
+          horizon: d.horizon,
+          model_mapes: d.model_mapes || {},
+          best_model: d.best_model,
+          summary_stats: d.summary_stats || {},
         });
       }
     } catch (e) { console.error(e); }
     finally { setRunningForecast(false); }
   }, [uploadId, ins.metric]);
 
-  const growthPct  = stats.projected_growth_pct ?? 0;
+  const growthPct = stats.projected_growth_pct ?? 0;
   const isPositive = growthPct >= 0;
-  const bestModel  = cd?.best_model || "Ensemble";
+  const bestModel = cd?.best_model || "Ensemble";
   const mapeValues = Object.values(mapes as Record<string, number>);
-  const avgMAPE    = mapeValues.length > 0
+  const avgMAPE = mapeValues.length > 0
     ? (mapeValues.reduce((a, b) => a + b, 0) / mapeValues.length).toFixed(1)
     : String(stats.avg_mape ?? "—");
 
   const HORIZONS = [
-    { label: "7d",   v: 7 },
-    { label: "30d",  v: 30 },
-    { label: "90d",  v: 90 },
-    { label: "1yr",  v: 365 },
+    { label: "7d", v: 7 },
+    { label: "30d", v: 30 },
+    { label: "90d", v: 90 },
+    { label: "1yr", v: 365 },
   ];
 
   const chartData = {
@@ -764,7 +767,7 @@ export function ForecastCard({ ins }: { ins: any }) {
             {runningForecast && (
               <div className="absolute inset-0 flex items-center justify-center z-10 rounded-xl" style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
                 <div className="flex flex-col items-center gap-2">
-                  <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="#00d4ff" strokeWidth="4"/><path className="opacity-75" fill="#00d4ff" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="#00d4ff" strokeWidth="4" /><path className="opacity-75" fill="#00d4ff" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                   <p className="text-[10px] font-black" style={{ color: "#00d4ff" }}>Running forecast…</p>
                 </div>
               </div>
@@ -778,9 +781,9 @@ export function ForecastCard({ ins }: { ins: any }) {
             data={{
               labels: decomp.labels,
               datasets: [
-                { label: "Trend",    data: decomp.trend,    borderColor: "#6366f1",           backgroundColor: "transparent", borderWidth: 2,   pointRadius: 0, tension: 0.4 },
-                { label: "Seasonal", data: decomp.seasonal, borderColor: "#10b981",            backgroundColor: "transparent", borderWidth: 1.5, pointRadius: 0, tension: 0.4, borderDash: [4, 3] },
-                { label: "Residual", data: decomp.residual, borderColor: "rgba(239,68,68,0.6)", backgroundColor: "transparent", borderWidth: 1,   pointRadius: 0, tension: 0.3 },
+                { label: "Trend", data: decomp.trend, borderColor: "#6366f1", backgroundColor: "transparent", borderWidth: 2, pointRadius: 0, tension: 0.4 },
+                { label: "Seasonal", data: decomp.seasonal, borderColor: "#10b981", backgroundColor: "transparent", borderWidth: 1.5, pointRadius: 0, tension: 0.4, borderDash: [4, 3] },
+                { label: "Residual", data: decomp.residual, borderColor: "rgba(239,68,68,0.6)", backgroundColor: "transparent", borderWidth: 1, pointRadius: 0, tension: 0.3 },
               ],
             }}
             options={{ ...chartOpts, plugins: { ...chartOpts.plugins, legend: { display: true, labels: { color: "#1e293b", font: { size: 10, weight: "bold" }, boxWidth: 12 } } } }}
@@ -901,9 +904,9 @@ export function InsightCard({
   if (ins.type === "forecast") return <ForecastCard ins={ins} />;
 
   const [evidenceOpen, setEvidenceOpen] = useState(false);
-  const t    = theme(ins.type);
-  const imp  = Math.round((ins.importance ?? 0) * 100);
-  const cd   = getChartData(ins);
+  const t = theme(ins.type);
+  const imp = Math.round((ins.importance ?? 0) * 100);
+  const cd = getChartData(ins);
   const hasChart = !!cd;
   const insId = ins.id || ins.title || `ins-${idx}`;
 
@@ -945,11 +948,10 @@ export function InsightCard({
             <button
               onClick={() => onTogglePin(ins)}
               title={isPinned ? "Unpin from Dashboard" : "Pin finding to Dashboard"}
-              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer border ${
-                isPinned
-                  ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                  : "bg-white/5 hover:bg-white/10 text-slate-400 border-white/10"
-              }`}
+              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer border ${isPinned
+                ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                : "bg-white/5 hover:bg-white/10 text-slate-400 border-white/10"
+                }`}
             >
               <Pin size={11} className={isPinned ? "fill-amber-400 text-amber-400" : ""} />
             </button>
@@ -1305,10 +1307,10 @@ function ExecutiveBriefingCard({
 
       const isGenericHeader =
         (line.startsWith("###") ||
-         line.startsWith("##") ||
-         line.endsWith(":") ||
-         line.endsWith(":**") ||
-         line.endsWith("**:")) &&
+          line.startsWith("##") ||
+          line.endsWith(":") ||
+          line.endsWith(":**") ||
+          line.endsWith("**:")) &&
         stripped.length > 2 &&
         stripped.length < 70 &&
         !stripped.slice(0, -1).includes(".");
@@ -1385,9 +1387,6 @@ function ExecutiveBriefingCard({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>AI Executive Briefing</h3>
-              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                <Shield size={10} /> Numerically Grounded &amp; Validated
-              </span>
             </div>
             <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>Automated synthesis anchored to computed statistical findings</p>
           </div>
@@ -1433,23 +1432,22 @@ function ExecutiveBriefingCard({
             const accentColor = isQuality
               ? "#10b981"
               : isDriver
-              ? "#6366f1"
-              : isRisk
-              ? "#ef4444"
-              : isContext
-              ? "#8b5cf6"
-              : isTrend
-              ? "#06b6d4"
-              : isAction
-              ? "#f59e0b"
-              : "#6366f1";
+                ? "#6366f1"
+                : isRisk
+                  ? "#ef4444"
+                  : isContext
+                    ? "#8b5cf6"
+                    : isTrend
+                      ? "#06b6d4"
+                      : isAction
+                        ? "#f59e0b"
+                        : "#6366f1";
 
             return (
               <div
                 key={i}
-                className={`rounded-xl p-4 border transition-all flex flex-col justify-between ${
-                  sections.length === 3 && i === 0 ? "md:col-span-2" : ""
-                }`}
+                className={`rounded-xl p-4 border transition-all flex flex-col justify-between ${sections.length === 3 && i === 0 ? "md:col-span-2" : ""
+                  }`}
                 style={{
                   background: "var(--surface)",
                   borderColor: "var(--border)",
@@ -1498,17 +1496,17 @@ function ExecutiveBriefingCard({
 // -- Main Tab (Section 5.1 Insights UX) --
 export function InsightsTab() {
   const { profile, uploadId } = useWorkspace();
-  const [insightTopN,       setInsightTopN]       = useState("9");
-  const [targetMetric,      setTargetMetric]      = useState("");
-  const [focusPrompt,       setFocusPrompt]       = useState("");
-  const [isRunning,         setIsRunning]          = useState(false);
-  const [insightError,      setInsightError]       = useState("");
-  const [insightCards,      setInsightCards]       = useState<any[]>([]);
-  const [insightSummary,    setInsightSummary]     = useState("");
-  const [insightSchema,     setInsightSchema]      = useState<any>(null);
-  const [pinnedIds,         setPinnedIds]          = useState<string[]>([]);
-  const [dismissedIds,      setDismissedIds]       = useState<string[]>([]);
-  const [rolesModalOpen,    setRolesModalOpen]     = useState(false);
+  const [insightTopN, setInsightTopN] = useState("9");
+  const [targetMetric, setTargetMetric] = useState("");
+  const [focusPrompt, setFocusPrompt] = useState("");
+  const [isRunning, setIsRunning] = useState(false);
+  const [insightError, setInsightError] = useState("");
+  const [insightCards, setInsightCards] = useState<any[]>([]);
+  const [insightSummary, setInsightSummary] = useState("");
+  const [insightSchema, setInsightSchema] = useState<any>(null);
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [rolesModalOpen, setRolesModalOpen] = useState(false);
 
   // Load current insights and pinned state
   useEffect(() => {
@@ -1539,7 +1537,7 @@ export function InsightsTab() {
           setPinnedIds(d.pinned_insights.map((p: any) => p.id || p.title));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [uploadId]);
 
   const togglePin = async (ins: any) => {
@@ -1658,11 +1656,10 @@ export function InsightsTab() {
                   key={n}
                   type="button"
                   onClick={() => setInsightTopN(String(n))}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    active
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${active
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-white"
+                    }`}
                 >
                   {n} Findings
                 </button>
@@ -1714,7 +1711,7 @@ export function InsightsTab() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Insight Engine</h2>
-          <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>{displayedCards.length} finding{displayedCards.length !== 1 ? "s" : ""} selected · {insightSchema?.dataset_type || "general"} domain</p>
+
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -1760,11 +1757,10 @@ export function InsightsTab() {
                     setInsightTopN(String(n));
                     runInsights(undefined, n);
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    active
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "hover:bg-slate-500/10"
-                  }`}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${active
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "hover:bg-slate-500/10"
+                    }`}
                   style={!active ? { color: "var(--txt-m)" } : undefined}
                 >
                   {n} Findings
@@ -1775,7 +1771,7 @@ export function InsightsTab() {
 
           <button onClick={() => runInsights()} disabled={isRunning} className="bp flex items-center gap-1.5 cursor-pointer">
             {isRunning
-              ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
               : <Sparkles size={13} />
             }
             {isRunning ? "Analysing…" : "Re-Analyze"}

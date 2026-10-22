@@ -362,20 +362,8 @@ export function ModelRegistryTab() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold">Enterprise Model Registry</h1>
-              <span
-                className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider"
-                style={{
-                  background: "rgba(16, 185, 129, 0.15)",
-                  color: "#10b981",
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
-                }}
-              >
-                Online Serving Ready
-              </span>
             </div>
-            <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-              Versioned artifact catalog, sub-2ms online inference, and 1-click Docker packaging.
-            </p>
+
           </div>
         </div>
 
@@ -446,11 +434,10 @@ export function ModelRegistryTab() {
             <button
               key={task}
               onClick={() => setTaskFilter(task)}
-              className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition-colors cursor-pointer border ${
-                taskFilter === task
-                  ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
-                  : "border-transparent text-[var(--txt-m)] hover:text-[var(--txt)]"
-              }`}
+              className={`px-3 py-1 rounded-lg text-xs font-bold capitalize transition-colors cursor-pointer border ${taskFilter === task
+                ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
+                : "border-transparent text-[var(--txt-m)] hover:text-[var(--txt)]"
+                }`}
             >
               {task === "all" ? "All Tasks" : task}
             </button>
@@ -476,11 +463,10 @@ export function ModelRegistryTab() {
       {/* Toast Notification for Workspace Application */}
       {applyToast && (
         <div
-          className={`shrink-0 mx-4 mt-3 p-3 rounded-xl border flex items-center justify-between gap-3 text-xs font-bold transition-all ${
-            applyToast.type === "success"
-              ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-              : "bg-red-500/15 border-red-500/30 text-red-300"
-          }`}
+          className={`shrink-0 mx-4 mt-3 p-3 rounded-xl border flex items-center justify-between gap-3 text-xs font-bold transition-all ${applyToast.type === "success"
+            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+            : "bg-red-500/15 border-red-500/30 text-red-300"
+            }`}
         >
           <div className="flex items-center gap-2">
             {applyToast.type === "success" ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" /> : <AlertCircle size={16} className="text-red-400 shrink-0" />}
@@ -934,17 +920,15 @@ export function ModelRegistryTab() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setCodeSnippetTab("curl")}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
-                        codeSnippetTab === "curl" ? "bg-black/10 dark:bg-white/10 text-[var(--txt)]" : "text-[var(--txt-m)]"
-                      }`}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${codeSnippetTab === "curl" ? "bg-black/10 dark:bg-white/10 text-[var(--txt)]" : "text-[var(--txt-m)]"
+                        }`}
                     >
                       cURL
                     </button>
                     <button
                       onClick={() => setCodeSnippetTab("python")}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
-                        codeSnippetTab === "python" ? "bg-black/10 dark:bg-white/10 text-[var(--txt)]" : "text-[var(--txt-m)]"
-                      }`}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${codeSnippetTab === "python" ? "bg-black/10 dark:bg-white/10 text-[var(--txt)]" : "text-[var(--txt-m)]"
+                        }`}
                     >
                       Python
                     </button>

@@ -166,3 +166,36 @@ def test_load_relational_preset():
     assert clean_profile is not None
     assert len(df_raw) == 1200
     assert len(df_clean) == 1200
+
+
+def test_join_mismatched_types_no_conversion_error():
+    """Verifies that joining string and numeric columns does not trigger DuckDB Conversion Error."""
+    upload_id = "test_mismatched_types_999"
+    orders_df = pd.DataFrame({
+        "order_id": [1, 2, 3],
+        "order_status": ["completed", "pending", "refunded"]
+    })
+    biz_df = pd.DataFrame({
+        "biz_id": [10, 20, 30],
+        "customer_rating": [4.5, 3.8, 5.0]
+    })
+    save(upload_id, "df_raw", orders_df)
+    save(upload_id, "profile", {"filename": "orders.csv", "columns": list(orders_df.columns)})
+    DuckDBJoinEngine.save_workspace_table(upload_id, "business_data_cleaned", biz_df)
+
+    joins = [{
+        "table": "business_data_cleaned",
+        "join_type": "LEFT",
+        "conditions": [{"left_col": "order_status", "right_col": "customer_rating", "left_table": "orders"}]
+    }]
+
+    # Preview must succeed and not raise Conversion Error
+    preview = DuckDBJoinEngine.preview_join(
+        upload_id=upload_id,
+        base_table="orders",
+        joins=joins,
+        limit=10,
+    )
+    assert preview["ok"] is True
+    assert preview["preview_count"] == 3
+    assert len(preview["rows"]) == 3
