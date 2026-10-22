@@ -213,9 +213,20 @@ async def run_automl_task(
             # Auto-register into ModelRegistry so it appears in the Models catalog immediately
             try:
                 from dataforge.models.registry import ModelRegistry
+                algo_raw = result.get("best_estimator", "AutoML")
+                algo_map = {
+                    "lgbm": "LightGBM",
+                    "lightgbm": "LightGBM",
+                    "xgboost": "XGBoost",
+                    "xgb": "XGBoost",
+                    "catboost": "CatBoost",
+                    "rf": "Random Forest",
+                    "extra_tree": "Extra Trees",
+                    "linear": "Linear / Ridge",
+                }
+                algo_label = algo_map.get(str(algo_raw).lower(), str(algo_raw).replace("_", " ").title())
                 eff_name = (model_name or "").strip()
                 if not eff_name:
-                    algo_label = str(result.get("best_estimator", "AutoML")).replace("_", " ").title()
                     eff_name = f"{target_col.title()} {algo_label} Predictor"
 
                 m_metrics = result.get("metrics") or {}
@@ -225,18 +236,20 @@ async def run_automl_task(
                 user_rec = db_get("users", user_id)
                 user_email = user_rec.get("email") if user_rec else f"user_{user_id}@dataforge.app"
 
+                features_list = result.get("feature_columns") or result.get("selected_features") or feature_whitelist or []
+
                 reg_model = ModelRegistry.register_model(
                     org_id="default",
                     model_name=eff_name,
                     task_type=result.get("task", "classification"),
-                    algorithm=result.get("best_estimator", "AutoML"),
+                    algorithm=algo_label,
                     target_column=target_col,
-                    features=result.get("feature_columns") or feature_whitelist or [],
+                    features=features_list,
                     metrics=m_metrics,
                     created_by=user_email,
                     upload_id=str(upload_id),
                     version="v1.0.0",
-                    summary=f"Champion model trained on dataset {upload_id}."
+                    summary=f"Champion {algo_label} model trained via AutoML on dataset {upload_id}."
                 )
 
                 reg_id = reg_model["id"]
@@ -396,10 +409,12 @@ async def generate_report_task(
 
             gemini_commentary = ""
             try:
+                import re
+                stats_summary = "\n".join(stats_lines)
                 prompt = f"""You are a top-tier McKinsey business analyst.
 DATASET: {filename} | TYPE: {schema.get('dataset_type', 'general')}
 STATS:
-{"".join(stats_lines)}
+{stats_summary}
 INSIGHTS:
 {insights_text}
 
@@ -413,11 +428,20 @@ Write 4 sections:
                 log.warning("Gemini commentary failed: %s", api_err)
 
             def _parse_slide(text, n):
-                marker = f"---SLIDE_{n}---"
-                if marker in text:
-                    parts = text.split(marker, 1)[1]
-                    next_marker_pos = parts.find("---SLIDE_")
-                    return (parts[:next_marker_pos] if next_marker_pos > -1 else parts).strip()
+                if not text:
+                    return ""
+                import re
+                pattern = rf"(?:---|\#{1,3}\s*)?SLIDE[_\s]*{n}(?:---|\:|\b)"
+                match = re.search(pattern, text, re.IGNORECASE)
+                if match:
+                    remainder = text[match.end():]
+                    next_match = re.search(r"(?:---|\#{1,3}\s*)?SLIDE[_\s]*\d+", remainder, re.IGNORECASE)
+                    content = remainder[:next_match.start()] if next_match else remainder
+                    content = content.lstrip("-: \t\r\n")
+                    lines = content.split("\n", 1)
+                    if len(lines) > 1 and any(h in lines[0].lower() for h in ("summary", "pattern", "health", "recommend")):
+                        content = lines[1].strip()
+                    return content.strip()
                 return ""
 
             slides = {i: _parse_slide(gemini_commentary, i) for i in range(1, 5)}
@@ -431,11 +455,18 @@ Write 4 sections:
                 if not slides.get(k) or len(slides[k]) < 10:
                     slides[k] = v
 
+            existing_cols = profile.get("columns")
+            if not existing_cols or (isinstance(existing_cols, list) and existing_cols and isinstance(existing_cols[0], str)):
+                existing_cols = [
+                    {"name": str(c), "dtype": str(df[c].dtype), "nulls": int(df[c].isnull().sum())}
+                    for c in df.columns
+                ]
+
             profile.update({
                 "slide1": slides[1], "slide2": slides[2],
                 "slide3": slides[3], "slide4": slides[4],
                 "rows": rows, "cols": cols, "missing_pct": miss_pct,
-                "columns": list(df.columns),
+                "columns": existing_cols,
             })
 
             html = generate_html_report(

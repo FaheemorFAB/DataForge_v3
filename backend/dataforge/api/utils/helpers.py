@@ -67,6 +67,20 @@ def resolve_column(col_name: Optional[str], df_columns: Any) -> Optional[str]:
     return None
 
 
+def robust_numeric_series(series: Any) -> pd.Series:
+    """Coerce series to numeric, stripping currency signs, commas, and percentage symbols."""
+    if series is None:
+        return pd.Series(dtype=float)
+    if not isinstance(series, pd.Series):
+        series = pd.Series(series)
+    if len(series) == 0:
+        return pd.Series(dtype=float)
+    if pd.api.types.is_numeric_dtype(series):
+        return pd.to_numeric(series, errors="coerce")
+    cleaned = series.astype(str).str.replace(r'[\$,%€£¥]', '', regex=True).str.replace(',', '').str.strip()
+    return pd.to_numeric(cleaned, errors="coerce")
+
+
 def safe_json_value(v: Any) -> Any:
     if isinstance(v, np.integer):   return int(v)
     if isinstance(v, np.floating):  return None if np.isnan(v) else float(v)

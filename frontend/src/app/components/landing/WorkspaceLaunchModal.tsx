@@ -48,6 +48,8 @@ interface WorkspaceLaunchModalProps {
   onClose: () => void;
   initialTab?: string;
   initialConnectorId?: string;
+  hasActiveDataset?: boolean;
+  activeDatasetName?: string;
 }
 
 type ConnectorCategory = "spreadsheets" | "warehouses" | "relational" | "storage" | "files";
@@ -358,6 +360,8 @@ export default function WorkspaceLaunchModal({
   isOpen,
   onClose,
   initialConnectorId,
+  hasActiveDataset = false,
+  activeDatasetName = "",
 }: WorkspaceLaunchModalProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -672,6 +676,10 @@ export default function WorkspaceLaunchModal({
   };
 
   const handleConnect = async () => {
+    if (hasActiveDataset) {
+      setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
+      return;
+    }
     setErrorMsg("");
 
     // Sanitize and Validate inputs
@@ -692,6 +700,10 @@ export default function WorkspaceLaunchModal({
   };
 
   const handleIncomingFile = (file: File) => {
+    if (hasActiveDataset) {
+      setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
+      return;
+    }
     setErrorMsg("");
     const ext = (file.name.split(".").pop() || "").toLowerCase();
     const config = getExpectedExtensions(selectedConnector.id);
@@ -737,12 +749,20 @@ export default function WorkspaceLaunchModal({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    if (hasActiveDataset) {
+      setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
+      return;
+    }
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleIncomingFile(e.dataTransfer.files[0]);
     }
   };
 
   const handleQuickSample = (sample: SampleDataset) => {
+    if (hasActiveDataset) {
+      setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
+      return;
+    }
     const csvConnector = ALL_CONNECTORS.find((c) => c.id === "csv") || selectedConnector;
     setSelectedConnector(csvConnector);
     const blob = new Blob([sample.csvContent], { type: "text/csv" });
@@ -1005,8 +1025,27 @@ export default function WorkspaceLaunchModal({
             </div>
           </div>
         ) : (
-          /* ── Two Column Layout ── */
-          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[440px]">
+          <>
+            {hasActiveDataset && (
+              <div
+                className="mx-4 sm:mx-6 mt-3 sm:mt-4 p-3.5 rounded-xl border flex items-start gap-3 animate-fadeIn shrink-0"
+                style={{
+                  background: "rgba(239, 68, 68, 0.08)",
+                  borderColor: "rgba(239, 68, 68, 0.25)",
+                  color: "var(--txt)",
+                }}
+              >
+                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1 text-xs">
+                  <p className="font-semibold text-red-400">Workspace Already Has an Active Dataset</p>
+                  <p className="mt-1 text-[11px] leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                    You already have <strong className="text-white">{activeDatasetName || "a dataset"}</strong> loaded in this workspace. Uploading or importing additional datasets is disabled to protect your active analysis session. To work with a different dataset, please return to the Home page or Dashboard to launch a new workspace.
+                  </p>
+                </div>
+              </div>
+            )}
+            {/* ── Two Column Layout ── */}
+            <div className="grid grid-cols-1 md:grid-cols-12 min-h-[440px]">
           {/* ── Left Column: Connectors (5 cols) ── */}
           <div
             className="md:col-span-5 border-b md:border-b-0 md:border-r p-4 space-y-3"
@@ -1606,7 +1645,7 @@ export default function WorkspaceLaunchModal({
               <button
                 type="button"
                 onClick={handleConnect}
-                disabled={isConnecting}
+                disabled={isConnecting || hasActiveDataset}
                 className="px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 cursor-pointer shrink-0 disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98]"
                 style={{
                   background: "var(--accent)",
@@ -1629,6 +1668,7 @@ export default function WorkspaceLaunchModal({
             </div>
           </div>
         </div>
+        </>
         )}
       </div>
     </div>

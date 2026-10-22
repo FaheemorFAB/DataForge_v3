@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useWorkspace } from "./WorkspaceProvider";
 import { apiFetch } from "@/lib/api";
 import {
   Code,
@@ -30,6 +31,9 @@ export function PipelineStudioModal({
   onClose,
   uploadId,
 }: PipelineStudioModalProps) {
+  const workspaceContext = useWorkspace();
+  const refreshWorkspace = workspaceContext?.refreshWorkspace;
+
   const [activeTab, setActiveTab] = useState<"recipe" | "python" | "dbt" | "airflow" | "quality">("recipe");
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [qualityResults, setQualityResults] = useState<any>(null);
@@ -92,13 +96,20 @@ export function PipelineStudioModal({
       const res = await apiFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipe: parsed }),
+        body: JSON.stringify({
+          upload_id: uploadId,
+          recipe: parsed,
+          definition: parsed,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
         setRecipeError(data.detail || data.error || "Failed to execute recipe");
       } else {
         setRecipeResult({ ...data, isDryRun: dryRun });
+        if (!dryRun && refreshWorkspace && uploadId) {
+          refreshWorkspace(uploadId);
+        }
       }
     } catch (e: any) {
       setRecipeError(e.message || "Network error");
@@ -155,14 +166,28 @@ export function PipelineStudioModal({
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const handleDownloadZip = () => {
+  const handleDownloadZip = async () => {
     if (!uploadId) return;
-    const link = document.createElement("a");
-    link.href = `/api/pipeline/download-zip?upload_id=${uploadId}`;
-    link.download = `dataforge-pipeline-${uploadId.slice(0, 8)}.zip`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const res = await apiFetch(`/pipeline/download-zip?upload_id=${uploadId}`);
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `dataforge-pipeline-${uploadId.slice(0, 8)}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      const link = document.createElement("a");
+      link.href = `/api/pipeline/download-zip?upload_id=${uploadId}`;
+      link.download = `dataforge-pipeline-${uploadId.slice(0, 8)}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   if (!isOpen) return null;

@@ -327,7 +327,8 @@ class InsightEngine:
                 cols_involved = []
                 if insight.get("metric"):
                     cols_involved.append(insight["metric"])
-                dim = insight.get("chart_data", {}).get("dim") or insight.get("dimension")
+                cd_dict = insight.get("chart_data") or {}
+                dim = cd_dict.get("dim") or insight.get("dimension")
                 if dim and dim not in cols_involved:
                     cols_involved.append(dim)
                 insight["columns_involved"] = cols_involved
@@ -350,8 +351,8 @@ class InsightEngine:
 
                 if insight.get("type") == "correlation":
                     caveats.append("Observational association: correlation does not imply causation.")
-                    col_a = insight.get("chart_data", {}).get("col_a") or cols_involved[0] if cols_involved else "A"
-                    col_b = insight.get("chart_data", {}).get("col_b") or (cols_involved[1] if len(cols_involved) > 1 else "B")
+                    col_a = cd_dict.get("col_a") or (cols_involved[0] if cols_involved else "A")
+                    col_b = cd_dict.get("col_b") or (cols_involved[1] if len(cols_involved) > 1 else "B")
                     insight["evidence_query"] = f"SELECT corr(\"{col_a}\", \"{col_b}\") FROM dataset;"
                 elif insight.get("type") in ("contribution", "categorical", "segment"):
                     c_dim = dim or "category"
@@ -689,11 +690,12 @@ Algorithmic findings:
 {bullet_list}
 
 Write an authoritative, quantified Executive Briefing in 3 structured sections:
-1. **Executive Takeaway**: 2-3 sentences synthesizing the top quantitative business headline.
-2. **Key Drivers & Dynamics**: 2-3 sentences explaining the underlying statistical drivers, correlations, and segment contributions.
-3. **Strategic Recommendations**: 2 concrete, prioritized operational next steps or risk mitigations.
+1. Executive Takeaway: 2-3 sentences synthesizing the top quantitative business headline.
+2. Key Drivers & Dynamics: 2-3 sentences explaining the underlying statistical drivers, correlations, and segment contributions.
+3. Strategic Recommendations: 2 concrete, prioritized operational next steps or risk mitigations.
 
-CRITICAL GROUNDING RULES:
+CRITICAL GROUNDING & FORMATTING RULES:
+- Use clean section titles (e.g. 'Executive Takeaway:', 'Key Drivers & Dynamics:', 'Strategic Recommendations:').
 - Cite exact figures and percentages quoted in the findings.
 - Do NOT fabricate or extrapolate new numbers.
 - Observational data supports 'associated with' and 'contributes to variance', NOT 'causes'.

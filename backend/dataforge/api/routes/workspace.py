@@ -31,9 +31,11 @@ from dataforge.api.storage.manager import exists, load, persist, save, upath
 from dataforge.api.storage.snapshots import ConcurrencyConflictError, SnapshotManager
 from dataforge.api.utils.helpers import df_profile, df_to_json_rows, resolve_column
 from dataforge.api.utils.json import safe_jsonable
+from dataforge.api.config import get_settings
 from dataforge.db import db_all, db_get, db_update
 
 log = logging.getLogger(__name__)
+settings = get_settings()
 router = APIRouter(tags=["workspace"])
 
 
@@ -1399,13 +1401,15 @@ async def api_custom_chart(
         print("DEBUG: 400 - No dataset loaded")
         raise HTTPException(400, "No dataset loaded")
 
-    x_col_res = resolve_column(body.x_col, df.columns)
-    if not x_col_res:
-        print(f"DEBUG: 400 - x_col not found: '{body.x_col}', cols: {df.columns.tolist()}")
-        raise HTTPException(400, f"Column '{body.x_col}' not found in dataset")
+    x_col_res = None
+    if body.chart_type != "heatmap":
+        x_col_res = resolve_column(body.x_col, df.columns)
+        if not x_col_res:
+            print(f"DEBUG: 400 - x_col not found: '{body.x_col}', cols: {df.columns.tolist()}")
+            raise HTTPException(400, f"Column '{body.x_col}' not found in dataset")
 
     y_col_res = None
-    if body.y_col:
+    if body.y_col and str(body.y_col).strip().lower() not in ("count", "none", ""):
         y_col_res = resolve_column(body.y_col, df.columns)
         if not y_col_res:
             print(f"DEBUG: 400 - y_col not found: '{body.y_col}', cols: {df.columns.tolist()}")
@@ -1415,6 +1419,10 @@ async def api_custom_chart(
 
     def _ts():
         return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+    effective_agg = body.agg_type or ("count" if not y_col_res else "mean")
+    if not y_col_res and effective_agg not in ("none",):
+        effective_agg = "count"
 
     if body.duplicate_from_id:
         orig = next((c for c in custom_charts if c.get("id") == body.duplicate_from_id), None)
@@ -1428,21 +1436,29 @@ async def api_custom_chart(
             raise HTTPException(404, "Chart to edit not found")
         new_cfg = body.model_dump(exclude_none=True)
         new_cfg.pop("upload_id", None)
-        new_cfg["x_col"] = x_col_res
+        new_cfg["x_col"] = x_col_res or ""
         new_cfg["y_col"] = y_col_res
+        new_cfg["agg_type"] = effective_agg
         custom_charts[idx] = new_cfg
     else:
+        chart_title = body.title
+        if not chart_title:
+            if body.chart_type == "heatmap":
+                chart_title = "Correlation Matrix (Heatmap)"
+            else:
+                chart_title = f"{body.chart_type.title()} of {x_col_res}"
+
         new_cfg = {
             "id": f"custom_{_ts()}",
             "type": body.chart_type,
             "chart_type": body.chart_type,
-            "x_col": x_col_res,
+            "x_col": x_col_res or "",
             "y_col": y_col_res,
-            "agg_type": body.agg_type or "none",
-            "title": body.title or f"{body.chart_type.title()} of {x_col_res}",
+            "agg_type": effective_agg,
+            "title": chart_title,
             "is_custom": True,
             "is_area": body.is_area,
-            "top_n": body.top_n,
+            "top_n": body.top_n or 10,
         }
         custom_charts.append(new_cfg)
 

@@ -512,8 +512,10 @@ def run_automl(
     except Exception as exc:
         log.warning("[automl_trainer] Leakage pre-check failed: %s", exc)
 
-    df_model = _encode_features(df[selected_features])
-    y = df[target_col].copy()
+    # Drop rows where target is null before any categorization/encoding
+    valid_target_mask = df[target_col].notna()
+    df_model = _encode_features(df.loc[valid_target_mask, selected_features])
+    y = df.loc[valid_target_mask, target_col].copy()
 
     if task == "classification" and (y.dtype == object or str(y.dtype) == "category"):
         y = y.astype("category").cat.codes
@@ -760,6 +762,8 @@ def run_automl(
     return {
         "error": None,
         "task": task,
+        "target_col": target_col,
+        "target": target_col,
         "best_estimator": automl.best_estimator,
         "best_loss": (lambda v: None if not math.isfinite(v) else v)(round(float(automl.best_loss), 6)),
         "best_config": str(automl.best_config),
@@ -778,6 +782,7 @@ def run_automl(
         "imbalance_report": imbalance_report,
         "leakage_warnings": leakage_warnings,
         "selected_features": selected_features,
+        "feature_columns": list(df_model.columns),
         "algorithm_whitelist": algorithm_whitelist or ["all"],
         "cv_strategy": cv_strategy,
         "cv_folds": n_splits if use_cv else 1,

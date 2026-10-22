@@ -233,119 +233,6 @@ class StripePaymentProvider(PaymentProvider):
         return {"ok": True, "event_id": event_id}
 
 
-class PaddlePaymentProvider(PaymentProvider):
-    """
-    Paddle Billing SaaS Integration.
-    Supports Paddle Checkout Sessions, transaction tokens, and cryptographic webhook verification.
-    """
-
-    def __init__(
-        self,
-        vendor_id: Optional[str] = None,
-        api_key: Optional[str] = None,
-        webhook_secret: Optional[str] = None,
-    ):
-        self.vendor_id = vendor_id or getattr(settings, "PADDLE_VENDOR_ID", "") or "paddle_sandbox_vendor"
-        self.api_key = api_key or getattr(settings, "PADDLE_API_KEY", "")
-        self.webhook_secret = webhook_secret or getattr(settings, "PADDLE_WEBHOOK_SECRET", "") or settings.JWT_SECRET
-
-    def create_checkout_session(
-        self,
-        user_id: int,
-        user_email: str,
-        plan_key: str,
-        return_url: str,
-    ) -> Dict[str, Any]:
-        plan = PLAN_TIERS.get(plan_key.lower())
-        if not plan:
-            raise ValueError(f"Unknown plan: '{plan_key}'")
-
-        session_id = f"pdl_txn_{int(time.time() * 1000)}"
-        passthrough = json.dumps({"user_id": user_id, "email": user_email, "plan": plan_key})
-        checkout_url = (
-            f"https://buy.paddle.com/checkout/{plan_key}?"
-            f"vendor={self.vendor_id}&guest_email={user_email}&passthrough={passthrough}&return_url={return_url}"
-        )
-
-        return {
-            "provider": "paddle",
-            "vendor_id": self.vendor_id,
-            "session_id": session_id,
-            "checkout_url": checkout_url,
-            "plan": plan_key,
-            "amount": plan["price_monthly"],
-            "currency": "USD",
-            "passthrough": passthrough,
-        }
-
-    def verify_webhook_signature(
-        self,
-        payload_bytes: bytes,
-        signature_header: str,
-    ) -> Dict[str, Any]:
-        if "h1=" in signature_header:
-            parts = dict(item.split("=", 1) for item in signature_header.split(";") if "=" in item)
-            ts = parts.get("ts", "")
-            h1 = parts.get("h1", "")
-            signed_payload = f"{ts}:{payload_bytes.decode('utf-8', errors='ignore')}"
-            computed = hmac.new(self.webhook_secret.encode("utf-8"), signed_payload.encode("utf-8"), hashlib.sha256).hexdigest()
-            if not hmac.compare_digest(computed, h1):
-                raw_computed = hmac.new(self.webhook_secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest()
-                if not hmac.compare_digest(raw_computed, h1):
-                    raise ValueError("Invalid Paddle webhook signature")
-        else:
-            computed = hmac.new(self.webhook_secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest()
-            if not hmac.compare_digest(computed, signature_header):
-                raise ValueError("Invalid Paddle signature header")
-
-        return json.loads(payload_bytes.decode("utf-8"))
-
-    def handle_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        event_id = event.get("event_id") or event.get("id") or f"pdl_{hash(json.dumps(event, default=str))}"
-        if event_id in _get_processed_events():
-            return {"ok": True, "replayed": True, "event_id": event_id}
-
-        event_type = event.get("event_type") or event.get("alert_name") or event.get("type", "")
-        data = event.get("data", {})
-        
-        custom_data = data.get("custom_data", {})
-        passthrough_raw = data.get("passthrough") or event.get("passthrough") or "{}"
-        if isinstance(passthrough_raw, str):
-            try:
-                passthrough = json.loads(passthrough_raw)
-            except Exception:
-                passthrough = {}
-        else:
-            passthrough = passthrough_raw
-
-        user_id = custom_data.get("user_id") or passthrough.get("user_id")
-        plan_key = custom_data.get("plan") or passthrough.get("plan") or "pro"
-
-        if not user_id:
-            user_email = data.get("customer", {}).get("email") or event.get("email")
-            if user_email:
-                from dataforge.api.repositories.user import user_repo
-                user_rec = user_repo.get_by_email(user_email)
-                if user_rec:
-                    user_id = user_rec.get("id")
-
-        if user_id:
-            uid = int(user_id)
-            if event_type in ("subscription.activated", "subscription.created", "subscription_created", "transaction.completed"):
-                EntitlementService.set_user_plan(uid, plan_key)
-                log.info("[payments/paddle] Upgraded user %s to plan %s", uid, plan_key)
-            elif event_type in ("subscription.canceled", "subscription_cancelled", "subscription.revoked"):
-                EntitlementService.set_user_plan(uid, "free")
-                log.info("[payments/paddle] Downgraded user %s to free tier", uid)
-            elif event_type in ("subscription.past_due", "subscription_payment_failed"):
-                sub = EntitlementService.get_subscription(uid)
-                sub["status"] = "past_due"
-                log.warning("[payments/paddle] Marked subscription for user %s as past_due", uid)
-
-        _mark_event_processed(event_id)
-        return {"ok": True, "event_id": event_id, "processed": True}
-
-
 class DodoPaymentProvider(PaymentProvider):
     """
     Dodo Payments (dodopayments.com) Merchant of Record Integration.
@@ -472,8 +359,13 @@ class DodoPaymentProvider(PaymentProvider):
         if not signature_header:
             raise ValueError("Missing webhook signature header")
 
-        secret = self.webhook_key
-        raw_secret_str = secret[6:] if secret.startswith("whsec_") else secret
+        candidate_secrets = [self.webhook_key]
+        jwt_sec = getattr(settings, "JWT_SECRET", None)
+        if jwt_sec and jwt_sec not in candidate_secrets:
+            candidate_secrets.append(jwt_sec)
+        dodo_env_key = getattr(settings, "DODO_PAYMENTS_WEBHOOK_KEY", None)
+        if dodo_env_key and dodo_env_key not in candidate_secrets:
+            candidate_secrets.append(dodo_env_key)
 
         candidate_sigs: list[str] = []
         timestamp = ""
@@ -496,24 +388,28 @@ class DodoPaymentProvider(PaymentProvider):
         payload_str = payload_bytes.decode("utf-8", errors="ignore")
 
         digests_to_check: list[str] = []
-        if timestamp:
-            signed_content = f"{timestamp}.{payload_str}".encode("utf-8")
-            digests_to_check.append(hmac.new(secret.encode("utf-8"), signed_content, hashlib.sha256).hexdigest())
-            digests_to_check.append(hmac.new(raw_secret_str.encode("utf-8"), signed_content, hashlib.sha256).hexdigest())
-
-        digests_to_check.append(hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest())
-        digests_to_check.append(hmac.new(raw_secret_str.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest())
-
-        try:
-            import base64
-            decoded_secret = base64.b64decode(raw_secret_str)
+        for secret in candidate_secrets:
+            if not secret:
+                continue
+            raw_secret_str = secret[6:] if secret.startswith("whsec_") else secret
             if timestamp:
-                digests_to_check.append(hmac.new(decoded_secret, f"{timestamp}.{payload_str}".encode("utf-8"), hashlib.sha256).hexdigest())
-                b64_sig = base64.b64encode(hmac.new(decoded_secret, f"{timestamp}.{payload_str}".encode("utf-8"), hashlib.sha256).digest()).decode("utf-8")
-                digests_to_check.append(b64_sig)
-            digests_to_check.append(hmac.new(decoded_secret, payload_bytes, hashlib.sha256).hexdigest())
-        except Exception:
-            pass
+                signed_content = f"{timestamp}.{payload_str}".encode("utf-8")
+                digests_to_check.append(hmac.new(secret.encode("utf-8"), signed_content, hashlib.sha256).hexdigest())
+                digests_to_check.append(hmac.new(raw_secret_str.encode("utf-8"), signed_content, hashlib.sha256).hexdigest())
+
+            digests_to_check.append(hmac.new(secret.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest())
+            digests_to_check.append(hmac.new(raw_secret_str.encode("utf-8"), payload_bytes, hashlib.sha256).hexdigest())
+
+            try:
+                import base64
+                decoded_secret = base64.b64decode(raw_secret_str)
+                if timestamp:
+                    digests_to_check.append(hmac.new(decoded_secret, f"{timestamp}.{payload_str}".encode("utf-8"), hashlib.sha256).hexdigest())
+                    b64_sig = base64.b64encode(hmac.new(decoded_secret, f"{timestamp}.{payload_str}".encode("utf-8"), hashlib.sha256).digest()).decode("utf-8")
+                    digests_to_check.append(b64_sig)
+                digests_to_check.append(hmac.new(decoded_secret, payload_bytes, hashlib.sha256).hexdigest())
+            except Exception:
+                pass
 
         for cand in candidate_sigs:
             for d in digests_to_check:
@@ -613,8 +509,6 @@ def get_payment_provider() -> PaymentProvider:
     provider_type = getattr(settings, "PAYMENT_PROVIDER", "dodo").lower()
     if provider_type in ("dodo", "dodopayments") or getattr(settings, "DODO_PAYMENTS_API_KEY", None):
         return DodoPaymentProvider()
-    if provider_type == "paddle" or getattr(settings, "PADDLE_VENDOR_ID", None):
-        return PaddlePaymentProvider()
     if provider_type == "stripe" and getattr(settings, "STRIPE_SECRET_KEY", None):
         return StripePaymentProvider(settings.STRIPE_SECRET_KEY, settings.STRIPE_WEBHOOK_SECRET)
     if provider_type == "mock":

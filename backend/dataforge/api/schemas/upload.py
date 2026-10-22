@@ -13,12 +13,14 @@ class SheetsUploadRequest(BaseModel):
     url: str = Field(..., min_length=10, description="Google Sheets URL")
     sheet_name: Optional[str] = Field(default=None, description="Optional worksheet/tab name")
     gid: Optional[str] = Field(default=None, description="Optional worksheet gid")
+    current_upload_id: Optional[str] = Field(default=None, description="Active workspace upload ID to prevent secondary dataset overwrite")
 
 
 class ExcelOnlineUploadRequest(BaseModel):
     url: str = Field(..., min_length=5, description="Microsoft Excel Online, OneDrive, or SharePoint URL")
     sheet_name: Optional[str] = Field(default=None, description="Optional sheet/worksheet name or index")
     dataset_name: Optional[str] = Field(default=None, description="Optional custom dataset title")
+    current_upload_id: Optional[str] = Field(default=None, description="Active workspace upload ID to prevent secondary dataset overwrite")
 
 
 class JSONUrlUploadRequest(BaseModel):
@@ -26,6 +28,7 @@ class JSONUrlUploadRequest(BaseModel):
     headers: Optional[dict[str, str]] = None
     root_key: Optional[str] = None
     dataset_name: Optional[str] = None
+    current_upload_id: Optional[str] = Field(default=None, description="Active workspace upload ID to prevent secondary dataset overwrite")
 
 
 class DBTestConnectionRequest(BaseModel):
@@ -52,6 +55,7 @@ class DBIngestRequest(BaseModel):
     query: Optional[str] = None
     limit: Optional[int] = Field(default=None, ge=1, le=2000000)
     dataset_name: Optional[str] = None
+    current_upload_id: Optional[str] = Field(default=None, description="Active workspace upload ID to prevent secondary dataset overwrite")
 
 
 class DuplicateCheckRequest(BaseModel):

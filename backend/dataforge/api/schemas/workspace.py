@@ -52,7 +52,7 @@ class CustomChartRequest(BaseModel):
     upload_id: Optional[str] = None
     id: Optional[str] = None
     chart_type: str
-    x_col: str
+    x_col: Optional[str] = None
     y_col: Optional[str] = None
     agg_type: str = "none"
     title: Optional[str] = None

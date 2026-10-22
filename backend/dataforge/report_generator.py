@@ -272,8 +272,8 @@ def _render_svg_scatter(xs: list, ys: list, color: str = "#d97706", height: int 
 def _render_insight_svg(ins: dict) -> str:
     """Dispatches insight chart_data to the appropriate vector SVG renderer."""
     cd = ins.get("chart_data") or {}
-    ctype = ins.get("chart")
-    itype = ins.get("type")
+    ctype = str(ins.get("chart") or cd.get("type") or "").lower()
+    itype = str(ins.get("type", "")).lower()
     
     labels = cd.get("labels", [])
     values = cd.get("values", [])
@@ -281,7 +281,7 @@ def _render_insight_svg(ins: dict) -> str:
     if itype == "trend" or ctype == "line":
         return _render_svg_line(labels, values, color="#4f46e5")
     
-    if itype in ("contribution", "categorical") or ctype == "donut":
+    if itype in ("contribution", "categorical") or ctype in ("donut", "pie"):
         return _render_svg_donut(labels, values)
 
     if itype == "correlation" or ctype == "scatter":
@@ -292,10 +292,99 @@ def _render_insight_svg(ins: dict) -> str:
     if itype in ("ranking", "top_performer", "feature_importance", "segment", "data_quality", "outlier_summary"):
         return _render_svg_bar(labels, values, color="#059669", horizontal=True)
 
+    if ctype == "bar":
+        return _render_svg_bar(labels, values, color="#2563eb", horizontal=False)
+
     if labels and values:
         return _render_svg_bar(labels, values, color="#2563eb", horizontal=False)
 
     return ""
+
+
+def _format_commentary(raw: str) -> str:
+    """
+    Transforms markdown commentary from Gemini into clean, executive-formatted HTML.
+    Supports bolding, bullet points, numbered lists, and subheadings without raw markdown artifacts.
+    """
+    if not raw:
+        return ""
+    
+    lines = raw.strip().split("\n")
+    html_parts = []
+    in_ul = False
+    in_ol = False
+
+    for line in lines:
+        line_str = line.strip()
+        if not line_str:
+            if in_ul:
+                html_parts.append("</ul>")
+                in_ul = False
+            if in_ol:
+                html_parts.append("</ol>")
+                in_ol = False
+            continue
+
+        # Subheadings (### or ##)
+        if line_str.startswith("### ") or line_str.startswith("## "):
+            if in_ul:
+                html_parts.append("</ul>")
+                in_ul = False
+            if in_ol:
+                html_parts.append("</ol>")
+                in_ol = False
+            h_text = re.sub(r"^#{2,3}\s*", "", line_str)
+            html_parts.append(f'<div class="commentary-subhead">{html.escape(h_text)}</div>')
+            continue
+
+        # Bullet points (* or -)
+        bullet_match = re.match(r"^[\*\-]\s+(.*)$", line_str)
+        if bullet_match:
+            if in_ol:
+                html_parts.append("</ol>")
+                in_ol = False
+            if not in_ul:
+                html_parts.append('<ul class="commentary-list">')
+                in_ul = True
+            item_text = bullet_match.group(1)
+            item_escaped = html.escape(item_text)
+            item_escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", item_escaped)
+            html_parts.append(f'<li>{item_escaped}</li>')
+            continue
+
+        # Numbered list (1., 2., etc.)
+        num_match = re.match(r"^\d+\.\s+(.*)$", line_str)
+        if num_match:
+            if in_ul:
+                html_parts.append("</ul>")
+                in_ul = False
+            if not in_ol:
+                html_parts.append('<ol class="commentary-ordered">')
+                in_ol = True
+            item_text = num_match.group(1)
+            item_escaped = html.escape(item_text)
+            item_escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", item_escaped)
+            html_parts.append(f'<li>{item_escaped}</li>')
+            continue
+
+        # Regular paragraph
+        if in_ul:
+            html_parts.append("</ul>")
+            in_ul = False
+        if in_ol:
+            html_parts.append("</ol>")
+            in_ol = False
+
+        escaped = html.escape(line_str)
+        escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+        html_parts.append(f'<p class="commentary-p">{escaped}</p>')
+
+    if in_ul:
+        html_parts.append("</ul>")
+    if in_ol:
+        html_parts.append("</ol>")
+
+    return "\n".join(html_parts)
 
 
 # =============================================================================
@@ -326,6 +415,11 @@ def generate_html_report(
     slide3 = profile.get("slide3") or f"Data profiling confirms dataset structure with {miss}% missing cell footprint."
     slide4 = profile.get("slide4") or "1. Implement automated anomaly alerts.\n2. Optimize key driver metrics.\n3. Schedule recurring executive updates."
 
+    slide1_html = _format_commentary(slide1)
+    slide2_html = _format_commentary(slide2)
+    slide3_html = _format_commentary(slide3)
+    slide4_html = _format_commentary(slide4)
+
     # Render Insight Cards with Embedded SVG Charts
     insight_cards_html = ""
     for idx, ins in enumerate(insights[:6]):
@@ -351,9 +445,15 @@ def generate_html_report(
 
     # Columns metadata grid
     cols_list = profile.get("columns", [])
-    cols_pills = "".join(f'<span class="col-pill">{html.escape(str(c))}</span>' for c in cols_list[:14])
-    if len(cols_list) > 14:
-        cols_pills += f'<span class="col-pill overflow">+{len(cols_list)-14} more</span>'
+    col_names = []
+    for c in cols_list:
+        if isinstance(c, dict):
+            col_names.append(c.get("name") or str(c))
+        else:
+            col_names.append(str(c))
+    cols_pills = "".join(f'<span class="col-pill">{html.escape(c)}</span>' for c in col_names[:14])
+    if len(col_names) > 14:
+        cols_pills += f'<span class="col-pill overflow">+{len(col_names)-14} more</span>'
 
     # FULL EXECUTIVE CORPORATE WHITE THEME HTML & CSS
     html_doc = f"""<!DOCTYPE html>
@@ -370,15 +470,25 @@ def generate_html_report(
     }}
 
     @media print {{
-      body {{ background: #F1F5F9 !important; -webkit-print-color-adjust: exact; }}
-      .slide {{ page-break-after: always; page-break-inside: avoid; box-shadow: none !important; border: 1px solid #CBD5E1 !important; }}
+      body {{ background: #FFFFFF !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+      .slide {{
+        width: 297mm !important;
+        height: 210mm !important;
+        max-width: 297mm !important;
+        page-break-after: always;
+        page-break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #CBD5E1 !important;
+        margin: 0 !important;
+      }}
       .deck-wrapper {{ padding: 0 !important; gap: 0 !important; }}
+      .no-print {{ display: none !important; }}
     }}
 
     *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
     body {{
-      background: #E2E8F0;
+      background: #F1F5F9;
       color: #1E293B;
       font-family: 'Inter', -apple-system, sans-serif;
       padding: 0;
@@ -386,40 +496,88 @@ def generate_html_report(
       -webkit-font-smoothing: antialiased;
     }}
 
+    /* Top Sticky Navigation Bar */
+    .report-nav-bar {{
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid #CBD5E1;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+      width: 100%;
+    }}
+    .nav-left {{ display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; color: #0F172A; }}
+    .nav-divider {{ color: #CBD5E1; }}
+    .nav-dataset {{ color: #64748B; font-weight: 600; font-family: monospace; font-size: 11px; }}
+    .nav-center {{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }}
+    .nav-link {{
+      font-size: 11px;
+      font-weight: 700;
+      color: #475569;
+      text-decoration: none;
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }}
+    .nav-link:hover {{
+      color: #4F46E5;
+      background: #EEF2FF;
+      border-color: #C7D2FE;
+    }}
+    .btn-print-deck {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #4F46E5;
+      color: #FFFFFF;
+      border: none;
+      border-radius: 10px;
+      padding: 7px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+      transition: transform 0.15s ease, background 0.15s ease;
+    }}
+    .btn-print-deck:hover {{
+      background: #4338CA;
+      transform: translateY(-1px);
+    }}
+
     .deck-wrapper {{
       display: flex;
       flex-direction: column;
-      gap: 40px;
-      padding: 40px 20px;
+      gap: 36px;
+      padding: 30px 20px;
       overflow-x: auto;
-      align-items: flex-start;
-    }}
-
-    @media (min-width: 1200px) {{
-      .deck-wrapper {{
-        align-items: center;
-      }}
+      align-items: center;
     }}
 
     .slide {{
-      width: 297mm;
-      height: 210mm;
+      width: 100%;
+      max-width: 297mm;
+      min-height: 210mm;
       background: #FFFFFF;
       background-image: 
         radial-gradient(circle at 10% 10%, rgba(79, 70, 229, 0.03) 0%, transparent 45%),
         radial-gradient(circle at 90% 90%, rgba(217, 119, 6, 0.03) 0%, transparent 45%);
       border: 1px solid #CBD5E1;
       border-radius: 16px;
-      padding: 40px 50px;
+      padding: 36px 44px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      box-shadow: 0 10px 35px rgba(15, 23, 42, 0.08);
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
       position: relative;
       overflow: hidden;
       flex-shrink: 0;
-      max-width: 100%;
-      overflow-x: auto;
     }}
 
     /* Accent Bar Top */
@@ -470,7 +628,7 @@ def generate_html_report(
 
     .slide-bd {{
       flex: 1;
-      margin: 20px 0;
+      margin: 18px 0;
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -503,13 +661,13 @@ def generate_html_report(
       background: #F8FAFC;
       border: 1px solid #E2E8F0;
       border-radius: 14px;
-      padding: 18px;
+      padding: 16px;
       text-align: center;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
     }}
     .kpi-num {{
       font-family: 'Outfit', sans-serif;
-      font-size: 30px;
+      font-size: 28px;
       font-weight: 900;
       color: #4F46E5;
       line-height: 1;
@@ -529,7 +687,7 @@ def generate_html_report(
       border: 1px solid #E2E8F0;
       border-left: 4px solid #4F46E5;
       border-radius: 0 14px 14px 0;
-      padding: 20px 24px;
+      padding: 18px 22px;
       flex: 1;
       overflow-y: auto;
     }}
@@ -542,8 +700,56 @@ def generate_html_report(
       margin-bottom: 8px;
     }}
     .quote-txt {{
-      font-size: 13.5px;
-      line-height: 1.7;
+      font-size: 13px;
+      line-height: 1.65;
+      color: #334155;
+    }}
+
+    /* Commentary Formatted Elements */
+    .commentary-p {{
+      margin-bottom: 8px;
+    }}
+    .commentary-p:last-child {{
+      margin-bottom: 0;
+    }}
+    .commentary-list, .commentary-ordered {{
+      margin: 6px 0 8px 20px;
+      padding-left: 2px;
+    }}
+    .commentary-list li, .commentary-ordered li {{
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }}
+    .commentary-subhead {{
+      font-size: 11.5px;
+      font-weight: 800;
+      color: #0F172A;
+      margin: 10px 0 4px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }}
+
+    /* Pattern Digest Box on Slide 3 */
+    .pattern-digest-card {{
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-left: 4px solid #D97706;
+      border-radius: 0 12px 12px 0;
+      padding: 12px 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }}
+    .pattern-digest-hd {{
+      font-size: 10px;
+      font-weight: 800;
+      color: #D97706;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 4px;
+    }}
+    .pattern-digest-body {{
+      font-size: 12.5px;
+      line-height: 1.5;
       color: #334155;
     }}
 
@@ -551,9 +757,8 @@ def generate_html_report(
     .insights-grid {{
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      grid-template-rows: repeat(2, 1fr);
       gap: 16px;
-      height: 100%;
+      flex: 1;
     }}
     .insight-royalty-card {{
       background: #F8FAFC;
@@ -593,7 +798,7 @@ def generate_html_report(
       -webkit-box-orient: vertical;
       overflow: hidden;
     }}
-    .svg-container {{ margin-top: 8px; flex: 1; min-height: 100px; display: flex; align-items: center; }}
+    .svg-container {{ margin-top: 8px; flex: 1; min-height: 90px; display: flex; align-items: center; }}
 
     /* Column Pills */
     .col-pill {{
@@ -637,6 +842,28 @@ def generate_html_report(
   </style>
 </head>
 <body>
+
+  <!-- ── FLOATING EXECUTIVE NAVIGATION ──────────────────────────────── -->
+  <div class="report-nav-bar no-print">
+    <div class="nav-left">
+      <span class="nav-logo">👑 DATAFORGE EXECUTIVE SUITE</span>
+      <span class="nav-divider">|</span>
+      <span class="nav-dataset">{html.escape(dataset_name)}</span>
+    </div>
+    <div class="nav-center">
+      <a href="#slide-1" class="nav-link">Cover</a>
+      <a href="#slide-2" class="nav-link">Executive Summary</a>
+      <a href="#slide-3" class="nav-link">Critical Patterns</a>
+      <a href="#slide-4" class="nav-link">Data Health</a>
+      <a href="#slide-5" class="nav-link">Action Plan</a>
+    </div>
+    <div class="nav-right">
+      <button onclick="window.print()" class="btn-print-deck">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        Print / Save PDF (5 Slides)
+      </button>
+    </div>
+  </div>
 
   <div class="deck-wrapper">
 
@@ -711,7 +938,7 @@ def generate_html_report(
 
         <div class="quote-card">
           <div class="quote-hd">Executive Advisory Assessment</div>
-          <div class="quote-txt">{html.escape(slide1)}</div>
+          <div class="quote-txt">{slide1_html}</div>
         </div>
       </div>
 
@@ -732,6 +959,10 @@ def generate_html_report(
       </div>
 
       <div class="slide-bd">
+        <div class="pattern-digest-card">
+          <div class="pattern-digest-hd">Analyst Critical Pattern Findings</div>
+          <div class="pattern-digest-body">{slide2_html}</div>
+        </div>
         <div class="insights-grid">
           {insight_cards_html}
         </div>
@@ -775,7 +1006,7 @@ def generate_html_report(
 
         <div class="quote-card" style="margin:0;">
           <div class="quote-hd">Data Quality Commentary</div>
-          <div class="quote-txt">{html.escape(slide3)}</div>
+          <div class="quote-txt">{slide3_html}</div>
         </div>
       </div>
 
@@ -822,7 +1053,7 @@ def generate_html_report(
 
         <div class="quote-card" style="margin:0;">
           <div class="quote-hd">Execution Strategy Notes</div>
-          <div class="quote-txt">{html.escape(slide4)}</div>
+          <div class="quote-txt">{slide4_html}</div>
         </div>
       </div>
 

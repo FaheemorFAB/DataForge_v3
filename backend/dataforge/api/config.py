@@ -211,9 +211,6 @@ class Settings(BaseSettings):
     DODO_PAYMENTS_ENVIRONMENT: str = "test_mode"  # "test_mode" or "live_mode"
     DODO_PRODUCT_PRO_MONTHLY: str = "pdt_pro_monthly_29"
     DODO_PRODUCT_TEAM_MONTHLY: str = "pdt_team_monthly_79"
-    PADDLE_VENDOR_ID: Optional[str] = None
-    PADDLE_API_KEY: Optional[str] = None
-    PADDLE_WEBHOOK_SECRET: Optional[str] = None
 
     # ── Clerk Authentication ──────────────────────────────────────────────────
     CLERK_PUBLISHABLE_KEY: Optional[str] = None

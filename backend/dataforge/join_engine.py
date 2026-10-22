@@ -527,7 +527,24 @@ class DuckDBJoinEngine:
         new_profile = df_profile(df_joined)
         filename = output_dataset_name or f"relational_join_{base_table}.csv"
         new_profile["filename"] = filename
+        save(upload_id, "clean_profile", new_profile)
         save(upload_id, "profile", new_profile)
+
+        try:
+            from dataforge.api.cache.manager import invalidate_upload
+            invalidate_upload(upload_id)
+        except Exception:
+            pass
+
+        try:
+            from dataforge.db import db_update
+            db_update("uploads", upload_id, {
+                "row_count": len(df_joined),
+                "col_count": df_joined.shape[1],
+                "filename": filename,
+            })
+        except Exception:
+            pass
 
         join_meta = {
             "base_table": base_table,
@@ -624,7 +641,24 @@ class DuckDBJoinEngine:
         new_profile = df_profile(df_joined)
         filename = output_dataset_name or "custom_sql_materialized.csv"
         new_profile["filename"] = filename
+        save(upload_id, "clean_profile", new_profile)
         save(upload_id, "profile", new_profile)
+
+        try:
+            from dataforge.api.cache.manager import invalidate_upload
+            invalidate_upload(upload_id)
+        except Exception:
+            pass
+
+        try:
+            from dataforge.db import db_update
+            db_update("uploads", upload_id, {
+                "row_count": len(df_joined),
+                "col_count": df_joined.shape[1],
+                "filename": filename,
+            })
+        except Exception:
+            pass
 
         join_meta = {
             "base_table": "custom_sql",
@@ -699,7 +733,11 @@ class DuckDBJoinEngine:
 
             # Set orders as primary workspace table
             save(upload_id, "df_raw", orders_df)
-            save(upload_id, "profile", df_profile(orders_df))
+            save(upload_id, "df_clean", orders_df)
+            p = df_profile(orders_df)
+            p["filename"] = "orders.csv"
+            save(upload_id, "profile", p)
+            save(upload_id, "clean_profile", p)
 
         elif preset_name == "saas":
             n_org = 250
@@ -725,7 +763,11 @@ class DuckDBJoinEngine:
             created_tables.append("subscriptions")
 
             save(upload_id, "df_raw", subs_df)
-            save(upload_id, "profile", df_profile(subs_df))
+            save(upload_id, "df_clean", subs_df)
+            p = df_profile(subs_df)
+            p["filename"] = "subscriptions.csv"
+            save(upload_id, "profile", p)
+            save(upload_id, "clean_profile", p)
 
         else: # Healthcare default
             n_pat = 350
@@ -733,7 +775,7 @@ class DuckDBJoinEngine:
                 "patient_id": [f"PAT_{i:04d}" for i in range(1, n_pat + 1)],
                 "age": np.random.randint(18, 85, size=n_pat),
                 "gender": np.random.choice(["M", "F"], size=n_pat),
-                "bmi": np.round(np.random.normal(26.5, 4.2, size=n_pat), 1),
+                "bmi": np.round(np.normal(26.5, 4.2, size=n_pat) if hasattr(np, "normal") else np.random.normal(26.5, 4.2, size=n_pat), 1),
                 "smoker": np.random.choice(["Yes", "No"], size=n_pat, p=[0.22, 0.78]),
             })
             cls.save_workspace_table(upload_id, "patients", pat_df)
@@ -751,7 +793,17 @@ class DuckDBJoinEngine:
             created_tables.append("clinical_visits")
 
             save(upload_id, "df_raw", vis_df)
-            save(upload_id, "profile", df_profile(vis_df))
+            save(upload_id, "df_clean", vis_df)
+            p = df_profile(vis_df)
+            p["filename"] = "clinical_visits.csv"
+            save(upload_id, "profile", p)
+            save(upload_id, "clean_profile", p)
+
+        try:
+            from dataforge.api.cache.manager import invalidate_upload
+            invalidate_upload(upload_id)
+        except Exception:
+            pass
 
         return {
             "ok": True,

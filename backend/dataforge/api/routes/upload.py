@@ -37,6 +37,17 @@ router = APIRouter(tags=["upload"])
 settings = get_settings()
 
 
+def _assert_no_active_workspace_dataset(upload_id: Optional[str]) -> None:
+    if upload_id and str(upload_id).strip():
+        from dataforge.api.storage.manager import exists
+        uid = str(upload_id).strip()
+        if exists(uid, "df_raw") or exists(uid, "meta"):
+            raise HTTPException(
+                status_code=400,
+                detail="A dataset is already loaded in this workspace. Uploading additional datasets is not allowed.",
+            )
+
+
 @router.post("/upload", summary="Upload a CSV, Excel, Parquet or JSON file")
 async def api_upload(
     current_user: CurrentUser,
@@ -44,8 +55,10 @@ async def api_upload(
     file: UploadFile = File(...),
     upload_id_override: Optional[int] = Form(default=None),
     expected_format: Optional[str] = Form(default=None),
+    current_upload_id: Optional[str] = Form(default=None),
 ):
     """Accept a file upload, profile it, and persist to disk + Supabase."""
+    _assert_no_active_workspace_dataset(current_upload_id)
     filename = file.filename or "upload.csv"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "csv"
 
@@ -144,6 +157,7 @@ async def api_upload_sheets(
     current_user: CurrentUser,
 ):
     """Fetch a public Google Sheet or online spreadsheet and load it as a DataFrame."""
+    _assert_no_active_workspace_dataset(req.current_upload_id)
     from dataforge.sheets_connector import SheetsConnector
     from dataforge.excel_online_connector import ExcelOnlineConnector
     from dataforge.api.services.entitlements import EntitlementService
@@ -244,6 +258,7 @@ async def api_upload_excel_online(
     current_user: CurrentUser,
 ):
     """Fetch an online Excel workbook from OneDrive, SharePoint, Office 365, or direct cloud link."""
+    _assert_no_active_workspace_dataset(req.current_upload_id)
     from dataforge.excel_online_connector import ExcelOnlineConnector
     from dataforge.sheets_connector import SheetsConnector
     from dataforge.api.services.entitlements import EntitlementService
@@ -312,6 +327,7 @@ async def api_upload_json_url(
     req: JSONUrlUploadRequest,
     current_user: CurrentUser,
 ):
+    _assert_no_active_workspace_dataset(req.current_upload_id)
     import json as pyjson
     from dataforge.api.utils.ssrf import safe_fetch_url, SSRFSecurityError
 
@@ -440,6 +456,7 @@ async def api_ingest_db(
     req: DBIngestRequest,
     current_user: CurrentUser,
 ):
+    _assert_no_active_workspace_dataset(req.current_upload_id)
     from dataforge.api.services.entitlements import EntitlementService
     allowed_src, src_reason = EntitlementService.check_source_access(current_user.id, "databases")
     if not allowed_src:

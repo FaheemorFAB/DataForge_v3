@@ -53,11 +53,12 @@ export function EDATab() {
   const filename = activeProfile?.filename || "dataset.csv";
   const columnsList: any[] = activeProfile?.columns || [];
 
-  const numericCols = columnsList.filter((c: any) =>
-    ["int64", "float64", "number", "numeric", "integer"].some((t) =>
-      (c.dtype || c.type || "").toLowerCase().includes(t)
-    )
-  );
+  const numericCols = columnsList.filter((c: any) => {
+    const dt = typeof c === "string" ? "" : (c.dtype || c.type || "");
+    return ["int64", "float64", "number", "numeric", "integer", "float", "int"].some((t) =>
+      dt.toLowerCase().includes(t)
+    );
+  });
   const categoricalCols = columnsList.filter(
     (c: any) => !numericCols.includes(c)
   );
@@ -367,7 +368,7 @@ export function EDATab() {
                 1. Cohort Segmentation Optimization
               </h4>
               <p className="text-xs leading-relaxed" style={{ color: "var(--txt-m)" }}>
-                Distinct clusters emerge within key categorical dimensions (e.g. {categoricalCols[0]?.name || "category"}). Targeting the top quartile can drive up to 28% efficiency gains.
+                Distinct clusters emerge within key categorical dimensions (e.g. {categoricalCols[0]?.name || (typeof categoricalCols[0] === "string" ? categoricalCols[0] : "category")}). Targeting the top quartile can drive up to 28% efficiency gains.
               </p>
             </div>
             <div className="mt-4 pt-3 border-t text-[11px] font-bold text-emerald-500" style={{ borderColor: "var(--border)" }}>
@@ -387,7 +388,7 @@ export function EDATab() {
                 2. Automated Predictive Modeling
               </h4>
               <p className="text-xs leading-relaxed" style={{ color: "var(--txt-m)" }}>
-                Variance in {numericCols[0]?.name || "primary metric"} correlates strongly with outcome labels. Training a champion LightGBM/CatBoost model will yield high-accuracy forecasting.
+                Variance in {numericCols[0]?.name || (typeof numericCols[0] === "string" ? numericCols[0] : "primary metric")} correlates strongly with outcome labels. Training a champion LightGBM/CatBoost model will yield high-accuracy forecasting.
               </p>
             </div>
             <div className="mt-4 pt-3 border-t text-[11px] font-bold text-indigo-400" style={{ borderColor: "var(--border)" }}>
@@ -495,11 +496,11 @@ export function EDATab() {
                   style={{ background: "var(--surface)", borderColor: "var(--border)" }}
                 >
                   <div className="font-bold truncate" style={{ color: "var(--txt)" }}>
-                    {col.name}
+                    {typeof col === "string" ? col : (col.name || col.title || "Attribute")}
                   </div>
                   <div className="flex items-center justify-between text-[10px] font-mono mt-1" style={{ color: "var(--txt-m)" }}>
-                    <span>{col.dtype || col.type || "string"}</span>
-                    <span>{col.nulls ? `${col.nulls} null` : "100% full"}</span>
+                    <span>{typeof col === "string" ? "active" : (col.dtype || col.type || "string")}</span>
+                    <span>{typeof col === "string" ? "100% full" : (col.nulls ? `${col.nulls} null` : "100% full")}</span>
                   </div>
                 </div>
               ))}
@@ -899,16 +900,30 @@ export function EDATab() {
                 <span>{bizReportGenerating ? "Analyzing..." : bizReportReady ? "Update Analysis" : "Generate Report"}</span>
               </button>
               {bizReportReady && (
-                <a
-                  href={`/api/data-report/download?print=true&upload_id=${uploadId}${authQuery}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02]"
-                  style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
-                >
-                  <Download size={13} />
-                  <span>Download PDF</span>
-                </a>
+                <>
+                  <a
+                    href={`/api/data-report/download?print=true&upload_id=${uploadId}${authQuery}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02]"
+                    style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+                    title="Export Printable PDF Presentation"
+                  >
+                    <Download size={13} />
+                    <span>Download PDF</span>
+                  </a>
+                  <a
+                    href={`/api/reports/latest?upload_id=${uploadId}${authQuery}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02]"
+                    style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--accent)" }}
+                    title="Open Fullscreen Slide Deck Presentation"
+                  >
+                    <Presentation size={13} />
+                    <span>Open Deck</span>
+                  </a>
+                </>
               )}
             </div>
           </div>

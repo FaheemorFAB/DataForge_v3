@@ -78,3 +78,24 @@ def test_check_duplicate_endpoint(test_client):
     )
     assert res.status_code == 200
     assert res.json().get("duplicate") is False
+
+
+def test_upload_when_dataset_already_active_in_workspace_rejected(test_client):
+    # 1. First upload succeeds
+    csv_bytes = b"colA,colB\n1,2\n3,4\n"
+    res1 = test_client.post(
+        "/api/upload",
+        files={"file": ("primary.csv", csv_bytes, "text/csv")},
+    )
+    assert res1.status_code == 200
+    active_upload_id = res1.json()["upload_id"]
+
+    # 2. Attempting to upload another dataset into the active workspace is blocked
+    res2 = test_client.post(
+        "/api/upload",
+        files={"file": ("secondary.csv", csv_bytes, "text/csv")},
+        data={"current_upload_id": active_upload_id},
+    )
+    assert res2.status_code == 400
+    assert "already loaded in this workspace" in res2.json().get("detail", "")
+

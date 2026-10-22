@@ -135,7 +135,7 @@ const AGG_FUNCTIONS: { id: AggregateExpression["function"]; label: string }[] = 
 ];
 
 export function JoinCanvasTab() {
-  const { uploadId, setProfile, setCleanProfile, setActiveTab } = useWorkspace();
+  const { uploadId, setProfile, setCleanProfile, setActiveTab, refreshWorkspace } = useWorkspace();
 
   // Mode: Visual Builder vs Direct SQL Studio
   const [activeMode, setActiveMode] = useState<"visual" | "sql">("visual");
@@ -499,6 +499,9 @@ export function JoinCanvasTab() {
         if (data.profile) {
           setProfile(data.profile);
           setCleanProfile(data.profile);
+        }
+        if (refreshWorkspace) {
+          await refreshWorkspace(uploadId);
         }
         showToast("success", `⚡ ${data.message}`);
         setTimeout(() => {
@@ -937,7 +940,7 @@ export function JoinCanvasTab() {
                   {r.left_table}.{r.left_column} ↔ {r.right_table}.{r.right_column}
                 </span>
                 <span
-                  className="px-1 py-0.2 rounded text-[8px] uppercase tracking-wider font-black"
+                  className="px-1 py-0.5 rounded text-[8px] uppercase tracking-wider font-black"
                   style={{ background: "rgba(16, 185, 129, 0.2)", color: "#10b981" }}
                 >
                   {Math.round(r.confidence * 100)}%
@@ -1079,10 +1082,10 @@ export function JoinCanvasTab() {
                     <p className="text-[11px] max-w-sm" style={{ color: "var(--txt-m)" }}>
                       Combine {baseTable || "the base table"} with another dataset using Left, Inner, Right, or Full Outer joins.
                     </p>
-                    {availableSecondaryTables.length > 0 && (
+                    {availableSecondaryTables.length > 0 ? (
                       <button
                         onClick={() => addJoinStep(availableSecondaryTables[0].name)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02] cursor-pointer"
                         style={{
                           background: "var(--accent)",
                           borderColor: "var(--accent)",
@@ -1091,6 +1094,19 @@ export function JoinCanvasTab() {
                       >
                         <Plus size={12} />
                         <span>Join with {availableSecondaryTables[0].name}</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowUploadModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02] cursor-pointer"
+                        style={{
+                          background: "var(--accent)",
+                          borderColor: "var(--accent)",
+                          color: "#fff",
+                        }}
+                      >
+                        <Plus size={12} />
+                        <span>Add Second Table to Join</span>
                       </button>
                     )}
                   </div>
@@ -1598,7 +1614,7 @@ export function JoinCanvasTab() {
                 <span>Data Preview</span>
                 {previewData && (
                   <span
-                    className="px-1.5 py-0.2 rounded-full text-[9px] font-mono border"
+                    className="px-1.5 py-0.5 rounded-full text-[9px] font-mono border"
                     style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
                   >
                     {previewData.preview_count} rows

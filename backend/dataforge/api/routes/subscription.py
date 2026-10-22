@@ -132,7 +132,6 @@ async def payment_webhook(request: Request):
         request.headers.get("webhook-signature")
         or request.headers.get("x-dodo-signature")
         or request.headers.get("stripe-signature")
-        or request.headers.get("paddle-signature")
         or request.headers.get("x-razorpay-signature")
         or request.headers.get("x-signature")
         or request.headers.get("signature")

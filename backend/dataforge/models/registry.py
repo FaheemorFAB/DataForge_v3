@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import re
 import threading
 import time
 import zipfile
@@ -161,7 +162,9 @@ class ModelRegistry:
         """Registers a new model into the team registry."""
         with _LOCK:
             data = cls._read_data()
-            m_id = f"model_{algorithm.lower().replace(' ', '_')}_{int(time.time() * 1000)}"
+            clean_algo = re.sub(r"[^a-zA-Z0-9_]", "_", algorithm.lower().strip())
+            clean_algo = re.sub(r"_+", "_", clean_algo).strip("_") or "model"
+            m_id = f"model_{clean_algo}_{int(time.time() * 1000)}"
             now_iso = datetime.now(timezone.utc).isoformat()
 
             new_record = {

@@ -203,14 +203,6 @@ function WorkspaceContent() {
                     : <><AlertTriangle size={10} /><span className="sm:hidden">{missing}</span><span className="hidden sm:inline">{health}% · {missing} blanks</span></>
                   }
                 </button>
-                <button
-                  onClick={() => setShowIngestModal(true)}
-                  className="flex items-center gap-1 p-1 sm:px-1.5 sm:py-0.5 rounded text-[10px] font-medium opacity-60 hover:opacity-100 transition-opacity cursor-pointer shrink-0"
-                  style={{ color: "var(--accent)" }}
-                  title="Switch dataset"
-                >
-                  <RefreshCw size={10} />
-                </button>
               </div>
 
               {/* Prominent Google Sheets Live Sync Button */}
@@ -471,16 +463,18 @@ function WorkspaceContent() {
         )}
 
         <div className="flex-1 min-w-[8px]" />
-        <button
-          onClick={() => setShowIngestModal(true)}
-          className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer hover:border-[var(--accent)] hover:text-[var(--txt)] transition-all shrink-0"
-          style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
-          title="Import a new dataset or connect a data source"
-        >
-          <UploadCloud size={12} style={{ color: "var(--accent)" }} />
-          <span className="hidden sm:inline">Import Dataset</span>
-          <span className="sm:hidden">Import</span>
-        </button>
+        {!uploadId && !profile && (
+          <button
+            onClick={() => setShowIngestModal(true)}
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer hover:border-[var(--accent)] hover:text-[var(--txt)] transition-all shrink-0"
+            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
+            title="Import a new dataset or connect a data source"
+          >
+            <UploadCloud size={12} style={{ color: "var(--accent)" }} />
+            <span className="hidden sm:inline">Import Dataset</span>
+            <span className="sm:hidden">Import</span>
+          </button>
+        )}
       </div>
 
       {/* ══ MAIN CONTENT ══ */}
@@ -510,8 +504,10 @@ function WorkspaceContent() {
       </main>
 
       <WorkspaceLaunchModal
-        isOpen={showIngestModal}
+        isOpen={showIngestModal && !uploadId}
         onClose={() => setShowIngestModal(false)}
+        hasActiveDataset={!!(uploadId && profile)}
+        activeDatasetName={(cleanProfile || profile)?.filename || "Dataset"}
       />
       <ShareModal
         isOpen={showShareModal}

@@ -109,7 +109,7 @@ class DBConnector:
             resolved_file = Path(db_path).resolve()
             if not (resolved_file.is_relative_to(allowed_dir.resolve()) or "tests" in str(resolved_file)):
                 raise ValueError(
-                    "Local database access is restricted to the DataForge inputs/ directory."
+                    "Database dialect 'sqlite' or local file storage is prohibited. Local database access is restricted to the DataForge inputs/ directory."
                 )
             self._engine = create_engine(url)
             return self._engine

@@ -82,6 +82,50 @@ function mkTooltip(color: string) {
   };
 }
 
+// -- Clean markdown & text formatter (removes raw asterisks, bolds **text**, styles `code`) --
+function renderFormattedText(text: string, isBullet = false): React.ReactNode {
+  if (!text) return null;
+  let str = text.trim();
+  if (isBullet) {
+    str = str.replace(/^([•\-\*]+|\d+[\.\)])\s*/, "").trim();
+  }
+
+  // Match **bold text** or `code`
+  const regex = /(\*\*[\s\S]+?\*\*|`[\s\S]+?`)/g;
+  const parts = str.split(regex);
+
+  return (
+    <>
+      {parts.map((part, idx) => {
+        if (!part) return null;
+        if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
+          const inner = part.slice(2, -2).trim();
+          return (
+            <strong key={idx} className="font-bold text-slate-900 dark:text-slate-100">
+              {inner}
+            </strong>
+          );
+        }
+        if (part.startsWith("`") && part.endsWith("`") && part.length >= 2) {
+          const inner = part.slice(1, -1).trim();
+          return (
+            <code
+              key={idx}
+              className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium mx-0.5"
+              style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}
+            >
+              {inner}
+            </code>
+          );
+        }
+        // Remove any leftover stray double asterisks
+        const cleanedPart = part.replace(/\*\*/g, "");
+        return <span key={idx}>{cleanedPart}</span>;
+      })}
+    </>
+  );
+}
+
 // -- Base chart options --
 function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): any {
   const scaleBase = {
@@ -99,9 +143,10 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
     scales: {
       x: {
         ...scaleBase,
+        type: horizontal ? ("linear" as const) : ("category" as const),
         title: {
           display: true,
-          text: xLabel || "Category",
+          text: xLabel || (horizontal ? "Value" : "Category"),
           color: "#0f172a",
           font: { size: 12, weight: "bold" as const },
           padding: { top: 4 },
@@ -110,21 +155,33 @@ function baseOpts(color: string, xLabel = "", yLabel = "", horizontal = false): 
           ...scaleBase.ticks,
           callback: horizontal ? (v: any) => fmtN(Number(v)) : undefined,
         },
+        beginAtZero: horizontal,
       },
       y: {
         ...scaleBase,
+        type: horizontal ? ("category" as const) : ("linear" as const),
         title: {
           display: true,
-          text: yLabel || "Value",
+          text: yLabel || (horizontal ? "Category" : "Value"),
           color: "#0f172a",
           font: { size: 12, weight: "bold" as const },
           padding: { bottom: 4 },
         },
-        ticks: {
-          ...scaleBase.ticks,
-          callback: horizontal ? undefined : (v: any) => fmtN(Number(v)),
-          maxTicksLimit: 6,
-        },
+        ticks: horizontal
+          ? {
+              color: "#1e293b",
+              font: { size: 11, weight: "bold" as const },
+              callback: function (this: any, val: any) {
+                const lbl = this.getLabelForValue ? this.getLabelForValue(val) : val;
+                const str = String(lbl ?? "");
+                return str.length > 20 ? str.slice(0, 18) + "…" : str;
+              },
+            }
+          : {
+              ...scaleBase.ticks,
+              callback: (v: any) => fmtN(Number(v)),
+              maxTicksLimit: 6,
+            },
         beginAtZero: !horizontal,
       },
     },
@@ -360,13 +417,14 @@ function renderInsightChart(ins: any): React.ReactNode {
         data={{
           labels,
           datasets: [{
-            label: "Missing %", data: values,
-            backgroundColor: values.map(v => v > 20 ? "rgba(239,68,68,0.7)" : v > 5 ? "rgba(245,158,11,0.7)" : "rgba(34,197,94,0.7)"),
-            borderColor:     values.map(v => v > 20 ? "#ef4444" : v > 5 ? "#f59e0b" : "#22c55e"),
+            label: "Missing Count",
+            data: values,
+            backgroundColor: values.map(v => v > 50 ? "rgba(239,68,68,0.7)" : v > 10 ? "rgba(245,158,11,0.7)" : "rgba(34,197,94,0.7)"),
+            borderColor:     values.map(v => v > 50 ? "#ef4444" : v > 10 ? "#f59e0b" : "#22c55e"),
             borderWidth: 1.5, borderRadius: 4, borderSkipped: false as const,
           }],
         }}
-        options={baseOpts(col, "Missing %", "Column", true)}
+        options={baseOpts(col, cd.y_label || "Missing Values", cd.x_label || "Column", true)}
       />
     );
   }
@@ -762,6 +820,69 @@ export function ForecastCard({ ins }: { ins: any }) {
   );
 }
 
+// -- Structured Visual for Dataset Overview / Profile Insights --
+function DatasetProfileVisual({ ins }: { ins: any }) {
+  const desc = ins.description || "";
+  const rowsMatch = desc.match(/([\d,]+)\s+rows/i);
+  const colsMatch = desc.match(/([\d,]+)\s+columns/i);
+  const metricsMatch = desc.match(/(\d+)\s+numeric/i);
+  const dimsMatch = desc.match(/(\d+)\s+categorical/i);
+  const dateMatch = desc.match(/date column:\s*'([^']+)'/i);
+  const domainMatch = desc.match(/classified as:\s*([a-zA-Z0-9_\-]+)/i);
+
+  const rows = rowsMatch ? rowsMatch[1] : (ins.sample_size ? ins.sample_size.toLocaleString() : "—");
+  const cols = colsMatch ? colsMatch[1] : "—";
+  const metrics = metricsMatch ? metricsMatch[1] : "0";
+  const dims = dimsMatch ? dimsMatch[1] : "0";
+  const dateCol = dateMatch ? dateMatch[1] : "None detected";
+  const domain = domainMatch ? domainMatch[1] : "general";
+
+  return (
+    <div
+      className="mx-3 mb-3 p-3.5 rounded-xl border flex flex-col justify-between"
+      style={{
+        background: "var(--surface)",
+        borderColor: "var(--border)",
+        minHeight: 230,
+      }}
+    >
+      <div className="grid grid-cols-2 gap-2">
+        <div className="p-2.5 rounded-lg border flex flex-col justify-center" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+          <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Total Rows</span>
+          <span className="text-base font-black font-mono mt-0.5" style={{ color: "var(--txt)" }}>{rows}</span>
+        </div>
+        <div className="p-2.5 rounded-lg border flex flex-col justify-center" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+          <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Total Columns</span>
+          <span className="text-base font-black font-mono mt-0.5" style={{ color: "var(--txt)" }}>{cols}</span>
+        </div>
+        <div className="p-2.5 rounded-lg border flex flex-col justify-center" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+          <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Dimensions</span>
+          <span className="text-base font-black font-mono mt-0.5 text-indigo-500">{dims}</span>
+        </div>
+        <div className="p-2.5 rounded-lg border flex flex-col justify-center" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+          <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Metrics</span>
+          <span className="text-base font-black font-mono mt-0.5 text-emerald-500">{metrics}</span>
+        </div>
+      </div>
+
+      <div className="pt-2.5 mt-2 border-t flex flex-col gap-1.5 text-[11px]" style={{ borderColor: "var(--border)" }}>
+        <div className="flex justify-between items-center">
+          <span className="font-semibold text-[10px]" style={{ color: "var(--txt-m)" }}>Temporal Anchor:</span>
+          <span className="font-mono font-bold text-[10px] truncate max-w-[150px] px-1.5 py-0.5 rounded border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}>
+            {dateCol}
+          </span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="font-semibold text-[10px]" style={{ color: "var(--txt-m)" }}>Domain Classification:</span>
+          <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-indigo-500/15 text-indigo-500 border border-indigo-500/30">
+            {domain}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // -- Insight Card (Section 4.2 Standard Finding Representation) --
 export function InsightCard({
   ins,
@@ -802,7 +923,7 @@ export function InsightCard({
       <div className="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="font-black text-sm leading-tight truncate" style={{ color: "var(--txt)" }}>{ins.title}</p>
+            <p className="font-black text-sm leading-tight truncate" title={ins.title} style={{ color: "var(--txt)" }}>{ins.title}</p>
             {ins.is_protected && (
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
                 Demographic Segment
@@ -846,8 +967,10 @@ export function InsightCard({
         </div>
       </div>
 
-      {/* Description */}
-      <p className="px-4 pb-2 text-[11px] leading-relaxed" style={{ color: "var(--txt-m)" }}>{ins.description}</p>
+      {/* Description with clean markdown rendering */}
+      <p className="px-4 pb-2 text-[11px] leading-relaxed" style={{ color: "var(--txt-m)" }}>
+        {renderFormattedText(ins.description)}
+      </p>
 
       {/* Importance bar */}
       <div className="px-4 pb-3 flex items-center gap-2">
@@ -858,15 +981,13 @@ export function InsightCard({
         <span className="font-mono text-[10px] font-bold" style={{ color: t.text }}>{imp}%</span>
       </div>
 
-      {/* Chart */}
+      {/* Visual Content: Chart or Structured Profile */}
       {hasChart ? (
         <div className="mx-3 mb-3 rounded-xl p-3 bg-white border border-slate-300 shadow-inner" style={{ height: 230, position: "relative" }}>
           {renderInsightChart(ins)}
         </div>
       ) : ins.type === "profile" ? (
-        <div className="mx-4 mb-3 rounded-xl p-3" style={{ background: "var(--inp-bg)", border: "1px solid var(--border)" }}>
-          <p className="text-[10px] leading-relaxed" style={{ color: "var(--txt-m)" }}>No chart available for this insight type.</p>
-        </div>
+        <DatasetProfileVisual ins={ins} />
       ) : null}
 
       {/* Evidence & Verification Drawer (Section 4.2 & 5.1) */}
@@ -1080,40 +1201,64 @@ function ExecutiveBriefingCard({
       if (!line || line.startsWith("═") || line.startsWith("Executive Intelligence Briefing")) continue;
       if (line.startsWith("User Hypothesis Inquiry:")) continue;
 
-      if (line.endsWith(":") || line.startsWith("###")) {
-        const cleanTitle = line.replace(/[:#]/g, "").trim();
+      // Detect if line is a section header:
+      // e.g. "### 3. STRATEGIC RECOMMENDATIONS:", "3. STRATEGIC RECOMMENDATIONS", "**3. Strategic Recommendations:**", "Data Quality & Completeness:"
+      const isHeader =
+        line.startsWith("###") ||
+        line.startsWith("##") ||
+        line.endsWith(":") ||
+        (/^(\d+[\.\)]\s*)?(\*\*)?[A-Z0-9\s&/\\-]{3,}(\*\*)?:?$/i.test(line) && line.length < 80);
+
+      if (isHeader) {
+        // Strip leading numbers ("3. ", "1. ", "(1) "), hashes, colons, asterisks
+        let cleanTitle = line
+          .replace(/^[#*\s\d.]+/, "")
+          .replace(/[:#*]+$/, "")
+          .replace(/\*\*/g, "")
+          .trim();
+
+        // Convert ALL-CAPS titles like "STRATEGIC RECOMMENDATIONS" into Title Case "Strategic Recommendations"
+        if (cleanTitle === cleanTitle.toUpperCase() && cleanTitle.length > 3) {
+          cleanTitle = cleanTitle.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+        }
+
         let iconType = "activity";
         let badge = undefined;
         const low = cleanTitle.toLowerCase();
-        if (low.includes("quality") || low.includes("completeness")) {
+        if (low.includes("quality") || low.includes("completeness") || low.includes("integrity")) {
           iconType = "quality";
           badge = "Integrity";
-        } else if (low.includes("trajectory") || low.includes("performance") || low.includes("trend")) {
+        } else if (low.includes("trajectory") || low.includes("performance") || low.includes("trend") || low.includes("dynamics")) {
           iconType = "trend";
           badge = "Dynamics";
         } else if (low.includes("driver") || low.includes("correlation") || low.includes("contribution")) {
           iconType = "driver";
-          badge = "Contribution";
-        } else if (low.includes("demographic") || low.includes("segment") || low.includes("context")) {
+          badge = "Drivers";
+        } else if (low.includes("demographic") || low.includes("segment") || low.includes("context") || low.includes("cohort")) {
           iconType = "context";
           badge = "Cohort Context";
-        } else if (low.includes("risk") || low.includes("anomal") || low.includes("outlier")) {
+        } else if (low.includes("risk") || low.includes("anomal") || low.includes("outlier") || low.includes("caution")) {
           iconType = "risk";
-          badge = "Caution";
-        } else if (low.includes("action") || low.includes("suggest") || low.includes("prescript")) {
+          badge = "Risk & Caution";
+        } else if (low.includes("action") || low.includes("suggest") || low.includes("prescript") || low.includes("recommend") || low.includes("strategic") || low.includes("priority")) {
           iconType = "action";
           badge = "Strategy";
+        } else if (low.includes("takeaway") || low.includes("executive") || low.includes("synthesis") || low.includes("headline") || low.includes("core")) {
+          iconType = "takeaway";
+          badge = "Executive Summary";
         }
 
         curSection = { title: cleanTitle, bullets: [], iconType, badge };
         parsed.push(curSection);
       } else if (curSection) {
-        const bulletText = line.startsWith("-") || line.startsWith("•") || line.startsWith("*")
-          ? line.substring(1).trim()
-          : line;
+        // It's a bullet under the current section
+        const bulletText = line
+          .replace(/^([•\-\*]+|\d+[\.\)])\s*/, "") // Strip leading bullet or number markers
+          .trim();
         if (bulletText) curSection.bullets.push(bulletText);
       } else {
-        parsed.push({ title: "Core Synthesis", bullets: [line], iconType: "activity" });
+        // Fallback before any section header
+        parsed.push({ title: "Core Synthesis", bullets: [line], iconType: "takeaway", badge: "Executive Summary" });
       }
     }
     return parsed;
@@ -1180,6 +1325,7 @@ function ExecutiveBriefingCard({
             const isRisk = sec.iconType === "risk";
             const isContext = sec.iconType === "context";
             const isTrend = sec.iconType === "trend";
+            const isAction = sec.iconType === "action";
 
             const accentColor = isQuality
               ? "#10b981"
@@ -1191,45 +1337,49 @@ function ExecutiveBriefingCard({
               ? "#8b5cf6"
               : isTrend
               ? "#06b6d4"
-              : "#f59e0b";
+              : isAction
+              ? "#f59e0b"
+              : "#6366f1";
 
             return (
               <div
                 key={i}
-                className="rounded-xl p-4 border transition-all"
+                className="rounded-xl p-4 border transition-all flex flex-col justify-between"
                 style={{
                   background: "var(--surface)",
                   borderColor: "var(--border)",
                 }}
               >
-                <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b" style={{ borderColor: "var(--border)" }}>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ background: accentColor }} />
-                    <h4 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>{sec.title}</h4>
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full shadow-sm shrink-0" style={{ background: accentColor, boxShadow: `0 0 8px ${accentColor}80` }} />
+                      <h4 className="text-xs font-black tracking-wide" style={{ color: "var(--txt)" }}>{sec.title}</h4>
+                    </div>
+                    {sec.badge && (
+                      <span
+                        className="text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0"
+                        style={{ background: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}30` }}
+                      >
+                        {sec.badge}
+                      </span>
+                    )}
                   </div>
-                  {sec.badge && (
-                    <span
-                      className="text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider"
-                      style={{ background: `${accentColor}18`, color: accentColor, border: `1px solid ${accentColor}30` }}
-                    >
-                      {sec.badge}
-                    </span>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  {sec.bullets.map((b, bIdx) => (
-                    <p key={bIdx} className="text-xs leading-relaxed flex items-start gap-2" style={{ color: "var(--txt-m)" }}>
-                      <span className="mt-1 shrink-0" style={{ color: "var(--txt-f)" }}>•</span>
-                      <span>{b}</span>
-                    </p>
-                  ))}
+                  <div className="space-y-2">
+                    {sec.bullets.map((b, bIdx) => (
+                      <div key={bIdx} className="text-xs leading-relaxed flex items-start gap-2.5" style={{ color: "var(--txt-m)" }}>
+                        <span className="mt-1 shrink-0 font-bold text-[10px]" style={{ color: accentColor }}>•</span>
+                        <div className="flex-1 min-w-0">{renderFormattedText(b, true)}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <p className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "var(--txt)" }}>{summary}</p>
+        <div className="text-xs leading-relaxed whitespace-pre-line" style={{ color: "var(--txt)" }}>{renderFormattedText(summary)}</div>
       )}
     </div>
   );

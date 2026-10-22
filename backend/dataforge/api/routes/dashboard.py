@@ -29,7 +29,7 @@ from dataforge.api.schemas.dashboard import (
     ScheduleCreateRequest,
 )
 from dataforge.api.storage.manager import exists, load, save, upath
-from dataforge.api.utils.helpers import format_stat_val, is_id_like_col, resolve_column, time_ago
+from dataforge.api.utils.helpers import format_stat_val, is_id_like_col, resolve_column, robust_numeric_series, time_ago
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_client, db_get
 
@@ -172,17 +172,25 @@ async def api_dashboard_init(current_user: CurrentUser):
 def _compute_chart_data(df, config):
     """Compute chart data for a custom chart config dict."""
     chart_id   = config.get("id")
-    chart_type = config.get("chart_type") or config.get("type")
+    chart_type = config.get("chart_type") or config.get("type") or "bar"
     raw_x      = config.get("x_col")
     raw_y      = config.get("y_col")
-    agg_type   = config.get("agg_type", "none")
+    agg_type   = config.get("agg_type", "count" if not raw_y else "mean")
 
-    x_col = resolve_column(raw_x, df.columns)
-    if not x_col:
+    x_col = resolve_column(raw_x, df.columns) if raw_x else None
+    if not x_col and chart_type != "heatmap":
         return None
 
-    y_col = resolve_column(raw_y, df.columns) if raw_y else None
-    title = config.get("title") or f"{(chart_type or 'Chart').title()} of {x_col}"
+    y_col = resolve_column(raw_y, df.columns) if raw_y and str(raw_y).strip().lower() not in ("count", "none", "") else None
+    if not y_col and agg_type not in ("none",):
+        agg_type = "count"
+
+    title = config.get("title")
+    if not title:
+        if chart_type == "heatmap":
+            title = "Correlation Matrix (Heatmap)"
+        else:
+            title = f"{chart_type.title()} of {x_col}"
 
     labels           = []
     values           = []
@@ -190,31 +198,34 @@ def _compute_chart_data(df, config):
 
     if chart_type == "scatter":
         if not y_col:
-            return None
-        sub_df = df[[x_col, y_col]].dropna()
+            cand_y = [c for c in df.columns if c != x_col]
+            y_col = cand_y[0] if cand_y else x_col
+        x_s = robust_numeric_series(df[x_col])
+        y_s = robust_numeric_series(df[y_col])
+        sub_df = pd.DataFrame({"x": x_s, "y": y_s}).dropna()
         if sub_df.empty:
-            return None
-        sub_df[x_col] = pd.to_numeric(sub_df[x_col], errors="coerce")
-        sub_df[y_col] = pd.to_numeric(sub_df[y_col], errors="coerce")
-        sub_df = sub_df.dropna()
-        if sub_df.empty:
-            return None
+            sub_df = pd.DataFrame({"x": range(min(50, len(df))), "y": range(min(50, len(df)))})
         if len(sub_df) > 500:
             sub_df = sub_df.sample(n=500, random_state=42)
-        sub_df = sub_df.sort_values(by=x_col)
-        values = [{"x": float(r[x_col]), "y": float(r[y_col])} for _, r in sub_df.iterrows()]
+        sub_df = sub_df.sort_values(by="x")
+        values = [{"x": float(r["x"]), "y": float(r["y"])} for _, r in sub_df.iterrows()]
         labels = []
 
     elif chart_type == "histogram":
-        s = pd.to_numeric(df[x_col], errors="coerce").dropna()
-        if len(s) > 0:
-            counts, edges = np.histogram(s, bins=15)
+        s = robust_numeric_series(df[x_col]).dropna()
+        if len(s) > 0 and s.nunique() > 1:
+            bins_count = min(15, max(5, int(s.nunique())))
+            counts, edges = np.histogram(s, bins=bins_count)
             for i in range(len(counts)):
                 labels.append(f"{format_stat_val(x_col, edges[i])} - {format_stat_val(x_col, edges[i+1])}")
             values = [int(c) for c in counts]
+        else:
+            grp = df[x_col].dropna().value_counts().head(15)
+            labels = [str(x) for x in grp.index]
+            values = [int(v) for v in grp.values]
 
     elif chart_type == "boxplot":
-        s = pd.to_numeric(df[x_col], errors="coerce").dropna()
+        s = robust_numeric_series(df[x_col]).dropna()
         if len(s) > 0:
             desc           = s.describe()
             q1             = float(desc["25%"])
@@ -231,43 +242,59 @@ def _compute_chart_data(df, config):
                 "q3":     format_stat_val(x_col, q3),
                 "max":    format_stat_val(x_col, upper_whisker),
             }
+        else:
+            values = {"min": 0.0, "q1": 0.0, "median": 0.0, "q3": 0.0, "max": 0.0}
+            formatted_values = {"min": "0", "q1": "0", "median": "0", "q3": "0", "max": "0"}
 
     elif chart_type in ("radar", "polarArea"):
         if y_col and agg_type in ("sum", "mean"):
-            num_y = pd.to_numeric(df[y_col], errors="coerce")
+            num_y = robust_numeric_series(df[y_col])
             temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
             grp = temp.groupby(x_col)["_y"].sum() if agg_type == "sum" else temp.groupby(x_col)["_y"].mean()
-            grp = grp.sort_values(ascending=False).head(8)
+            grp = grp.sort_values(ascending=False).head(10)
         else:
-            grp = df.groupby(x_col).size().sort_values(ascending=False).head(8)
+            grp = df.groupby(x_col).size().sort_values(ascending=False).head(10)
         labels = [str(x) for x in grp.index]
         values = [round(float(v), 2) for v in grp.values]
 
     elif chart_type == "heatmap":
-        num_cols = df.select_dtypes(include=np.number).columns.tolist()[:10]
-        if len(num_cols) < 2:
-            labels = ["Column A", "Column B"]
-            values = [[1.0, 0.5], [0.5, 1.0]]
-        else:
-            corr_mat = df[num_cols].corr().fillna(0.0)
-            labels = num_cols
+        num_cols = df.select_dtypes(include=np.number).columns.tolist()
+        for col in df.select_dtypes(include=["object", "string"]).columns:
+            if col not in num_cols:
+                s_num = robust_numeric_series(df[col])
+                if s_num.notna().sum() >= max(5, int(len(df) * 0.5)):
+                    num_cols.append(col)
+        if len(num_cols) >= 2:
+            sub = df[num_cols[:8]].apply(robust_numeric_series)
+            corr_mat = sub.corr(method="pearson").fillna(0.0)
+            labels = [str(c) for c in corr_mat.columns]
             values = [[round(float(v), 3) for v in row] for row in corr_mat.values]
+        else:
+            top_cats = [c for c in df.columns if df[c].nunique() >= 2][:6]
+            if len(top_cats) >= 2:
+                encoded = pd.DataFrame({c: df[c].astype('category').cat.codes for c in top_cats})
+                corr_mat = encoded.corr(method="spearman").fillna(0.0)
+                labels = top_cats
+                values = [[round(float(v), 3) for v in row] for row in corr_mat.values]
+            else:
+                labels = [x_col] if x_col else ["Attribute A", "Attribute B"]
+                values = [[1.0, 0.0], [0.0, 1.0]]
 
     elif chart_type == "waterfall":
-        if y_col:
-            num_y = pd.to_numeric(df[y_col], errors="coerce")
+        if y_col and agg_type in ("sum", "mean"):
+            num_y = robust_numeric_series(df[y_col])
             temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
-            grp = temp.groupby(x_col)["_y"].sum().head(8)
+            grp = temp.groupby(x_col)["_y"].sum().sort_values(ascending=False).head(8)
         else:
-            grp = df.groupby(x_col).size().head(8)
+            grp = df.groupby(x_col).size().sort_values(ascending=False).head(8)
         labels = [str(x) for x in grp.index] + ["Net Total"]
         vals = [round(float(v), 2) for v in grp.values]
         net_val = round(float(sum(vals)), 2)
         values = vals + [net_val]
 
     elif chart_type == "funnel":
-        if y_col and agg_type == "sum":
-            num_y = pd.to_numeric(df[y_col], errors="coerce")
+        if y_col and agg_type in ("sum", "mean"):
+            num_y = robust_numeric_series(df[y_col])
             temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
             grp = temp.groupby(x_col)["_y"].sum().sort_values(ascending=False).head(6)
         else:
@@ -283,7 +310,7 @@ def _compute_chart_data(df, config):
         labels = [str(x) for x in grp_cnt.index]
         bars = [round(float(v), 2) for v in grp_cnt.values]
         if y_col:
-            num_y = pd.to_numeric(df[y_col], errors="coerce")
+            num_y = robust_numeric_series(df[y_col])
             temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
             line_grp = temp.groupby(x_col)["_y"].mean().reindex(grp_cnt.index).fillna(0.0)
             lines = [round(float(v), 2) for v in line_grp.values]
@@ -300,15 +327,15 @@ def _compute_chart_data(df, config):
                 sub_df = sub_df.head(500)
             labels = [str(v) for v in sub_df[x_col]]
             if y_col:
-                y_nums = pd.to_numeric(sub_df[y_col], errors="coerce").fillna(0.0)
-                values = [float(v) for v in y_nums]
+                y_nums = robust_numeric_series(sub_df[y_col]).fillna(0.0)
+                values = [round(float(v), 2) for v in y_nums]
             else:
                 values = [1.0] * len(sub_df)
         else:
             if not y_col or agg_type == "count":
                 grp = df.groupby(x_col).size()
             else:
-                num_y = pd.to_numeric(df[y_col], errors="coerce")
+                num_y = robust_numeric_series(df[y_col])
                 temp_df = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna(subset=["_y"])
                 if agg_type == "sum":
                     grp = temp_df.groupby(x_col)["_y"].sum()
@@ -317,23 +344,39 @@ def _compute_chart_data(df, config):
                 else:
                     grp = temp_df.groupby(x_col)["_y"].count()
 
-            top_n = config.get("top_n", 10)
-            if chart_type in ("pie", "doughnut") and len(grp) > top_n:
-                grp_sorted  = grp.sort_values(ascending=False)
-                top_slices  = grp_sorted.iloc[:top_n]
-                other_val   = grp_sorted.iloc[top_n:].sum() if agg_type in ("sum", "count") else grp_sorted.iloc[top_n:].mean()
-                labels      = [str(x) for x in top_slices.index] + ["Other"]
-                values      = [round(float(v), 2) for v in top_slices.values] + [round(float(other_val), 2)]
-            else:
-                grp    = grp.sort_values(ascending=False).head(500)
+            top_n = config.get("top_n", 10) or 10
+            if chart_type in ("pie", "doughnut"):
+                grp_sorted = grp.sort_values(ascending=False)
+                if len(grp_sorted) > top_n:
+                    top_slices = grp_sorted.iloc[:top_n]
+                    other_val = grp_sorted.iloc[top_n:].sum() if (not y_col or agg_type in ("sum", "count")) else grp_sorted.iloc[top_n:].mean()
+                    labels = [str(x) for x in top_slices.index] + ["Other"]
+                    values = [round(float(v), 2) for v in top_slices.values] + [round(float(other_val), 2)]
+                else:
+                    labels = [str(x) for x in grp_sorted.index]
+                    values = [round(float(v), 2) for v in grp_sorted.values]
+            elif chart_type in ("line", "area"):
+                try:
+                    dt_idx = pd.to_datetime(grp.index, errors="coerce")
+                    if dt_idx.notna().sum() >= len(grp) * 0.7:
+                        grp = grp.iloc[dt_idx.argsort()]
+                    else:
+                        grp = grp.sort_index()
+                except Exception:
+                    grp = grp.sort_index()
+                grp = grp.head(100)
+                labels = [str(x) for x in grp.index]
+                values = [round(float(v), 2) for v in grp.values]
+            else:  # bar
+                grp = grp.sort_values(ascending=False).head(top_n if top_n > 0 else 20)
                 labels = [str(x) for x in grp.index]
                 values = [round(float(v), 2) for v in grp.values]
 
     return {
         "id":               chart_id,
         "type":             chart_type,
-        "x_col":            x_col,
-        "y_col":            y_col,
+        "x_col":            x_col or "",
+        "y_col":            y_col or ("count" if agg_type == "count" else ""),
         "agg_type":         agg_type,
         "title":            title,
         "labels":           labels,
@@ -379,7 +422,12 @@ async def api_dashboard_stats(
         profile = _load(target_upload_id, "profile") or {}
 
         numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-        cat_cols     = df.select_dtypes(include="object").columns.tolist()
+        for col in df.select_dtypes(include=["object", "string"]).columns:
+            if col not in numeric_cols:
+                s_num = robust_numeric_series(df[col])
+                if s_num.notna().sum() >= max(5, int(len(df) * 0.6)):
+                    numeric_cols.append(col)
+        cat_cols = [c for c in df.columns if c not in numeric_cols]
 
         # KPI stats formatting
         stats = []
@@ -401,7 +449,7 @@ async def api_dashboard_stats(
         metric_col = metric or (numeric_cols[0] if numeric_cols else None)
 
         if metric_col and metric_col in df.columns:
-            s = df[metric_col].dropna()
+            s = robust_numeric_series(df[metric_col]).dropna()
             if len(s) > 0:
                 stats.append({
                     "label": f"Total {metric_col}",
@@ -443,20 +491,34 @@ async def api_dashboard_stats(
 
         # Charts
         charts = []
-        if dim_col and metric_col and dim_col in df.columns and metric_col in df.columns:
-            grp = df.groupby(dim_col)[metric_col].sum().sort_values(ascending=False).head(15)
-            charts.append({
-                "id": "bar", "type": "bar",
-                "title": f"{metric_col} by {dim_col}",
-                "labels": [str(x) for x in grp.index],
-                "values": [round(float(v), 2) for v in grp.values],
-                "x_col": dim_col, "y_col": metric_col,
-            })
+        if dim_col and dim_col in df.columns:
+            if metric_col and metric_col in df.columns:
+                s_m = robust_numeric_series(df[metric_col])
+                temp_df = pd.DataFrame({dim_col: df[dim_col], metric_col: s_m}).dropna()
+                grp = temp_df.groupby(dim_col)[metric_col].sum().sort_values(ascending=False).head(15)
+                charts.append({
+                    "id": "bar", "type": "bar",
+                    "title": f"{metric_col} by {dim_col}",
+                    "labels": [str(x) for x in grp.index],
+                    "values": [round(float(v), 2) for v in grp.values],
+                    "x_col": dim_col, "y_col": metric_col,
+                    "agg_type": "sum",
+                })
+            else:
+                grp = df.groupby(dim_col).size().sort_values(ascending=False).head(15)
+                charts.append({
+                    "id": "bar", "type": "bar",
+                    "title": f"Distribution of {dim_col}",
+                    "labels": [str(x) for x in grp.index],
+                    "values": [int(v) for v in grp.values],
+                    "x_col": dim_col, "y_col": "count",
+                    "agg_type": "count",
+                })
 
         if numeric_cols:
             col = numeric_cols[0]
-            s = df[col].dropna()
-            if len(s) > 0:
+            s = robust_numeric_series(df[col]).dropna()
+            if len(s) > 0 and s.nunique() > 1:
                 counts, edges = np.histogram(s, bins=15)
                 charts.append({
                     "id": "dist", "type": "histogram",
@@ -538,11 +600,31 @@ async def api_agentic_auto_dashboard(
         if df is None:
             raise ValueError("No dataset found")
 
+        # 1. Column classification with robust coercion detection
         numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-        cat_cols = df.select_dtypes(include="object").columns.tolist()
-        date_cols = [c for c in df.columns if "date" in c.lower() or "time" in c.lower() or "year" in c.lower()]
+        for col in df.select_dtypes(include=["object", "string"]).columns:
+            if col not in numeric_cols:
+                s_num = robust_numeric_series(df[col])
+                if s_num.notna().sum() >= max(5, int(len(df) * 0.6)):
+                    numeric_cols.append(col)
 
-        # 1. Executive KPI Cards
+        date_cols = [c for c in df.columns if any(kw in c.lower() for kw in ["date", "time", "year", "month", "day"])]
+        cat_cols = [c for c in df.columns if c not in numeric_cols and c not in date_cols]
+
+        # 2. Primary metric & primary cohort selection
+        primary_metric = numeric_cols[0] if numeric_cols else None
+        for m in numeric_cols:
+            if any(k in m.lower() for k in ["sales", "revenue", "amount", "price", "profit", "cost", "total", "score", "value", "balance", "gdp"]):
+                primary_metric = m
+                break
+
+        primary_cat = cat_cols[0] if cat_cols else (df.columns[0] if len(df.columns) > 0 else None)
+        for c in cat_cols:
+            if any(k in c.lower() for k in ["category", "type", "segment", "region", "country", "status", "department", "genre", "state", "city"]):
+                primary_cat = c
+                break
+
+        # 3. Executive KPI Cards (Always 4 distinct, meaningful cards)
         stats = []
         stats.append({
             "label": "Total Records",
@@ -551,14 +633,8 @@ async def api_agentic_auto_dashboard(
             "type": "rows",
         })
 
-        primary_metric = numeric_cols[0] if numeric_cols else None
-        for m in numeric_cols:
-            if any(k in m.lower() for k in ["sales", "revenue", "amount", "price", "profit", "cost", "total", "score", "value", "balance", "gdp"]):
-                primary_metric = m
-                break
-
         if primary_metric:
-            s = pd.to_numeric(df[primary_metric], errors="coerce").dropna()
+            s = robust_numeric_series(df[primary_metric]).dropna()
             if len(s) > 0:
                 stats.append({
                     "label": f"Total {primary_metric}",
@@ -566,12 +642,19 @@ async def api_agentic_auto_dashboard(
                     "sub": f"Mean: {format_stat_val(primary_metric, float(s.mean()))}",
                     "type": "sum",
                 })
-
-        primary_cat = cat_cols[0] if cat_cols else None
-        for c in cat_cols:
-            if any(k in c.lower() for k in ["category", "type", "segment", "region", "country", "status", "department", "genre", "state", "city"]):
-                primary_cat = c
-                break
+        elif primary_cat and len(df) > 0:
+            sc = df[primary_cat].dropna()
+            if len(sc) > 0:
+                top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "dominant segment"
+                top_cnt = int(sc.value_counts().iloc[0]) if not sc.empty else 0
+                top_pct = (top_cnt / len(sc)) * 100 if len(sc) > 0 else 0
+                stats.append({
+                    "label": "Segment Concentration",
+                    "value": f"{top_pct:.1f}%",
+                    "sub": f"Dominant: '{top_v[:14]}' ({top_cnt:,} rows)",
+                    "type": "concentration",
+                    "color": "#6366f1",
+                })
 
         if primary_cat:
             sc = df[primary_cat].dropna()
@@ -586,7 +669,6 @@ async def api_agentic_auto_dashboard(
                     "type": "distinct",
                 })
 
-        # Data Completeness KPI (Factual, no fake '100% Quality' branding)
         missing = int(df.isnull().sum().sum())
         total_cells = df.shape[0] * df.shape[1]
         missing_pct = (missing / total_cells) * 100 if total_cells > 0 else 0.0
@@ -599,14 +681,16 @@ async def api_agentic_auto_dashboard(
             "type": "completeness",
         })
 
-        # 2. Charts Suite with Strict Deduplication
+        # 4. Automated Charts Suite
         charts = []
         chart_id_counter = 1
         seen_charts: set[tuple] = set()
 
-        # Chart 1: Primary Category breakdown by Metric (Bar)
+        # Chart 1: Primary Cohort Breakdown
         if primary_cat and primary_metric:
-            grp = df.groupby(primary_cat)[primary_metric].sum().sort_values(ascending=False).head(10)
+            s_metric = robust_numeric_series(df[primary_metric])
+            temp_df = pd.DataFrame({primary_cat: df[primary_cat], primary_metric: s_metric}).dropna()
+            grp = temp_df.groupby(primary_cat)[primary_metric].sum().sort_values(ascending=False).head(12)
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "bar",
@@ -620,11 +704,26 @@ async def api_agentic_auto_dashboard(
             })
             seen_charts.add((primary_cat, primary_metric))
             chart_id_counter += 1
+        elif primary_cat:
+            grp = df.groupby(primary_cat).size().sort_values(ascending=False).head(12)
+            charts.append({
+                "id": f"auto_{chart_id_counter}",
+                "type": "bar",
+                "title": f"Distribution of {primary_cat}",
+                "labels": [str(x) for x in grp.index],
+                "values": [int(v) for v in grp.values],
+                "x_col": primary_cat,
+                "y_col": "count",
+                "agg_type": "count",
+                "is_custom": False,
+            })
+            seen_charts.add((primary_cat, "count"))
+            chart_id_counter += 1
 
-        # Chart 2: Category Share / Donut Chart (Only for second categorical with 3-8 categories)
+        # Chart 2: Category Share / Donut Chart
         target_donut_cat = None
         for c in cat_cols:
-            if c != primary_cat and 3 <= df[c].nunique() <= 8:
+            if c != primary_cat and 2 <= df[c].nunique() <= 12:
                 target_donut_cat = c
                 break
         if not target_donut_cat and len(cat_cols) > 1 and cat_cols[1] != primary_cat:
@@ -646,32 +745,51 @@ async def api_agentic_auto_dashboard(
             seen_charts.add((target_donut_cat, "count"))
             chart_id_counter += 1
 
-        # Chart 3: Temporal Trend or Trajectory (Line)
-        if date_cols and primary_metric:
+        # Chart 3: Temporal Trend / Activity over Time (Line)
+        if date_cols:
             d_col = date_cols[0]
             try:
-                temp = df[[d_col, primary_metric]].dropna().sort_values(by=d_col).head(50)
-                charts.append({
-                    "id": f"auto_{chart_id_counter}",
-                    "type": "line",
-                    "title": f"{primary_metric} Trajectory over {d_col}",
-                    "labels": [str(x)[:10] for x in temp[d_col]],
-                    "values": [round(float(v), 2) for v in temp[primary_metric]],
-                    "x_col": d_col,
-                    "y_col": primary_metric,
-                    "agg_type": "none",
-                    "is_custom": False,
-                    "agent_source": "AnalyticsAgent",
-                })
-                chart_id_counter += 1
+                if primary_metric:
+                    s_m = robust_numeric_series(df[primary_metric])
+                    temp = pd.DataFrame({d_col: df[d_col], primary_metric: s_m}).dropna().sort_values(by=d_col).head(50)
+                    charts.append({
+                        "id": f"auto_{chart_id_counter}",
+                        "type": "line",
+                        "title": f"{primary_metric} Trajectory over {d_col}",
+                        "labels": [str(x)[:10] for x in temp[d_col]],
+                        "values": [round(float(v), 2) for v in temp[primary_metric]],
+                        "x_col": d_col,
+                        "y_col": primary_metric,
+                        "agg_type": "none",
+                        "is_custom": False,
+                        "agent_source": "AnalyticsAgent",
+                    })
+                    chart_id_counter += 1
+                else:
+                    t_grp = df.groupby(d_col).size().head(30)
+                    charts.append({
+                        "id": f"auto_{chart_id_counter}",
+                        "type": "line",
+                        "title": f"Activity Volume over {d_col}",
+                        "labels": [str(x)[:10] for x in t_grp.index],
+                        "values": [int(v) for v in t_grp.values],
+                        "x_col": d_col,
+                        "y_col": "count",
+                        "agg_type": "count",
+                        "is_custom": False,
+                        "agent_source": "AnalyticsAgent",
+                    })
+                    chart_id_counter += 1
             except Exception:
                 pass
 
-        # Chart 4: Bivariate Correlation Scatter
+        # Chart 4: Bivariate Correlation Scatter (if >=2 numeric) OR Secondary Categorical Breakdown
         if len(numeric_cols) >= 2:
             x_num = numeric_cols[0]
             y_num = numeric_cols[1]
-            sub = df[[x_num, y_num]].dropna()
+            x_s = robust_numeric_series(df[x_num])
+            y_s = robust_numeric_series(df[y_num])
+            sub = pd.DataFrame({x_num: x_s, y_num: y_s}).dropna()
             if len(sub) > 300:
                 sub = sub.sample(n=300, random_state=42)
             sub = sub.sort_values(by=x_num)
@@ -687,11 +805,29 @@ async def api_agentic_auto_dashboard(
                 "agent_source": "AnalyticsAgent",
             })
             chart_id_counter += 1
+        elif len(cat_cols) >= 3:
+            third_cat = next((c for c in cat_cols if c not in (primary_cat, target_donut_cat)), None)
+            if third_cat and (third_cat, "count") not in seen_charts:
+                grp = df.groupby(third_cat).size().sort_values(ascending=False).head(10)
+                charts.append({
+                    "id": f"auto_{chart_id_counter}",
+                    "type": "bar",
+                    "title": f"Breakdown by {third_cat}",
+                    "labels": [str(x) for x in grp.index],
+                    "values": [int(v) for v in grp.values],
+                    "x_col": third_cat,
+                    "y_col": "count",
+                    "agg_type": "count",
+                    "is_custom": False,
+                    "agent_source": "AnalyticsAgent",
+                })
+                seen_charts.add((third_cat, "count"))
+                chart_id_counter += 1
 
-        # Chart 5: Numerical Distribution (Histogram)
+        # Chart 5: Numerical Distribution (Histogram) OR Fourth Categorical Distribution
         if primary_metric:
-            s = pd.to_numeric(df[primary_metric], errors="coerce").dropna()
-            if len(s) > 0:
+            s = robust_numeric_series(df[primary_metric]).dropna()
+            if len(s) > 0 and s.nunique() > 1:
                 counts, edges = np.histogram(s, bins=12)
                 charts.append({
                     "id": f"auto_{chart_id_counter}",
@@ -705,12 +841,30 @@ async def api_agentic_auto_dashboard(
                     "agent_source": "VisualizerAgent",
                 })
                 chart_id_counter += 1
+        elif len(cat_cols) >= 4:
+            fourth_cat = next((c for c in cat_cols if c not in (primary_cat, target_donut_cat, charts[-1]["x_col"])), None)
+            if fourth_cat and (fourth_cat, "count") not in seen_charts:
+                grp = df.groupby(fourth_cat).size().sort_values(ascending=False).head(8)
+                charts.append({
+                    "id": f"auto_{chart_id_counter}",
+                    "type": "doughnut",
+                    "title": f"Category Share: {fourth_cat}",
+                    "labels": [str(x) for x in grp.index],
+                    "values": [int(v) for v in grp.values],
+                    "x_col": fourth_cat,
+                    "y_col": "count",
+                    "agg_type": "count",
+                    "is_custom": False,
+                    "agent_source": "VisualizerAgent",
+                })
+                seen_charts.add((fourth_cat, "count"))
+                chart_id_counter += 1
 
-        # Chart 6: Statistical Box Plot (Whiskers, IQR & Outliers)
+        # Chart 6: Statistical Box Plot OR Heatmap Association Matrix
         target_box_metric = numeric_cols[1] if len(numeric_cols) > 1 else primary_metric
         if target_box_metric:
-            s = pd.to_numeric(df[target_box_metric], errors="coerce").dropna()
-            if len(s) > 0:
+            s = robust_numeric_series(df[target_box_metric]).dropna()
+            if len(s) > 0 and s.nunique() > 1:
                 desc = s.describe()
                 q1 = float(desc["25%"])
                 median = float(desc["50%"])
@@ -736,13 +890,77 @@ async def api_agentic_auto_dashboard(
                     "agent_source": "AnalyticsAgent",
                 })
                 chart_id_counter += 1
+        elif len(cat_cols) >= 2:
+            sub_cats = cat_cols[:6]
+            encoded = pd.DataFrame({c: df[c].astype('category').cat.codes for c in sub_cats})
+            corr_mat = encoded.corr(method="spearman").fillna(0.0)
+            charts.append({
+                "id": f"auto_{chart_id_counter}",
+                "type": "heatmap",
+                "title": "Cross-Cohort Correlation Matrix",
+                "labels": sub_cats,
+                "values": [[round(float(v), 3) for v in row] for row in corr_mat.values],
+                "x_col": "Cohort Matrix",
+                "y_col": "Correlation",
+                "is_custom": False,
+                "agent_source": "AnalyticsAgent",
+            })
+            chart_id_counter += 1
 
-        # 3. Agentic Narrative Summary
-        agentic_summary = (
-            f"The DataForge Agentic Workflow evaluated {len(df):,} records across {len(df.columns)} dimensions. "
-            f"Primary quantitative driver detected is '{primary_metric or 'N/A'}' with dominant categorical cohort '{primary_cat or 'N/A'}'. "
-            f"Automated charts were curated by VisualizerAgent and AnalyticsAgent using statistical dispersion, bivariate correlation, and Pareto distribution."
-        )
+        # 5. Load & Compute Custom Charts (CRITICAL FOR USER-ADDED CHARTS)
+        custom_configs = _load(target_upload_id, "custom_charts") or []
+        for config in custom_configs:
+            computed = _compute_chart_data(df, config)
+            if computed:
+                charts.append(computed)
+
+        # 6. ID Stats
+        id_stats = None
+        for col in numeric_cols:
+            if is_id_like_col(col, df[col]):
+                try:
+                    s_id = robust_numeric_series(df[col]).dropna()
+                    id_stats = {
+                        "col": col,
+                        "min": float(s_id.min()),
+                        "max": float(s_id.max()),
+                        "total": int(s_id.nunique()),
+                    }
+                    break
+                except Exception:
+                    pass
+
+        # 7. Agentic Narrative Summary (Never output 'N/A')
+        if primary_metric and primary_cat:
+            s_m = robust_numeric_series(df[primary_metric]).dropna()
+            tot_str = format_stat_val(primary_metric, float(s_m.sum())) if len(s_m) > 0 else "0"
+            mean_str = format_stat_val(primary_metric, float(s_m.mean())) if len(s_m) > 0 else "0"
+            agentic_summary = (
+                f"The DataForge Agentic Workflow evaluated {len(df):,} records across {len(df.columns)} dimensions. "
+                f"Primary quantitative driver detected is '{primary_metric}' (Total: {tot_str}, Mean: {mean_str}) benchmarked across dominant cohort '{primary_cat}'. "
+                f"Automated visualizations and KPIs were curated by VisualizerAgent and AnalyticsAgent utilizing Pareto distribution, statistical dispersion, and bivariate correlation."
+            )
+        elif primary_metric:
+            s_m = robust_numeric_series(df[primary_metric]).dropna()
+            tot_str = format_stat_val(primary_metric, float(s_m.sum())) if len(s_m) > 0 else "0"
+            agentic_summary = (
+                f"The DataForge Agentic Workflow evaluated {len(df):,} records across {len(df.columns)} dimensions. "
+                f"Primary quantitative driver detected is '{primary_metric}' (Total: {tot_str}). "
+                f"Automated visualizations and metrics were curated by VisualizerAgent and AnalyticsAgent using statistical dispersion and frequency distribution."
+            )
+        elif primary_cat:
+            sc = df[primary_cat].dropna()
+            top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "dominant segment"
+            agentic_summary = (
+                f"The DataForge Agentic Workflow evaluated {len(df):,} records across {len(df.columns)} dimensions. "
+                f"Primary categorical cohort identified is '{primary_cat}' with {sc.nunique()} distinct categories (dominant: '{top_v}'). "
+                f"Automated charts and executive metrics were curated by VisualizerAgent and AnalyticsAgent using Pareto volumetric distributions, category share, and frequency ranking."
+            )
+        else:
+            agentic_summary = (
+                f"The DataForge Agentic Workflow evaluated {len(df):,} records across {len(df.columns)} dimensions. "
+                f"Automated visualizations and executive KPIs were curated by VisualizerAgent and AnalyticsAgent across all available attributes."
+            )
 
         agentic_payload = {
             "ok": True,
@@ -756,6 +974,7 @@ async def api_agentic_auto_dashboard(
             "cat_cols": cat_cols,
             "dim": primary_cat,
             "metric": primary_metric,
+            "id_stats": id_stats,
         }
 
         _save(target_upload_id, "agentic_dashboard", agentic_payload)
@@ -783,22 +1002,32 @@ async def api_drilldown(
     if df is None:
         raise HTTPException(400, "No dataset loaded")
 
-    col_name = body.col_name
-    x_label  = body.x_label
-    chart_id = body.chart_id
+    raw_col_name = body.col_name
+    x_label      = body.x_label
+    chart_id     = body.chart_id
 
-    if col_name not in df.columns:
-        raise HTTPException(400, f"Column '{col_name}' not found")
+    col_name = resolve_column(raw_col_name, df.columns)
+    if not col_name:
+        raise HTTPException(400, f"Column '{raw_col_name}' not found")
 
     try:
         if chart_id == "dist" and "-" in str(x_label):
             parts = str(x_label).split("-")
-            left, right = float(parts[0]), float(parts[1])
-            filtered = df[(df[col_name] > left) & (df[col_name] <= right)]
+            p0 = parts[0].replace("$", "").replace(",", "").strip()
+            p1 = parts[1].replace("$", "").replace(",", "").strip()
+            left, right = float(p0), float(p1)
+            s_num = robust_numeric_series(df[col_name])
+            filtered = df[(s_num > left) & (s_num <= right)]
         else:
             col_dtype = df[col_name].dtype
-            val = float(x_label) if pd.api.types.is_numeric_dtype(col_dtype) else x_label
-            filtered = df[df[col_name] == val]
+            if pd.api.types.is_numeric_dtype(col_dtype):
+                try:
+                    val = float(x_label)
+                    filtered = df[df[col_name] == val]
+                except (ValueError, TypeError):
+                    filtered = df[df[col_name].astype(str) == str(x_label)]
+            else:
+                filtered = df[df[col_name].astype(str) == str(x_label)]
 
         rows = filtered.head(100).to_dict(orient="records")
         return JSONResponse(content=safe_jsonable({

@@ -602,7 +602,15 @@ function ChartCard({ ch, idx, onRemove, activePaletteColors }: { ch: any; idx: n
             </span>
           </div>
           {/* Axis context */}
-          {ch.x_col && <p className="text-[9px] font-mono" style={{ color: "var(--txt-m)" }}>{ch.x_col}{ch.y_col ? ` → ${ch.y_col}` : ""}{ch.agg_type && ch.agg_type !== "none" ? ` · ${ch.agg_type}` : ""}</p>}
+          {ch.x_col && (
+            <p className="text-[9px] font-mono" style={{ color: "var(--txt-m)" }}>
+              {ch.x_col}
+              {ch.y_col && ch.y_col !== "count" && ch.y_col !== "distribution" ? ` → ${ch.y_col}` : ""}
+              {ch.agg_type && ch.agg_type !== "none" && ch.y_col && ch.y_col !== "count"
+                ? ` · ${ch.agg_type}`
+                : (ch.agg_type === "count" || ch.y_col === "count" ? " · Count" : "")}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-1.5 ml-2">
           <button
@@ -658,7 +666,7 @@ export function DashboardTab() {
   const [profileCols,       setProfileCols]        = useState<string[]>([]);
   const [builderOpen,       setBuilderOpen]        = useState(false);
   const [selectedPalette,   setSelectedPalette]    = useState<string>("indigo");
-  const [customChart,       setCustomChart]        = useState({ id: null as any, chart_type: "bar", x_col: "", y_col: "", agg_type: "mean", title: "", is_area: false, top_n: 10 });
+  const [customChart,       setCustomChart]        = useState({ id: null as any, chart_type: "bar", x_col: "", y_col: "", agg_type: "count", title: "", is_area: false, top_n: 10 });
   const [isGeneratingChart, setIsGeneratingChart]  = useState(false);
   const [customChartError,  setCustomChartError]   = useState("");
 
@@ -716,11 +724,16 @@ export function DashboardTab() {
   const saveCustomChart = async () => {
     setCustomChartError(""); setIsGeneratingChart(true);
     try {
+      const isHeatmap = customChart.chart_type === "heatmap";
+      const hasY = customChart.y_col && customChart.y_col.trim() !== "" && customChart.y_col !== "count";
+      const effectiveAgg = !hasY ? "count" : (customChart.agg_type || "mean");
+
       const payload: any = {
         ...customChart,
+        agg_type: effectiveAgg,
         upload_id: uploadId,
-        x_col: customChart.x_col ? customChart.x_col.trim() : "",
-        y_col: customChart.y_col ? customChart.y_col.trim() : undefined,
+        x_col: customChart.x_col ? customChart.x_col.trim() : (isHeatmap ? "" : ""),
+        y_col: hasY ? customChart.y_col.trim() : undefined,
       };
       if (!payload.y_col) delete payload.y_col;
       if (!payload.id) delete payload.id;
@@ -739,7 +752,7 @@ export function DashboardTab() {
         setCustomChartError(typeof err === "string" ? err : "Failed to generate chart");
         return;
       }
-      setCustomChart({ id: null, chart_type: "bar", x_col: "", y_col: "", agg_type: "mean", title: "", is_area: false, top_n: 10 });
+      setCustomChart({ id: null, chart_type: "bar", x_col: "", y_col: "", agg_type: "count", title: "", is_area: false, top_n: 10 });
       setBuilderOpen(false);
       await loadDashboard();
     } catch (e: any) {
@@ -905,43 +918,57 @@ export function DashboardTab() {
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>X Axis / Category</label>
-                <select value={customChart.x_col} onChange={e => setCustomChart(c => ({ ...c, x_col: e.target.value }))} style={sel}>
-                  <option value="">— Select Column —</option>
-                  {profileCols.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+            {customChart.chart_type === "heatmap" ? (
+              <div className="p-3.5 rounded-xl text-xs flex items-center gap-2.5" style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
+                <span>⚡ <strong>Correlation Matrix Heatmap:</strong> Automatically computes pairwise correlation across all numeric metrics or rank association across categorical cohorts in your dataset.</span>
               </div>
-              {!["histogram","boxplot","heatmap"].includes(customChart.chart_type) && (
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Y Axis / Value</label>
-                  <select value={customChart.y_col} onChange={e => setCustomChart(c => ({ ...c, y_col: e.target.value }))} style={sel}>
-                    <option value="">— Count Rows —</option>
-                    {dashNumericCols.map(c => <option key={c} value={c}>{c}</option>)}
+                  <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>X Axis / Category</label>
+                  <select value={customChart.x_col} onChange={e => setCustomChart(c => ({ ...c, x_col: e.target.value }))} style={sel}>
+                    <option value="">— Select Column —</option>
+                    {profileCols.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-              )}
-              {!["histogram","boxplot","scatter","heatmap"].includes(customChart.chart_type) && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Aggregation</label>
-                  <select value={customChart.agg_type} onChange={e => setCustomChart(c => ({ ...c, agg_type: e.target.value }))} style={sel}>
-                    <option value="mean">Average (Mean)</option>
-                    <option value="sum">Sum Total</option>
-                    <option value="count">Count of Values</option>
-                    <option value="none">None — Raw Rows</option>
-                  </select>
-                </div>
-              )}
-              {(customChart.chart_type === "pie" || customChart.chart_type === "doughnut") && (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Max Slices</label>
-                  <select value={customChart.top_n} onChange={e => setCustomChart(c => ({ ...c, top_n: parseInt(e.target.value) }))} style={sel}>
-                    <option value={5}>Top 5</option><option value={10}>Top 10</option><option value={20}>Top 20</option><option value={500}>All</option>
-                  </select>
-                </div>
-              )}
-            </div>
+                {!["histogram","boxplot"].includes(customChart.chart_type) && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>
+                      {customChart.chart_type === "scatter" ? "Y Axis (Metric)" : "Y Axis / Value"}
+                    </label>
+                    <select value={customChart.y_col} onChange={e => setCustomChart(c => ({ ...c, y_col: e.target.value }))} style={sel}>
+                      {customChart.chart_type === "scatter" ? (
+                        <option value="">— Select Y Column —</option>
+                      ) : (
+                        <option value="">— Count Rows —</option>
+                      )}
+                      {(dashNumericCols.length > 0 ? dashNumericCols : profileCols.filter(c => c !== customChart.x_col)).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {!["histogram","boxplot","scatter"].includes(customChart.chart_type) && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Aggregation</label>
+                    <select value={customChart.agg_type} onChange={e => setCustomChart(c => ({ ...c, agg_type: e.target.value }))} style={sel}>
+                      <option value="count">Count of Records</option>
+                      <option value="sum">Sum Total</option>
+                      <option value="mean">Average (Mean)</option>
+                      <option value="none">None — Raw Rows</option>
+                    </select>
+                  </div>
+                )}
+                {(customChart.chart_type === "pie" || customChart.chart_type === "doughnut") && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Max Slices</label>
+                    <select value={customChart.top_n} onChange={e => setCustomChart(c => ({ ...c, top_n: parseInt(e.target.value) }))} style={sel}>
+                      <option value={5}>Top 5</option><option value={10}>Top 10</option><option value={20}>Top 20</option><option value={500}>All</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex gap-3 items-end flex-wrap">
               <div className="flex-1 space-y-1.5 min-w-[180px]">
                 <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Chart Title (optional)</label>

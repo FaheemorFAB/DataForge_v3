@@ -239,7 +239,7 @@ export function ModelRegistryTab() {
 
     // Initialize inputs with smart sample values
     const initial: Record<string, any> = {};
-    model.features.forEach((f) => {
+    (model.features || []).forEach((f) => {
       const fl = f.toLowerCase();
       if (fl.includes("income") || fl.includes("salary")) initial[f] = 75000;
       else if (fl.includes("age")) initial[f] = 34;
@@ -599,13 +599,13 @@ export function ModelRegistryTab() {
                     className="p-3 rounded-xl border grid grid-cols-3 sm:grid-cols-4 gap-2 text-center"
                     style={{ background: "var(--bg)", borderColor: "var(--border)" }}
                   >
-                    {Object.entries(m.metrics).slice(0, 4).map(([metricKey, val]) => (
+                    {Object.entries(m.metrics || {}).slice(0, 4).map(([metricKey, val]) => (
                       <div key={metricKey}>
                         <div className="text-[10px] uppercase font-bold tracking-wider" style={{ color: "var(--txt-m)" }}>
                           {metricKey.replace("_", " ")}
                         </div>
                         <div className="font-mono font-black text-xs mt-0.5" style={{ color: "var(--accent)" }}>
-                          {typeof val === "number" ? val.toFixed(3) : val}
+                          {typeof val === "number" ? val.toFixed(3) : (val !== null && val !== undefined ? String(val) : "N/A")}
                         </div>
                       </div>
                     ))}
@@ -614,10 +614,10 @@ export function ModelRegistryTab() {
                   {/* FEATURE SIGNATURE */}
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--txt-f)" }}>
-                      Target: <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{m.target_column}</span> · Expected Features ({m.features.length})
+                      Target: <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{m.target_column}</span> · Expected Features ({(m.features || []).length})
                     </div>
                     <div className="flex flex-wrap gap-1 max-h-14 overflow-y-auto no-scrollbar">
-                      {m.features.map((f) => (
+                      {(m.features || []).map((f) => (
                         <span
                           key={f}
                           className="px-1.5 py-0.5 rounded text-[10px] font-mono border"
@@ -636,7 +636,7 @@ export function ModelRegistryTab() {
                   {/* ACTIONS */}
                   <div className="pt-2 border-t flex items-center justify-between gap-3" style={{ borderColor: "var(--border)" }}>
                     <span className="text-[10px] font-mono" style={{ color: "var(--txt-f)" }}>
-                      By {m.created_by.split("@")[0]}
+                      By {(m.created_by || "analyst").split("@")[0]}
                     </span>
 
                     <div className="flex items-center gap-2 flex-wrap">
@@ -797,7 +797,7 @@ export function ModelRegistryTab() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-bold" style={{ color: "var(--txt)" }}>
-                      Model Feature Inputs ({activeModelForInference.features.length})
+                      Model Feature Inputs ({(activeModelForInference.features || []).length})
                     </label>
                     <button
                       type="button"
@@ -810,7 +810,7 @@ export function ModelRegistryTab() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-52 overflow-y-auto p-1">
-                    {activeModelForInference.features.map((feat) => (
+                    {(activeModelForInference.features || []).map((feat) => (
                       <div key={feat}>
                         <label className="block text-[11px] font-mono truncate mb-1" style={{ color: "var(--txt-m)" }}>
                           {feat}

@@ -25,7 +25,7 @@ const AVAILABLE_ALGORITHMS = [
   { id: "lgbm", name: "LightGBM", tag: "Ultra Fast", desc: "Gradient boosted trees optimized for speed, low memory, and large datasets." },
   { id: "xgboost", name: "XGBoost", tag: "High Accuracy", desc: "Extreme gradient boosting with exact greedy split search." },
   { id: "catboost", name: "CatBoost", tag: "Categorical", desc: "Symmetric trees with ordered boosting; exceptional for categorical data." },
-  { id: "rf", name: "Random Forest", tag: "Ensemble Bagging", desc: "Averaged forest of decision trees; highly resistant to noise and variance." },
+  { id: "rf", name: "Random Forest", tag: "Bagging", desc: "Averaged forest of decision trees; highly resistant to noise and variance." },
   { id: "extra_tree", name: "Extra Trees", tag: "Randomized", desc: "Extremely randomized trees with lower variance and high training throughput." },
   { id: "linear", name: "Linear / Ridge", tag: "Interpretable", desc: "L1/L2 regularized linear model providing an interpretable baseline." },
 ];
@@ -64,9 +64,14 @@ export function AutoMLTab() {
   useEffect(() => {
     if (automlMeta && !automlResult) {
       setAutomlResult(automlMeta);
-      if (automlMeta.target) setAutomlTarget(automlMeta.target);
+      const restoredTarget = automlMeta.target_col || automlMeta.target || "";
+      if (restoredTarget) setAutomlTarget(restoredTarget);
       if (automlMeta.task) setDetectedTask(automlMeta.task);
       if (automlMeta.model_name) setCustomModelName(automlMeta.model_name);
+      if (Array.isArray(automlMeta.algorithm_whitelist) && automlMeta.algorithm_whitelist.length > 0) {
+        const algos = automlMeta.algorithm_whitelist.filter((a: string) => a !== "all");
+        if (algos.length > 0) setSelectedAlgos(algos);
+      }
     }
   }, [automlMeta]);
 
@@ -77,6 +82,20 @@ export function AutoMLTab() {
     }
     return [];
   }, [effectiveProfile]);
+
+  // Auto-suggest a target if none selected yet and columns are available
+  useEffect(() => {
+    if (!automlTarget && allColumns.length > 0) {
+      const candidate = allColumns.find(c => {
+        const lower = c.toLowerCase().trim();
+        return ["target", "label", "class", "churn", "status", "outcome", "survived", "y", "is_churn", "fraud", "loan_status"].includes(lower);
+      });
+      if (candidate) {
+        setAutomlTarget(candidate);
+        setCustomModelName(`${candidate.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
+      }
+    }
+  }, [allColumns, automlTarget]);
 
   // When target changes, analyze task & feature signals
   useEffect(() => {
@@ -437,179 +456,193 @@ export function AutoMLTab() {
       </div>
 
       {/* -- SECTION 2: GRANULAR FEATURE SELECTION & LEAKAGE GUARD -- */}
-      {automlTarget && (
-        <div className="p-5 rounded-2xl space-y-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <Sliders size={16} style={{ color: "var(--accent)" }} />
-                <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-                  Feature Whitelist & Leakage Guard
-                </h3>
-                <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1" }}>
-                  {selectedFeatures.length} of {featuresList.length} Selected
-                </span>
-              </div>
-              <p className="text-xs mt-0.5" style={{ color: "var(--txt-m)" }}>
-                Explicitly whitelist predictors. Deselect high-correlation features to eliminate target leakage.
-              </p>
+      <div className="p-5 rounded-2xl space-y-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+        {!automlTarget ? (
+          <div className="py-7 px-4 text-center space-y-2">
+            <div className="inline-flex p-3 rounded-2xl mb-1 text-white shadow-md" style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
+              <Sliders size={22} />
             </div>
-
-            {/* Batch Selection Action Buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <button 
-                onClick={selectSafeFeaturesOnly}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold"
-                style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
-                <ShieldCheck size={12} />
-                <span>Select Safe Only</span>
-              </button>
-              <button 
-                onClick={selectAllFeatures}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
-                style={{ background: "var(--border)", color: "var(--txt)" }}>
-                Select All
-              </button>
-              <button 
-                onClick={deselectAllFeatures}
-                className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
-                style={{ background: "var(--border)", color: "var(--txt)" }}>
-                Clear
-              </button>
-            </div>
+            <h4 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
+              Select a Target Variable (Y) to Configure Predictor Features
+            </h4>
+            <p className="text-xs max-w-md mx-auto" style={{ color: "var(--txt-m)" }}>
+              Choose which variable you wish to predict in <strong>Target Variable (Y)</strong> above. DataForge will automatically audit data types, calculate signal correlations, and flag potential target leakage risks.
+            </p>
           </div>
-
-          {/* High Risk Leakage Banner */}
-          {highRiskCount > 0 && (
-            <div className="p-3.5 rounded-xl flex items-start gap-3" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
-              <ShieldAlert size={18} className="text-red-500 shrink-0 mt-0.5" />
+        ) : (
+          <>
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <p className="text-xs font-bold text-red-500">
-                  Target Leakage Alert: {highRiskCount} feature{highRiskCount > 1 ? 's' : ''} with &gt;90% correlation found!
-                </p>
-                <p className="text-[11px] text-red-400 mt-0.5">
-                  Training with these features will produce deceptively high test scores that fail in production. We have unselected them by default.
+                <div className="flex items-center gap-2">
+                  <Sliders size={16} style={{ color: "var(--accent)" }} />
+                  <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                    Feature Whitelist &amp; Leakage Guard
+                  </h3>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1" }}>
+                    {selectedFeatures.length} of {featuresList.length} Selected
+                  </span>
+                </div>
+                <p className="text-xs mt-0.5" style={{ color: "var(--txt-m)" }}>
+                  Explicitly whitelist predictors. Deselect high-correlation features to eliminate target leakage.
                 </p>
               </div>
-            </div>
-          )}
 
-          {/* Search & Filter Bar */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search size={14} className="absolute left-3 top-2.5" style={{ color: "var(--txt-m)" }} />
-              <input 
-                type="text" 
-                placeholder="Search feature names..."
-                value={featureSearch}
-                onChange={e => setFeatureSearch(e.target.value)}
-                className="w-full text-xs pl-8 pr-3 py-2 rounded-xl outline-none"
-                style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}
-              />
-            </div>
-
-            <div className="flex items-center gap-1">
-              {(["all", "numeric", "categorical", "safe", "leakage"] as const).map(tab => (
+              {/* Batch Selection Action Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <button 
-                  key={tab}
-                  onClick={() => setFeatureFilter(tab)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all ${featureFilter === tab ? 'text-white' : ''}`}
-                  style={{
-                    background: featureFilter === tab ? "var(--accent)" : "transparent",
-                    color: featureFilter === tab ? "white" : "var(--txt-m)",
-                    border: `1px solid ${featureFilter === tab ? "var(--accent)" : "var(--border)"}`,
-                  }}>
-                  {tab}
+                  onClick={selectSafeFeaturesOnly}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                  style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
+                  <ShieldCheck size={12} />
+                  <span>Select Safe Only</span>
                 </button>
-              ))}
+                <button 
+                  onClick={selectAllFeatures}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                  style={{ background: "var(--border)", color: "var(--txt)" }}>
+                  Select All
+                </button>
+                <button 
+                  onClick={deselectAllFeatures}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                  style={{ background: "var(--border)", color: "var(--txt)" }}>
+                  Clear
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* Features Table */}
-          {isAnalyzingFeatures ? (
-            <div className="p-8 text-center space-y-2">
-              <RefreshCw size={20} className="animate-spin mx-auto text-indigo-500" />
-              <p className="text-xs font-mono" style={{ color: "var(--txt-m)" }}>Auditing feature correlations & target leakage...</p>
+            {/* High Risk Leakage Banner */}
+            {highRiskCount > 0 && (
+              <div className="p-3.5 rounded-xl flex items-start gap-3" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                <ShieldAlert size={18} className="text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-red-500">
+                    Target Leakage Alert: {highRiskCount} feature{highRiskCount > 1 ? 's' : ''} with &gt;90% correlation found!
+                  </p>
+                  <p className="text-[11px] text-red-400 mt-0.5">
+                    Training with these features will produce deceptively high test scores that fail in production. We have unselected them by default.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Search & Filter Bar */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search size={14} className="absolute left-3 top-2.5" style={{ color: "var(--txt-m)" }} />
+                <input 
+                  type="text" 
+                  placeholder="Search feature names..."
+                  value={featureSearch}
+                  onChange={e => setFeatureSearch(e.target.value)}
+                  className="w-full text-xs pl-8 pr-3 py-2 rounded-xl outline-none"
+                  style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}
+                />
+              </div>
+
+              <div className="flex items-center gap-1">
+                {(["all", "numeric", "categorical", "safe", "leakage"] as const).map(tab => (
+                  <button 
+                    key={tab}
+                    onClick={() => setFeatureFilter(tab)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all ${featureFilter === tab ? 'text-white' : ''}`}
+                    style={{
+                      background: featureFilter === tab ? "var(--accent)" : "transparent",
+                      color: featureFilter === tab ? "white" : "var(--txt-m)",
+                      border: `1px solid ${featureFilter === tab ? "var(--accent)" : "var(--border)"}`,
+                    }}>
+                    {tab}
+                  </button>
+                ))}
+              </div>
             </div>
-          ) : (
-            <div className="max-h-[300px] overflow-y-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="sticky top-0 z-10 font-mono text-[10px] uppercase tracking-wider" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", color: "var(--txt-m)" }}>
-                  <tr>
-                    <th className="py-2.5 px-3 w-10 text-center">Inc.</th>
-                    <th className="py-2.5 px-3">Feature Name</th>
-                    <th className="py-2.5 px-3">Type</th>
-                    <th className="py-2.5 px-3">Null %</th>
-                    <th className="py-2.5 px-3">Unique</th>
-                    <th className="py-2.5 px-3">Signal (Corr)</th>
-                    <th className="py-2.5 px-3">Leakage Risk</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
-                  {displayedFeatures.map(f => {
-                    const isSelected = selectedFeatures.includes(f.name);
-                    return (
-                      <tr 
-                        key={f.name}
-                        onClick={() => toggleFeature(f.name)}
-                        className="cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                        style={{ background: isSelected ? "rgba(99,102,241,0.03)" : "transparent" }}>
-                        <td className="py-2 px-3 text-center" onClick={e => e.stopPropagation()}>
-                          <input 
-                            type="checkbox" 
-                            checked={isSelected}
-                            onChange={() => toggleFeature(f.name)}
-                            className="rounded accent-[var(--accent)]"
-                          />
-                        </td>
-                        <td className="py-2 px-3 font-semibold font-mono text-[11px]" style={{ color: isSelected ? "var(--txt)" : "var(--txt-m)" }}>
-                          {f.name}
-                          {f.is_id && <span className="ml-2 text-[9px] px-1 py-0.2 rounded font-sans font-bold bg-amber-500/10 text-amber-500">ID Candidate</span>}
-                        </td>
-                        <td className="py-2 px-3">
-                          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--border)", color: "var(--txt-m)" }}>
-                            {f.dtype}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 font-mono text-[11px]" style={{ color: f.missing_pct > 20 ? "#ef4444" : "var(--txt-m)" }}>
-                          {f.missing_pct}%
-                        </td>
-                        <td className="py-2 px-3 font-mono text-[11px]" style={{ color: "var(--txt-m)" }}>
-                          {f.n_unique}
-                        </td>
-                        <td className="py-2 px-3 font-mono text-[11px]">
-                          {f.correlation !== null ? (
-                            <span style={{ color: Math.abs(f.correlation) >= 0.9 ? "#ef4444" : Math.abs(f.correlation) >= 0.4 ? "#10b981" : "var(--txt-m)" }}>
-                              {f.correlation > 0 ? `+${f.correlation.toFixed(3)}` : f.correlation.toFixed(3)}
+
+            {/* Features Table */}
+            {isAnalyzingFeatures ? (
+              <div className="p-8 text-center space-y-2">
+                <RefreshCw size={20} className="animate-spin mx-auto text-indigo-500" />
+                <p className="text-xs font-mono" style={{ color: "var(--txt-m)" }}>Auditing feature correlations &amp; target leakage...</p>
+              </div>
+            ) : (
+              <div className="max-h-[300px] overflow-y-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-10 font-mono text-[10px] uppercase tracking-wider" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", color: "var(--txt-m)" }}>
+                    <tr>
+                      <th className="py-2.5 px-3 w-10 text-center">Inc.</th>
+                      <th className="py-2.5 px-3">Feature Name</th>
+                      <th className="py-2.5 px-3">Type</th>
+                      <th className="py-2.5 px-3">Null %</th>
+                      <th className="py-2.5 px-3">Unique</th>
+                      <th className="py-2.5 px-3">Signal (Corr)</th>
+                      <th className="py-2.5 px-3">Leakage Risk</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
+                    {displayedFeatures.map(f => {
+                      const isSelected = selectedFeatures.includes(f.name);
+                      return (
+                        <tr 
+                          key={f.name}
+                          onClick={() => toggleFeature(f.name)}
+                          className="cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                          style={{ background: isSelected ? "rgba(99,102,241,0.03)" : "transparent" }}>
+                          <td className="py-2 px-3 text-center" onClick={e => e.stopPropagation()}>
+                            <input 
+                              type="checkbox" 
+                              checked={isSelected}
+                              onChange={() => toggleFeature(f.name)}
+                              className="rounded accent-[var(--accent)]"
+                            />
+                          </td>
+                          <td className="py-2 px-3 font-semibold font-mono text-[11px]" style={{ color: isSelected ? "var(--txt)" : "var(--txt-m)" }}>
+                            {f.name}
+                            {f.is_id && <span className="ml-2 text-[9px] px-1 py-0.5 rounded font-sans font-bold bg-amber-500/10 text-amber-500">ID Candidate</span>}
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--border)", color: "var(--txt-m)" }}>
+                              {f.dtype}
                             </span>
-                          ) : (
-                            <span style={{ color: "var(--txt-f)" }}>-</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3">
-                          {f.leakage_risk === "high" ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-500">
-                              <AlertTriangle size={10} /> High Risk
-                            </span>
-                          ) : f.leakage_risk === "medium" ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500">
-                              Medium Signal
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500">
-                              <CheckCircle2 size={10} /> Safe
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-[11px]" style={{ color: f.missing_pct > 20 ? "#ef4444" : "var(--txt-m)" }}>
+                            {f.missing_pct}%
+                          </td>
+                          <td className="py-2 px-3 font-mono text-[11px]" style={{ color: "var(--txt-m)" }}>
+                            {f.n_unique}
+                          </td>
+                          <td className="py-2 px-3 font-mono text-[11px]">
+                            {f.correlation !== null ? (
+                              <span style={{ color: Math.abs(f.correlation) >= 0.9 ? "#ef4444" : Math.abs(f.correlation) >= 0.4 ? "#10b981" : "var(--txt-m)" }}>
+                                {f.correlation > 0 ? `+${f.correlation.toFixed(3)}` : f.correlation.toFixed(3)}
+                              </span>
+                            ) : (
+                              <span style={{ color: "var(--txt-f)" }}>-</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3">
+                            {f.leakage_risk === "high" ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-500">
+                                <AlertTriangle size={10} /> High Risk
+                              </span>
+                            ) : f.leakage_risk === "medium" ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500">
+                                Medium Signal
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500">
+                                <CheckCircle2 size={10} /> Safe
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* -- SECTION 3: ALGORITHM WHITELIST & VALIDATION TUNING -- */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -651,11 +684,11 @@ export function AutoMLTab() {
                     {isChecked && <Check size={11} className="text-white" strokeWidth={3} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs" style={{ color: isChecked ? "var(--txt)" : "var(--txt-m)" }}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-xs truncate" style={{ color: isChecked ? "var(--txt)" : "var(--txt-m)" }}>
                         {algo.name}
                       </span>
-                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-black/5 dark:bg-white/5" style={{ color: "var(--txt-m)" }}>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded border whitespace-nowrap shrink-0" style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
                         {algo.tag}
                       </span>
                     </div>
@@ -754,10 +787,23 @@ export function AutoMLTab() {
       <div className="flex items-center justify-between p-4 rounded-2xl flex-wrap gap-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <div className="flex items-center gap-3 flex-wrap flex-1 min-w-[300px]">
           <div className="text-xs" style={{ color: "var(--txt-m)" }}>
-            {selectedFeatures.length > 0 && selectedAlgos.length > 0 ? (
-              <span>Configured to train <strong style={{ color: "var(--txt)" }}>{customModelName || (automlTarget ? `${automlTarget} Predictor` : "AutoML Champion")}</strong> with <strong style={{ color: "var(--txt)" }}>{selectedFeatures.length} features</strong> across <strong style={{ color: "var(--txt)" }}>{selectedAlgos.length} algorithms</strong>.</span>
+            {!automlTarget ? (
+              <span className="text-amber-500 font-semibold flex items-center gap-1.5">
+                <AlertTriangle size={13} />
+                Select a Target Variable (Y) in the configuration above to start training.
+              </span>
+            ) : selectedFeatures.length === 0 ? (
+              <span className="text-amber-500 font-semibold flex items-center gap-1.5">
+                <AlertTriangle size={13} />
+                Select at least 1 predictor feature in the Feature Whitelist above.
+              </span>
+            ) : selectedAlgos.length === 0 ? (
+              <span className="text-amber-500 font-semibold flex items-center gap-1.5">
+                <AlertTriangle size={13} />
+                Select at least 1 algorithm in the Algorithm Whitelist.
+              </span>
             ) : (
-              <span className="text-amber-500 font-semibold">Select target, features &amp; models in Configuration above.</span>
+              <span>Configured to train <strong style={{ color: "var(--txt)" }}>{customModelName || (automlTarget ? `${automlTarget} Predictor` : "AutoML Champion")}</strong> with <strong style={{ color: "var(--txt)" }}>{selectedFeatures.length} features</strong> across <strong style={{ color: "var(--txt)" }}>{selectedAlgos.length} algorithms</strong>.</span>
             )}
           </div>
         </div>

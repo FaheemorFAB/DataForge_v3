@@ -241,6 +241,9 @@ class EntitlementService:
         with _LOCK:
             sub_file = _SUBS_DIR / f"user_{user_id}.json"
             sub_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            to_del = [k for k in _SUBSCRIPTION_CACHE if k.startswith(f"{user_id}:")]
+            for k in to_del:
+                _SUBSCRIPTION_CACHE.pop(k, None)
 
         return {**limits, **payload}
 

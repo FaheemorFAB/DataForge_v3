@@ -359,3 +359,22 @@ class TestRunAutoml:
     def test_invalid_target_col_returns_error(self, regression_df):
         result = run_automl(regression_df, "nonexistent_col", time_budget=10)
         assert result.get("error") is not None
+
+    def test_target_keys_present_in_result(self, regression_df):
+        result = run_automl(regression_df, "target", time_budget=15)
+        assert result.get("target_col") == "target"
+        assert result.get("target") == "target"
+
+    def test_classification_with_null_targets_drops_nulls_cleanly(self):
+        rng = np.random.default_rng(42)
+        df = pd.DataFrame({
+            "feat1": rng.normal(0, 1, 100),
+            "feat2": rng.normal(5, 2, 100),
+            "target": ["Yes" if i % 2 == 0 else "No" for i in range(100)],
+        })
+        # Inject NaN into 10 target values
+        df.loc[:9, "target"] = np.nan
+        result = run_automl(df, "target", time_budget=15)
+        assert result.get("error") is None
+        assert result.get("target_col") == "target"
+        assert result.get("task") == "classification"
