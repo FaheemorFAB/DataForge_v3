@@ -76,6 +76,7 @@ export function CleanerTab() {
   const [rules, setRules] = useState<any[]>([]);
   const [diffLoading, setDiffLoading] = useState(false);
   const [diffResult, setDiffResult] = useState<any>(null);
+  const [diffFilter, setDiffFilter] = useState<"all" | "modified">("all");
   const [diffError, setDiffError] = useState("");
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -241,6 +242,7 @@ export function CleanerTab() {
         return;
       }
       setDiffResult(data.diff);
+      setDiffFilter("all");
     } catch (err: any) {
       setDiffError(err.message || "Failed to preview diff");
     } finally {
@@ -812,12 +814,26 @@ export function CleanerTab() {
 
               {/* -- Live Diff Preview Card ---- */}
               {diffResult && (
-                <div className="mt-4 p-4 rounded-xl border space-y-3" style={{ background: "rgba(99,102,241,0.03)", borderColor: "rgba(99,102,241,0.2)" }}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
-                      <Sparkles size={13} /> Simulation Preview for '{diffResult.column}'
-                    </p>
-                    <button onClick={() => setDiffResult(null)} className="text-gray-500 hover:text-gray-300"><X size={13} /></button>
+                <div className="mt-4 p-4 rounded-xl border space-y-4" style={{ background: "rgba(99,102,241,0.03)", borderColor: "rgba(99,102,241,0.2)" }}>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                        <Sparkles size={13} /> Simulation Preview for '{diffResult.column}'
+                      </p>
+                      {diffResult.total_changed_rows !== undefined && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                          diffResult.total_changed_rows > 0
+                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                            : "bg-gray-500/15 text-gray-400 border-gray-500/30"
+                        }`}>
+                          {diffResult.total_changed_rows > 0 && <CheckCircle2 size={11} />}
+                          {diffResult.total_changed_rows > 0
+                            ? `${diffResult.total_changed_rows} ${diffResult.total_changed_rows === 1 ? "row" : "rows"} modified`
+                            : "0 rows modified"}
+                        </span>
+                      )}
+                    </div>
+                    <button onClick={() => setDiffResult(null)} className="text-gray-500 hover:text-gray-300"><X size={14} /></button>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -845,33 +861,129 @@ export function CleanerTab() {
                     )}
                   </div>
 
-                  {/* Sample Rows Diff Table */}
-                  {diffResult.sample_diff && diffResult.sample_diff.length > 0 && (
-                    <div className="rounded-lg border overflow-hidden mt-2" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-                      <table className="w-full text-[11px] font-mono">
-                        <thead className="bg-black/30 text-gray-500 uppercase text-[9px]">
-                          <tr>
-                            <th className="p-2 text-left">Row</th>
-                            <th className="p-2 text-left">Before Simulation</th>
-                            <th className="p-2 text-left">After Simulation</th>
-                            <th className="p-2 text-right">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {diffResult.sample_diff.map((row: any, idx: number) => (
-                            <tr key={idx} className="border-t border-white/[0.04]">
-                              <td className="p-2 text-gray-500">#{row.row}</td>
-                              <td className="p-2 text-gray-300">{row.before}</td>
-                              <td className={`p-2 font-bold ${row.changed ? 'text-emerald-500' : 'text-[var(--txt-m)]'}`}>{row.after}</td>
-                              <td className="p-2 text-right">
-                                {row.changed ? <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">Modified</span> : <span className="text-[9px] text-gray-600">Unchanged</span>}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  {/* Sample Rows Diff Table Toolbar & Table */}
+                  {diffResult.sample_diff && diffResult.sample_diff.length > 0 && (() => {
+                    const changedCount = diffResult.sample_diff.filter((r: any) => r.changed).length;
+                    const displayedRows = diffFilter === "modified"
+                      ? diffResult.sample_diff.filter((r: any) => r.changed)
+                      : diffResult.sample_diff;
+
+                    return (
+                      <div className="space-y-2 mt-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2 text-[11px]">
+                          <span className="text-gray-400 font-medium">
+                            {changedCount > 0 ? (
+                              <>
+                                Showing <strong className="text-emerald-400">{changedCount}</strong> modified sample records first
+                              </>
+                            ) : (
+                              <span className="text-gray-500">No rows modified by this rule</span>
+                            )}
+                          </span>
+
+                          {changedCount > 0 && (
+                            <div className="flex items-center gap-1 bg-black/30 p-0.5 rounded-lg border border-white/[0.06] text-[10px]">
+                              <button
+                                type="button"
+                                onClick={() => setDiffFilter("all")}
+                                className={`px-2.5 py-0.5 rounded font-bold transition-all ${
+                                  diffFilter === "all"
+                                    ? "bg-indigo-600 text-white shadow-sm"
+                                    : "text-gray-400 hover:text-gray-200"
+                                }`}
+                              >
+                                All Sample ({diffResult.sample_diff.length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDiffFilter("modified")}
+                                className={`px-2.5 py-0.5 rounded font-bold transition-all ${
+                                  diffFilter === "modified"
+                                    ? "bg-emerald-600 text-white shadow-sm"
+                                    : "text-gray-400 hover:text-gray-200"
+                                }`}
+                              >
+                                Modified Only ({changedCount})
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="rounded-lg border overflow-hidden" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+                          <table className="w-full text-[11px] font-mono">
+                            <thead className="bg-black/40 text-gray-400 uppercase text-[9px] tracking-wider">
+                              <tr>
+                                <th className="p-2.5 text-left font-bold">Row</th>
+                                <th className="p-2.5 text-left font-bold">Before Simulation</th>
+                                <th className="p-2.5 text-left font-bold">After Simulation</th>
+                                <th className="p-2.5 text-right font-bold">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {displayedRows.map((row: any, idx: number) => {
+                                const isNullBefore = row.before === "NaN" || row.before === "null" || row.before === "nan" || row.before === "None";
+                                const isRemoved = row.after === "REMOVED" || row.after === "DROPPED";
+
+                                return (
+                                  <tr
+                                    key={idx}
+                                    className={`border-t border-white/[0.04] transition-colors ${
+                                      row.changed
+                                        ? isRemoved
+                                          ? "bg-red-500/[0.05] hover:bg-red-500/[0.09]"
+                                          : "bg-emerald-500/[0.05] hover:bg-emerald-500/[0.09]"
+                                        : "hover:bg-white/[0.02]"
+                                    }`}
+                                  >
+                                    <td className="p-2.5 text-gray-500 font-semibold">#{row.row}</td>
+                                    <td className="p-2.5">
+                                      {isNullBefore ? (
+                                        <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-bold text-[10px] border border-red-500/30">
+                                          NaN
+                                        </span>
+                                      ) : row.changed ? (
+                                        <span className="line-through text-red-400/80 mr-1.5 font-medium">
+                                          {row.before}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-300">{row.before}</span>
+                                      )}
+                                    </td>
+                                    <td className="p-2.5">
+                                      {isRemoved ? (
+                                        <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-bold text-[10px] border border-red-500/30">
+                                          DROPPED
+                                        </span>
+                                      ) : row.changed ? (
+                                        <span className="font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30">
+                                          {row.after}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-400">{row.after}</span>
+                                      )}
+                                    </td>
+                                    <td className="p-2.5 text-right">
+                                      {isRemoved ? (
+                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-red-500/20 text-red-400 border border-red-500/30">
+                                          Removed
+                                        </span>
+                                      ) : row.changed ? (
+                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                          Modified
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] text-gray-600 font-normal">Unchanged</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
