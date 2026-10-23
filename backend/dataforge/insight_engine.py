@@ -694,6 +694,7 @@ Write an authoritative, quantified Executive Briefing in 3 structured sections:
 3. Strategic Recommendations: 2 concrete, prioritized operational next steps or risk mitigations.
 
 CRITICAL GROUNDING & FORMATTING RULES:
+- Output ONLY the 3 numbered sections above. Do NOT include any document title, heading, or preamble (e.g. do NOT write '# Executive Briefing' or 'Dataset Analysis'). Start immediately with '1. Executive Takeaway:'.
 - Use clean section titles (e.g. 'Executive Takeaway:', 'Key Drivers & Dynamics:', 'Strategic Recommendations:').
 - Cite exact figures and percentages quoted in the findings.
 - Do NOT fabricate or extrapolate new numbers.

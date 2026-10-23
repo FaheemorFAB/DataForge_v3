@@ -33,23 +33,43 @@ def schema_summary(df: pd.DataFrame) -> str:
 _schema_summary = schema_summary
 
 
-def build_analysis_prompt(query: str, df: pd.DataFrame, metric_context: str = "") -> str:
+def build_analysis_prompt(
+    query: str,
+    df: pd.DataFrame,
+    metric_context: str = "",
+    chat_history: list = None,
+) -> str:
     """Builds prompt instructing Gemini to generate executable pandas/numpy code and visualization intent."""
     col_list = ", ".join(f'"{c}"' for c in df.columns)
     metric_block = f"\n\nBUSINESS METRICS (user-defined):\n{metric_context}\n" if metric_context else ""
+
+    history_block = ""
+    if chat_history and len(chat_history) > 0:
+        lines = ["\nRECENT CONVERSATION CONTEXT (use this to resolve pronouns/follow-ups like 'their', 'that', 'those'):"]
+        for msg in chat_history:
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            content = (msg.get("content") or "").strip()
+            if len(content) > 200:
+                content = content[:200] + "..."
+            lines.append(f"{role}: {content}")
+        history_block = "\n".join(lines) + "\n"
 
     return f"""DATAFRAME: {df.shape[0]:,} rows x {df.shape[1]} columns
 COLUMNS:
 {schema_summary(df)}
 
 SAMPLE DATA ({SAMPLE_ROWS} rows):
-{df.head(SAMPLE_ROWS).to_string(index=False, max_cols=20)}{metric_block}
+{df.head(SAMPLE_ROWS).to_string(index=False, max_cols=20)}{metric_block}{history_block}
 
 USER QUERY: "{query}"
 
 TASK:
 1. Write concise, valid pandas/numpy code that answers the query and assigns the final value/series/dataframe to `result`.
 2. Choose the optimal visualization intent: bar_chart, pie_chart, doughnut_chart, line_chart, scatter_chart, histogram, table, metric, or summary.
+
+CRITICAL CONVERSATIONAL MEMORY RULE:
+- If USER QUERY contains follow-up references (e.g. 'their', 'that', 'which of them', 'compare with', 'show that as a chart', 'how many'), resolve the exact entity and column using RECENT CONVERSATION CONTEXT.
+- For example, if the previous turn identified "Private job" as the most common occupation and the user asks "what is their average income?", filter df by `df['parent_occupation'] == 'Private job'` and calculate mean income.
 
 CRITICAL VISUALIZATION RULES:
 - Categorical comparisons/distributions (e.g. region, category, country, segment, status) MUST use `bar_chart`, `pie_chart`, or `doughnut_chart`. NEVER use `line_chart` for non-temporal categories!

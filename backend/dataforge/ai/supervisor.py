@@ -35,6 +35,7 @@ class DataForgeSupervisor:
         df: pd.DataFrame,
         upload_id: Optional[str] = None,
         metric_context: str = "",
+        chat_history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         """
         Main entrypoint. Evaluates query, delegates to domain agents, and produces unified output.
@@ -54,7 +55,7 @@ class DataForgeSupervisor:
         agent_actions.extend(actions)
 
         # 3. Quantitative Code Generation via Google GenAI Structured Outputs
-        prompt = build_analysis_prompt(clean_query, df, metric_context)
+        prompt = build_analysis_prompt(clean_query, df, metric_context, chat_history=chat_history)
 
         try:
             analysis: AnalysisResult = generate_structured(
@@ -64,6 +65,8 @@ class DataForgeSupervisor:
                 system_instruction=(
                     "You are DataForge Analyst, a Senior Principal Data Analyst and AI Intelligence assistant at DataForge. "
                     "If the user asks who you are or what your name is, clearly state you are DataForge Analyst. "
+                    "Maintain conversational context across queries. When the user asks follow-up questions referencing previous answers "
+                    "(e.g., 'their average income', 'compare that with', 'show those as a chart'), resolve the entity and column from conversation history. "
                     "Write precise pandas/numpy computation code that assigns the final calculation to `result`, "
                     "and select the optimal visualization intent. If the user asks for a preview, sample, head, or summary table, "
                     "assign df.head(5) to `result` and set intent to 'table'. Categorical comparisons must use bar_chart or pie_chart, never line_chart."

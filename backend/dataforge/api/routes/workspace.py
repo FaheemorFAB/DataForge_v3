@@ -1044,9 +1044,23 @@ async def api_query(
         raise HTTPException(status_code=402, detail=reason)
     EntitlementService.record_usage(current_user.id, "ai_queries", 1)
 
+    # Extract recent conversation turns for multi-turn conversational memory
+    history = []
+    for m in session.get("messages", [])[-8:]:
+        role = m.get("role")
+        content = m.get("content")
+        if role in ("user", "assistant") and content:
+            history.append({"role": role, "content": str(content)[:350]})
+
     def _run():
         from dataforge.gemini_pipeline import run_query_pipeline
-        return run_query_pipeline(query_str, df, metric_context=metric_context, upload_id=target_upload_id)
+        return run_query_pipeline(
+            query_str,
+            df,
+            metric_context=metric_context,
+            upload_id=target_upload_id,
+            chat_history=history,
+        )
 
     try:
         result = await run_in_executor(_run)

@@ -821,30 +821,6 @@ export function JoinCanvasTab() {
             <Plus size={13} />
             <span>Add Table</span>
           </button>
-
-          {/* Run Preview */}
-          <button
-            onClick={() => handlePreview()}
-            disabled={executingPreview || (!baseTable && activeMode === "visual")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition hover:scale-[1.02] disabled:opacity-50 cursor-pointer bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/40 text-indigo-700 dark:text-indigo-300"
-          >
-            <Play size={13} className={executingPreview ? "animate-spin" : ""} />
-            <span>{executingPreview ? "Running..." : "Run Preview"}</span>
-          </button>
-
-          {/* Materialize into Workspace */}
-          <button
-            onClick={handleMaterialize}
-            disabled={materializing || (!baseTable && activeMode === "visual")}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-lg hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
-            style={{
-              background: "linear-gradient(135deg, var(--accent), #ff7043)",
-              color: "#fff",
-            }}
-          >
-            <Zap size={13} className={materializing ? "animate-bounce" : ""} />
-            <span>{materializing ? "Materializing..." : "Materialize"}</span>
-          </button>
         </div>
       </div>
 

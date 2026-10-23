@@ -243,18 +243,31 @@ def _build_chart(intent, x_col, y_col, top_n, raw, df):
 
 # ── Main pipeline ─────────────────────────────────────────────────────────────
 
-def run_query_pipeline(query: str, df: pd.DataFrame, metric_context: str = "", upload_id: str = None) -> dict:
+def run_query_pipeline(
+    query: str,
+    df: pd.DataFrame,
+    metric_context: str = "",
+    upload_id: str = None,
+    chat_history: list = None,
+) -> dict:
     """Multi-Agent ADK-first with automatic fallback to single-call pipeline.
     
     metric_context: optional block of user-defined metric definitions
     (e.g. "revenue = price * units") injected into the prompt.
+    chat_history: optional list of previous conversation messages for multi-turn context.
     """
     global GEMINI_OK
 
     # 1. Try ADK Multi-Agent Supervisor first
     try:
         from dataforge.ai.supervisor import supervisor
-        res = supervisor.execute(query=query, df=df, upload_id=upload_id, metric_context=metric_context)
+        res = supervisor.execute(
+            query=query,
+            df=df,
+            upload_id=upload_id,
+            metric_context=metric_context,
+            chat_history=chat_history,
+        )
         if res and res.get("ok"):
             return {
                 "error": None,

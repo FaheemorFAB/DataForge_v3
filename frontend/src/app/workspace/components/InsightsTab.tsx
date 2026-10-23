@@ -1273,8 +1273,14 @@ function ExecutiveBriefingCard({
 
     for (let rawLine of lines) {
       const line = rawLine.trim();
-      if (!line || line.startsWith("═") || line.startsWith("Executive Intelligence Briefing")) continue;
-      if (line.startsWith("User Hypothesis Inquiry:")) continue;
+      if (
+        !line ||
+        line.startsWith("═") ||
+        /^#*\s*executive\s+(?:intelligence\s+|strategic\s+)?briefing/i.test(line) ||
+        /^#*\s*dataset\s+.*analysis/i.test(line) ||
+        /^#*\s*executive\s+summary\s*[:\-]\s*dataset/i.test(line) ||
+        /^user hypothesis inquiry:/i.test(line)
+      ) continue;
 
       // 1. Check Canonical Standalone Header (e.g. "1. Executive Takeaway:", "**Executive Takeaway:**", "### 2. Key Drivers & Dynamics:")
       let standaloneMatch = false;
@@ -1368,6 +1374,13 @@ function ExecutiveBriefingCard({
       // 4. Regular Bullet or Narrative Content
       const bulletText = line.replace(/^([•\-\*]+|\d+[\.\)])\s*/, "").trim();
       if (bulletText) {
+        // Discard standalone document titles mistakenly treated as bullet points
+        const isDocTitle =
+          /^executive (?:intelligence )?briefing[:\s]/i.test(bulletText) ||
+          /^dataset ['"].*['"] analysis/i.test(bulletText) ||
+          (bulletText.length < 50 && !bulletText.includes(" ") && bulletText.includes(".csv"));
+        if (isDocTitle) continue;
+
         if (curSection) {
           curSection.bullets.push(bulletText);
         } else {
@@ -1378,8 +1391,20 @@ function ExecutiveBriefingCard({
       }
     }
 
-    // Filter out any empty sections that have no bullet content
-    return parsed.filter(s => s.bullets.length > 0);
+    // Deduplicate sections with the same title and filter out empty sections
+    const merged: { title: string; bullets: string[]; iconType: string; badge?: string }[] = [];
+    for (const s of parsed) {
+      const validBullets = s.bullets.filter(b => b && b.length > 5 && !/^executive briefing/i.test(b));
+      if (!validBullets.length) continue;
+      const existing = merged.find(m => m.title.trim().toLowerCase() === s.title.trim().toLowerCase());
+      if (existing) {
+        existing.bullets.push(...validBullets);
+      } else {
+        merged.push({ ...s, bullets: validBullets });
+      }
+    }
+
+    return merged;
   }, [summary]);
 
   return (
