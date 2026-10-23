@@ -130,8 +130,11 @@ class ModelRegistry:
             data = cls._read_data()
             models = data.get("models", [])
             if org_id:
-                return [m for m in models if m.get("org_id") in (org_id, "default")]
-            return models
+                res = [m for m in models if m.get("org_id") in (org_id, "default")]
+            else:
+                res = list(models)
+            res.sort(key=lambda m: str(m.get("created_at") or ""), reverse=True)
+            return res
 
     @classmethod
     def get_model(cls, model_id: str) -> Optional[Dict[str, Any]]:

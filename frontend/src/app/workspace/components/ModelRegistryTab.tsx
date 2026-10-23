@@ -432,15 +432,24 @@ export function ModelRegistryTab() {
     }
   };
 
-  const filteredModels = models.filter((m) => {
-    const matchesTask = taskFilter === "all" || m.task_type === taskFilter;
-    const matchesSearch =
-      m.model_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.algorithm.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.target_column.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (m.features || []).some((f) => f.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesTask && matchesSearch;
-  });
+  const filteredModels = models
+    .filter((m) => {
+      const matchesTask = taskFilter === "all" || m.task_type === taskFilter;
+      const matchesSearch =
+        m.model_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.algorithm.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.target_column.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (m.features || []).some((f) => f.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesTask && matchesSearch;
+    })
+    .sort((a, b) => {
+      const parseTime = (val?: string) => {
+        if (!val) return 0;
+        const t = new Date(val).getTime();
+        return isNaN(t) ? 0 : t;
+      };
+      return parseTime(b.created_at) - parseTime(a.created_at);
+    });
 
   const classificationCount = models.filter((m) => m.task_type === "classification").length;
   const regressionCount = models.filter((m) => m.task_type === "regression").length;
@@ -784,60 +793,6 @@ export function ModelRegistryTab() {
                     </span>
 
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* APPLY TO ACTIVE WORKSPACE */}
-                      <button
-                        onClick={() => handleApplyToWorkspace(m)}
-                        disabled={applyingModelId === m.id}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all hover:scale-[1.02] cursor-pointer"
-                        style={{
-                          background: "rgba(16, 185, 129, 0.12)",
-                          borderColor: "rgba(16, 185, 129, 0.3)",
-                          color: "#10b981",
-                        }}
-                        title="Score active workspace dataset and append prediction columns"
-                      >
-                        {applyingModelId === m.id ? (
-                          <Loader2 size={12} className="animate-spin text-emerald-400" />
-                        ) : (
-                          <Play size={12} className="text-emerald-500" />
-                        )}
-                        <span>{applyingModelId === m.id ? "Scoring..." : "Apply to Data"}</span>
-                      </button>
-
-                      {/* TEST IN PLAYGROUND */}
-                      <button
-                        onClick={() => openInferencePlayground(m)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all hover:scale-[1.02] cursor-pointer"
-                        style={{
-                          background: "rgba(99, 102, 241, 0.1)",
-                          borderColor: "rgba(99, 102, 241, 0.25)",
-                          color: "#6366f1",
-                        }}
-                        title="Test real-time online inference with custom inputs"
-                      >
-                        <Zap size={12} />
-                        <span>Playground</span>
-                      </button>
-
-                      {/* BATCH SCORE CSV */}
-                      <button
-                        onClick={() => {
-                          setActiveModelForBatch(m);
-                          setBatchFile(null);
-                          setBatchError("");
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all hover:scale-[1.02] cursor-pointer"
-                        style={{
-                          background: "var(--surface)",
-                          borderColor: "var(--border)",
-                          color: "var(--txt)",
-                        }}
-                        title="Score an uploaded CSV file"
-                      >
-                        <FileCode size={12} />
-                        <span>Batch CSV</span>
-                      </button>
-
                       {/* DOCKER CONTAINER */}
                       <button
                         onClick={() => handleDownloadDocker(m.id, m.model_name)}
