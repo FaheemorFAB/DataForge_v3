@@ -20,6 +20,7 @@ import {
 import {
   RefreshCw,
   X,
+  Pin,
   BarChart4,
   TrendingUp,
   TrendingDown,
@@ -560,7 +561,21 @@ function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALET
 }
 
 // -- Chart Card --
-function ChartCard({ ch, idx, onRemove, activePaletteColors }: { ch: any; idx: number; onRemove: () => void; activePaletteColors: string[] }) {
+function ChartCard({
+  ch,
+  idx,
+  onRemove,
+  onTogglePin,
+  isPinned,
+  activePaletteColors,
+}: {
+  ch: any;
+  idx: number;
+  onRemove: () => void;
+  onTogglePin?: () => void;
+  isPinned?: boolean;
+  activePaletteColors: string[];
+}) {
   const cardRef = React.useRef<HTMLDivElement>(null);
   const color = activePaletteColors[idx % activePaletteColors.length];
   const numericVals = Array.isArray(ch.values) && ch.values.length > 0 && typeof ch.values[0] === "number" ? ch.values as number[] : null;
@@ -582,14 +597,19 @@ function ChartCard({ ch, idx, onRemove, activePaletteColors }: { ch: any; idx: n
   };
 
   return (
-    <div ref={cardRef} className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 4px 30px rgba(0,0,0,0.25)" }}>
+    <div ref={cardRef} className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: isPinned ? "1px solid rgba(245,158,11,0.4)" : "1px solid var(--border)", boxShadow: isPinned ? "0 4px 30px rgba(245,158,11,0.15)" : "0 4px 30px rgba(0,0,0,0.25)" }}>
       {/* Accent top bar */}
-      <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg,${color},${color}44)` }} />
+      <div className="h-[3px] w-full" style={{ background: isPinned ? "linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b)" : `linear-gradient(90deg,${color},${color}44)` }} />
       <div className="flex items-start justify-between px-5 pt-4 pb-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color, boxShadow: `0 0 5px ${color}` }} />
+            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isPinned ? "#f59e0b" : color, boxShadow: `0 0 5px ${isPinned ? "#f59e0b" : color}` }} />
             <p className="text-[11px] font-black uppercase tracking-wide truncate" style={{ color: "var(--txt)" }}>{ch.title}</p>
+            {isPinned && (
+              <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-0.5">
+                <Pin size={8} className="fill-amber-400 text-amber-400" /> Pinned
+              </span>
+            )}
             {ch.is_custom && <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>Custom</span>}
             {ch.agent_source && (
               <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
@@ -615,22 +635,33 @@ function ChartCard({ ch, idx, onRemove, activePaletteColors }: { ch: any; idx: n
           )}
         </div>
         <div className="flex items-center gap-1.5 ml-2">
+          {onTogglePin && (
+            <button
+              onClick={onTogglePin}
+              title={isPinned ? "Unpin chart" : "Pin chart to top (max 3)"}
+              className={`flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                isPinned ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10"
+              }`}
+              style={{ color: isPinned ? "#f59e0b" : "var(--txt)" }}
+            >
+              <Pin size={12} className={isPinned ? "fill-amber-400 text-amber-400" : ""} />
+            </button>
+          )}
           <button
             onClick={downloadPng}
             title="Export High-Res PNG"
-            className="w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer opacity-70 hover:opacity-100"
+            className="w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10"
             style={{ color: "var(--txt)" }}
           >
             <Download size={12} />
           </button>
-          {ch.is_custom && (
-            <button
-              onClick={onRemove}
-              className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer text-red-400 hover:bg-red-500/10"
-            >
-              <X size={12} />
-            </button>
-          )}
+          <button
+            onClick={onRemove}
+            title="Remove / dismiss chart"
+            className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer text-red-400 hover:bg-red-500/10"
+          >
+            <X size={12} />
+          </button>
         </div>
       </div>
       {/* Stats ribbon */}
@@ -669,6 +700,8 @@ export function DashboardTab() {
   const [selectedMetric, setSelectedMetric] = useState<string>("");
   const [dashInsights, setDashInsights] = useState<any[]>([]);
   const [pinnedInsights, setPinnedInsights] = useState<any[]>([]);
+  const [pinnedChartIds, setPinnedChartIds] = useState<string[]>([]);
+  const [dismissedChartIds, setDismissedChartIds] = useState<string[]>([]);
   const [profileCols, setProfileCols] = useState<string[]>([]);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [selectedPalette, setSelectedPalette] = useState<string>("indigo");
@@ -677,6 +710,20 @@ export function DashboardTab() {
   const [customChartError, setCustomChartError] = useState("");
 
   const activeColors = PALETTES[selectedPalette]?.colors || PALETTES.indigo.colors;
+
+  // Load persisted pinned and dismissed charts
+  useEffect(() => {
+    if (uploadId) {
+      try {
+        const savedPinned = localStorage.getItem(`df_pinned_charts_${uploadId}`);
+        if (savedPinned) setPinnedChartIds(JSON.parse(savedPinned));
+        const savedDismissed = localStorage.getItem(`df_dismissed_charts_${uploadId}`);
+        if (savedDismissed) setDismissedChartIds(JSON.parse(savedDismissed));
+      } catch (err) {
+        console.error("Failed loading saved chart preferences", err);
+      }
+    }
+  }, [uploadId]);
 
   const loadDashboard = useCallback(async (metricOverride?: string) => {
     if (!uploadId) return;
@@ -780,12 +827,62 @@ export function DashboardTab() {
     }
   };
 
-  const removeChart = async (ch: any) => {
-    if (!ch.is_custom) return;
-    try {
-      const res = await apiFetch("/dashboard/custom-chart/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ upload_id: uploadId, chart_id: ch.id }) });
-      if (res.ok) setDashCharts(prev => prev.filter(c => c.id !== ch.id));
-    } catch (e) { console.error(e); }
+  const getChartId = (c: any, index?: number) => {
+    return String(c.id || c.title || `chart-${index}`);
+  };
+
+  const togglePinChart = (ch: any, index?: number) => {
+    const cid = getChartId(ch, index);
+    setPinnedChartIds(prev => {
+      const isCurrentlyPinned = prev.includes(cid);
+      if (isCurrentlyPinned) {
+        const next = prev.filter(id => id !== cid);
+        if (uploadId) {
+          try { localStorage.setItem(`df_pinned_charts_${uploadId}`, JSON.stringify(next)); } catch {}
+        }
+        return next;
+      }
+      if (prev.length >= 3) {
+        alert("Maximum 3 pinned charts allowed. Please unpin a chart first.");
+        return prev;
+      }
+      const next = [...prev, cid];
+      if (uploadId) {
+        try { localStorage.setItem(`df_pinned_charts_${uploadId}`, JSON.stringify(next)); } catch {}
+      }
+      return next;
+    });
+  };
+
+  const removeChart = async (ch: any, index?: number) => {
+    const cid = getChartId(ch, index);
+    if (ch.is_custom && ch.id) {
+      try {
+        await apiFetch("/dashboard/custom-chart/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ upload_id: uploadId, chart_id: ch.id }),
+        });
+      } catch (e) {
+        console.error("Failed to delete custom chart:", e);
+      }
+    }
+    // Dismiss from view and unpin if pinned
+    setDismissedChartIds(prev => {
+      const next = [...new Set([...prev, cid])];
+      if (uploadId) {
+        try { localStorage.setItem(`df_dismissed_charts_${uploadId}`, JSON.stringify(next)); } catch {}
+      }
+      return next;
+    });
+    setPinnedChartIds(prev => {
+      const next = prev.filter(id => id !== cid);
+      if (uploadId) {
+        try { localStorage.setItem(`df_pinned_charts_${uploadId}`, JSON.stringify(next)); } catch {}
+      }
+      return next;
+    });
+    setDashCharts(prev => prev.filter((c, i) => getChartId(c, i) !== cid));
   };
 
   const sel: React.CSSProperties = { padding: "0.5rem 0.75rem", borderRadius: "0.6rem", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--txt)", fontSize: "11px", fontWeight: 600, width: "100%", outline: "none" };
@@ -1051,11 +1148,22 @@ export function DashboardTab() {
       )}
 
       {/* Time Series & Advanced Forecast Section */}
-      {dashInsights.filter((ins: any) => ins.type === "forecast").map((ins: any, i: number) => (
-        <div key={`dash-fc-${i}`} className="w-full">
-          <ForecastCard ins={ins} />
-        </div>
-      ))}
+      {dashInsights
+        .filter((ins: any) => ins.type === "forecast" && !dismissedChartIds.includes(getChartId(ins)))
+        .map((ins: any, i: number) => {
+          const fcId = getChartId(ins, i);
+          const isFcPinned = pinnedChartIds.includes(fcId);
+          return (
+            <div key={`dash-fc-${i}`} className="w-full">
+              <ForecastCard
+                ins={ins}
+                isPinned={isFcPinned}
+                onTogglePin={() => togglePinChart(ins, i)}
+                onDismiss={() => removeChart(ins, i)}
+              />
+            </div>
+          );
+        })}
 
       {/* Pinned Strategic Findings from Insight Engine (Section 5.3 Pin Bridge) */}
       {pinnedInsights.length > 0 && (
@@ -1077,6 +1185,7 @@ export function DashboardTab() {
                 idx={i}
                 isPinned={true}
                 onTogglePin={() => unpinInsight(ins)}
+                onDismiss={() => unpinInsight(ins)}
               />
             ))}
           </div>
@@ -1084,19 +1193,38 @@ export function DashboardTab() {
       )}
 
       {/* Charts Grid */}
-      {dashCharts.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {dashCharts.map((ch, i) => (
-            <ChartCard
-              key={ch.id || `c-${i}`}
-              ch={ch}
-              idx={i}
-              onRemove={() => removeChart(ch)}
-              activePaletteColors={activeColors}
-            />
-          ))}
-        </div>
-      )}
+      {(() => {
+        const visibleCharts = dashCharts.filter((ch, i) => !dismissedChartIds.includes(getChartId(ch, i)));
+        const sortedCharts = [...visibleCharts].sort((a, b) => {
+          const aPinned = pinnedChartIds.includes(getChartId(a));
+          const bPinned = pinnedChartIds.includes(getChartId(b));
+          if (aPinned && !bPinned) return -1;
+          if (!aPinned && bPinned) return 1;
+          return 0;
+        });
+
+        if (sortedCharts.length === 0) return null;
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {sortedCharts.map((ch, i) => {
+              const cid = getChartId(ch, i);
+              const isPinned = pinnedChartIds.includes(cid);
+              return (
+                <ChartCard
+                  key={cid || `c-${i}`}
+                  ch={ch}
+                  idx={i}
+                  isPinned={isPinned}
+                  onTogglePin={() => togglePinChart(ch, i)}
+                  onRemove={() => removeChart(ch, i)}
+                  activePaletteColors={activeColors}
+                />
+              );
+            })}
+          </div>
+        );
+      })()}
     </div>
   );
 }

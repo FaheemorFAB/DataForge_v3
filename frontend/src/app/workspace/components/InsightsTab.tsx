@@ -492,8 +492,18 @@ function renderInsightChart(ins: any): React.ReactNode {
 }
 
 // -- Forecast Card — Full interactive predictive analytics card --
-export function ForecastCard({ ins }: { ins: any }) {
-  const [activeTab, setActiveTab] = useState<"forecast" | "decomp" | "models">("forecast");
+export function ForecastCard({
+  ins,
+  onTogglePin,
+  isPinned,
+  onDismiss,
+}: {
+  ins: any;
+  onTogglePin?: (ins: any) => void;
+  isPinned?: boolean;
+  onDismiss?: (id: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<"forecast" | "decomp">("forecast");
   const [horizon, setHorizon] = useState<number | null>(null);
   const [runningForecast, setRunningForecast] = useState(false);
   const [localData, setLocalData] = useState<any>(null);
@@ -705,9 +715,40 @@ export function ForecastCard({ ins }: { ins: any }) {
             <p className="text-[10px] font-mono mt-0.5" style={{ color: "var(--txt-m)" }}>Predictive Analytics · {bestModel}</p>
           </div>
         </div>
-        <span className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-          forecast model
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
+            forecast model
+          </span>
+
+          {isPinned && (
+            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+              <Pin size={9} className="fill-amber-400 text-amber-400" /> Pinned
+            </span>
+          )}
+
+          {onTogglePin && (
+            <button
+              onClick={() => onTogglePin(ins)}
+              title={isPinned ? "Unpin finding" : "Pin finding to top (max 3)"}
+              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer border ${isPinned
+                ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                : "bg-white/5 hover:bg-white/10 text-slate-400 border-white/10"
+                }`}
+            >
+              <Pin size={11} className={isPinned ? "fill-amber-400 text-amber-400" : ""} />
+            </button>
+          )}
+
+          {onDismiss && (
+            <button
+              onClick={() => onDismiss(ins.id || ins.title || "forecast")}
+              title="Dismiss this finding"
+              className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer border border-white/10"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Description */}
@@ -748,11 +789,11 @@ export function ForecastCard({ ins }: { ins: any }) {
       {/* Tab bar + Horizon selector */}
       <div className="px-5 pb-2 flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-1">
-          {(["forecast", "decomp", "models"] as const).map(tab => (
+          {(["forecast", "decomp"] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all"
               style={{ background: activeTab === tab ? "rgba(0,212,255,0.15)" : "transparent", color: activeTab === tab ? "#00d4ff" : "var(--txt-m)", border: `1px solid ${activeTab === tab ? "rgba(0,212,255,0.3)" : "transparent"}` }}>
-              {tab === "forecast" ? "Forecast" : tab === "decomp" ? "Decompose" : "Models"}
+              {tab === "forecast" ? "Forecast" : "Decompose"}
             </button>
           ))}
         </div>
@@ -808,30 +849,6 @@ export function ForecastCard({ ins }: { ins: any }) {
         {activeTab === "decomp" && !decomp && (
           <div className="flex items-center justify-center h-full">
             <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>Decomposition not available for this dataset length.</p>
-          </div>
-        )}
-
-        {activeTab === "models" && (
-          <div className="h-full overflow-auto flex flex-col gap-3 px-2 py-4">
-            <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--txt)" }}>Model Accuracy (MAPE — lower is better)</p>
-            {Object.entries(mapes as Record<string, number>).map(([name, mape]) => {
-              const isB = name === bestModel;
-              const barW = Math.max(5, Math.min(100, 100 - mape));
-              return (
-                <div key={name} className="flex items-center gap-3">
-                  <span className="text-[10px] font-bold flex-shrink-0" style={{ width: 120, color: isB ? "var(--accent)" : "var(--txt)" }}>
-                    {name}{isB ? " ★" : ""}
-                  </span>
-                  <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${barW}%`, background: isB ? "linear-gradient(90deg,#00d4ff,#6366f1)" : "var(--txt-m)" }} />
-                  </div>
-                  <span className="text-[10px] font-mono font-bold" style={{ width: 60, textAlign: "right", color: isB ? "var(--accent)" : "var(--txt-m)" }}>{mape.toFixed(1)}% err</span>
-                </div>
-              );
-            })}
-            {Object.keys(mapes).length === 0 && (
-              <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>No model metrics available.</p>
-            )}
           </div>
         )}
       </div>
@@ -917,7 +934,9 @@ export function InsightCard({
   onDismiss?: (id: string) => void;
 }) {
   // Forecast insights get their own dedicated card
-  if (ins.type === "forecast") return <ForecastCard ins={ins} />;
+  if (ins.type === "forecast") {
+    return <ForecastCard ins={ins} onTogglePin={onTogglePin} isPinned={isPinned} onDismiss={onDismiss} />;
+  }
 
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const t = theme(ins.type);
@@ -931,18 +950,25 @@ export function InsightCard({
       className="rounded-2xl overflow-hidden flex flex-col transition-all duration-200"
       style={{
         background: "var(--surface)",
-        border: `1px solid ${t.border}`,
-        boxShadow: `0 4px 24px rgba(0,0,0,0.25), 0 0 0 1px ${t.border}`,
+        border: isPinned ? "1px solid rgba(245,158,11,0.5)" : `1px solid ${t.border}`,
+        boxShadow: isPinned
+          ? "0 4px 24px rgba(245,158,11,0.15), 0 0 0 1px rgba(245,158,11,0.3)"
+          : `0 4px 24px rgba(0,0,0,0.25), 0 0 0 1px ${t.border}`,
       }}
     >
       {/* Colour accent bar */}
-      <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg,${t.text},${t.text}44)` }} />
+      <div className="h-[3px] w-full" style={{ background: isPinned ? "linear-gradient(90deg,#f59e0b,#eab308,#f59e0b)" : `linear-gradient(90deg,${t.text},${t.text}44)` }} />
 
       {/* Header */}
       <div className="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="font-black text-sm leading-tight truncate" title={ins.title} style={{ color: "var(--txt)" }}>{ins.title}</p>
+            {isPinned && (
+              <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                <Pin size={9} className="fill-amber-400 text-amber-400" /> Pinned
+              </span>
+            )}
             {ins.is_protected && (
               <span className="text-[10px] font-semibold" style={{ color: "var(--warn-fg, #f59e0b)" }}>
                 · Demographic Segment
@@ -1582,6 +1608,12 @@ export function InsightsTab() {
     if (!uploadId) return;
     const insId = ins.id || ins.title;
     const isPinned = pinnedIds.includes(insId);
+
+    if (!isPinned && pinnedIds.length >= 3) {
+      alert("Maximum 3 findings can be pinned to the top.");
+      return;
+    }
+
     const action = isPinned ? "unpin" : "pin";
 
     try {
@@ -1673,8 +1705,16 @@ export function InsightsTab() {
     : (insightSchema?.metrics || profile?.columns?.filter((c: any) => c.dtype?.includes("int") || c.dtype?.includes("float")).map((c: any) => c.name) || []);
 
   const visibleCards = insightCards.filter(ins => !dismissedIds.includes(ins.id || ins.title));
+  // Pinned items take higher position on the grid (pinned - max 3)
+  const sortedCards = [...visibleCards].sort((a, b) => {
+    const aPinned = pinnedIds.includes(a.id || a.title);
+    const bPinned = pinnedIds.includes(b.id || b.title);
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    return 0;
+  });
   const targetCount = parseInt(insightTopN, 10) || 6;
-  const displayedCards = visibleCards.slice(0, targetCount);
+  const displayedCards = sortedCards.slice(0, targetCount);
 
   // -- Empty state --
   if (!insightCards.length && !isRunning) return (

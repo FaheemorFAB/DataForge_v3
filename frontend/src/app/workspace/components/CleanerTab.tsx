@@ -1068,43 +1068,201 @@ export function CleanerTab() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="gc p-4 rounded-xl">
               <p className="sl">Original Rows</p>
-              <p className="text-2xl font-black tracking-tighter mt-1">{cleanResult.stats.original_rows.toLocaleString()}</p>
+              <p className="text-2xl font-black tracking-tighter mt-1">
+                {(cleanResult.stats?.original_rows ?? profile?.total_rows ?? 0).toLocaleString()}
+              </p>
             </div>
             <div className="gc p-4 rounded-xl">
               <p className="sl">Cleaned Rows</p>
-              <p className="text-2xl font-black tracking-tighter mt-1 text-emerald-400">{cleanResult.stats.cleaned_rows.toLocaleString()}</p>
+              <p className="text-2xl font-black tracking-tighter mt-1 text-emerald-400">
+                {(cleanResult.stats?.cleaned_rows ?? cleanResult.clean_profile?.total_rows ?? profile?.total_rows ?? 0).toLocaleString()}
+              </p>
             </div>
             <div className="gc p-4 rounded-xl">
               <p className="sl">Original Cols</p>
-              <p className="text-2xl font-black tracking-tighter mt-1">{cleanResult.stats.original_cols}</p>
+              <p className="text-2xl font-black tracking-tighter mt-1">
+                {cleanResult.stats?.original_cols ?? profile?.columns?.length ?? 0}
+              </p>
             </div>
             <div className="gc p-4 rounded-xl">
               <p className="sl">Cleaned Cols</p>
-              <p className="text-2xl font-black tracking-tighter mt-1 text-emerald-400">{cleanResult.stats.cleaned_cols}</p>
+              <p className="text-2xl font-black tracking-tighter mt-1 text-emerald-400">
+                {cleanResult.stats?.cleaned_cols ?? cleanResult.clean_profile?.columns?.length ?? profile?.columns?.length ?? 0}
+              </p>
             </div>
           </div>
 
-          {cleanResult.missing_log && cleanResult.missing_log.length > 0 && (
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--txt-m)" }}>Cleaning Action Audit Log</h3>
-              <div className="gc rounded-xl overflow-hidden">
-                <div className="tbl-scroll overflow-x-auto">
-                  <table className="dt w-full min-w-[480px]">
-                    <thead><tr><th>Target Column</th><th>Type</th><th>Action Performed</th></tr></thead>
-                    <tbody>
-                      {cleanResult.missing_log.map((row: any, i: number) => (
-                        <tr key={i} style={{ borderLeftWidth: "3px", borderLeftStyle: "solid", borderLeftColor: row.type === 'drop' ? '#ef4444' : row.type === 'outlier' ? '#f59e0b' : '#10b981' }}>
-                          <td className="font-mono font-bold" style={{ color: "var(--txt)" }}>{row.column}</td>
-                          <td><span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.05)", color: "var(--txt-m)" }}>{row.type || "clean"}</span></td>
-                          <td style={{ color: "var(--txt)" }}>{row.action}</td>
+          {/* Audit Log Table */}
+          {(() => {
+            const rawLog = Array.isArray(cleanResult.missing_log) ? cleanResult.missing_log : [];
+            const structActions = Array.isArray(cleanResult.struct_actions) ? cleanResult.struct_actions : [];
+            
+            // Build unified audit entries if structural actions aren't already represented
+            const combinedLog: any[] = [...rawLog];
+            structActions.forEach((act: string) => {
+              if (act && !act.startsWith("No structural issues") && !combinedLog.some(l => l.action === act)) {
+                const actLower = act.toLowerCase();
+                let type = "clean";
+                let before = "Raw dataset";
+                let after = "Cleaned state";
+                let delta = "Applied";
+                if (actLower.includes("duplicate")) {
+                  type = "dedupe";
+                  before = "Contains duplicate rows";
+                  after = "Unique records preserved";
+                  delta = act;
+                } else if (actLower.includes("snake_case")) {
+                  type = "rename";
+                  before = "Unstandardized headers";
+                  after = "snake_case normalized";
+                  delta = act;
+                } else if (actLower.includes("whitespace")) {
+                  type = "text";
+                  before = "Untrimmed strings";
+                  after = "Whitespace trimmed";
+                  delta = act;
+                } else if (actLower.includes("coerced") || actLower.includes("parsed")) {
+                  type = "cast";
+                  before = "String / Object";
+                  after = "Numeric / Datetime";
+                  delta = "Type Cast";
+                }
+                combinedLog.push({
+                  column: act.includes("'") ? act.split("'")[1] : "Dataset",
+                  type,
+                  action: act,
+                  diff_before: before,
+                  diff_after: after,
+                  delta,
+                });
+              }
+            });
+
+            if (combinedLog.length === 0) return null;
+
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Shield size={14} className="text-emerald-400" />
+                    <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--txt)" }}>
+                      Cleaning Action Audit Log &amp; Transformation Diff ({combinedLog.length} actions)
+                    </h3>
+                  </div>
+                  <span className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
+                    OCC Version Snapshot: <span className="text-indigo-400 font-bold">{cleanResult.version_id || "v1"}</span>
+                  </span>
+                </div>
+
+                <div className="gc rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                  <div className="tbl-scroll overflow-x-auto">
+                    <table className="dt w-full min-w-[640px]">
+                      <thead>
+                        <tr>
+                          <th style={{ width: "18%" }}>Target Column</th>
+                          <th style={{ width: "12%" }}>Operation Type</th>
+                          <th style={{ width: "35%" }}>Action Performed</th>
+                          <th style={{ width: "35%" }}>Diff Made (Before → After)</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {combinedLog.map((row: any, i: number) => {
+                          const type = row.type || "clean";
+                          const borderCol =
+                            type === "drop"
+                              ? "#ef4444"
+                              : type === "outlier"
+                              ? "#f59e0b"
+                              : type === "fill"
+                              ? "#10b981"
+                              : type === "dedupe"
+                              ? "#3b82f6"
+                              : type === "cast"
+                              ? "#a855f7"
+                              : "#06b6d4";
+
+                          // Formulate Diff Made cleanly
+                          let diffBefore = row.diff_before;
+                          let diffAfter = row.diff_after;
+                          let delta = row.delta;
+
+                          if (!diffBefore) {
+                            if (type === "drop") {
+                              diffBefore = `${row.missing ? `${row.missing.toLocaleString()} nulls` : "Included in schema"}`;
+                              diffAfter = "Column Dropped";
+                              delta = "-1 col";
+                            } else if (row.missing || row.pct_missing) {
+                              diffBefore = `${(row.missing ?? 0).toLocaleString()} nulls (${row.pct_missing ?? 0}%)`;
+                              diffAfter = `0 nulls (Filled)`;
+                              delta = `-${(row.missing ?? 0).toLocaleString()} nulls`;
+                            } else if (type === "outlier") {
+                              diffBefore = "Extreme values outside bounds";
+                              diffAfter = "Bounded to acceptable range";
+                              delta = "Clipped";
+                            } else if (type === "scale") {
+                              diffBefore = "Original unscaled values";
+                              diffAfter = "Normalized feature space";
+                              delta = "Scaled";
+                            } else {
+                              diffBefore = "Pre-clean state";
+                              diffAfter = "Cleaned state";
+                              delta = "Cleaned";
+                            }
+                          }
+
+                          return (
+                            <tr
+                              key={i}
+                              style={{
+                                borderLeftWidth: "3px",
+                                borderLeftStyle: "solid",
+                                borderLeftColor: borderCol,
+                              }}
+                            >
+                              <td className="font-mono font-bold text-xs" style={{ color: "var(--txt)" }}>
+                                {row.column || "Dataset"}
+                              </td>
+                              <td>
+                                <span
+                                  className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full inline-block"
+                                  style={{
+                                    background: `${borderCol}18`,
+                                    color: borderCol,
+                                    border: `1px solid ${borderCol}33`,
+                                  }}
+                                >
+                                  {type}
+                                </span>
+                              </td>
+                              <td className="text-xs" style={{ color: "var(--txt)" }}>
+                                {row.action}
+                              </td>
+                              <td className="font-mono text-xs">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-500/10 text-rose-400 border border-rose-500/25">
+                                    {diffBefore}
+                                  </span>
+                                  <span className="text-[10px]" style={{ color: "var(--txt-m)" }}>→</span>
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                                    {diffAfter}
+                                  </span>
+                                  {delta && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                                      {delta}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 

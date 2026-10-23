@@ -124,6 +124,9 @@ def auto_fix_missing(df: pd.DataFrame) -> tuple:
                 "pct_missing": round(pct, 1),
                 "action":      "Dropped (>60% missing)",
                 "type":        "drop",
+                "diff_before": f"{n_missing:,} nulls ({pct:.1f}%)",
+                "diff_after":  "Column Dropped",
+                "delta":       "-1 column",
             })
 
     if to_drop:
@@ -153,6 +156,9 @@ def auto_fix_missing(df: pd.DataFrame) -> tuple:
             "type":        "fill",
             "imputed_indices_count": n_missing,
             "sample_imputed_indices": imputed_indices[:50],
+            "diff_before": f"{n_missing:,} nulls ({pct:.1f}%)",
+            "diff_after":  f"0 nulls (Filled with {strategy})",
+            "delta":       f"-{n_missing:,} nulls",
         })
 
     return df, log, imputed_cells
@@ -258,9 +264,82 @@ def run_cleaning_pipeline(df_raw: pd.DataFrame) -> dict:
 
     df_clean, struct_actions = structural_clean(df_step1)
 
+    combined_log = list(missing_log)
+    for act in struct_actions:
+        if not act or act.startswith("No structural issues"):
+            continue
+        act_lower = act.lower()
+        if "duplicate" in act_lower:
+            combined_log.append({
+                "column": "Dataset",
+                "missing": 0,
+                "pct_missing": 0.0,
+                "action": act,
+                "type": "dedupe",
+                "diff_before": f"{len(df_step1):,} rows",
+                "diff_after": f"{len(df_clean):,} unique rows",
+                "delta": f"-{len(df_step1) - len(df_clean):,} duplicate rows",
+            })
+        elif "snake_case" in act_lower:
+            combined_log.append({
+                "column": "Schema",
+                "missing": 0,
+                "pct_missing": 0.0,
+                "action": act,
+                "type": "rename",
+                "diff_before": "Raw column headers",
+                "diff_after": "snake_case normalized",
+                "delta": act,
+            })
+        elif "whitespace" in act_lower:
+            combined_log.append({
+                "column": "Text Columns",
+                "missing": 0,
+                "pct_missing": 0.0,
+                "action": act,
+                "type": "text",
+                "diff_before": "Untrimmed strings",
+                "diff_after": "Trimmed whitespace",
+                "delta": act,
+            })
+        elif "empty row" in act_lower:
+            combined_log.append({
+                "column": "Dataset",
+                "missing": 0,
+                "pct_missing": 0.0,
+                "action": act,
+                "type": "drop",
+                "diff_before": "Contains blank rows",
+                "diff_after": "Blank rows pruned",
+                "delta": act,
+            })
+        elif "coerced" in act_lower or "parsed" in act_lower:
+            target = act.split("'")[1] if "'" in act else "Column"
+            combined_log.append({
+                "column": target,
+                "missing": 0,
+                "pct_missing": 0.0,
+                "action": act,
+                "type": "cast",
+                "diff_before": "object/string",
+                "diff_after": "numeric / datetime",
+                "delta": "Type Cast",
+            })
+        else:
+            combined_log.append({
+                "column": "Dataset",
+                "missing": 0,
+                "pct_missing": 0.0,
+                "action": act,
+                "type": "clean",
+                "diff_before": "Raw input",
+                "diff_after": "Standardized",
+                "delta": "Cleaned",
+            })
+
     return {
         "df_clean":       df_clean,
-        "missing_log":    missing_log,
+        "missing_log":    combined_log,
         "imputed_cells":  imputed_cells,
         "struct_actions": struct_actions,
         "stats": {

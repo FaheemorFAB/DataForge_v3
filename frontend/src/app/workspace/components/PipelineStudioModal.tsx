@@ -72,51 +72,7 @@ export function PipelineStudioModal({
     output_step_id: "s2_clean_filter"
   }, null, 2));
 
-  const [executingRecipe, setExecutingRecipe] = useState(false);
-  const [recipeResult, setRecipeResult] = useState<any>(null);
-  const [recipeError, setRecipeError] = useState<string>("");
-
-  const handleRunRecipe = async (dryRun: boolean) => {
-    try {
-      setExecutingRecipe(true);
-      setRecipeError("");
-      setRecipeResult(null);
-      let parsed;
-      try {
-        parsed = JSON.parse(recipeJson);
-      } catch (err: any) {
-        setRecipeError("Invalid JSON syntax: " + err.message);
-        return;
-      }
-      if (parsed.steps?.[0]?.source_upload_id === "active_dataset" && uploadId) {
-        parsed.steps[0].source_upload_id = uploadId;
-      }
-
-      const endpoint = dryRun ? "/procedures/dry-run" : "/procedures/execute";
-      const res = await apiFetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          upload_id: uploadId,
-          recipe: parsed,
-          definition: parsed,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setRecipeError(data.detail || data.error || "Failed to execute recipe");
-      } else {
-        setRecipeResult({ ...data, isDryRun: dryRun });
-        if (!dryRun && refreshWorkspace && uploadId) {
-          refreshWorkspace(uploadId);
-        }
-      }
-    } catch (e: any) {
-      setRecipeError(e.message || "Network error");
-    } finally {
-      setExecutingRecipe(false);
-    }
-  };
+  // Stored Procedure recipe JSON state (declarative specification)
 
   const fetchPipelineCode = useCallback(async () => {
     if (!uploadId) return;
@@ -248,8 +204,8 @@ export function PipelineStudioModal({
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownloadZip}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] cursor-pointer"
-              style={{ background: "var(--accent)", color: "white" }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-md"
+              style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "#ffffff" }}
               title="Download standalone zip repository"
             >
               <Download size={13} />
@@ -325,10 +281,10 @@ export function PipelineStudioModal({
           <div className="flex items-center gap-2">
             <button
               onClick={() => copyToClipboard(currentCode, activeTab)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer transition-colors"
-              style={{ background: "var(--card)", borderColor: "var(--border)" }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all hover:bg-black/5 dark:hover:bg-white/10 active:scale-[0.98] cursor-pointer shadow-sm"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
             >
-              {copiedKey === activeTab ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+              {copiedKey === activeTab ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
               <span>{copiedKey === activeTab ? "Copied" : "Copy Code"}</span>
             </button>
           </div>
@@ -372,11 +328,10 @@ export function PipelineStudioModal({
                 <button
                   onClick={executeAssertions}
                   disabled={runningAssertions}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-md"
                   style={{
-                    background: "rgba(99, 102, 241, 0.1)",
-                    borderColor: "rgba(99, 102, 241, 0.3)",
-                    color: "#6366f1",
+                    background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                    border: "none",
                   }}
                 >
                   <Play size={12} fill="currentColor" />
@@ -453,80 +408,15 @@ export function PipelineStudioModal({
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold">
                       DuckDB Sandbox
                     </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                      Declarative Specification
+                    </span>
                   </div>
                   <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
-                    Define DAG stages (sources, transform_sql, assertion_gates) and dry-run with snapshot isolation.
+                    Define production DAG stages (sources, transform_sql, assertion_gates) with snapshot isolation.
                   </p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleRunRecipe(true)}
-                    disabled={executingRecipe}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02] cursor-pointer"
-                    style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}
-                  >
-                    <Play size={12} />
-                    <span>{executingRecipe ? "Simulating..." : "Dry Run (Preview)"}</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleRunRecipe(false)}
-                    disabled={executingRecipe}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition hover:scale-[1.02] cursor-pointer shadow-md"
-                    style={{ background: "var(--accent)", color: "#fff" }}
-                  >
-                    <Zap size={12} />
-                    <span>{executingRecipe ? "Running..." : "Execute Procedure"}</span>
-                  </button>
-                </div>
               </div>
-
-              {recipeError && (
-                <div className="p-3 rounded-xl border bg-rose-500/10 border-rose-500/20 text-rose-400 text-xs font-mono">
-                  ⚠ {recipeError}
-                </div>
-              )}
-
-              {recipeResult && (
-                <div
-                  className="p-4 rounded-xl border space-y-3"
-                  style={{ background: "rgba(16, 185, 129, 0.05)", borderColor: "rgba(16, 185, 129, 0.3)" }}
-                >
-                  <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="text-emerald-500 flex items-center gap-1.5">
-                      <CheckCircle2 size={14} />
-                      {recipeResult.isDryRun ? "Dry Run Succeeded (No Side Effects)" : "Procedure Executed Successfully"}
-                    </span>
-                    <span className="font-mono text-[11px]" style={{ color: "var(--txt-m)" }}>
-                      Elapsed: {recipeResult.elapsed_ms || recipeResult.execution_time_ms || 12}ms
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                    <div className="p-2.5 rounded-lg border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                      <div className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>STATUS</div>
-                      <div className="font-bold text-emerald-500 mt-1">SUCCESS</div>
-                    </div>
-                    <div className="p-2.5 rounded-lg border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                      <div className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>AFFECTED ROWS</div>
-                      <div className="font-bold mt-1" style={{ color: "var(--txt)" }}>
-                        {recipeResult.rows_affected ?? recipeResult.row_count ?? "All Rows"}
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                      <div className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>ASSERTION GATES</div>
-                      <div className="font-bold text-emerald-500 mt-1">PASSED (100%)</div>
-                    </div>
-                    <div className="p-2.5 rounded-lg border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                      <div className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>SNAPSHOT ID</div>
-                      <div className="font-mono text-[10px] mt-1 truncate" style={{ color: "var(--txt-m)" }}>
-                        {recipeResult.snapshot_id || "snap_ephemeral"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-[11px] font-mono" style={{ color: "var(--txt-m)" }}>
