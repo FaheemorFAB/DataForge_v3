@@ -8,10 +8,27 @@ export default function UserMenu() {
   const { user, loading, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [localAvatarId, setLocalAvatarId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const update = () => {
+      setLocalAvatarId(localStorage.getItem("df_user_avatar"));
+      setImgError(false);
+    };
+    update();
+    window.addEventListener("dataforge:auth-state", update);
+    window.addEventListener("storage", update);
+    return () => {
+      window.removeEventListener("dataforge:auth-state", update);
+      window.removeEventListener("storage", update);
+    };
+  }, []);
 
   if (loading || !user) return null;
 
-  const avatarSrc = resolveAvatarUrl(user?.avatar);
+  const effectiveAvatar = localAvatarId || user?.avatar;
+  const avatarSrc = resolveAvatarUrl(effectiveAvatar);
 
   return (
     <div className="relative">

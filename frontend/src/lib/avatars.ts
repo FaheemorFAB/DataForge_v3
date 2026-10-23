@@ -100,26 +100,45 @@ export const HUMAN_AVATARS: HumanAvatar[] = [
 
 export const DEFAULT_AVATAR = HUMAN_AVATARS[0];
 
+export function getSavedAvatarId(): string {
+  if (typeof window === "undefined") return DEFAULT_AVATAR.id;
+  try {
+    const direct = localStorage.getItem("df_user_avatar");
+    if (direct && (direct.startsWith("avatar-") || direct.startsWith("/"))) return direct;
+    const cache = localStorage.getItem("df_user_cache");
+    if (cache) {
+      const u = JSON.parse(cache);
+      if (u?.avatar && (u.avatar.startsWith("avatar-") || u.avatar.startsWith("/"))) return u.avatar;
+    }
+  } catch {}
+  return DEFAULT_AVATAR.id;
+}
+
 export function getAvatarById(id?: string | null): HumanAvatar {
-  if (!id) return DEFAULT_AVATAR;
-  return HUMAN_AVATARS.find((a) => a.id === id) || DEFAULT_AVATAR;
+  const targetId = id || (typeof window !== "undefined" ? getSavedAvatarId() : DEFAULT_AVATAR.id);
+  return HUMAN_AVATARS.find((a) => a.id === targetId) || DEFAULT_AVATAR;
 }
 
 export function resolveAvatarUrl(avatarOrId?: string | null): string {
-  if (!avatarOrId) return DEFAULT_AVATAR.url;
-  if (avatarOrId.startsWith("avatar-")) {
-    const found = HUMAN_AVATARS.find((a) => a.id === avatarOrId);
+  let target = avatarOrId;
+  if (!target && typeof window !== "undefined") {
+    target = getSavedAvatarId();
+  }
+  if (!target) return DEFAULT_AVATAR.url;
+
+  if (target.startsWith("avatar-")) {
+    const found = HUMAN_AVATARS.find((a) => a.id === target);
     return found ? found.url : DEFAULT_AVATAR.url;
   }
   if (
-    avatarOrId.startsWith("/") ||
-    avatarOrId.startsWith("http://") ||
-    avatarOrId.startsWith("https://")
+    target.startsWith("/") ||
+    target.startsWith("http://") ||
+    target.startsWith("https://")
   ) {
-    if (avatarOrId.includes("dicebear")) {
+    if (target.includes("dicebear")) {
       return DEFAULT_AVATAR.url;
     }
-    return avatarOrId;
+    return target;
   }
   return DEFAULT_AVATAR.url;
 }

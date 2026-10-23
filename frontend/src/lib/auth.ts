@@ -58,18 +58,23 @@ function getCachedUser(): any | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
+    const localAvatar = localStorage.getItem("df_user_avatar");
+    if (!raw && !localAvatar) return null;
+    const parsed = raw ? JSON.parse(raw) : { name: "User", email: "user@dataforge.app" };
     if (
       parsed?.email === "admin@dataforge.app" ||
       parsed?.email === "dev@example.com" ||
       parsed?.email === "analyst@dataforge.app" ||
       parsed?.email === "user_1@dataforge.app"
     ) {
-      localStorage.removeItem(CACHE_KEY);
-      return null;
+      if (!localAvatar) {
+        localStorage.removeItem(CACHE_KEY);
+        return null;
+      }
     }
-    if (parsed?.avatar && parsed.avatar.includes("dicebear")) {
+    if (localAvatar) {
+      parsed.avatar = localAvatar;
+    } else if (parsed?.avatar && parsed.avatar.includes("dicebear")) {
       parsed.avatar = "/avatars/avatar-1.svg";
       localStorage.setItem(CACHE_KEY, JSON.stringify(parsed));
     }
@@ -82,13 +87,11 @@ function getCachedUser(): any | null {
 function setCachedUser(user: any | null) {
   if (typeof window === "undefined") return;
   try {
-    if (
-      user &&
-      user.email !== "admin@dataforge.app" &&
-      user.email !== "dev@example.com" &&
-      user.email !== "analyst@dataforge.app" &&
-      user.email !== "user_1@dataforge.app"
-    ) {
+    const localAvatar = localStorage.getItem("df_user_avatar");
+    if (user) {
+      if (localAvatar) {
+        user.avatar = localAvatar;
+      }
       localStorage.setItem(CACHE_KEY, JSON.stringify(user));
     } else {
       localStorage.removeItem(CACHE_KEY);
@@ -145,11 +148,12 @@ export function useAuth() {
             document.cookie = `access_token=${session.access_token}; path=/; max-age=604800; SameSite=Lax`;
             localStorage.setItem("access_token", session.access_token);
           }
+          const localAvatar = typeof window !== "undefined" ? localStorage.getItem("df_user_avatar") : null;
           const supaUser = {
             id: session.user.id,
             email: session.user.email,
             name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split("@")[0] || "User",
-            avatar: session.user.user_metadata?.avatar_url || "/avatars/avatar-1.svg",
+            avatar: localAvatar || session.user.user_metadata?.avatar_url || "/avatars/avatar-1.svg",
             provider: "supabase",
             role: "Admin",
           };
@@ -167,7 +171,10 @@ export function useAuth() {
         const res = await apiFetch("/v1/auth/me");
         if (res.ok && mounted) {
           const data = await res.json();
-          if (data?.avatar && data.avatar.includes("dicebear")) {
+          const localAvatar = typeof window !== "undefined" ? localStorage.getItem("df_user_avatar") : null;
+          if (localAvatar) {
+            data.avatar = localAvatar;
+          } else if (data?.avatar && data.avatar.includes("dicebear")) {
             data.avatar = "/avatars/avatar-1.svg";
           }
           setUser(data);

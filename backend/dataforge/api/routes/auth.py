@@ -237,17 +237,88 @@ async def logout():
 
 # ── Current user info ─────────────────────────────────────────────────────────
 
+import json
+from pathlib import Path
+from typing import Optional, Any
+from pydantic import BaseModel
+
+_PROFILE_FILE = Path("/home/fab/DataForge_v3/instance/user_profile.json")
+
+def _get_stored_profile(user_id: Any) -> dict:
+    if not _PROFILE_FILE.exists():
+        return {}
+    try:
+        data = json.loads(_PROFILE_FILE.read_text(encoding="utf-8"))
+        return data.get(str(user_id), {})
+    except Exception:
+        return {}
+
+def _set_stored_profile(user_id: Any, fields: dict):
+    data = {}
+    if _PROFILE_FILE.exists():
+        try:
+            data = json.loads(_PROFILE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            data = {}
+    u_data = data.get(str(user_id), {})
+    u_data.update(fields)
+    data[str(user_id)] = u_data
+    try:
+        _PROFILE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _PROFILE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    avatar: Optional[str] = None
+
+
 @router.get("/api/v1/auth/me", summary="Get current user info")
 @router.get("/v1/auth/me", summary="Get current user info (alias)")
 @router.get("/api/auth/me", summary="Get current user info (alias)")
 @router.get("/auth/me", summary="Get current user info (alias)")
 async def me(current_user: CurrentUser):
+    stored = _get_stored_profile(current_user.id)
+    name = stored.get("name") or current_user.name
+    avatar = stored.get("avatar") or current_user.avatar
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "name": current_user.name,
-        "avatar": current_user.avatar,
+        "name": name,
+        "avatar": avatar,
         "role": getattr(current_user, "role", "Admin") or "Admin",
         "created_at": current_user.created_at,
     }
+
+
+@router.patch("/api/v1/auth/me", summary="Update current user info")
+@router.patch("/v1/auth/me", summary="Update current user info (alias)")
+@router.put("/api/v1/auth/me", summary="Update current user info (alias)")
+@router.put("/v1/auth/me", summary="Update current user info (alias)")
+async def update_me(req: UpdateProfileRequest, current_user: CurrentUser):
+    fields = {}
+    if req.name and req.name.strip():
+        fields["name"] = req.name.strip()
+    if req.avatar and req.avatar.strip():
+        fields["avatar"] = req.avatar.strip()
+    if fields:
+        _set_stored_profile(current_user.id, fields)
+        try:
+            from dataforge.api.repositories.user import user_repo
+            user_repo.update(current_user.id, fields)
+        except Exception:
+            pass
+
+    stored = _get_stored_profile(current_user.id)
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "name": stored.get("name") or current_user.name,
+        "avatar": stored.get("avatar") or current_user.avatar,
+        "role": getattr(current_user, "role", "Admin") or "Admin",
+        "created_at": current_user.created_at,
+    }
+
 

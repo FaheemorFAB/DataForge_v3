@@ -240,16 +240,37 @@ export default function DashboardPage() {
     const savedTheme = localStorage.getItem("analyst-theme") || "dark";
     setCurrentTheme(savedTheme);
 
-    // 2. Check cached user
+    // 2. Check cached user & saved avatar
     try {
+      const savedAvatar = localStorage.getItem("df_user_avatar");
+      if (savedAvatar) {
+        setUserAvatarId(savedAvatar);
+      }
       const rawUser = localStorage.getItem("df_user_cache");
       if (rawUser) {
         const u = JSON.parse(rawUser);
         if (u.name) setUserName(u.name);
         if (u.email) setUserEmail(u.email);
-        if (u.avatar) setUserAvatarId(u.avatar);
+        if (u.avatar && !savedAvatar) setUserAvatarId(u.avatar);
       }
     } catch (e) {}
+
+    // Fetch live user info from backend
+    apiFetch("/v1/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          if (data.name) setUserName(data.name);
+          if (data.email) setUserEmail(data.email);
+          const savedAvatar = localStorage.getItem("df_user_avatar");
+          if (savedAvatar) {
+            setUserAvatarId(savedAvatar);
+          } else if (data.avatar) {
+            setUserAvatarId(data.avatar);
+          }
+        }
+      })
+      .catch(() => {});
 
     // 3. Check and clean cached teams
     try {
@@ -566,6 +587,18 @@ export default function DashboardPage() {
       u.avatar = editAvatarId;
       localStorage.setItem("df_user_cache", JSON.stringify(u));
       localStorage.setItem("df_user_avatar", editAvatarId);
+      window.dispatchEvent(new CustomEvent("dataforge:auth-state", { detail: u }));
+      window.dispatchEvent(new Event("storage"));
+      
+      // Sync to backend profile
+      apiFetch("/v1/auth/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: editNameInput.trim(),
+          email: editEmailInput.trim() || undefined,
+          avatar: editAvatarId,
+        }),
+      }).catch(() => {});
     } catch (e) {}
 
     setSaveSuccessMsg("Profile updated successfully");

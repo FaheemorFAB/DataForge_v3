@@ -581,71 +581,101 @@ export function ForecastCard({
     { label: "1yr", v: 365 },
   ];
 
+  // Seamlessly bridge historical and forecast datasets at the boundary point
+  const lastHistVal = n_hist > 0 ? histValues[n_hist - 1] : null;
+  const fcDataBridge = [
+    ...Array(Math.max(0, n_hist - 1)).fill(null),
+    ...(lastHistVal !== null ? [lastHistVal] : []),
+    ...fcValues,
+  ];
+  const upper95Bridge = [
+    ...Array(Math.max(0, n_hist - 1)).fill(null),
+    ...(lastHistVal !== null ? [lastHistVal] : []),
+    ...upper95,
+  ];
+  const lower95Bridge = [
+    ...Array(Math.max(0, n_hist - 1)).fill(null),
+    ...(lastHistVal !== null ? [lastHistVal] : []),
+    ...lower95,
+  ];
+  const upper80Bridge = [
+    ...Array(Math.max(0, n_hist - 1)).fill(null),
+    ...(lastHistVal !== null ? [lastHistVal] : []),
+    ...upper80,
+  ];
+  const lower80Bridge = [
+    ...Array(Math.max(0, n_hist - 1)).fill(null),
+    ...(lastHistVal !== null ? [lastHistVal] : []),
+    ...lower80,
+  ];
+
   const chartData = {
     labels: allLabels,
     datasets: [
       {
         label: "Upper 95%",
-        data: [...Array(n_hist).fill(null), ...upper95],
+        data: upper95Bridge,
         borderColor: "transparent",
-        backgroundColor: "rgba(0,212,255,0.07)",
+        backgroundColor: "rgba(0,212,255,0.06)",
         fill: "+1" as const,
         pointRadius: 0,
-        tension: 0.4,
+        tension: 0.28,
         borderWidth: 0,
       },
       {
         label: "Lower 95%",
-        data: [...Array(n_hist).fill(null), ...lower95],
+        data: lower95Bridge,
         borderColor: "transparent",
-        backgroundColor: "rgba(0,212,255,0.07)",
+        backgroundColor: "rgba(0,212,255,0.06)",
         fill: false as const,
         pointRadius: 0,
-        tension: 0.4,
+        tension: 0.28,
         borderWidth: 0,
       },
       {
         label: "Upper 80%",
-        data: [...Array(n_hist).fill(null), ...upper80],
+        data: upper80Bridge,
         borderColor: "transparent",
-        backgroundColor: "rgba(0,212,255,0.11)",
+        backgroundColor: "rgba(0,212,255,0.10)",
         fill: "+1" as const,
         pointRadius: 0,
-        tension: 0.4,
+        tension: 0.28,
         borderWidth: 0,
       },
       {
         label: "Lower 80%",
-        data: [...Array(n_hist).fill(null), ...lower80],
+        data: lower80Bridge,
         borderColor: "transparent",
-        backgroundColor: "rgba(0,212,255,0.11)",
+        backgroundColor: "rgba(0,212,255,0.10)",
         fill: false as const,
         pointRadius: 0,
-        tension: 0.4,
+        tension: 0.28,
         borderWidth: 0,
       },
       {
         label: "Historical",
         data: [...histValues, ...Array(n_fc).fill(null)],
-        borderColor: "rgba(99,102,241,0.9)",
+        borderColor: "rgba(99,102,241,0.95)",
         backgroundColor: "rgba(99,102,241,0.08)",
         borderWidth: 2.5,
         fill: false as const,
-        pointRadius: 2,
+        pointRadius: 2.5,
+        pointHoverRadius: 5,
         pointBackgroundColor: "#6366f1",
-        tension: 0.35,
+        tension: 0.28,
       },
       {
         label: "Forecast",
-        data: [...Array(n_hist).fill(null), ...fcValues],
+        data: fcDataBridge,
         borderColor: "#00d4ff",
         backgroundColor: "rgba(0,212,255,0.12)",
         borderWidth: 2.5,
-        borderDash: [6, 4],
+        borderDash: [5, 4],
         fill: false as const,
         pointRadius: 3,
+        pointHoverRadius: 5.5,
         pointBackgroundColor: "#00d4ff",
-        tension: 0.35,
+        tension: 0.28,
       },
     ],
   };
@@ -695,9 +725,22 @@ export function ForecastCard({
         ticks: { color: tc.text, font: { size: 11, weight: "bold" }, callback: (v: any) => fmtN(Number(v)) },
         grid: { color: tc.grid },
         border: { color: tc.border },
+        suggestedMin: (histValues.length > 0 && histValues.every((v: number) => v >= 0) && fcValues.every((v: number) => v >= 0)) ? 0 : undefined,
       },
     },
   };
+
+  const horizonLabel = cd?.freq === "D" ? "days" : cd?.freq === "W" ? "weeks" : cd?.freq === "M" ? "months" : "periods";
+  const horizonVal = cd?.horizon || stats.horizon || 30;
+  const trendDesc = growthPct > 2.0
+    ? `grow by ${Math.abs(growthPct).toFixed(1)}%`
+    : growthPct < -2.0
+      ? `decline by ${Math.abs(growthPct).toFixed(1)}%`
+      : `remain stable (projected change: ${growthPct >= 0 ? "+" : ""}${growthPct.toFixed(1)}%)`;
+
+  const dynamicDescription = localData
+    ? `Forecasting '${ins.metric}' over the next ${horizonVal} ${horizonLabel}. The model projects values to ${trendDesc} (est. end value: ${fmtN(stats.proj_end_val ?? 0)}). Ensemble accuracy (MAPE): ${avgMAPE}% · Best model: ${bestModel}.`
+    : ins.description;
 
   return (
     <div className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: "1px solid rgba(0,212,255,0.28)", boxShadow: "0 4px 32px rgba(0,0,0,0.28), 0 0 40px rgba(0,212,255,0.05)", gridColumn: "1 / -1" }}>
@@ -752,7 +795,7 @@ export function ForecastCard({
       </div>
 
       {/* Description */}
-      <p className="px-5 pb-3 text-[11px] leading-relaxed" style={{ color: "var(--txt-m)" }}>{ins.description}</p>
+      <p className="px-5 pb-3 text-[11px] leading-relaxed" style={{ color: "var(--txt-m)" }}>{dynamicDescription}</p>
 
       {/* Forecast Metric Tiles */}
       <div className="px-5 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -781,7 +824,9 @@ export function ForecastCard({
           <BarChart2 size={14} className="text-indigo-500" />
           <div className="min-w-0">
             <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Horizon</span>
-            <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>{stats.n_points ?? 0} pts</span>
+            <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>
+              {horizonVal} {horizonLabel}
+            </span>
           </div>
         </div>
       </div>

@@ -95,14 +95,16 @@ class ForecastInsight(BaseInsight):
             }
             freq_label = freq_labels.get(freq, "periods")
 
-            dir_word = {
-                "upward": "grow", "downward": "decline", "stable": "remain stable"
-            }.get(direction, "move")
+            if direction == "upward":
+                trend_desc = f"grow by {abs(proj_growth):.1f}%"
+            elif direction == "downward":
+                trend_desc = f"decline by {abs(proj_growth):.1f}%"
+            else:
+                trend_desc = f"remain stable (projected change: {proj_growth:+.1f}%)"
 
             description = (
                 f"Forecasting '{metric}' over the next {horizon} {freq_label}. "
-                f"The model projects values to {dir_word} by "
-                f"{abs(proj_growth):.1f}% (est. end value: "
+                f"The model projects values to {trend_desc} (est. end value: "
                 f"{self._format_value(metric, stats.get('proj_end_val', 0))}). "
                 f"Ensemble accuracy (MAPE): {mape:.1f}% · Best model: {best_model}."
             )
