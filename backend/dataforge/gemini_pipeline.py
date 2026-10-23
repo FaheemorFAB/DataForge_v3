@@ -97,25 +97,30 @@ def _gemini_call(prompt: str, model: str = "", temperature: float = 0.1, timeout
 # ── Schema summary for prompt ─────────────────────────────────────────────────
 
 def _schema(df: pd.DataFrame) -> str:
+    from dataforge.api.utils.helpers import is_id_like_col
     rows = []
     for col in df.columns:
         pct = round(df[col].isnull().mean() * 100, 1)
         dtype_str = str(df[col].dtype)
+        is_id = is_id_like_col(col, df[col])
+        id_tag = " [IDENTIFIER/ID - DO NOT SUM/AVG]" if is_id else ""
         
         try:
             non_nulls = df[col].dropna()
             nunique = non_nulls.nunique()
-            if nunique <= 10:
+            if is_id:
+                meta_str = f"unique_count={nunique} (identifier column)"
+            elif nunique <= 10:
                 unique_vals = sorted(non_nulls.unique().tolist())
                 meta_str = f"unique_values={unique_vals}"
             elif np.issubdtype(df[col].dtype, np.number):
-                meta_str = f"range=[{non_nulls.min()}, {non_nulls.max()}]"
+                meta_str = f"range=[{non_nulls.min()}, {non_nulls.max()}], mean={round(float(non_nulls.mean()), 2)}"
             else:
                 meta_str = f"sample={non_nulls.head(3).tolist()}"
         except Exception:
             meta_str = f"sample={df[col].dropna().head(3).tolist()}"
             
-        rows.append(f"  {col!r}: {dtype_str}, {pct}% null, {meta_str}")
+        rows.append(f"  {col!r}: {dtype_str}{id_tag}, {pct}% null, {meta_str}")
     return "\n".join(rows)
 
 
@@ -143,6 +148,7 @@ TASK:
 RULES:
 - Use only df, pd, np — no imports, no print(), no plt
 - Always assign to result
+- NEVER calculate sum, average, or variance on identifier/ID columns (e.g. ID, roll number, student ID, code). Only count them.
 - Plain text answer only — no markdown, no asterisks, no bullet points
 - Return ONLY valid JSON — no markdown fences, no extra text
 
@@ -337,6 +343,26 @@ def run_query_pipeline(
                             code = _clean_code(fix)
                         else:
                             logger.warning("[gemini_pipeline] code exec failed after retries: %s", err)
+
+            if raw is None:
+                from dataforge.api.utils.helpers import is_id_like_col
+                if x_col and x_col in df.columns:
+                    if y_col and y_col in df.columns and not is_id_like_col(y_col, df[y_col]):
+                        if any(w in query.lower() for w in ["sum", "total", "combined"]):
+                            raw = df.groupby(x_col)[y_col].sum().sort_values(ascending=False)
+                        else:
+                            raw = df.groupby(x_col)[y_col].mean().sort_values(ascending=False)
+                    else:
+                        raw = df[x_col].value_counts()
+                elif y_col and y_col in df.columns and not is_id_like_col(y_col, df[y_col]):
+                    if any(w in query.lower() for w in ["sum", "total"]):
+                        raw = float(df[y_col].sum())
+                    elif any(w in query.lower() for w in ["max", "highest", "maximum"]):
+                        raw = float(df[y_col].max())
+                    elif any(w in query.lower() for w in ["min", "lowest", "minimum"]):
+                        raw = float(df[y_col].min())
+                    else:
+                        raw = float(df[y_col].mean())
 
             # Ground truth synchronization to prevent hallucinations and sync chart with text
             from dataforge.ai.reasoning import synchronize_ground_truth

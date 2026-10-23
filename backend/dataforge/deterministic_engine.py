@@ -135,8 +135,11 @@ def detect_chart_type(query: str, intent: str) -> Optional[str]:
 
 def get_column_types(df: pd.DataFrame) -> dict:
     """Classify all columns by dtype family."""
+    from dataforge.api.utils.helpers import is_id_like_col
+    all_numeric = df.select_dtypes(include="number").columns.tolist()
+    valid_numeric = [c for c in all_numeric if not is_id_like_col(c, df[c])]
     return {
-        "numeric":     df.select_dtypes(include="number").columns.tolist(),
+        "numeric":     valid_numeric if valid_numeric else all_numeric,
         "categorical": df.select_dtypes(include=["object", "category"]).columns.tolist(),
         "datetime":    df.select_dtypes(include="datetime").columns.tolist(),
         "boolean":     df.select_dtypes(include="bool").columns.tolist(),

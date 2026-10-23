@@ -46,6 +46,18 @@ def synchronize_ground_truth(
     # CASE 1: raw_result is a pandas Series (Value Counts, Group-by Aggregations)
     # ─────────────────────────────────────────────────────────────────────────
     if isinstance(raw_result, pd.Series) and len(raw_result) > 0:
+        if len(raw_result) == 1:
+            return synchronize_ground_truth(
+                query=query,
+                raw_result=raw_result.iloc[0],
+                df=df,
+                proposed_answer=proposed_answer,
+                proposed_intent=proposed_intent,
+                proposed_insight=proposed_insight,
+                x_col=x_col,
+                y_col=str(raw_result.name or y_col or "metric"),
+            )
+
         s = raw_result.copy()
         
         # Enforce descending sort for rankings / value counts
@@ -63,13 +75,26 @@ def synchronize_ground_truth(
         elif corrected_intent in ("summary", "metric") and len(s) > 1:
             corrected_intent = "bar_chart"
 
+        # Determine metric nature (additive sum vs average/rate)
+        dim_label = str(s.index.name or x_col or "category").replace("_", " ").title()
+        raw_m = str(y_col or "volume").lower()
+        if any(k in raw_m for k in ["id", "count", "volume", "records", "freq"]) or "order" in query.lower():
+            metric_phrase = "total orders" if "order" in query.lower() else "total volume"
+        else:
+            metric_phrase = raw_m.replace("_", " ")
+
+        is_avg = any(w in (query + " " + raw_m).lower() for w in ["average", "mean", "avg", "median", "rate", "ratio", "score", "gpa", "age", "price", "salary", "income"])
+        if is_avg and not metric_phrase.startswith(("avg", "average", "mean")):
+            metric_phrase = f"average {metric_phrase}"
+
         # Compute Ground Truth Metrics
         total_vol = float(s.sum()) if pd.api.types.is_numeric_dtype(s) and (s >= 0).all() else None
+        show_pct = (not is_avg) and (total_vol is not None and total_vol > 0)
+
         top_name = str(s.index[0])
         top_val = s.iloc[0]
         top_val_fmt = f"{top_val:,.2f}" if isinstance(top_val, float) and not top_val.is_integer() else f"{int(top_val):,}"
-
-        top_pct_str = f" ({top_val / total_vol * 100:.1f}%)" if total_vol and total_vol > 0 else ""
+        top_pct_str = f" ({top_val / total_vol * 100:.1f}%)" if show_pct else ""
 
         second_str = ""
         second_name = None
@@ -77,7 +102,7 @@ def synchronize_ground_truth(
             second_name = str(s.index[1])
             second_val = s.iloc[1]
             second_val_fmt = f"{second_val:,.2f}" if isinstance(second_val, float) and not second_val.is_integer() else f"{int(second_val):,}"
-            second_pct_str = f" ({second_val / total_vol * 100:.1f}%)" if total_vol and total_vol > 0 else ""
+            second_pct_str = f" ({second_val / total_vol * 100:.1f}%)" if show_pct else ""
             second_str = f" This is followed by **{second_name}** with **{second_val_fmt}**{second_pct_str}"
 
         third_str = ""
@@ -85,7 +110,7 @@ def synchronize_ground_truth(
             third_name = str(s.index[2])
             third_val = s.iloc[2]
             third_val_fmt = f"{third_val:,.2f}" if isinstance(third_val, float) and not third_val.is_integer() else f"{int(third_val):,}"
-            third_pct_str = f" ({third_val / total_vol * 100:.1f}%)" if total_vol and total_vol > 0 else ""
+            third_pct_str = f" ({third_val / total_vol * 100:.1f}%)" if show_pct else ""
             third_str = f", and **{third_name}** with **{third_val_fmt}**{third_pct_str}."
         elif second_str:
             second_str += "."
@@ -94,18 +119,10 @@ def synchronize_ground_truth(
         bottom_val = s.iloc[-1]
         bottom_val_fmt = f"{bottom_val:,.2f}" if isinstance(bottom_val, float) and not bottom_val.is_integer() else f"{int(bottom_val):,}"
 
-        # Construct Grounded Text
-        dim_label = str(s.index.name or x_col or "category").replace("_", " ").title()
-        raw_m = str(y_col or "volume").lower()
-        if any(k in raw_m for k in ["id", "count", "volume", "records", "freq"]) or "order" in query.lower():
-            metric_phrase = "total orders" if "order" in query.lower() else "total volume"
-        else:
-            metric_phrase = raw_m.replace("_", " ")
-
         breakdown_items = []
         for idx, val in s.head(5).items():
             val_fmt = f"{val:,.2f}" if isinstance(val, float) and not val.is_integer() else f"{int(val):,}"
-            pct_s = f" ({val / total_vol * 100:.1f}%)" if total_vol and total_vol > 0 else ""
+            pct_s = f" ({val / total_vol * 100:.1f}%)" if show_pct else ""
             breakdown_items.append(f"• **{idx}**: **{val_fmt}**{pct_s}")
         breakdown_md = "\n".join(breakdown_items)
 
@@ -117,7 +134,7 @@ def synchronize_ground_truth(
             f"• **Lowest**: `{bottom_name}` ({bottom_val_fmt})"
         )
 
-        grounded_insight = f"The {top_name} {dim_label.lower()} leads in {metric_phrase} with {top_val_fmt}{top_pct_str}, indicating the strongest market presence."
+        grounded_insight = f"The {top_name} {dim_label.lower()} leads in {metric_phrase} with {top_val_fmt}{top_pct_str}."
 
     # ─────────────────────────────────────────────────────────────────────────
     # CASE 2: raw_result is a Scalar (Single KPI, Average, Sum, Count)
@@ -129,7 +146,7 @@ def synchronize_ground_truth(
 
         grounded_answer = (
             f"### Computed {metric_name}\n\n"
-            f"The calculated value for **{metric_name}** is **{scalar_fmt}** across {len(df):,} records."
+            f"The calculated value for **{metric_name}** is **{scalar_fmt}**."
         )
         grounded_insight = f"Calculated {metric_name}: {scalar_fmt}."
         corrected_intent = "metric"
@@ -138,6 +155,17 @@ def synchronize_ground_truth(
     # CASE 3: raw_result is a DataFrame (Multi-column Slicing or Table)
     # ─────────────────────────────────────────────────────────────────────────
     elif isinstance(raw_result, pd.DataFrame) and len(raw_result) > 0:
+        if raw_result.shape == (1, 1):
+            return synchronize_ground_truth(
+                query=query,
+                raw_result=raw_result.iloc[0, 0],
+                df=df,
+                proposed_answer=proposed_answer,
+                proposed_intent=proposed_intent,
+                proposed_insight=proposed_insight,
+                x_col=x_col,
+                y_col=raw_result.columns[0],
+            )
         is_preview_or_table = any(k in query.lower() for k in ["preview", "sample", "head", "show rows", "table", "overview", "first few", "summarize"])
         if not is_preview_or_table and raw_result.shape[1] == 2 and pd.api.types.is_numeric_dtype(raw_result.iloc[:, 1]):
             # If exactly 2 columns (category, metric), treat like Series for accurate ranking

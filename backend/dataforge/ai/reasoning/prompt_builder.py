@@ -11,22 +11,27 @@ SAMPLE_ROWS = 6
 
 def schema_summary(df: pd.DataFrame) -> str:
     """Generate concise, information-dense schema summary for prompt context."""
+    from dataforge.api.utils.helpers import is_id_like_col
     rows = []
     for col in df.columns:
         pct_null = round(df[col].isnull().mean() * 100, 1)
         dtype_str = str(df[col].dtype)
+        is_id = is_id_like_col(col, df[col])
+        id_tag = " [IDENTIFIER/KEY - DO NOT SUM/AVG]" if is_id else ""
         try:
             non_nulls = df[col].dropna()
             nunique = non_nulls.nunique()
-            if nunique <= 10:
+            if is_id:
+                meta = f"unique_count={nunique} (identifier column)"
+            elif nunique <= 10:
                 meta = f"unique_values={sorted(non_nulls.unique().tolist())}"
             elif np.issubdtype(df[col].dtype, np.number):
-                meta = f"range=[{non_nulls.min()}, {non_nulls.max()}]"
+                meta = f"range=[{non_nulls.min()}, {non_nulls.max()}], mean={round(float(non_nulls.mean()), 2)}"
             else:
                 meta = f"sample={non_nulls.head(3).tolist()}"
         except Exception:
             meta = f"sample={df[col].dropna().head(3).tolist()}"
-        rows.append(f"  {col!r}: {dtype_str}, {pct_null}% null, {meta}")
+        rows.append(f"  {col!r}: {dtype_str}{id_tag}, {pct_null}% null, {meta}")
     return "\n".join(rows)
 
 
@@ -81,6 +86,9 @@ CRITICAL VISUALIZATION RULES:
 CODE EXECUTION RULES:
 - Use only `df`, `pd`, `np` — no external imports, no plt, no print().
 - Always assign output to variable `result`.
+- NEVER calculate sum, average, or variance on identifier/ID columns (e.g. ID, roll number, student ID, employee code, registration number). Only count them (nunique(), count()).
+- For category comparison of a numeric metric (e.g. highest income by occupation), use:
+  `result = df.groupby('cat_col')['num_col'].mean().sort_values(ascending=False)`
 - For rankings and distributions, sort values descending: e.g. `result = df['region'].value_counts()`.
 
 Available columns: {col_list}"""

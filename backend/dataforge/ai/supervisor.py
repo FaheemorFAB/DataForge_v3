@@ -93,10 +93,46 @@ class DataForgeSupervisor:
             else:
                 logger.warning("[Supervisor] Analytics execution error: %s", exec_res.get("error"))
 
-        # Guarantee preview if requested and code execution didn't produce a table
-        if raw_result is None and any(k in clean_query.lower() for k in ["preview", "sample", "head", "show rows", "table preview"]):
-            raw_result = df.head(5)
-            analysis.intent = "table"
+        # Fallback quantitative derivation if code execution failed or was empty
+        if raw_result is None:
+            from dataforge.api.utils.helpers import is_id_like_col
+            if any(k in clean_query.lower() for k in ["preview", "sample", "head", "show rows", "table preview"]):
+                raw_result = df.head(5)
+                analysis.intent = "table"
+            elif analysis.x_col and analysis.x_col in df.columns:
+                if analysis.y_col and analysis.y_col in df.columns and not is_id_like_col(analysis.y_col, df[analysis.y_col]):
+                    if any(w in clean_query.lower() for w in ["sum", "total", "combined"]):
+                        raw_result = df.groupby(analysis.x_col)[analysis.y_col].sum().sort_values(ascending=False)
+                    else:
+                        raw_result = df.groupby(analysis.x_col)[analysis.y_col].mean().sort_values(ascending=False)
+                else:
+                    raw_result = df[analysis.x_col].value_counts()
+                agent_actions.append(AgentAction(
+                    agent="AnalyticsAgent",
+                    tool="run_analytics_tool",
+                    status="completed",
+                    message="Calculated metrics and vectorized transformations.",
+                ))
+            elif analysis.y_col and analysis.y_col in df.columns and not is_id_like_col(analysis.y_col, df[analysis.y_col]):
+                if any(w in clean_query.lower() for w in ["sum", "total"]):
+                    raw_result = float(df[analysis.y_col].sum())
+                elif any(w in clean_query.lower() for w in ["max", "highest", "maximum"]):
+                    raw_result = float(df[analysis.y_col].max())
+                elif any(w in clean_query.lower() for w in ["min", "lowest", "minimum"]):
+                    raw_result = float(df[analysis.y_col].min())
+                else:
+                    raw_result = float(df[analysis.y_col].mean())
+                agent_actions.append(AgentAction(
+                    agent="AnalyticsAgent",
+                    tool="run_analytics_tool",
+                    status="completed",
+                    message="Calculated metrics and vectorized transformations.",
+                ))
+
+        # If raw_result is still None for analytical queries, fall back to deterministic engine
+        if raw_result is None and analysis.intent not in ("summary", "table"):
+            logger.info("[Supervisor] No grounded metrics produced by LLM; falling back to deterministic engine.")
+            return run_deterministic_analysis(clean_query, df)
 
         # 5. Ground Truth Synchronization (Fixes Hallucinations & Syncs Text with Data)
         grounded_answer, corrected_intent, grounded_insight = synchronize_ground_truth(

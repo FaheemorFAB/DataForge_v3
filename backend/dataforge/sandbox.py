@@ -137,10 +137,13 @@ def run():
     try:
         import resource
         mem_bytes = max_mem_mb * 1024 * 1024
-        resource.setrlimit(resource.RLIMIT_AS, (mem_bytes, mem_bytes))
+        if hasattr(resource, "RLIMIT_DATA"):
+            resource.setrlimit(resource.RLIMIT_DATA, (mem_bytes, mem_bytes))
+        as_mem = max(mem_bytes, 4096 * 1024 * 1024)
+        resource.setrlimit(resource.RLIMIT_AS, (as_mem, as_mem))
         resource.setrlimit(resource.RLIMIT_CPU, (timeout_sec, timeout_sec))
-        resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (10 * 1024 * 1024, 10 * 1024 * 1024))
+        resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (100 * 1024 * 1024, 100 * 1024 * 1024))
     except Exception:
         pass
 
@@ -282,6 +285,11 @@ def run():
 
     exec(code_str, {"__builtins__": safe_builtins}, env)
     res = env.get("result")
+    if res is None:
+        for var_name in ["res", "output", "ans", "answer", "data", "summary", "agg", "grouped", "chart_data"]:
+            if var_name in env and env[var_name] is not None:
+                res = env[var_name]
+                break
 
     # Serialize result
     if isinstance(res, pd.DataFrame):
