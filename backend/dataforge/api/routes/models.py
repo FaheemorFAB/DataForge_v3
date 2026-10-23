@@ -292,7 +292,28 @@ async def apply_to_workspace(
         raise HTTPException(status_code=500, detail=f"Failed to apply model to workspace: {str(e)}")
 
 
+@router.get("/{model_id}/download", summary="Download the trained model artifact (.joblib)")
+async def download_model(model_id: str):
+    """
+    Downloads the serialized model artifact (.joblib) for offline deployment and local inference.
+    """
+    try:
+        model_bytes, filename = ModelRegistry.get_model_bytes(model_id)
+        media_type = "application/octet-stream" if filename.endswith(".joblib") else "application/json"
+        return StreamingResponse(
+            io.BytesIO(model_bytes),
+            media_type=media_type,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        log.exception("Model download failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+
+
 @router.get("/{model_id}/docker-package", summary="Download 1-click standalone Docker microservice bundle")
+@router.get("/{model_id}/docker-export", summary="Download 1-click standalone Docker microservice bundle (alias)")
 async def export_docker_package(model_id: str):
     """
     Generates a production-ready zip archive containing:

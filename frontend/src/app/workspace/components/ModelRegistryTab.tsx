@@ -22,6 +22,7 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
+  Package,
 } from "lucide-react";
 
 interface ModelRecord {
@@ -97,6 +98,10 @@ export function ModelRegistryTab() {
   const [batchFile, setBatchFile] = useState<File | null>(null);
   const [batchScoring, setBatchScoring] = useState(false);
   const [batchError, setBatchError] = useState("");
+
+  // Download states
+  const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
+  const [downloadingDockerId, setDownloadingDockerId] = useState<string | null>(null);
 
   // Fetch model catalog
   const fetchModels = useCallback(async () => {
@@ -413,22 +418,61 @@ export function ModelRegistryTab() {
     }
   };
 
-  const handleDownloadDocker = async (modelId: string, modelName: string) => {
+  const handleDownloadModel = async (modelId: string, modelName: string) => {
+    setDownloadingModelId(modelId);
     try {
-      const res = await apiFetch(`/models/${modelId}/docker-export`);
-      if (res.ok) {
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `docker-${modelName.toLowerCase().replace(/\s+/g, "-")}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+      const res = await apiFetch(`/models/${modelId}/download`);
+      if (!res.ok) {
+        throw new Error(`Failed to download model (status: ${res.status})`);
       }
+      const blob = await res.blob();
+      let filename = `model-${modelName.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}-${modelId}.joblib`;
+      const disposition = res.headers.get("content-disposition");
+      if (disposition && disposition.includes("filename=")) {
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error("Failed to download model artifact:", e);
+    } finally {
+      setDownloadingModelId(null);
+    }
+  };
+
+  const handleDownloadDocker = async (modelId: string, modelName: string) => {
+    setDownloadingDockerId(modelId);
+    try {
+      const res = await apiFetch(`/models/${modelId}/docker-package`);
+      if (!res.ok) {
+        throw new Error(`Failed to download docker artifact (status: ${res.status})`);
+      }
+      const blob = await res.blob();
+      let filename = `docker-${modelName.toLowerCase().replace(/[^a-z0-9_-]/g, "-")}.zip`;
+      const disposition = res.headers.get("content-disposition");
+      if (disposition && disposition.includes("filename=")) {
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (e) {
       console.error("Failed to download docker artifact:", e);
+    } finally {
+      setDownloadingDockerId(null);
     }
   };
 
@@ -793,18 +837,44 @@ export function ModelRegistryTab() {
                     </span>
 
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* DOCKER CONTAINER */}
+                      {/* DOWNLOAD MODEL ARTIFACT (.joblib) */}
+                      <button
+                        onClick={() => handleDownloadModel(m.id, m.model_name)}
+                        disabled={downloadingModelId === m.id}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all hover:scale-[1.02] cursor-pointer"
+                        style={{
+                          background: "linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.15))",
+                          borderColor: "rgba(99, 102, 241, 0.35)",
+                          color: "var(--accent, #6366f1)",
+                        }}
+                        title="Download serialized trained model weights artifact (.joblib)"
+                      >
+                        {downloadingModelId === m.id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Download size={12} />
+                        )}
+                        <span>{downloadingModelId === m.id ? "Downloading..." : "Download Model"}</span>
+                      </button>
+
+                      {/* STANDALONE DOCKER CONTAINER (.zip) */}
                       <button
                         onClick={() => handleDownloadDocker(m.id, m.model_name)}
-                        className="flex items-center gap-1 px-2 py-1.5 rounded-lg border text-xs font-bold transition-all hover:scale-[1.02] cursor-pointer opacity-80 hover:opacity-100"
+                        disabled={downloadingDockerId === m.id}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all hover:scale-[1.02] cursor-pointer opacity-85 hover:opacity-100"
                         style={{
                           background: "var(--surface)",
                           borderColor: "var(--border)",
                           color: "var(--txt)",
                         }}
-                        title="Download Standalone Docker Microservice Container"
+                        title="Download Standalone Production Docker Microservice Container (.zip)"
                       >
-                        <Download size={12} />
+                        {downloadingDockerId === m.id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Package size={12} />
+                        )}
+                        <span>{downloadingDockerId === m.id ? "Exporting..." : "Docker (.zip)"}</span>
                       </button>
 
                       {/* DELETE */}
