@@ -731,6 +731,244 @@ class DuckDBJoinEngine:
         }
 
     @classmethod
+    def audit_referential_integrity(
+        cls,
+        upload_id: str,
+        left_table: str,
+        left_column: str,
+        right_table: str,
+        right_column: str,
+    ) -> Dict[str, Any]:
+        """
+        Runs deep referential integrity analysis across two tables using DuckDB:
+        - Orphan key detection (keys in left_table missing in right_table)
+        - Key uniqueness & Primary Key candidate verification
+        - Cardinality calculation (1:1, 1:N, N:1, N:M)
+        - Fan-out row multiplication risk
+        - Overall health score (0-100%) and actionable diagnosis
+        """
+        tables = cls.get_workspace_tables(upload_id)
+        l_tbl = _sanitize_table_name(left_table)
+        r_tbl = _sanitize_table_name(right_table)
+
+        if l_tbl not in tables:
+            raise ValueError(f"Table '{left_table}' not found in workspace.")
+        if r_tbl not in tables:
+            raise ValueError(f"Table '{right_table}' not found in workspace.")
+
+        l_col = str(left_column).replace('"', '').strip()
+        r_col = str(right_column).replace('"', '').strip()
+
+        con = duckdb.connect(database=":memory:")
+        for t_name, df in tables.items():
+            con.register(t_name, df)
+
+        t0 = time.perf_counter()
+
+        # 1. Left table key statistics
+        l_stats = con.execute(f"""
+            SELECT 
+                COUNT(*) as total_rows,
+                COUNT(DISTINCT "{l_col}") as distinct_keys,
+                COUNT(CASE WHEN "{l_col}" IS NULL THEN 1 END) as null_keys
+            FROM "{l_tbl}"
+        """).fetchone()
+        l_total, l_distinct, l_nulls = l_stats[0] or 0, l_stats[1] or 0, l_stats[2] or 0
+
+        # 2. Right table key statistics
+        r_stats = con.execute(f"""
+            SELECT 
+                COUNT(*) as total_rows,
+                COUNT(DISTINCT "{r_col}") as distinct_keys,
+                COUNT(CASE WHEN "{r_col}" IS NULL THEN 1 END) as null_keys
+            FROM "{r_tbl}"
+        """).fetchone()
+        r_total, r_distinct, r_nulls = r_stats[0] or 0, r_stats[1] or 0, r_stats[2] or 0
+
+        # 3. Orphan key detection & matching count
+        match_stats = con.execute(f"""
+            SELECT 
+                COUNT(DISTINCT CASE WHEN r."{r_col}" IS NOT NULL THEN l."{l_col}" END) as matched_distinct,
+                COUNT(DISTINCT CASE WHEN r."{r_col}" IS NULL AND l."{l_col}" IS NOT NULL THEN l."{l_col}" END) as orphan_distinct,
+                COUNT(CASE WHEN r."{r_col}" IS NULL AND l."{l_col}" IS NOT NULL THEN 1 END) as orphan_rows
+            FROM "{l_tbl}" l
+            LEFT JOIN "{r_tbl}" r ON l."{l_col}"::VARCHAR = r."{r_col}"::VARCHAR
+        """).fetchone()
+        matched_distinct = match_stats[0] or 0
+        orphan_distinct = match_stats[1] or 0
+        orphan_rows = match_stats[2] or 0
+
+        # 4. Fetch sample orphan values (up to 10)
+        orphan_sample_res = con.execute(f"""
+            SELECT DISTINCT l."{l_col}"::VARCHAR as val
+            FROM "{l_tbl}" l
+            LEFT JOIN "{r_tbl}" r ON l."{l_col}"::VARCHAR = r."{r_col}"::VARCHAR
+            WHERE r."{r_col}" IS NULL AND l."{l_col}" IS NOT NULL
+            LIMIT 10
+        """).fetchall()
+        orphan_samples = [str(r[0]) for r in orphan_sample_res if r[0] is not None]
+
+        con.close()
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+        # 5. Determine Cardinality & Uniqueness
+        l_is_unique = (l_distinct == l_total) if l_total > 0 else False
+        r_is_unique = (r_distinct == r_total) if r_total > 0 else False
+
+        if l_is_unique and r_is_unique:
+            cardinality = "one_to_one"
+            fan_out_risk = "none"
+        elif not l_is_unique and r_is_unique:
+            cardinality = "many_to_one"
+            fan_out_risk = "none"
+        elif l_is_unique and not r_is_unique:
+            cardinality = "one_to_many"
+            fan_out_risk = "medium"
+        else:
+            cardinality = "many_to_many"
+            fan_out_risk = "high"
+
+        orphan_pct = round((orphan_distinct / max(l_distinct, 1)) * 100, 2)
+        match_pct = round((matched_distinct / max(l_distinct, 1)) * 100, 2)
+
+        # 6. Calculate Health Score (0 - 100)
+        health = 100.0 - orphan_pct
+        if fan_out_risk == "high":
+            health -= 15.0
+        elif fan_out_risk == "medium":
+            health -= 5.0
+        if l_nulls > 0:
+            null_penalty = min(20.0, (l_nulls / max(l_total, 1)) * 100 * 0.5)
+            health -= null_penalty
+        health_score = int(max(0, min(100, round(health))))
+
+        # 7. Actionable Recommendations
+        recommendations: List[str] = []
+        if orphan_distinct == 0:
+            recommendations.append("Full referential integrity: 100% of left table keys match the target table.")
+        else:
+            recommendations.append(
+                f"Referential gap: {orphan_distinct:,} distinct keys ({orphan_pct}%) in '{left_table}' are missing in '{right_table}'. "
+                f"These records will yield NULL joined values on LEFT JOIN or be dropped on INNER JOIN."
+            )
+
+        if fan_out_risk == "high":
+            recommendations.append(
+                f"High Fan-out Risk: Many-to-Many relationship detected between '{left_table}' and '{right_table}'. "
+                f"Directly joining without a Pre-Join Rollup will duplicate rows and inflate numerical sums."
+            )
+        elif fan_out_risk == "medium":
+            recommendations.append(
+                f"One-to-Many relationship: Multiple records in '{right_table}' match a single record in '{left_table}'."
+            )
+
+        if not r_is_unique:
+            recommendations.append(
+                f"Target key '{right_column}' in '{right_table}' is NOT a unique Primary Key ({r_distinct:,} unique of {r_total:,} rows). Consider pre-aggregating."
+            )
+
+        return {
+            "ok": True,
+            "left_table": left_table,
+            "left_column": left_column,
+            "right_table": right_table,
+            "right_column": right_column,
+            "left_stats": {
+                "total_rows": l_total,
+                "distinct_keys": l_distinct,
+                "null_keys": l_nulls,
+                "is_unique": l_is_unique,
+            },
+            "right_stats": {
+                "total_rows": r_total,
+                "distinct_keys": r_distinct,
+                "null_keys": r_nulls,
+                "is_unique": r_is_unique,
+            },
+            "referential_metrics": {
+                "matched_keys_count": matched_distinct,
+                "orphan_keys_count": orphan_distinct,
+                "orphan_rows_count": orphan_rows,
+                "match_percentage": match_pct,
+                "orphan_percentage": orphan_pct,
+                "orphan_samples": orphan_samples,
+                "cardinality": cardinality,
+                "fan_out_risk": fan_out_risk,
+                "health_score": health_score,
+            },
+            "recommendations": recommendations,
+            "execution_time_ms": elapsed_ms,
+        }
+
+    @classmethod
+    def drill_down_query(
+        cls,
+        upload_id: str,
+        parent_table: str,
+        child_table: str,
+        parent_column: str,
+        child_column: str,
+        parent_value: Any,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
+        """
+        Executes an instant DuckDB drill-down query returning related child records
+        when a user clicks or inspects a parent row.
+        """
+        tables = cls.get_workspace_tables(upload_id)
+        p_tbl = _sanitize_table_name(parent_table)
+        c_tbl = _sanitize_table_name(child_table)
+
+        if c_tbl not in tables:
+            raise ValueError(f"Child table '{child_table}' not found in workspace.")
+
+        c_col = str(child_column).replace('"', '').strip()
+
+        con = duckdb.connect(database=":memory:")
+        for t_name, df in tables.items():
+            con.register(t_name, df)
+
+        t0 = time.perf_counter()
+
+        # Handle value escaping safely
+        val_clean = str(parent_value).replace("'", "''")
+        try:
+            val_num = float(parent_value)
+            where_clause = f'"{c_col}" = {val_num} OR "{c_col}"::VARCHAR = \'{val_clean}\''
+        except (ValueError, TypeError):
+            where_clause = f'"{c_col}"::VARCHAR = \'{val_clean}\''
+
+        sql = f'SELECT * FROM "{c_tbl}" WHERE {where_clause} LIMIT {max(1, min(500, limit))}'
+        df_child = con.execute(sql).df()
+
+        # Get total matching count
+        count_sql = f'SELECT COUNT(*) FROM "{c_tbl}" WHERE {where_clause}'
+        total_matches = con.execute(count_sql).fetchone()[0] or 0
+
+        con.close()
+        elapsed_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+        records = df_child.fillna("").to_dict(orient="records")
+        # Format types safely for JSON
+        safe_records = []
+        for r in records:
+            safe_records.append({str(k): (v if not isinstance(v, (np.integer, np.floating)) else v.item()) for k, v in r.items()})
+
+        return {
+            "ok": True,
+            "parent_table": parent_table,
+            "child_table": child_table,
+            "parent_column": parent_column,
+            "child_column": child_column,
+            "filter_value": str(parent_value),
+            "total_matches": total_matches,
+            "returned_count": len(safe_records),
+            "columns": list(df_child.columns),
+            "records": safe_records,
+            "execution_time_ms": elapsed_ms,
+        }
+
+    @classmethod
     def load_relational_preset(cls, upload_id: str, preset_name: str) -> Dict[str, Any]:
         """
         Generates and saves a multi-table relational schema preset:

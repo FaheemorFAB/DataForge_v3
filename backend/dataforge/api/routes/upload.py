@@ -131,6 +131,13 @@ async def api_upload(
         raise HTTPException(status_code=402, detail=rows_reason)
 
     result = upload_service.process_dataframe(df, filename, ext if ext in ("json", "parquet") else "csv", current_user)
+    if ext in ("xls", "xlsx"):
+        try:
+            raw_wb_path = STORE_DIR / str(result["upload_id"]) / "raw_workbook.xlsx"
+            raw_wb_path.parent.mkdir(parents=True, exist_ok=True)
+            raw_wb_path.write_bytes(raw)
+        except Exception as e:
+            log.warning("Could not cache raw workbook bytes: %s", e)
     EntitlementService.record_usage(current_user.id, "storage_mb", size_mb)
 
     return JSONResponse(content=safe_jsonable({

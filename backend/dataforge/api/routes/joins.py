@@ -21,18 +21,23 @@ from fastapi.responses import JSONResponse
 from dataforge.api.deps import CurrentUser, require_upload_access
 from dataforge.api.schemas.joins import (
     ColumnSummary,
+    DrillDownRequest,
     ExecuteCustomSqlRequest,
     InferredRelationship,
+    IntegrityAuditRequest,
     JoinMaterializeRequest,
     JoinPreviewRequest,
     MaterializeCustomSqlRequest,
     PresetLoadRequest,
+    SheetsImportRequest,
+    SheetsInspectRequest,
     TableSummary,
     TablesListResponse,
 )
 from dataforge.api.storage.manager import STORE_DIR, exists, load, save
 from dataforge.api.utils.json import parse_json_to_dataframe, safe_jsonable
 from dataforge.join_engine import DuckDBJoinEngine, _sanitize_table_name
+from dataforge.sheets_inspector import WorkbookInspector
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/joins", tags=["joins"])
@@ -294,3 +299,110 @@ async def load_preset(
     except Exception as exc:
         log.exception("Failed to load preset %s: %s", req.preset, exc)
         raise HTTPException(status_code=400, detail=f"Preset load failed: {exc}")
+
+
+@router.get("/sheets/workspace-origin", summary="Detect companion sheets from original workspace workbook/link")
+async def detect_workspace_origin_sheets(
+    current_user: CurrentUser,
+    upload_id: str = Query(...),
+):
+    """Detects whether active workspace came from a multi-sheet file/link and has unimported sheets."""
+    await require_upload_access(upload_id, current_user)
+    origin_info = WorkbookInspector.detect_workspace_origin(upload_id)
+    return JSONResponse(content=safe_jsonable({"ok": True, **origin_info}))
+
+
+@router.post("/sheets/inspect-file", summary="Inspect an uploaded Excel file for multiple worksheets")
+async def inspect_sheets_file(
+    current_user: CurrentUser,
+    file: UploadFile = File(...),
+):
+    """Reads workbook structure of uploaded file without full ingestion."""
+    raw = await file.read()
+    if len(raw) > 100 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 100 MB)")
+    res = WorkbookInspector.inspect_excel_bytes(raw, file.filename or "workbook.xlsx")
+    return JSONResponse(content=safe_jsonable(res))
+
+
+@router.post("/sheets/inspect-url", summary="Inspect Google Sheets or Excel Online URL for worksheet tabs")
+async def inspect_sheets_url(
+    req: SheetsInspectRequest,
+    current_user: CurrentUser,
+):
+    """Inspects a public Google Sheets or Microsoft 365 / OneDrive URL for available worksheets."""
+    url = req.url.strip()
+    if req.source_type == "google_sheets" or "docs.google.com" in url:
+        res = WorkbookInspector.inspect_google_sheets(url)
+    else:
+        res = WorkbookInspector.inspect_excel_online(url)
+    return JSONResponse(content=safe_jsonable(res))
+
+
+@router.post("/sheets/import", summary="Batch import selected sheets into workspace relational tables")
+async def import_sheets(
+    req: SheetsImportRequest,
+    current_user: CurrentUser,
+):
+    """Imports selected worksheets into DuckDB parquet tables in the workspace."""
+    await require_upload_access(req.upload_id, current_user)
+    try:
+        sheets_data = [s.dict() for s in req.selected_sheets]
+        imported = WorkbookInspector.import_selected_sheets(
+            upload_id=req.upload_id,
+            source_url=req.source_url,
+            source_type=req.source_type,
+            selected_sheets=sheets_data,
+        )
+        resp = _build_tables_response(req.upload_id)
+        resp["imported_sheets"] = imported
+        resp["message"] = f"Successfully imported {len(imported)} worksheet(s) into workspace tables."
+        return JSONResponse(content=safe_jsonable(resp))
+    except Exception as exc:
+        log.exception("Multi-sheet import failed: %s", exc)
+        raise HTTPException(status_code=400, detail=f"Import failed: {exc}")
+
+
+@router.post("/analytics/integrity-audit", summary="Deep referential integrity and orphan audit between two tables")
+async def audit_integrity(
+    req: IntegrityAuditRequest,
+    current_user: CurrentUser,
+):
+    """Analyzes foreign key completeness, orphan counts, uniqueness, cardinality, and fan-out risk."""
+    await require_upload_access(req.upload_id, current_user)
+    try:
+        audit = DuckDBJoinEngine.audit_referential_integrity(
+            upload_id=req.upload_id,
+            left_table=req.left_table,
+            left_column=req.left_column,
+            right_table=req.right_table,
+            right_column=req.right_column,
+        )
+        return JSONResponse(content=safe_jsonable(audit))
+    except Exception as exc:
+        log.exception("Integrity audit failed: %s", exc)
+        raise HTTPException(status_code=400, detail=f"Audit failed: {exc}")
+
+
+@router.post("/analytics/drill-down", summary="Interactive drill-down query for parent-child records")
+async def drill_down_records(
+    req: DrillDownRequest,
+    current_user: CurrentUser,
+):
+    """Instantly retrieves child records corresponding to a selected parent row."""
+    await require_upload_access(req.upload_id, current_user)
+    try:
+        drill = DuckDBJoinEngine.drill_down_query(
+            upload_id=req.upload_id,
+            parent_table=req.parent_table,
+            child_table=req.child_table,
+            parent_column=req.parent_column,
+            child_column=req.child_column,
+            parent_value=req.parent_value,
+            limit=req.limit or 100,
+        )
+        return JSONResponse(content=safe_jsonable(drill))
+    except Exception as exc:
+        log.exception("Drill down failed: %s", exc)
+        raise HTTPException(status_code=400, detail=f"Drill down failed: {exc}")
+

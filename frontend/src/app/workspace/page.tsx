@@ -11,6 +11,7 @@ import { InsightsTab } from "./components/InsightsTab";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { DashboardTab } from "./components/DashboardTab";
 import { JoinCanvasTab } from "./components/JoinCanvasTab";
+import { MultiSheetTab } from "./components/MultiSheetTab";
 import { TeamGovernanceDrawer } from "./components/TeamGovernanceDrawer";
 import { ModelRegistryTab } from "./components/ModelRegistryTab";
 import { PipelineStudioModal } from "./components/PipelineStudioModal";
@@ -28,7 +29,7 @@ import {
   Table, GitMerge, Wand2, LayoutDashboard, Lightbulb, MessageSquare,
   FileText, Bot, Database, Boxes, Users, Code, UploadCloud, Sparkles,
   RefreshCw, PlusCircle, CheckCircle2, AlertTriangle, ChevronDown,
-  ArrowRight, Zap, MoreHorizontal,
+  ArrowRight, Zap, MoreHorizontal, FileSpreadsheet,
 } from "lucide-react";
 import {
   SupabaseLogo, PostgresLogo,
@@ -53,11 +54,11 @@ const TABS = [
   { id: "automl",    label: "AutoML",      icon: Bot,            desc: "Train predictive models with AutoML" },
   { id: "models",    label: "Models",      icon: Boxes,          desc: "Manage trained prediction models" },
   { id: "eda",       label: "Reports",     icon: FileText,       desc: "Export executive briefing deck" },
-  { id: "joins",     label: "Join Tables", icon: GitMerge,       desc: "Combine datasets with visual joins" },
+  { id: "multisheet",label: "Multi-Sheet", icon: FileSpreadsheet,desc: "Multi-table & multi-sheet analytics studio" },
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
-const PRIMARY_TAB_IDS: TabId[] = ["preview", "cleaning", "dashboard", "insights", "query", "automl", "models", "eda", "joins"];
+const PRIMARY_TAB_IDS: TabId[] = ["preview", "cleaning", "dashboard", "insights", "query", "automl", "models", "eda", "multisheet"];
 
 function WorkspaceContent() {
   const {
@@ -491,7 +492,7 @@ function WorkspaceContent() {
         ) : (
           <>
             <div className={`workspace-tab-panel ${activeTab === "preview" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "preview"   ? "block" : "none", height: "100%" }}><ExplorerTab /></div>
-            <div className={`workspace-tab-panel ${activeTab === "joins" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "joins"     ? "block" : "none", height: "100%" }}><JoinCanvasTab /></div>
+            <div className={`workspace-tab-panel ${activeTab === "multisheet" || activeTab === "joins" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "multisheet" || activeTab === "joins" ? "block" : "none", height: "100%" }}><MultiSheetTab /></div>
             <div className={`workspace-tab-panel ${activeTab === "cleaning" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "cleaning"  ? "block" : "none", height: "100%" }}><CleanerTab /></div>
             <div className={`workspace-tab-panel ${activeTab === "eda" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "eda"       ? "block" : "none", height: "100%" }}><EDATab /></div>
             <div className={`workspace-tab-panel ${activeTab === "automl" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "automl"    ? "block" : "none", height: "100%" }}><AutoMLTab /></div>

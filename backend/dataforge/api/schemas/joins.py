@@ -157,3 +157,39 @@ class TablesListResponse(BaseModel):
     ok: bool = True
     tables: List[TableSummary]
     relationships: List[InferredRelationship]
+
+
+class SheetImportItem(BaseModel):
+    sheet_name: str
+    table_name: Optional[str] = None
+
+
+class SheetsImportRequest(BaseModel):
+    upload_id: str
+    source_type: Literal["excel_local", "google_sheets", "excel_online"] = "excel_local"
+    source_url: Optional[str] = None
+    selected_sheets: List[SheetImportItem] = Field(default_factory=list)
+
+
+class SheetsInspectRequest(BaseModel):
+    source_type: Literal["google_sheets", "excel_online"]
+    url: str
+
+
+class IntegrityAuditRequest(BaseModel):
+    upload_id: str
+    left_table: str
+    left_column: str
+    right_table: str
+    right_column: str
+
+
+class DrillDownRequest(BaseModel):
+    upload_id: str
+    parent_table: str
+    child_table: str
+    parent_column: str
+    child_column: str
+    parent_value: Any
+    limit: Optional[int] = 100
+
