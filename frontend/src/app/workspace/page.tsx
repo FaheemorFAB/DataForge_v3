@@ -31,7 +31,7 @@ import {
   ArrowRight, Zap, MoreHorizontal,
 } from "lucide-react";
 import {
-  SupabaseLogo, PostgresLogo, SnowflakeLogo, BigQueryLogo,
+  SupabaseLogo, PostgresLogo,
   CSVLogo, ParquetLogo,
 } from "../components/landing/DataLogos";
 

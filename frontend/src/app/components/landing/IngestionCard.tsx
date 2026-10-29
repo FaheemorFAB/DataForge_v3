@@ -51,7 +51,7 @@ interface IngestionCardProps {
   goToWorkspace: (uploadId?: string | null) => void;
 
   // Database props
-  dbDialect: "postgresql" | "mysql" | "sqlite" | "snowflake" | "bigquery" | "clickhouse";
+  dbDialect: "postgresql" | "mysql" | "sqlite" | "clickhouse";
   setDbDialect: (dialect: any) => void;
   dbConnStr: string;
   setDbConnStr: (str: string) => void;
@@ -86,8 +86,6 @@ export type CardVariation = "studio" | "bento" | "wizard";
 const DIALECT_OPTIONS = [
   { id: "postgresql", name: "PostgreSQL", badge: "PG", defaultUri: "postgresql://postgres:password@db.project-ref.supabase.co:5432/postgres", color: "#336791" },
   { id: "mysql", name: "MySQL", badge: "MY", defaultUri: "mysql+pymysql://admin:password@mysql.us-east-1.rds.amazonaws.com:3306/mydb", color: "#00758f" },
-  { id: "snowflake", name: "Snowflake", badge: "SF", defaultUri: "snowflake://user:password@account/my_db/public?warehouse=compute_wh", color: "#29b5e8" },
-  { id: "bigquery", name: "BigQuery", badge: "BQ", defaultUri: "bigquery://gcp-project-id/analytics_dataset", color: "#4285f4" },
   { id: "clickhouse", name: "ClickHouse", badge: "CH", defaultUri: "clickhouse+native://default:password@service.us-east-1.clickhouse.cloud:9440/default", color: "#fca311" },
   { id: "sqlite", name: "SQLite", badge: "SQL", defaultUri: "sqlite:///sample.db", color: "#003b57" },
 ];
@@ -795,7 +793,7 @@ export default function IngestionCard(props: IngestionCardProps) {
                             <option value="1000">1,000 rows (Instant)</option>
                             <option value="5000">5,000 rows (Standard)</option>
                             <option value="25000">25,000 rows (Deep Batch)</option>
-                            <option value="100000">100,000 rows (Warehouse Dump)</option>
+                            <option value="100000">100,000 rows (Large Extract)</option>
                           </select>
                         </div>
                       </div>
@@ -868,7 +866,7 @@ export default function IngestionCard(props: IngestionCardProps) {
                           style={{ background: "linear-gradient(135deg, var(--accent), #ff7043)" }}
                         >
                           {props.isDbIngesting && <RefreshCw size={13} className="animate-spin" />}
-                          <span>{props.isDbIngesting ? "Syncing Warehouse..." : "Ingest into DataForge"}</span>
+                          <span>{props.isDbIngesting ? "Syncing Database..." : "Ingest into DataForge"}</span>
                         </button>
                       </div>
                     </div>
@@ -1249,7 +1247,7 @@ export default function IngestionCard(props: IngestionCardProps) {
                               style={{ background: "linear-gradient(135deg, var(--accent), #ff7043)" }}
                             >
                               {props.isDbIngesting && <RefreshCw size={13} className="animate-spin" />}
-                              <span>{props.isDbIngesting ? "Syncing Warehouse..." : "Ingest into DataForge"}</span>
+                              <span>{props.isDbIngesting ? "Syncing Database..." : "Ingest into DataForge"}</span>
                             </button>
                           </div>
                         </div>

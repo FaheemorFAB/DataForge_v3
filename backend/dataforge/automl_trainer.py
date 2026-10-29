@@ -12,11 +12,13 @@ import io
 import logging
 import math
 import time
-from typing import Tuple
+from typing import Any, Optional, Tuple
 
 import joblib
 import numpy as np
 import pandas as pd
+
+from dataforge.automl_fallback import EstimatorArtifact, SklearnAutoMLResult
 
 log = logging.getLogger(__name__)
 
@@ -446,6 +448,373 @@ def analyze_features_for_target(df: pd.DataFrame, target_col: str) -> dict:
     }
 
 
+COMMON_ALGORITHMS = [
+    {
+        "id": "lgbm",
+        "name": "LightGBM",
+        "aliases": ["lgbm", "lightgbm"],
+        "tag": "Ultra Fast",
+        "desc": "Gradient boosted trees optimized for speed, low memory, and large datasets.",
+    },
+    {
+        "id": "xgboost",
+        "name": "XGBoost",
+        "aliases": ["xgboost", "xgb"],
+        "tag": "High Accuracy",
+        "desc": "Extreme gradient boosting with exact greedy split search.",
+    },
+    {
+        "id": "catboost",
+        "name": "CatBoost",
+        "aliases": ["catboost", "cat"],
+        "tag": "Categorical",
+        "desc": "Symmetric trees with ordered boosting; exceptional for categorical data.",
+    },
+    {
+        "id": "rf",
+        "name": "Random Forest",
+        "aliases": ["rf", "random_forest", "randomforest"],
+        "tag": "Bagging",
+        "desc": "Averaged forest of decision trees; highly resistant to noise and variance.",
+    },
+    {
+        "id": "extra_tree",
+        "name": "Extra Trees",
+        "aliases": ["extra_tree", "extratrees", "extra_trees"],
+        "tag": "Randomized",
+        "desc": "Extremely randomized trees with lower variance and high training throughput.",
+    },
+    {
+        "id": "gradient_boosting",
+        "name": "Hist Gradient Boosting",
+        "aliases": ["gradient_boosting", "hist_gradient_boosting", "gradientboosting"],
+        "tag": "Boosting",
+        "desc": "Histogram-based gradient boosting trees with fast binning.",
+    },
+    {
+        "id": "linear",
+        "name": "Linear / Ridge",
+        "aliases": ["linear", "logistic_regression", "ridge"],
+        "tag": "Interpretable",
+        "desc": "L1/L2 regularized linear model providing an interpretable baseline.",
+    },
+    {
+        "id": "decision_tree",
+        "name": "Decision Tree",
+        "aliases": ["decision_tree", "decisiontree", "dt"],
+        "tag": "Tree",
+        "desc": "Single transparent decision tree; fast and easily visualizable.",
+    },
+    {
+        "id": "knn",
+        "name": "K-Nearest Neighbors",
+        "aliases": ["knn", "kneighbors", "k_nearest_neighbors"],
+        "tag": "Instance-based",
+        "desc": "Non-parametric distance-weighted classification and regression.",
+    },
+    {
+        "id": "svm",
+        "name": "Support Vector Machine",
+        "aliases": ["svm", "linear_svm", "svc", "svr"],
+        "tag": "Margin-based",
+        "desc": "Maximal-margin hyperplane classifier/regressor with regularized boundary.",
+    },
+]
+
+
+def _resolve_algo_id(name: str) -> str:
+    cleaned = str(name).lower().replace(" ", "_").replace("-", "")
+    for algo in COMMON_ALGORITHMS:
+        if cleaned in algo["aliases"] or cleaned == algo["id"]:
+            return algo["id"]
+    return "rf"
+
+
+def _build_model_instance(algo_id: str, task: str, params: Optional[dict] = None):
+    params = dict(params or {})
+    resolved = _resolve_algo_id(algo_id)
+
+    if resolved == "lgbm":
+        from lightgbm import LGBMClassifier, LGBMRegressor
+        n_est = int(params.get("n_estimators", 80))
+        lr = float(params.get("learning_rate", 0.1))
+        max_d = int(params["max_depth"]) if params.get("max_depth") not in (None, "", "null", -1) else -1
+        subsample = float(params.get("subsample", 1.0))
+        if task == "classification":
+            return LGBMClassifier(n_estimators=n_est, learning_rate=lr, max_depth=max_d, subsample=subsample, random_state=42, verbose=-1)
+        return LGBMRegressor(n_estimators=n_est, learning_rate=lr, max_depth=max_d, subsample=subsample, random_state=42, verbose=-1)
+
+    if resolved == "xgboost":
+        from xgboost import XGBClassifier, XGBRegressor
+        n_est = int(params.get("n_estimators", 80))
+        lr = float(params.get("learning_rate", 0.1))
+        max_d = int(params["max_depth"]) if params.get("max_depth") not in (None, "", "null") else 6
+        subsample = float(params.get("subsample", 1.0))
+        if task == "classification":
+            return XGBClassifier(n_estimators=n_est, learning_rate=lr, max_depth=max_d, subsample=subsample, random_state=42, verbosity=0)
+        return XGBRegressor(n_estimators=n_est, learning_rate=lr, max_depth=max_d, subsample=subsample, random_state=42, verbosity=0)
+
+    if resolved == "catboost":
+        from catboost import CatBoostClassifier, CatBoostRegressor
+        n_est = int(params.get("n_estimators") or params.get("iterations", 80))
+        lr = float(params.get("learning_rate", 0.1))
+        max_d = int(params["max_depth"]) if params.get("max_depth") not in (None, "", "null") else 6
+        max_d = min(max_d, 10)
+        if task == "classification":
+            return CatBoostClassifier(iterations=n_est, learning_rate=lr, depth=max_d, random_state=42, verbose=0)
+        return CatBoostRegressor(iterations=n_est, learning_rate=lr, depth=max_d, random_state=42, verbose=0)
+
+    if resolved == "rf":
+        from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+        n_est = int(params.get("n_estimators", 80))
+        max_d = int(params["max_depth"]) if params.get("max_depth") not in (None, "", "null") else None
+        min_split = int(params.get("min_samples_split", 2))
+        min_leaf = int(params.get("min_samples_leaf", 1))
+        if task == "classification":
+            return RandomForestClassifier(n_estimators=n_est, max_depth=max_d, min_samples_split=min_split, min_samples_leaf=min_leaf, random_state=42, n_jobs=-1)
+        return RandomForestRegressor(n_estimators=n_est, max_depth=max_d, min_samples_split=min_split, min_samples_leaf=min_leaf, random_state=42, n_jobs=-1)
+
+    if resolved == "extra_tree":
+        from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
+        n_est = int(params.get("n_estimators", 80))
+        max_d = int(params["max_depth"]) if params.get("max_depth") not in (None, "", "null") else None
+        min_split = int(params.get("min_samples_split", 2))
+        min_leaf = int(params.get("min_samples_leaf", 1))
+        if task == "classification":
+            return ExtraTreesClassifier(n_estimators=n_est, max_depth=max_d, min_samples_split=min_split, min_samples_leaf=min_leaf, random_state=42, n_jobs=-1)
+        return ExtraTreesRegressor(n_estimators=n_est, max_depth=max_d, min_samples_split=min_split, min_samples_leaf=min_leaf, random_state=42, n_jobs=-1)
+
+    if resolved == "gradient_boosting":
+        from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
+        max_iter = int(params.get("n_estimators") or params.get("max_iter", 80))
+        lr = float(params.get("learning_rate", 0.1))
+        max_d = int(params["max_depth"]) if params.get("max_depth") not in (None, "", "null") else None
+        min_leaf = int(params.get("min_samples_leaf", 20))
+        if task == "classification":
+            return HistGradientBoostingClassifier(max_iter=max_iter, learning_rate=lr, max_depth=max_d, min_samples_leaf=min_leaf, random_state=42)
+        return HistGradientBoostingRegressor(max_iter=max_iter, learning_rate=lr, max_depth=max_d, min_samples_leaf=min_leaf, random_state=42)
+
+    if resolved == "linear":
+        from sklearn.linear_model import LogisticRegression, Ridge
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import StandardScaler
+        if task == "classification":
+            c_val = float(params.get("C", 1.0))
+            return Pipeline([
+                ("scale", StandardScaler()),
+                ("model", LogisticRegression(C=c_val, max_iter=1000, random_state=42))
+            ])
+        alpha_val = float(params.get("alpha", 1.0))
+        return Pipeline([
+            ("scale", StandardScaler()),
+            ("model", Ridge(alpha=alpha_val, random_state=42))
+        ])
+
+    if resolved == "decision_tree":
+        from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+        max_d = int(params["max_depth"]) if params.get("max_depth") not in (None, "", "null") else None
+        min_split = int(params.get("min_samples_split", 2))
+        min_leaf = int(params.get("min_samples_leaf", 1))
+        crit = str(params.get("criterion", "gini" if task == "classification" else "squared_error"))
+        if task == "classification":
+            if crit not in ("gini", "entropy", "log_loss"):
+                crit = "gini"
+            return DecisionTreeClassifier(max_depth=max_d, min_samples_split=min_split, min_samples_leaf=min_leaf, criterion=crit, random_state=42)
+        if crit not in ("squared_error", "friedman_mse", "absolute_error", "poisson"):
+            crit = "squared_error"
+        return DecisionTreeRegressor(max_depth=max_d, min_samples_split=min_split, min_samples_leaf=min_leaf, criterion=crit, random_state=42)
+
+    if resolved == "knn":
+        from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import StandardScaler
+        n_neighbors = int(params.get("n_neighbors", 5))
+        weights = str(params.get("weights", "uniform"))
+        if weights not in ("uniform", "distance"):
+            weights = "uniform"
+        metric = str(params.get("metric", "minkowski"))
+        if task == "classification":
+            return Pipeline([
+                ("scale", StandardScaler()),
+                ("model", KNeighborsClassifier(n_neighbors=n_neighbors, weights=weights, metric=metric))
+            ])
+        return Pipeline([
+            ("scale", StandardScaler()),
+            ("model", KNeighborsRegressor(n_neighbors=n_neighbors, weights=weights, metric=metric))
+        ])
+
+    if resolved == "svm":
+        from sklearn.svm import LinearSVC, LinearSVR
+        from sklearn.pipeline import Pipeline
+        from sklearn.preprocessing import StandardScaler
+        c_val = float(params.get("C", 1.0))
+        max_iter = int(params.get("max_iter", 2000))
+        if task == "classification":
+            return Pipeline([
+                ("scale", StandardScaler()),
+                ("model", LinearSVC(C=c_val, max_iter=max_iter, dual="auto", random_state=42))
+            ])
+        return Pipeline([
+            ("scale", StandardScaler()),
+            ("model", LinearSVR(C=c_val, max_iter=max_iter, dual="auto", random_state=42))
+        ])
+
+    from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+    if task == "classification":
+        return RandomForestClassifier(n_estimators=80, random_state=42)
+    return RandomForestRegressor(n_estimators=80, random_state=42)
+
+
+def _run_tournament(
+    X_train, y_train, X_test, y_test,
+    task: str,
+    algorithm_whitelist: Optional[list[str]] = None,
+    time_budget: int = 60,
+    metric_name: str = "auto",
+) -> SklearnAutoMLResult:
+    candidate_keys = []
+    if algorithm_whitelist:
+        for a in algorithm_whitelist:
+            if a == "all":
+                candidate_keys = [algo["id"] for algo in COMMON_ALGORITHMS]
+                break
+            resolved = _resolve_algo_id(a)
+            if resolved not in candidate_keys:
+                candidate_keys.append(resolved)
+    if not candidate_keys:
+        candidate_keys = [algo["id"] for algo in COMMON_ALGORITHMS]
+
+    evaluated = []
+    losses = {}
+    configs = {}
+    best_model = None
+    best_loss = float("inf")
+    best_key = None
+    best_config = {}
+
+    for key in candidate_keys:
+        algo_info = next((a for a in COMMON_ALGORITHMS if a["id"] == key), None)
+        display_name = algo_info["name"] if algo_info else key
+        try:
+            model = _build_model_instance(key, task, {})
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+
+            if task == "classification":
+                from sklearn.metrics import accuracy_score
+                acc = float(accuracy_score(y_test, y_pred))
+                loss = 1.0 - acc
+                metric_score = acc
+            else:
+                from sklearn.metrics import mean_squared_error, r2_score
+                rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
+                r2 = float(r2_score(y_test, y_pred))
+                loss = rmse
+                metric_score = r2
+
+            losses[key] = loss
+            cfg = getattr(model, "get_params", lambda: {})()
+            compact_cfg = {k: v for k, v in cfg.items() if not k.startswith("_") and isinstance(v, (int, float, str, bool))}
+            configs[key] = compact_cfg
+
+            evaluated.append({
+                "model": key,
+                "display_name": display_name,
+                "loss": loss,
+                "metric": metric_score,
+                "best_config": compact_cfg,
+                "instance": model,
+            })
+
+            if loss < best_loss:
+                best_loss = loss
+                best_model = model
+                best_key = key
+                best_config = compact_cfg
+        except Exception as exc:
+            log.warning("[automl_tournament] Model %s failed: %s", key, exc)
+
+    if not evaluated or best_model is None:
+        raise RuntimeError("No models could be successfully trained in tournament mode.")
+
+    evaluated.sort(key=lambda x: (x["loss"] is None, x["loss"]))
+
+    leaderboard = []
+    for rank_idx, item in enumerate(evaluated):
+        is_best = (rank_idx == 0)
+        leaderboard.append({
+            "rank": rank_idx + 1,
+            "model": item["model"],
+            "display_name": item["display_name"],
+            "metric": round(item["metric"], 4) if item["metric"] is not None else None,
+            "loss": round(item["loss"], 4) if item["loss"] is not None else None,
+            "best_config": str(item["best_config"]),
+            "best": is_best,
+            "status": "champion" if is_best else "evaluated",
+        })
+
+    return SklearnAutoMLResult(
+        model=EstimatorArtifact(estimator=best_model),
+        best_estimator=best_key,
+        best_loss=best_loss,
+        best_config=best_config,
+        best_loss_per_estimator=losses,
+        best_config_per_estimator=configs,
+        custom_leaderboard=leaderboard,
+        backend_name="tournament",
+    )
+
+
+def _run_manual_model(
+    X_train, y_train, X_test, y_test,
+    task: str,
+    selected_model: str,
+    hyperparameters: Optional[dict] = None,
+) -> SklearnAutoMLResult:
+    key = _resolve_algo_id(selected_model or "rf")
+    algo_info = next((a for a in COMMON_ALGORITHMS if a["id"] == key), None)
+    display_name = algo_info["name"] if algo_info else key
+    params = dict(hyperparameters or {})
+
+    model = _build_model_instance(key, task, params)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+
+    if task == "classification":
+        from sklearn.metrics import accuracy_score
+        acc = float(accuracy_score(y_test, y_pred))
+        loss = 1.0 - acc
+        metric_score = acc
+    else:
+        from sklearn.metrics import mean_squared_error, r2_score
+        rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
+        r2 = float(r2_score(y_test, y_pred))
+        loss = rmse
+        metric_score = r2
+
+    leaderboard = [{
+        "rank": 1,
+        "model": key,
+        "display_name": display_name,
+        "metric": round(metric_score, 4),
+        "loss": round(loss, 4),
+        "best_config": str(params),
+        "best": True,
+        "status": "manual_trained",
+    }]
+
+    return SklearnAutoMLResult(
+        model=EstimatorArtifact(estimator=model),
+        best_estimator=key,
+        best_loss=loss,
+        best_config=params,
+        best_loss_per_estimator={key: loss},
+        best_config_per_estimator={key: params},
+        custom_leaderboard=leaderboard,
+        backend_name="manual",
+    )
+
+
 def run_automl(
     df: pd.DataFrame,
     target_col: str,
@@ -458,6 +827,9 @@ def run_automl(
     cv_strategy: str = "auto",
     cv_folds: int = 5,
     metric_override: str = "auto",
+    mode: str = "tournament",
+    selected_model: Optional[str] = None,
+    hyperparameters: Optional[dict[str, Any]] = None,
 ) -> dict:
     from sklearn.model_selection import train_test_split
 
@@ -516,11 +888,11 @@ def run_automl(
     valid_target_mask = df[target_col].notna()
     df_model = _encode_features(df.loc[valid_target_mask, selected_features])
     y = df.loc[valid_target_mask, target_col].copy()
+    if task == "classification" and (not pd.api.types.is_numeric_dtype(y) or y.dtype == object or str(y.dtype) == "category"):
+        cat = pd.Categorical(y)
+        y = pd.Series(cat.codes, index=y.index, dtype=int)
 
-    if task == "classification" and (y.dtype == object or str(y.dtype) == "category"):
-        y = y.astype("category").cat.codes
-
-    valid_mask = y.notna()
+    valid_mask = y.notna() & (y >= 0 if task == "classification" else True)
     df_model = df_model[valid_mask]
     y = y[valid_mask]
     df_model = df_model.dropna(axis=1, how="all")
@@ -603,7 +975,6 @@ def run_automl(
                 n_classes, flaml_metric,
             )
 
-    backend_used = "flaml"
     if cv_strategy == "holdout":
         use_cv = False
         n_splits = 1
@@ -616,86 +987,23 @@ def run_automl(
 
     t_train = time.time()
 
-    try:
-        from flaml import AutoML
-
-        automl = AutoML()
-        fit_kwargs = dict(
-            time_budget=effective_budget,
+    if mode == "manual":
+        backend_used = "manual"
+        automl = _run_manual_model(
+            X_train, y_train, X_test, y_test,
             task=task,
-            log_type="all",
-            verbose=0,
-            seed=42,
-            eval_method="cv" if use_cv else "holdout",
-            n_jobs=-1,
+            selected_model=selected_model or "rf",
+            hyperparameters=hyperparameters,
         )
-        if use_cv:
-            fit_kwargs["n_splits"] = n_splits
-
-        # Custom Metric override
-        if metric_override and metric_override != "auto":
-            fit_kwargs["metric"] = metric_override
-        elif flaml_metric != "auto":
-            fit_kwargs["metric"] = flaml_metric
-
-        # Algorithm Whitelist
-        if algorithm_whitelist and len(algorithm_whitelist) > 0:
-            clean_algos = []
-            for a in algorithm_whitelist:
-                al = a.lower().replace(" ", "_").replace("-", "_")
-                if al in ("lgbm", "lightgbm"):
-                    clean_algos.append("lgbm")
-                elif al in ("xgboost", "xgb"):
-                    clean_algos.append("xgboost")
-                elif al in ("catboost", "cat"):
-                    clean_algos.append("catboost")
-                elif al in ("rf", "random_forest", "randomforest"):
-                    clean_algos.append("rf")
-                elif al in ("extra_tree", "extratrees", "extra_trees"):
-                    clean_algos.append("extra_tree")
-                elif al in ("linear", "logistic_regression", "ridge"):
-                    clean_algos.append("linear")
-            if clean_algos:
-                fit_kwargs["estimator_list"] = list(dict.fromkeys(clean_algos))
-                log.info("[automl_trainer] Estimators restricted to whitelist: %s", fit_kwargs["estimator_list"])
-
-        try:
-            automl.fit(X_train, y_train, **fit_kwargs)
-        except Exception as exc:
-            log.warning("[automl_trainer] FLAML fit failed (%s); retrying with holdout.", exc)
-            fit_kwargs.pop("eval_method", None)
-            fit_kwargs.pop("n_splits", None)
-            automl.fit(X_train, y_train, **fit_kwargs)
-    except ImportError:
-        from dataforge.automl_fallback import run_sklearn_automl
-
-        backend_used = "sklearn"
-        use_cv = False
-        n_splits = 1
-        automl = run_sklearn_automl(
-            X_train,
-            y_train,
+    else:
+        backend_used = "tournament"
+        automl = _run_tournament(
+            X_train, y_train, X_test, y_test,
             task=task,
+            algorithm_whitelist=algorithm_whitelist,
             time_budget=effective_budget,
             metric_name=flaml_metric,
         )
-    except Exception as exc:
-        from dataforge.automl_fallback import run_sklearn_automl
-
-        log.warning("[automl_trainer] FLAML runtime failure (%s); using sklearn fallback.", exc)
-        backend_used = "sklearn"
-        use_cv = False
-        n_splits = 1
-        try:
-            automl = run_sklearn_automl(
-                X_train,
-                y_train,
-                task=task,
-                time_budget=effective_budget,
-                metric_name=flaml_metric,
-            )
-        except Exception as fallback_exc:
-            return {"error": f"AutoML training failed: {fallback_exc}", "model_pkl": None}
 
     elapsed = round(time.time() - t_train, 1)
     timing["flaml_training_s"] = elapsed
@@ -727,6 +1035,8 @@ def run_automl(
             importances = model.feature_importances_
         elif hasattr(model, "coef_"):
             importances = np.abs(model.coef_).flatten()
+            if len(importances) > len(feat_names):
+                importances = np.mean(np.abs(model.coef_), axis=0)
 
         if importances is not None and len(importances) == len(feat_names):
             fi_df = (
@@ -737,8 +1047,19 @@ def run_automl(
             feature_importance = fi_df.to_dict("records")
             for row in feature_importance:
                 row["importance"] = round(float(row["importance"]), 6)
-    except Exception:
-        pass
+        elif hasattr(automl, "predict") and len(feat_names) > 0 and len(X_test) > 0:
+            from sklearn.inspection import permutation_importance
+            r = permutation_importance(automl, X_test.head(100), y_test.head(100), n_repeats=3, random_state=42)
+            fi_df = (
+                pd.DataFrame({"feature": feat_names, "importance": np.maximum(0, r.importances_mean)})
+                .sort_values("importance", ascending=False)
+                .head(15)
+            )
+            feature_importance = fi_df.to_dict("records")
+            for row in feature_importance:
+                row["importance"] = round(float(row["importance"]), 6)
+    except Exception as exc:
+        log.debug("Feature importance calculation: %s", exc)
 
     t_shap = time.time()
     shap_summary = _compute_shap(automl, X_test)
@@ -787,6 +1108,9 @@ def run_automl(
         "cv_strategy": cv_strategy,
         "cv_folds": n_splits if use_cv else 1,
         "metric_override": metric_override,
+        "mode": mode,
+        "selected_model": selected_model,
+        "hyperparameters": hyperparameters or {},
         "timing_breakdown": timing,
         "model_pkl": model_pkl,
     }

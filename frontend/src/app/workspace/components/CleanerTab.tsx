@@ -803,7 +803,7 @@ export function CleanerTab() {
                     className="px-5 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all shadow-md"
                     style={selectedCols.length === 0 ? { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)", cursor: "not-allowed" } : { background: "#6366f1", boxShadow: "0 0 14px rgba(99,102,241,0.3)" }}
                   >
-                    <Plus size={14} /> Add to Pipeline DAG
+                    <Plus size={14} /> Clean
                   </button>
                 </div>
               </div>

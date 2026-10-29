@@ -125,7 +125,12 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!uid) {
-      // No upload ID present yet — stay in workspace and open Ingestion Hub
+      // Check auth status so unauthenticated visits redirect to sign in
+      apiFetch("/v1/auth/me").then((res) => {
+        if (res.status === 401 && typeof window !== "undefined") {
+          window.location.href = "/?login=1";
+        }
+      }).catch(() => {});
       setIsLoadingWorkspace(false);
       return;
     }

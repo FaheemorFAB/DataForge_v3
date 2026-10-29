@@ -94,7 +94,7 @@ export default function IngestionPage() {
         <CTABanner 
           variant="compact"
           title="Ready to start importing?"
-          subtitle="Connect CSV, Excel, SQLite, PostgreSQL, Snowflake, and Google Sheets with zero configuration."
+          subtitle="Connect CSV, Excel, SQLite, PostgreSQL, and Google Sheets with zero configuration."
           buttonText="Upload Your Dataset"
           href="/?login=1"
           secondaryButtonText="Clean & Transform"

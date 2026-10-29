@@ -164,6 +164,9 @@ async def run_automl_task(
     cv_folds: int = 5,
     metric_override: str = "auto",
     model_name: Optional[str] = None,
+    mode: str = "tournament",
+    selected_model: Optional[str] = None,
+    hyperparameters: Optional[dict[str, Any]] = None,
 ):
     from dataforge.api.jobs import registry
     from dataforge.api.jobs.executor import run_in_executor
@@ -194,6 +197,9 @@ async def run_automl_task(
                 cv_strategy=cv_strategy,
                 cv_folds=cv_folds,
                 metric_override=metric_override,
+                mode=mode,
+                selected_model=selected_model,
+                hyperparameters=hyperparameters,
             )
 
         result = await run_in_executor(_train)
@@ -221,8 +227,20 @@ async def run_automl_task(
                     "xgb": "XGBoost",
                     "catboost": "CatBoost",
                     "rf": "Random Forest",
+                    "random_forest": "Random Forest",
                     "extra_tree": "Extra Trees",
+                    "extra_trees": "Extra Trees",
+                    "gradient_boosting": "Hist Gradient Boosting",
+                    "hist_gradient_boosting": "Hist Gradient Boosting",
                     "linear": "Linear / Ridge",
+                    "logistic_regression": "Logistic Regression",
+                    "ridge": "Ridge",
+                    "decision_tree": "Decision Tree",
+                    "knn": "K-Nearest Neighbors",
+                    "kneighbors": "K-Nearest Neighbors",
+                    "svm": "Support Vector Machine",
+                    "linearsvc": "Support Vector Machine",
+                    "linearsvr": "Support Vector Machine",
                 }
                 algo_label = algo_map.get(str(algo_raw).lower(), str(algo_raw).replace("_", " ").title())
                 eff_name = (model_name or "").strip()

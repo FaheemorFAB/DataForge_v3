@@ -257,7 +257,15 @@ export default function DashboardPage() {
 
     // Fetch live user info from backend
     apiFetch("/v1/auth/me")
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (res.status === 401) {
+          if (typeof window !== "undefined") {
+            window.location.href = "/?login=1";
+          }
+          return null;
+        }
+        return res.ok ? res.json() : null;
+      })
       .then((data) => {
         if (data) {
           if (data.name) setUserName(data.name);

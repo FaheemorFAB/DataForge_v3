@@ -42,7 +42,7 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
   const [isExcelOnlineLoading, setIsExcelOnlineLoading] = useState(false);
 
   // Database connector states
-  const [dbDialect, setDbDialect] = useState<"postgresql" | "mysql" | "sqlite" | "snowflake" | "bigquery" | "clickhouse">("postgresql");
+  const [dbDialect, setDbDialect] = useState<"postgresql" | "mysql" | "sqlite" | "clickhouse">("postgresql");
   const [dbConnStr, setDbConnStr] = useState("postgresql://postgres:password@db.project-ref.supabase.co:5432/postgres");
   const [isDbTesting, setIsDbTesting] = useState(false);
   const [dbTestResult, setDbTestResult] = useState<{ ok: boolean; message: string } | null>(null);

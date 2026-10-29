@@ -378,3 +378,39 @@ class TestRunAutoml:
         assert result.get("error") is None
         assert result.get("target_col") == "target"
         assert result.get("task") == "classification"
+
+    def test_tournament_mode_evaluates_10_models(self, classification_df):
+        result = run_automl(classification_df, "label", mode="tournament")
+        assert result.get("error") is None
+        leaderboard = result.get("leaderboard", [])
+        assert len(leaderboard) == 10
+        assert any(item["best"] is True for item in leaderboard)
+        assert result.get("mode") == "tournament"
+
+    def test_manual_mode_tuning_knn(self, classification_df):
+        result = run_automl(
+            classification_df,
+            "label",
+            mode="manual",
+            selected_model="knn",
+            hyperparameters={"n_neighbors": 7, "weights": "distance"},
+        )
+        assert result.get("error") is None
+        assert result.get("best_estimator") == "knn"
+        assert result.get("mode") == "manual"
+        metrics = result.get("metrics", {})
+        assert "Accuracy" in metrics
+
+    def test_manual_mode_tuning_svm(self, regression_df):
+        result = run_automl(
+            regression_df,
+            "target",
+            mode="manual",
+            selected_model="svm",
+            hyperparameters={"C": 0.5, "max_iter": 1000},
+        )
+        assert result.get("error") is None
+        assert result.get("best_estimator") == "svm"
+        metrics = result.get("metrics", {})
+        assert "MAE" in metrics
+        assert "RMSE" in metrics

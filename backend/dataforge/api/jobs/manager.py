@@ -68,6 +68,9 @@ class JobManager:
         cv_folds: int = 5,
         metric_override: str = "auto",
         model_name: Optional[str] = None,
+        mode: str = "tournament",
+        selected_model: Optional[str] = None,
+        hyperparameters: Optional[dict] = None,
     ) -> str:
         """Dispatch an AutoML training job. Returns job_id immediately."""
         active = registry.get_active_job(upload_id, "automl")
@@ -80,7 +83,8 @@ class JobManager:
             run_automl_task, job_id, upload_id, user_id, target_col,
             task_choice, time_budget, test_size,
             feature_whitelist, excluded_features, algorithm_whitelist,
-            cv_strategy, cv_folds, metric_override, model_name
+            cv_strategy, cv_folds, metric_override, model_name,
+            mode, selected_model, hyperparameters,
         )
         log.info("Dispatched automl job %s for upload_id=%s target=%s (model_name=%s)", job_id, upload_id, target_col, model_name)
         return job_id

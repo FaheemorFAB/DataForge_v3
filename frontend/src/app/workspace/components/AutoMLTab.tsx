@@ -6,7 +6,8 @@ import { apiFetch } from "@/lib/api";
 import {
   Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders,
   Cpu, Check, Download, Play, RefreshCw, Search, Filter,
-  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag
+  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag,
+  Trophy, Settings2, Sparkles, SlidersHorizontal
 } from "lucide-react";
 
 interface FeatureInfo {
@@ -22,12 +23,16 @@ interface FeatureInfo {
 }
 
 const AVAILABLE_ALGORITHMS = [
-  { id: "lgbm", name: "LightGBM", tag: "Ultra Fast", desc: "Gradient boosted trees optimized for speed, low memory, and large datasets." },
-  { id: "xgboost", name: "XGBoost", tag: "High Accuracy", desc: "Extreme gradient boosting with exact greedy split search." },
-  { id: "catboost", name: "CatBoost", tag: "Categorical", desc: "Symmetric trees with ordered boosting; exceptional for categorical data." },
-  { id: "rf", name: "Random Forest", tag: "Bagging", desc: "Averaged forest of decision trees; highly resistant to noise and variance." },
-  { id: "extra_tree", name: "Extra Trees", tag: "Randomized", desc: "Extremely randomized trees with lower variance and high training throughput." },
-  { id: "linear", name: "Linear / Ridge", tag: "Interpretable", desc: "L1/L2 regularized linear model providing an interpretable baseline." },
+  { id: "lgbm", name: "LightGBM", tag: "Ultra Fast", desc: "Gradient boosted trees optimized for speed, low memory, and large datasets.", category: "boosting" },
+  { id: "xgboost", name: "XGBoost", tag: "High Accuracy", desc: "Extreme gradient boosting with exact greedy split search.", category: "boosting" },
+  { id: "catboost", name: "CatBoost", tag: "Categorical", desc: "Symmetric trees with ordered boosting; exceptional for categorical data.", category: "boosting" },
+  { id: "rf", name: "Random Forest", tag: "Bagging", desc: "Averaged forest of decision trees; highly resistant to noise and variance.", category: "tree" },
+  { id: "extra_tree", name: "Extra Trees", tag: "Randomized", desc: "Extremely randomized trees with lower variance and high training throughput.", category: "tree" },
+  { id: "gradient_boosting", name: "Hist Gradient Boosting", tag: "Boosting", desc: "Histogram-based gradient boosting trees with fast numerical binning.", category: "boosting" },
+  { id: "linear", name: "Linear / Ridge", tag: "Interpretable", desc: "L1/L2 regularized linear model providing an interpretable baseline.", category: "linear" },
+  { id: "decision_tree", name: "Decision Tree", tag: "Tree", desc: "Single transparent decision tree; fast and easily visualizable.", category: "tree" },
+  { id: "knn", name: "K-Nearest Neighbors", tag: "Instance-based", desc: "Non-parametric distance-weighted classification and regression.", category: "neighbors" },
+  { id: "svm", name: "Support Vector Machine", tag: "Margin-based", desc: "Maximal-margin hyperplane classifier/regressor with regularized boundary.", category: "svm" },
 ];
 
 export function AutoMLTab() {
@@ -48,8 +53,28 @@ export function AutoMLTab() {
   const [featureSearch, setFeatureSearch] = useState("");
   const [featureFilter, setFeatureFilter] = useState<"all" | "numeric" | "categorical" | "safe" | "leakage">("all");
 
-  // Algorithm Whitelist & Hyperparameters
-  const [selectedAlgos, setSelectedAlgos] = useState<string[]>(["lgbm", "xgboost", "catboost", "rf", "extra_tree"]);
+  // Mode & Algorithm Whitelist & Hyperparameters
+  const [trainingMode, setTrainingMode] = useState<"tournament" | "manual">("tournament");
+  const [manualModel, setManualModel] = useState<string>("xgboost");
+  const [selectedAlgos, setSelectedAlgos] = useState<string[]>([
+    "lgbm", "xgboost", "catboost", "rf", "extra_tree",
+    "gradient_boosting", "linear", "decision_tree", "knn", "svm"
+  ]);
+  const [hyperparams, setHyperparams] = useState<Record<string, any>>({
+    n_estimators: 100,
+    max_depth: 6,
+    learning_rate: 0.1,
+    min_samples_split: 2,
+    min_samples_leaf: 1,
+    subsample: 1.0,
+    C: 1.0,
+    alpha: 1.0,
+    n_neighbors: 5,
+    weights: "uniform",
+    metric: "minkowski",
+    criterion: "gini",
+    max_iter: 1000,
+  });
   const [cvStrategy, setCvStrategy] = useState("auto");
   const [cvFolds, setCvFolds] = useState(5);
   const [metricOverride, setMetricOverride] = useState("auto");
@@ -215,8 +240,8 @@ export function AutoMLTab() {
       setAutomlError("You must select at least one feature column for training.");
       return;
     }
-    if (selectedAlgos.length === 0) {
-      setAutomlError("You must select at least one algorithm from the whitelist.");
+    if (trainingMode === "tournament" && selectedAlgos.length === 0) {
+      setAutomlError("You must select at least one algorithm from the whitelist for tournament mode.");
       return;
     }
 
@@ -234,12 +259,15 @@ export function AutoMLTab() {
           time_budget: parseInt(automlTimeBudget, 10),
           test_size: parseFloat(automlTestSize),
           feature_whitelist: selectedFeatures,
-          algorithm_whitelist: selectedAlgos,
+          algorithm_whitelist: trainingMode === "tournament" ? selectedAlgos : [manualModel],
           cv_strategy: cvStrategy,
           cv_folds: cvFolds,
           metric_override: metricOverride,
           upload_id: uploadId,
           model_name: customModelName.trim() || undefined,
+          mode: trainingMode,
+          selected_model: trainingMode === "manual" ? manualModel : undefined,
+          hyperparameters: trainingMode === "manual" ? hyperparams : undefined,
         }),
       });
 
@@ -642,143 +670,587 @@ export function AutoMLTab() {
         )}
       </div>
 
-      {/* -- SECTION 3: ALGORITHM WHITELIST & VALIDATION TUNING -- */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left Column: Algorithm Whitelist (7 cols) */}
-        <div className="lg:col-span-7 p-5 rounded-2xl space-y-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center justify-between">
+      {/* -- SECTION 3: MODE SELECTOR & ALGORITHMS / HYPERPARAMETERS -- */}
+      <div className="p-5 rounded-2xl space-y-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+        {/* Mode Segmented Controls */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4" style={{ borderColor: "var(--border)" }}>
+          <div>
             <div className="flex items-center gap-2">
-              <Cpu size={16} style={{ color: "var(--accent)" }} />
+              <Sparkles size={16} style={{ color: "var(--accent)" }} />
               <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-                Algorithm Whitelist
+                Model Selection &amp; Tuning Mode
               </h3>
             </div>
-            <span className="text-xs font-mono" style={{ color: "var(--txt-m)" }}>
-              {selectedAlgos.length} Models Active
-            </span>
+            <p className="text-xs mt-0.5" style={{ color: "var(--txt-m)" }}>
+              Choose between automated multi-model tournament ranking or manual fine-tuning.
+            </p>
           </div>
-          <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-            Restrict FLAML's search space to compliant or hardware-preferred model architectures.
-          </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {AVAILABLE_ALGORITHMS.map(algo => {
-              const isChecked = selectedAlgos.includes(algo.id);
-              return (
-                <div
-                  key={algo.id}
-                  onClick={() => toggleAlgorithm(algo.id)}
-                  className="p-3.5 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none"
-                  style={{
-                    background: isChecked ? "rgba(99,102,241,0.06)" : "transparent",
-                    borderColor: isChecked ? "rgba(99,102,241,0.4)" : "var(--border)",
-                  }}>
-                  <div
-                    className="w-4 h-4 rounded mt-0.5 flex items-center justify-center transition-all"
-                    style={{
-                      background: isChecked ? "var(--accent)" : "transparent",
-                      border: `1.5px solid ${isChecked ? "var(--accent)" : "var(--txt-m)"}`,
-                    }}>
-                    {isChecked && <Check size={11} className="text-white" strokeWidth={3} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-xs truncate" style={{ color: isChecked ? "var(--txt)" : "var(--txt-m)" }}>
-                        {algo.name}
-                      </span>
-                      <span className="text-[9px] font-mono px-2 py-0.5 rounded border whitespace-nowrap shrink-0" style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
-                        {algo.tag}
-                      </span>
-                    </div>
-                    <p className="text-[10px] mt-1 leading-tight line-clamp-2" style={{ color: "var(--txt-f)" }}>
-                      {algo.desc}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="flex items-center p-1 rounded-xl" style={{ background: "var(--inp-bg)", border: "1px solid var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => setTrainingMode("tournament")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${trainingMode === "tournament" ? "shadow-sm text-white" : ""}`}
+              style={{
+                background: trainingMode === "tournament" ? "linear-gradient(135deg, #6366f1, #3b82f6)" : "transparent",
+                color: trainingMode === "tournament" ? "#ffffff" : "var(--txt-m)",
+              }}>
+              <Trophy size={13} />
+              <span>Leaderboard Tournament</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTrainingMode("manual")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${trainingMode === "manual" ? "shadow-sm text-white" : ""}`}
+              style={{
+                background: trainingMode === "manual" ? "linear-gradient(135deg, #6366f1, #3b82f6)" : "transparent",
+                color: trainingMode === "manual" ? "#ffffff" : "var(--txt-m)",
+              }}>
+              <Settings2 size={13} />
+              <span>Manual Hyperparameter Tuning</span>
+            </button>
           </div>
         </div>
 
-        {/* Right Column: Cross-Validation & Metric Tuning (5 cols) */}
-        <div className="lg:col-span-5 p-5 rounded-2xl space-y-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-2">
-            <Layers size={16} style={{ color: "var(--accent)" }} />
-            <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-              Validation & Metric Objective
-            </h3>
-          </div>
-          <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-            Tune hyperparameter search objectives and evaluation splitting schemas.
-          </p>
-
-          <div className="space-y-3.5">
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
-                Validation Strategy
-              </label>
-              <select
-                value={cvStrategy}
-                onChange={e => setCvStrategy(e.target.value)}
-                className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
-                style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
-                <option value="auto">Auto (Dataset Adaptive)</option>
-                <option value="stratified_kfold">Stratified K-Fold (Robust)</option>
-                <option value="kfold">Standard K-Fold</option>
-                <option value="holdout">Single Train/Test Split (Fast)</option>
-              </select>
-            </div>
-
-            {cvStrategy !== "holdout" && (
-              <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
-                  Number of Folds (K)
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[3, 5, 10].map(k => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setCvFolds(k)}
-                      className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${cvFolds === k ? 'text-white' : ''}`}
-                      style={{
-                        background: cvFolds === k ? "var(--accent)" : "var(--inp-bg)",
-                        color: cvFolds === k ? "white" : "var(--txt-m)",
-                        border: `1px solid ${cvFolds === k ? "var(--accent)" : "var(--border)"}`,
-                      }}>
-                      {k}-Fold
-                    </button>
-                  ))}
+        {trainingMode === "tournament" ? (
+          /* TOURNAMENT MODE */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* 10 Models Whitelist Grid (7 cols) */}
+            <div className="lg:col-span-7 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Cpu size={15} style={{ color: "var(--accent)" }} />
+                  <span className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                    Tournament Competitors ({selectedAlgos.length}/10 Active)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAlgos(AVAILABLE_ALGORITHMS.map(a => a.id))}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded border transition-colors hover:border-indigo-400"
+                    style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAlgos(["lgbm", "xgboost", "catboost", "rf", "extra_tree"])}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded border transition-colors hover:border-indigo-400"
+                    style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
+                    Reset Defaults
+                  </button>
                 </div>
               </div>
-            )}
+              <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
+                Selected models will be benchmarked side-by-side on identical train/validation splits, ranked on the live leaderboard, and the champion model will be registered.
+              </p>
 
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
-                Loss / Evaluation Metric Override
-              </label>
-              <select
-                value={metricOverride}
-                onChange={e => setMetricOverride(e.target.value)}
-                className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
-                style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
-                <option value="auto">Auto (Adaptive based on Class Balance)</option>
-                <optgroup label="Classification">
-                  <option value="roc_auc">ROC-AUC (Binary)</option>
-                  <option value="macro_f1">Macro F1 (Multiclass)</option>
-                  <option value="f1">F1 Score</option>
-                  <option value="accuracy">Accuracy</option>
-                  <option value="log_loss">Cross-Entropy Log Loss</option>
-                </optgroup>
-                <optgroup label="Regression">
-                  <option value="rmse">Root Mean Squared Error (RMSE)</option>
-                  <option value="mae">Mean Absolute Error (MAE)</option>
-                  <option value="r2">R² Score (Explained Variance)</option>
-                </optgroup>
-              </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {AVAILABLE_ALGORITHMS.map(algo => {
+                  const isChecked = selectedAlgos.includes(algo.id);
+                  return (
+                    <div
+                      key={algo.id}
+                      onClick={() => toggleAlgorithm(algo.id)}
+                      className="p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 select-none hover:border-indigo-400/40"
+                      style={{
+                        background: isChecked ? "rgba(99,102,241,0.06)" : "transparent",
+                        borderColor: isChecked ? "rgba(99,102,241,0.4)" : "var(--border)",
+                      }}>
+                      <div
+                        className="w-4 h-4 rounded mt-0.5 flex items-center justify-center transition-all shrink-0"
+                        style={{
+                          background: isChecked ? "var(--accent)" : "transparent",
+                          border: `1.5px solid ${isChecked ? "var(--accent)" : "var(--txt-m)"}`,
+                        }}>
+                        {isChecked && <Check size={11} className="text-white" strokeWidth={3} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="font-bold text-xs truncate" style={{ color: isChecked ? "var(--txt)" : "var(--txt-m)" }}>
+                            {algo.name}
+                          </span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded border whitespace-nowrap shrink-0" style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
+                            {algo.tag}
+                          </span>
+                        </div>
+                        <p className="text-[10px] mt-0.5 leading-tight line-clamp-2" style={{ color: "var(--txt-f)" }}>
+                          {algo.desc}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Validation Strategy & Objective (5 cols) */}
+            <div className="lg:col-span-5 space-y-4 lg:border-l lg:pl-5" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <Layers size={15} style={{ color: "var(--accent)" }} />
+                <span className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                  Validation &amp; Objective Tuning
+                </span>
+              </div>
+              <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
+                Tune hyperparameter search objectives and evaluation splitting schemas.
+              </p>
+
+              <div className="space-y-3.5">
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                    Validation Strategy
+                  </label>
+                  <select
+                    value={cvStrategy}
+                    onChange={e => setCvStrategy(e.target.value)}
+                    className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
+                    style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
+                    <option value="auto">Auto (Dataset Adaptive)</option>
+                    <option value="stratified_kfold">Stratified K-Fold (Robust)</option>
+                    <option value="kfold">Standard K-Fold</option>
+                    <option value="holdout">Single Train/Test Split (Fast)</option>
+                  </select>
+                </div>
+
+                {cvStrategy !== "holdout" && (
+                  <div>
+                    <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                      Number of Folds (K)
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[3, 5, 10].map(k => (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => setCvFolds(k)}
+                          className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${cvFolds === k ? 'text-white' : ''}`}
+                          style={{
+                            background: cvFolds === k ? "var(--accent)" : "var(--inp-bg)",
+                            color: cvFolds === k ? "white" : "var(--txt-m)",
+                            border: `1px solid ${cvFolds === k ? "var(--accent)" : "var(--border)"}`,
+                          }}>
+                          {k}-Fold
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                    Loss / Evaluation Metric Override
+                  </label>
+                  <select
+                    value={metricOverride}
+                    onChange={e => setMetricOverride(e.target.value)}
+                    className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
+                    style={{ background: "var(--inp-bg)", border: "1px solid var(--border)", color: "var(--txt)" }}>
+                    <option value="auto">Auto (Adaptive based on Class Balance)</option>
+                    <optgroup label="Classification">
+                      <option value="roc_auc">ROC-AUC (Binary)</option>
+                      <option value="macro_f1">Macro F1 (Multiclass)</option>
+                      <option value="f1">F1 Score</option>
+                      <option value="accuracy">Accuracy</option>
+                      <option value="log_loss">Cross-Entropy Log Loss</option>
+                    </optgroup>
+                    <optgroup label="Regression">
+                      <option value="rmse">Root Mean Squared Error (RMSE)</option>
+                      <option value="mae">Mean Absolute Error (MAE)</option>
+                      <option value="r2">R² Score (Explained Variance)</option>
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          /* MANUAL HYPERPARAMETER TUNING MODE */
+          <div className="space-y-5">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                  Step 1: Select Model Architecture (1 of 10)
+                </span>
+                <span className="text-[11px] font-mono text-indigo-400 font-bold">
+                  Active: {AVAILABLE_ALGORITHMS.find(a => a.id === manualModel)?.name}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                {AVAILABLE_ALGORITHMS.map(algo => {
+                  const isSelected = manualModel === algo.id;
+                  return (
+                    <button
+                      key={algo.id}
+                      type="button"
+                      onClick={() => setManualModel(algo.id)}
+                      className="p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between"
+                      style={{
+                        background: isSelected ? "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(59,130,246,0.08))" : "var(--inp-bg)",
+                        borderColor: isSelected ? "var(--accent)" : "var(--border)",
+                        boxShadow: isSelected ? "0 0 0 1px var(--accent)" : "none",
+                      }}>
+                      <div>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-black text-xs" style={{ color: isSelected ? "var(--accent)" : "var(--txt)" }}>
+                            {algo.name}
+                          </span>
+                          <span className="text-[9px] font-mono px-1 py-0.5 rounded border" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
+                            {algo.tag}
+                          </span>
+                        </div>
+                        <p className="text-[10px] mt-1 line-clamp-2 leading-tight" style={{ color: "var(--txt-f)" }}>
+                          {algo.desc}
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <div className="mt-2 text-[10px] font-bold text-indigo-400 flex items-center gap-1">
+                          <CheckCircle2 size={11} /> Selected for Custom Tuning
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Hyperparameter Controls based on selected model */}
+            <div className="p-4 rounded-xl border space-y-4" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between flex-wrap gap-2 border-b pb-2.5" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal size={15} className="text-indigo-500" />
+                  <span className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                    Step 2: Customize {AVAILABLE_ALGORITHMS.find(a => a.id === manualModel)?.name} Hyperparameters
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setHyperparams({
+                    n_estimators: 100,
+                    max_depth: 6,
+                    learning_rate: 0.1,
+                    min_samples_split: 2,
+                    min_samples_leaf: 1,
+                    subsample: 1.0,
+                    C: 1.0,
+                    alpha: 1.0,
+                    n_neighbors: 5,
+                    weights: "uniform",
+                    metric: "minkowski",
+                    criterion: "gini",
+                    max_iter: 1000,
+                  })}
+                  className="text-[10px] font-bold text-indigo-400 hover:underline">
+                  Reset to Recommended
+                </button>
+              </div>
+
+              {/* Dynamic Form Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Tree / Boosting Models */}
+                {["lgbm", "xgboost", "catboost", "rf", "extra_tree", "gradient_boosting"].includes(manualModel) && (
+                  <>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Number of Estimators (Trees)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="10"
+                          max="400"
+                          step="10"
+                          value={hyperparams.n_estimators || 100}
+                          onChange={e => setHyperparams(prev => ({ ...prev, n_estimators: parseInt(e.target.value, 10) }))}
+                          className="flex-1 accent-[var(--accent)]"
+                        />
+                        <span className="font-mono text-xs font-bold w-12 text-right" style={{ color: "var(--txt)" }}>
+                          {hyperparams.n_estimators || 100}
+                        </span>
+                      </div>
+                      <span className="text-[10px] mt-0.5 block" style={{ color: "var(--txt-f)" }}>Default: 100 trees</span>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Max Tree Depth
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="1"
+                          max="16"
+                          step="1"
+                          value={hyperparams.max_depth || 6}
+                          onChange={e => setHyperparams(prev => ({ ...prev, max_depth: parseInt(e.target.value, 10) }))}
+                          className="flex-1 accent-[var(--accent)]"
+                        />
+                        <span className="font-mono text-xs font-bold w-12 text-right" style={{ color: "var(--txt)" }}>
+                          {hyperparams.max_depth || 6}
+                        </span>
+                      </div>
+                      <span className="text-[10px] mt-0.5 block" style={{ color: "var(--txt-f)" }}>Controls model complexity</span>
+                    </div>
+
+                    {["lgbm", "xgboost", "catboost", "gradient_boosting"].includes(manualModel) && (
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                          Learning Rate (η)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min="0.01"
+                            max="0.4"
+                            step="0.01"
+                            value={hyperparams.learning_rate || 0.1}
+                            onChange={e => setHyperparams(prev => ({ ...prev, learning_rate: parseFloat(e.target.value) }))}
+                            className="flex-1 accent-[var(--accent)]"
+                          />
+                          <span className="font-mono text-xs font-bold w-12 text-right" style={{ color: "var(--txt)" }}>
+                            {hyperparams.learning_rate || 0.1}
+                          </span>
+                        </div>
+                        <span className="text-[10px] mt-0.5 block" style={{ color: "var(--txt-f)" }}>Step size shrinkage</span>
+                      </div>
+                    )}
+
+                    {["lgbm", "xgboost"].includes(manualModel) && (
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                          Subsample Ratio
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="1.0"
+                            step="0.05"
+                            value={hyperparams.subsample || 1.0}
+                            onChange={e => setHyperparams(prev => ({ ...prev, subsample: parseFloat(e.target.value) }))}
+                            className="flex-1 accent-[var(--accent)]"
+                          />
+                          <span className="font-mono text-xs font-bold w-12 text-right" style={{ color: "var(--txt)" }}>
+                            {hyperparams.subsample || 1.0}
+                          </span>
+                        </div>
+                        <span className="text-[10px] mt-0.5 block" style={{ color: "var(--txt-f)" }}>Stochastic row subsampling</span>
+                      </div>
+                    )}
+
+                    {["rf", "extra_tree"].includes(manualModel) && (
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                          Min Samples Split
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min="2"
+                            max="20"
+                            step="1"
+                            value={hyperparams.min_samples_split || 2}
+                            onChange={e => setHyperparams(prev => ({ ...prev, min_samples_split: parseInt(e.target.value, 10) }))}
+                            className="flex-1 accent-[var(--accent)]"
+                          />
+                          <span className="font-mono text-xs font-bold w-12 text-right" style={{ color: "var(--txt)" }}>
+                            {hyperparams.min_samples_split || 2}
+                          </span>
+                        </div>
+                        <span className="text-[10px] mt-0.5 block" style={{ color: "var(--txt-f)" }}>Prevents small leaf splits</span>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* 2. Decision Tree */}
+                {manualModel === "decision_tree" && (
+                  <>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Max Depth
+                      </label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="20"
+                        step="1"
+                        value={hyperparams.max_depth || 6}
+                        onChange={e => setHyperparams(prev => ({ ...prev, max_depth: parseInt(e.target.value, 10) }))}
+                        className="w-full accent-[var(--accent)]"
+                      />
+                      <span className="text-xs font-mono font-bold">{hyperparams.max_depth || 6}</span>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Min Samples Split
+                      </label>
+                      <input
+                        type="range"
+                        min="2"
+                        max="20"
+                        step="1"
+                        value={hyperparams.min_samples_split || 2}
+                        onChange={e => setHyperparams(prev => ({ ...prev, min_samples_split: parseInt(e.target.value, 10) }))}
+                        className="w-full accent-[var(--accent)]"
+                      />
+                      <span className="text-xs font-mono font-bold">{hyperparams.min_samples_split || 2}</span>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Criterion
+                      </label>
+                      <select
+                        value={hyperparams.criterion || "gini"}
+                        onChange={e => setHyperparams(prev => ({ ...prev, criterion: e.target.value }))}
+                        className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
+                        style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--txt)" }}>
+                        <option value="gini">Gini Impurity (Standard)</option>
+                        <option value="entropy">Information Gain (Entropy)</option>
+                        <option value="squared_error">Squared Error (Regression)</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {/* 3. Linear / Ridge */}
+                {manualModel === "linear" && (
+                  <>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Regularization Strength (C / α)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0.05"
+                          max="10.0"
+                          step="0.05"
+                          value={hyperparams.C || 1.0}
+                          onChange={e => setHyperparams(prev => ({ ...prev, C: parseFloat(e.target.value), alpha: parseFloat(e.target.value) }))}
+                          className="flex-1 accent-[var(--accent)]"
+                        />
+                        <span className="font-mono text-xs font-bold w-12 text-right">{hyperparams.C || 1.0}</span>
+                      </div>
+                      <span className="text-[10px] mt-0.5 block" style={{ color: "var(--txt-f)" }}>Smaller = stronger regularization</span>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Max Iterations
+                      </label>
+                      <input
+                        type="number"
+                        min="100"
+                        max="3000"
+                        step="100"
+                        value={hyperparams.max_iter || 1000}
+                        onChange={e => setHyperparams(prev => ({ ...prev, max_iter: parseInt(e.target.value, 10) }))}
+                        className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
+                        style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--txt)" }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* 4. KNN */}
+                {manualModel === "knn" && (
+                  <>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Number of Neighbors (K)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="1"
+                          max="25"
+                          step="1"
+                          value={hyperparams.n_neighbors || 5}
+                          onChange={e => setHyperparams(prev => ({ ...prev, n_neighbors: parseInt(e.target.value, 10) }))}
+                          className="flex-1 accent-[var(--accent)]"
+                        />
+                        <span className="font-mono text-xs font-bold w-12 text-right">{hyperparams.n_neighbors || 5}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Weights
+                      </label>
+                      <select
+                        value={hyperparams.weights || "uniform"}
+                        onChange={e => setHyperparams(prev => ({ ...prev, weights: e.target.value }))}
+                        className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
+                        style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--txt)" }}>
+                        <option value="uniform">Uniform (Equal Weight)</option>
+                        <option value="distance">Distance Weighted (Closer = Stronger)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Distance Metric
+                      </label>
+                      <select
+                        value={hyperparams.metric || "minkowski"}
+                        onChange={e => setHyperparams(prev => ({ ...prev, metric: e.target.value }))}
+                        className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
+                        style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--txt)" }}>
+                        <option value="minkowski">Minkowski (Standard)</option>
+                        <option value="euclidean">Euclidean (L2 Distance)</option>
+                        <option value="manhattan">Manhattan (L1 City Block)</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                {/* 5. SVM */}
+                {manualModel === "svm" && (
+                  <>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Regularization Parameter (C)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="10.0"
+                          step="0.1"
+                          value={hyperparams.C || 1.0}
+                          onChange={e => setHyperparams(prev => ({ ...prev, C: parseFloat(e.target.value) }))}
+                          className="flex-1 accent-[var(--accent)]"
+                        />
+                        <span className="font-mono text-xs font-bold w-12 text-right">{hyperparams.C || 1.0}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                        Max Iterations
+                      </label>
+                      <input
+                        type="number"
+                        min="500"
+                        max="5000"
+                        step="250"
+                        value={hyperparams.max_iter || 2000}
+                        onChange={e => setHyperparams(prev => ({ ...prev, max_iter: parseInt(e.target.value, 10) }))}
+                        className="w-full text-xs font-semibold px-3 py-2 rounded-xl outline-none"
+                        style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--txt)" }}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* JSON preview */}
+              <div className="pt-2 border-t flex items-center justify-between flex-wrap gap-2 text-[10px] font-mono" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
+                <span>Parameters payload:</span>
+                <span className="px-2 py-0.5 rounded border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                  {JSON.stringify(hyperparams)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* -- EXECUTION LAUNCH BAR -- */}
@@ -795,31 +1267,33 @@ export function AutoMLTab() {
                 <AlertTriangle size={13} />
                 Select at least 1 predictor feature in the Feature Whitelist above.
               </span>
-            ) : selectedAlgos.length === 0 ? (
+            ) : trainingMode === "tournament" && selectedAlgos.length === 0 ? (
               <span className="text-amber-500 font-semibold flex items-center gap-1.5">
                 <AlertTriangle size={13} />
-                Select at least 1 algorithm in the Algorithm Whitelist.
+                Select at least 1 algorithm for Tournament Mode.
               </span>
+            ) : trainingMode === "tournament" ? (
+              <span>Tournament Mode: Benchmarking <strong style={{ color: "var(--txt)" }}>{selectedAlgos.length} common algorithms</strong> with <strong style={{ color: "var(--txt)" }}>{selectedFeatures.length} features</strong> to crown the champion model.</span>
             ) : (
-              <span>Configured to train <strong style={{ color: "var(--txt)" }}>{customModelName || (automlTarget ? `${automlTarget} Predictor` : "AutoML Champion")}</strong> with <strong style={{ color: "var(--txt)" }}>{selectedFeatures.length} features</strong> across <strong style={{ color: "var(--txt)" }}>{selectedAlgos.length} algorithms</strong>.</span>
+              <span>Manual Mode: Training custom <strong style={{ color: "var(--txt)" }}>{AVAILABLE_ALGORITHMS.find(a => a.id === manualModel)?.name}</strong> with fine-tuned hyperparameters.</span>
             )}
           </div>
         </div>
 
         <button
           onClick={runAutoml}
-          disabled={isTraining || !automlTarget || selectedFeatures.length === 0 || selectedAlgos.length === 0}
+          disabled={isTraining || !automlTarget || selectedFeatures.length === 0 || (trainingMode === "tournament" && selectedAlgos.length === 0)}
           className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
           {isTraining ? (
             <>
               <RefreshCw size={15} className="animate-spin" />
-              <span>Training Ensembles...</span>
+              <span>{trainingMode === "tournament" ? "Running Tournament Benchmark..." : "Fitting Custom Model..."}</span>
             </>
           ) : (
             <>
               <Play size={15} fill="currentColor" />
-              <span>Launch Enterprise AutoML</span>
+              <span>{trainingMode === "tournament" ? "Launch Leaderboard Tournament" : `Train Custom ${AVAILABLE_ALGORITHMS.find(a => a.id === manualModel)?.name}`}</span>
             </>
           )}
         </button>
@@ -860,15 +1334,53 @@ export function AutoMLTab() {
       {/* -- RESULTS & LEADERBOARD SECTION -- */}
       {automlResult && !isTraining && (
         <div className="space-y-5">
+          {/* Mode Banner */}
+          {automlResult.mode === "tournament" ? (
+            <div className="p-3.5 rounded-xl border flex items-center justify-between flex-wrap gap-2" style={{ background: "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(99,102,241,0.06))", borderColor: "rgba(245,158,11,0.25)" }}>
+              <div className="flex items-center gap-2">
+                <Trophy size={16} className="text-amber-400" />
+                <span className="text-xs font-bold" style={{ color: "var(--txt)" }}>
+                  AutoML Tournament Completed: 10 Common Models Evaluated Side-by-Side
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                  Champion: {automlResult.best_estimator_name || automlResult.best_estimator}
+                </span>
+              </div>
+              <span className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
+                Partition: {(automlResult.train_rows || 0).toLocaleString()} train / {(automlResult.test_rows || 0).toLocaleString()} validation rows
+              </span>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl border flex items-center justify-between flex-wrap gap-2" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(59,130,246,0.06))", borderColor: "rgba(99,102,241,0.25)" }}>
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal size={16} className="text-indigo-400" />
+                <span className="text-xs font-bold" style={{ color: "var(--txt)" }}>
+                  Manual Tuning Completed: {automlResult.best_estimator_name || AVAILABLE_ALGORITHMS.find(a => a.id === automlResult.selected_model)?.name || automlResult.best_estimator}
+                </span>
+              </div>
+              {automlResult.hyperparameters && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {Object.entries(automlResult.hyperparameters).map(([k, v]) => (
+                    <span key={k} className="text-[9px] font-mono px-1.5 py-0.5 rounded border" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
+                      {k}: <strong className="text-indigo-300">{String(v)}</strong>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Top KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
             <div className="p-4 rounded-2xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-              <p className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Champion Architecture</p>
+              <p className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+                {automlResult.mode === "tournament" ? "Champion Architecture" : "Selected Architecture"}
+              </p>
               <p className="text-lg font-black font-mono mt-1" style={{ color: "var(--accent)" }}>
-                {automlResult.best_estimator || "Ensemble"}
+                {automlResult.best_estimator_name || automlResult.best_estimator || "Ensemble"}
               </p>
               <p className="text-[10px] mt-0.5 font-mono" style={{ color: "var(--txt-f)" }}>
-                Best Loss: {automlResult.best_loss ?? "N/A"}
+                Best Loss: {typeof automlResult.best_loss === 'number' ? automlResult.best_loss.toFixed(4) : (automlResult.best_loss ?? "N/A")}
               </p>
             </div>
 
@@ -878,7 +1390,7 @@ export function AutoMLTab() {
                 {automlResult.elapsed_s || automlTimeBudget}s
               </p>
               <p className="text-[10px] mt-0.5 font-mono" style={{ color: "var(--txt-f)" }}>
-                Budget: {automlResult.effective_budget_s || automlTimeBudget}s
+                Mode: {automlResult.mode === "tournament" ? "10-Model Tournament" : "Manual Hyperparams"}
               </p>
             </div>
 
@@ -898,7 +1410,7 @@ export function AutoMLTab() {
                 {automlResult.eval_method || cvStrategy}
               </p>
               <p className="text-[10px] mt-0.5 font-mono" style={{ color: "var(--txt-f)" }}>
-                {automlResult.n_cv_splits ? `${automlResult.n_cv_splits} Splits` : "Holdout Split"}
+                {automlResult.n_cv_splits ? `${automlResult.n_cv_splits} Splits` : "Validation Holdout"}
               </p>
             </div>
           </div>
@@ -922,11 +1434,14 @@ export function AutoMLTab() {
             {/* Leaderboard Table (6 cols) */}
             <div className="lg:col-span-6 p-5 rounded-2xl space-y-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-                  Evaluated Architecture Leaderboard
-                </h3>
+                <div className="flex items-center gap-2">
+                  <Trophy size={14} className="text-amber-400" />
+                  <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                    {automlResult.mode === "manual" ? "Tuned Model Performance" : "Tournament Leaderboard"}
+                  </h3>
+                </div>
                 <span className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
-                  Sorted by validation metric
+                  {automlResult.mode === "manual" ? "1 Model Tuned" : `${(automlResult.leaderboard || []).length} Models Evaluated`}
                 </span>
               </div>
 
@@ -935,31 +1450,51 @@ export function AutoMLTab() {
                   <thead className="font-mono text-[10px] uppercase tracking-wider" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", color: "var(--txt-m)" }}>
                     <tr>
                       <th className="py-2.5 px-3">Rank & Model</th>
-                      <th className="py-2.5 px-3">Metric Score</th>
-                      <th className="py-2.5 px-3">Hyperparameters</th>
+                      <th className="py-2.5 px-3">Score</th>
+                      <th className="py-2.5 px-3">Latency</th>
+                      <th className="py-2.5 px-3">Configuration</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
-                    {(automlResult.leaderboard || []).map((row: any, i: number) => (
-                      <tr
-                        key={i}
-                        style={{ background: row.best ? "rgba(99,102,241,0.08)" : "transparent" }}>
-                        <td className="py-2.5 px-3 font-mono font-bold flex items-center gap-1.5" style={{ color: row.best ? "var(--accent)" : "var(--txt)" }}>
-                          {row.best ? (
-                            <span className="text-amber-400">★</span>
-                          ) : (
-                            <span className="text-[10px]" style={{ color: "var(--txt-f)" }}>#{i + 1}</span>
-                          )}
-                          <span>{row.model}</span>
-                        </td>
-                        <td className="py-2.5 px-3 font-mono font-bold" style={{ color: row.best ? "var(--accent)" : "var(--txt)" }}>
-                          {row.metric !== null ? row.metric : "-"}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-[10px] max-w-[200px] truncate" style={{ color: "var(--txt-m)" }} title={row.best_config}>
-                          {row.best_config || "-"}
-                        </td>
-                      </tr>
-                    ))}
+                    {(automlResult.leaderboard || []).map((row: any, i: number) => {
+                      const isFirst = i === 0 || row.best;
+                      const isSecond = i === 1 && !row.best;
+                      const isThird = i === 2 && !row.best;
+                      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+
+                      return (
+                        <tr
+                          key={i}
+                          style={{ background: isFirst ? "rgba(99,102,241,0.08)" : "transparent" }}>
+                          <td className="py-2.5 px-3 font-mono font-bold">
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 flex items-center justify-center rounded-md text-[11px] font-mono">
+                                {medal}
+                              </span>
+                              <div>
+                                <span style={{ color: isFirst ? "var(--accent)" : "var(--txt)" }}>
+                                  {row.display_name || row.model}
+                                </span>
+                                {isFirst && (
+                                  <span className="ml-1.5 text-[8px] font-sans font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    Champion
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono font-bold" style={{ color: isFirst ? "var(--accent)" : "var(--txt)" }}>
+                            {typeof row.metric === 'number' ? row.metric.toFixed(4) : (row.metric !== null ? row.metric : "-")}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[10px]" style={{ color: "var(--txt-m)" }}>
+                            {row.elapsed_s ? `${Number(row.elapsed_s).toFixed(2)}s` : "-"}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[10px] max-w-[160px] truncate" style={{ color: "var(--txt-f)" }} title={row.best_config}>
+                            {row.best_config || "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1020,7 +1555,8 @@ export function AutoMLTab() {
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-                      Champion Model: <span className="text-indigo-400 font-mono">{automlResult.model_name || customModelName || automlResult.best_estimator || "Ensemble"}</span>
+                      {automlResult.mode === "tournament" ? "Champion Model: " : "Tuned Model: "}
+                      <span className="text-indigo-400 font-mono">{automlResult.model_name || customModelName || automlResult.best_estimator_name || automlResult.best_estimator || "Ensemble"}</span>
                     </h4>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                       ✓ Registered in Model Catalog

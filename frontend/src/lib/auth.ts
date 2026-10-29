@@ -58,20 +58,19 @@ function getCachedUser(): any | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    const localAvatar = localStorage.getItem("df_user_avatar");
-    if (!raw && !localAvatar) return null;
-    const parsed = raw ? JSON.parse(raw) : { name: "User", email: "user@dataforge.app" };
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.email) return null;
     if (
       parsed?.email === "admin@dataforge.app" ||
       parsed?.email === "dev@example.com" ||
       parsed?.email === "analyst@dataforge.app" ||
       parsed?.email === "user_1@dataforge.app"
     ) {
-      if (!localAvatar) {
-        localStorage.removeItem(CACHE_KEY);
-        return null;
-      }
+      localStorage.removeItem(CACHE_KEY);
+      return null;
     }
+    const localAvatar = localStorage.getItem("df_user_avatar");
     if (localAvatar) {
       parsed.avatar = localAvatar;
     } else if (parsed?.avatar && parsed.avatar.includes("dicebear")) {
