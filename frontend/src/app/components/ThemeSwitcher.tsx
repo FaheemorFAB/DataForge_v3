@@ -69,7 +69,7 @@ export default function ThemeSwitcher() {
 
   return (
     <div className="relative z-[9999]" ref={dropdownRef}>
-      <button onClick={() => setIsOpen(!isOpen)} className="ibt mr-1" aria-label="Toggle Theme">
+      <button onClick={() => setIsOpen(!isOpen)} className="ibt !mr-0" aria-label="Toggle Theme">
         {/* Keeping original icon as requested */}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.32626 19.4754 5.99264 19.7423 6.66667 19.7423C7.03967 19.7423 7.39893 19.8659 7.69348 20.0954L8.13488 20.4393C8.94828 21.0719 9.94589 21.4925 11.0028 21.7857C11.3323 21.877 11.666 21.9489 12 22Z" />

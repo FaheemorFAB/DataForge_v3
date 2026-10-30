@@ -34,7 +34,7 @@ import {
   CSVLogo, ParquetLogo,
 } from "../components/landing/DataLogos";
 
-// â”€â”€ Role Config (Strict 3-Tier Enterprise RBAC)
+// ── Role Config (Strict 3-Tier Enterprise RBAC)
 const ROLES = [
   { id: "Admin",   label: "Admin",   color: "var(--accent)", desc: "Full platform & team governance" },
   { id: "Analyst", label: "Analyst", color: "var(--accent)", desc: "EDA, AutoML, transforms & insights" },
@@ -42,7 +42,7 @@ const ROLES = [
 ] as const;
 type RoleId = typeof ROLES[number]["id"];
 
-// â”€â”€ Tab Config
+// ── Tab Config
 const TABS = [
   { id: "preview",   label: "My Data",     icon: Table,          desc: "View and search your dataset" },
   { id: "cleaning",  label: "Clean & Fix", icon: Wand2,          desc: "Repair blanks and fix data types" },
@@ -183,13 +183,13 @@ function WorkspaceContent() {
         </div>
       )}
 
-      {/* â•â• TOP NAV â•â• */}
+      {/* ── TOP NAV ── */}
       <nav
-        className="sticky top-0 z-30 flex items-center justify-between shrink-0 px-2 sm:px-4 h-[52px] border-b gap-1.5 sm:gap-2"
+        className="sticky top-0 z-30 flex items-center justify-between shrink-0 px-2 sm:px-4 h-[52px] border-b gap-1 sm:gap-2"
         style={{ background: "var(--nav)", borderColor: "var(--border)" }}
       >
         {/* Left: Logo + dataset pill */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1 sm:flex-initial">
           <Link href="/" className="flex items-center gap-2 shrink-0 no-underline">
             <Logo size={22} textSize={15} textClassName="hidden sm:flex" />
           </Link>
@@ -198,7 +198,7 @@ function WorkspaceContent() {
             <>
               <div className="w-px h-4 shrink-0 hidden sm:block" style={{ background: "var(--border)" }} />
               <div
-                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1 rounded-lg border text-xs min-w-0 max-w-[190px] sm:max-w-none"
+                className="flex items-center gap-1 sm:gap-2 px-1.5 sm:px-2.5 py-1 rounded-lg border text-xs min-w-0 max-w-[125px] xs:max-w-[160px] sm:max-w-none overflow-hidden shrink"
                 style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
               >
                 {cleanProfile && (
@@ -206,27 +206,28 @@ function WorkspaceContent() {
                     Cleaned
                   </span>
                 )}
-                <span className="font-semibold truncate max-w-[70px] xs:max-w-[100px] sm:max-w-[140px] md:max-w-[180px]" style={{ color: "var(--txt)" }}>
+                <span className="font-semibold truncate max-w-[50px] xs:max-w-[75px] sm:max-w-[140px] md:max-w-[180px] shrink" style={{ color: "var(--txt)" }}>
                   {profile?.filename ?? "Dataset"}
                 </span>
-                <span className="hidden md:inline" style={{ color: "var(--border)" }}>Â·</span>
+                <span className="hidden md:inline opacity-40">&bull;</span>
                 <span className="shrink-0 hidden md:inline">{activeRows.toLocaleString()} rows</span>
-                <span className="hidden lg:inline" style={{ color: "var(--border)" }}>Â·</span>
+                <span className="hidden lg:inline opacity-40">&bull;</span>
                 <span className="shrink-0 hidden lg:inline">{activeCols} cols</span>
                 <button
                   onClick={() => { if (!isClean) setActiveTab("cleaning" as any); }}
-                  className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-bold border shrink-0 cursor-pointer"
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border shrink-0 cursor-pointer"
                   style={{
                     background:  isClean ? "rgba(16,185,129,.1)"  : "rgba(245,158,11,.1)",
                     borderColor: isClean ? "rgba(16,185,129,.3)"  : "rgba(245,158,11,.3)",
                     color:       isClean ? "#10b981"               : "#f59e0b",
                   }}
-                  title={isClean ? "Data is clean" : `${missing} blanks â€” click to fix`}
+                  title={isClean ? "Data is clean" : `${missing} blanks — click to fix`}
                 >
-                  {isClean
-                    ? <><CheckCircle2 size={10} /><span className="hidden sm:inline">Clean</span></>
-                    : <><AlertTriangle size={10} /><span className="sm:hidden">{missing}</span><span className="hidden sm:inline">{health}% Â· {missing} blanks</span></>
-                  }
+                  {isClean ? (
+                    <><CheckCircle2 size={10} className="shrink-0" /><span className="hidden sm:inline">Clean</span></>
+                  ) : (
+                    <><AlertTriangle size={10} className="shrink-0" /><span className="sm:hidden">{missing > 9999 ? `${(missing / 1000).toFixed(0)}k` : missing}</span><span className="hidden sm:inline">{health}% &bull; {missing} blanks</span></>
+                  )}
                 </button>
               </div>
 
@@ -235,17 +236,16 @@ function WorkspaceContent() {
                 <button
                   onClick={() => syncSheets()}
                   disabled={isSyncingSheets}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-sm disabled:opacity-60 shrink-0"
+                  className="flex items-center justify-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1 h-7 sm:h-auto rounded-lg text-xs font-bold border transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-sm disabled:opacity-60 shrink-0"
                   style={{
                     background: "rgba(16, 185, 129, 0.12)",
                     borderColor: "rgba(16, 185, 129, 0.35)",
                     color: "#10b981",
                   }}
-                  title="Fetch latest updates, added rows, or edits directly from Google Sheets"
+                  title="Fetch latest updates from Google Sheets"
                 >
-                  <RefreshCw size={11} className={isSyncingSheets ? "animate-spin" : ""} />
+                  <RefreshCw size={11} className={`shrink-0 ${isSyncingSheets ? "animate-spin" : ""}`} />
                   <span className="hidden sm:inline">{isSyncingSheets ? "Syncing..." : "Sync Sheet"}</span>
-                  <span className="sm:hidden">{isSyncingSheets ? "..." : "Sync"}</span>
                 </button>
               )}
             </>
@@ -266,7 +266,7 @@ function WorkspaceContent() {
         </div>
 
         {/* Right: Role + Share + Overflow + Theme + User */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {/* Pipeline Studio / Make Your Own Pipeline Button (desktop / tablet) */}
           {mounted && uploadId && (
             <button
@@ -289,7 +289,7 @@ function WorkspaceContent() {
           {mounted && uploadId && (
             <button
               onClick={() => setShowShareModal(true)}
-              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-sm shrink-0"
+              className="flex items-center justify-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 h-7 sm:h-auto rounded-lg text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-sm shrink-0"
               style={{
                 background: "var(--accent)",
                 color: "#ffffff",
@@ -297,7 +297,7 @@ function WorkspaceContent() {
               }}
               title="Share dataset and manage access"
             >
-              <Users size={13} />
+              <Users size={13} className="shrink-0" />
               <span className="hidden sm:inline">Share</span>
             </button>
           )}
@@ -403,7 +403,7 @@ function WorkspaceContent() {
         </div>
       </nav>
 
-      {/* â•â• TAB STRIP â•â• */}
+      {/* ── TAB STRIP ── */}
       <div
         className="w-full h-[42px] border-b shrink-0 flex items-center px-2 sm:px-3 gap-0.5 overflow-x-auto no-scrollbar no-print"
         style={{ background: "var(--nav)", borderColor: "var(--border)", WebkitOverflowScrolling: "touch" }}
@@ -467,7 +467,7 @@ function WorkspaceContent() {
         )}
       </div>
 
-      {/* â•â• MAIN CONTENT â•â• */}
+      {/* ── MAIN CONTENT ── */}
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         {!mounted || (isLoadingWorkspace && !profile) || isLoadingSample || (uploadId && !profile && !apiError) ? (
           <div className="min-h-full flex flex-col items-center justify-center p-8 text-center animate-fadeIn">

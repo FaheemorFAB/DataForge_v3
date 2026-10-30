@@ -464,7 +464,7 @@ export function CleanerTab() {
                     <button
                       type="button"
                       onClick={clearSelection}
-                      className="text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all cursor-pointer shadow-xs flex items-center gap-1 bg-red-500/15 border-red-500/40 text-red-400 hover:bg-red-500/25 shrink-0"
+                      className="text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all cursor-pointer shadow-xs flex items-center gap-1 bg-red-500/25 border-red-500/50 text-red-300 hover:bg-red-500/40 shrink-0"
                       title="Clear selection"
                     >
                       <X size={11} className="shrink-0" />
