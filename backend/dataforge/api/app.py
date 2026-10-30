@@ -169,6 +169,10 @@ def create_app() -> FastAPI:
         auth, automl, dashboard, health, insights, models, pipeline, procedures, projects, subscription, tasks, teams, workspace,
     )
     
+    @app.get("/health", tags=["health"], summary="Root health check for Render & cloud load balancers")
+    async def root_health():
+        return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
+
     @app.get("/", include_in_schema=False)
     async def root_redirect():
         from fastapi.responses import RedirectResponse
