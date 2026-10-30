@@ -119,7 +119,7 @@ function IngestVisual() {
         </span>
       </div>
       <div
-        className="overflow-hidden rounded-xl border"
+        className="overflow-x-auto rounded-xl border"
         style={{ borderColor: "var(--border)" }}
       >
         <table className="w-full text-xs">
@@ -685,9 +685,17 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const visualPanelRef = useRef<HTMLDivElement>(null);
   const { Visual, color } = PIPELINE_STAGES[active];
+  const [isPaused, setIsPaused] = useState(false);
+  const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleStageSelect = (index: number) => {
     setActive(index);
+    setIsPaused(true);
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = setTimeout(() => {
+      setIsPaused(false);
+    }, 7000);
+
     if (typeof window !== "undefined" && window.innerWidth < 768 && visualPanelRef.current) {
       const rect = visualPanelRef.current.getBoundingClientRect();
       if (rect.top < 70) {
@@ -696,9 +704,25 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
     }
   };
 
+  // Automatically cycle through Stage 1 to Stage 6 on mobile screens
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isMobile = window.innerWidth < 1024;
+    if (!isMobile || isPaused) return;
+
+    const timer = setInterval(() => {
+      setActive((prev) => (prev + 1) % PIPELINE_STAGES.length);
+    }, 3200);
+
+    return () => clearInterval(timer);
+  }, [isPaused]);
+
   useEffect(() => {
     const onScroll = () => {
       if (typeof window !== "undefined" && (window as any).__isProgrammaticScrolling) {
+        return;
+      }
+      if (typeof window !== "undefined" && window.innerWidth < 1024) {
         return;
       }
       const outer = outerRef.current;
@@ -744,7 +768,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
           {/* Split — Visual animation placed above 6 pipelines on mobile */}
           <div className="flex flex-col md:flex-row gap-6 md:gap-8 lg:gap-12 items-start">
             {/* Left (on desktop) / Bottom (on mobile) — timeline of 6 pipelines */}
-            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0">
+            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0 order-2 md:order-1">
               <div
                 className="absolute left-6 top-0 bottom-0 w-px"
                 style={{ background: "var(--border)", zIndex: 0 }}
@@ -837,7 +861,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
             </div>
 
             {/* Right (on desktop) / Top (on mobile) — visual animation panel */}
-            <div ref={visualPanelRef} className="hidden md:block w-full md:w-7/12 lg:w-3/5 order-1 md:order-2">
+            <div ref={visualPanelRef} className="w-full md:w-7/12 lg:w-3/5 order-1 md:order-2">
               <div
                 className="rounded-2xl border overflow-hidden shadow-2xl transition-all duration-500"
                 style={{
@@ -881,7 +905,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                 </div>
 
                 {/* visual content */}
-                <div className="p-6">
+                <div className="p-3.5 sm:p-6">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={active}
@@ -896,7 +920,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                 </div>
 
                 {/* CTA strip */}
-                <div className="px-6 pb-5">
+                <div className="px-3.5 sm:px-6 pb-3.5 sm:pb-5">
                   <button
                     onClick={onTryDataset}
                     className="relative overflow-hidden flex items-center justify-between w-full px-5 py-3 rounded-2xl font-bold text-sm transition-all duration-300 hover:scale-[1.015] active:scale-[0.99] group cursor-pointer border"
