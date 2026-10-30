@@ -809,23 +809,19 @@ export default function WorkspaceLaunchModal({
           style={{ borderColor: "var(--border)" }}
         >
           <div className="flex items-center gap-2.5 sm:gap-3">
-            <Logo size={24} showText={false} />
+            <div
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-dotted flex items-center justify-center shrink-0"
+              style={{
+                borderColor: "var(--accent)",
+                background: "var(--glow)",
+              }}
+            >
+              <Logo size={18} showText={false} />
+            </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
-                  {isGeneratingWorkspace ? "Opening Workspace" : "Import Data"}
-                </h3>
-                <span
-                  className="text-[9px] sm:text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border uppercase"
-                  style={{
-                    background: "var(--glow)",
-                    borderColor: "var(--border)",
-                    color: "var(--accent)",
-                  }}
-                >
-                  Hub
-                </span>
-              </div>
+              <h3 className="text-xs sm:text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
+                {isGeneratingWorkspace ? "Opening Workspace" : "Import Data"}
+              </h3>
               <p className="text-[10px] sm:text-xs text-[var(--txt-m)] mt-0.5 line-clamp-1">
                 {isGeneratingWorkspace
                   ? "Setting up your data session..."
@@ -907,14 +903,14 @@ export default function WorkspaceLaunchModal({
             </div>
 
             {/* Main Content Area */}
-            <div className="grid grid-cols-1 md:grid-cols-12 min-h-0 sm:min-h-[360px] overflow-y-auto flex-1">
+            <div className="grid grid-cols-1 md:grid-cols-12 min-h-0 sm:min-h-[360px] overflow-y-auto minimal-scrollbar flex-1">
               {/* Left Column: Source Selection (5 cols) */}
               <div
                 className="md:col-span-5 border-b md:border-b-0 md:border-r p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3"
                 style={{ borderColor: "var(--border)" }}
               >
                 {/* List */}
-                <div className="flex-1 overflow-y-auto space-y-1 pr-1 max-h-[140px] sm:max-h-[340px]">
+                <div className="flex-1 overflow-y-auto minimal-scrollbar space-y-1.5 pr-1.5 max-h-[165px] sm:max-h-[340px]">
                   {selectedCategory === "samples" ? (
                     SAMPLE_DATASETS.map((sample) => (
                       <button
@@ -960,6 +956,14 @@ export default function WorkspaceLaunchModal({
                       );
                     })
                   )}
+                </div>
+
+                {/* Mobile Scroll Indicator */}
+                <div className="md:hidden pt-1 flex items-center justify-between text-[10px] text-[var(--txt-m)] border-t border-[var(--border)]/40 shrink-0">
+                  <span className="flex items-center gap-1 font-medium">
+                    <span>Scroll for more sources</span>
+                  </span>
+                  <span className="text-[9px] font-mono text-[var(--accent)] font-bold animate-bounce">↓</span>
                 </div>
               </div>
 
