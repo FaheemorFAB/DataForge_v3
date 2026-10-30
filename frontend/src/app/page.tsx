@@ -1247,7 +1247,7 @@ export default function Home() {
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
               variants={fadeUp}
-              className="relative w-full aspect-square flex items-center justify-center"
+              className="relative w-full max-w-sm sm:max-w-md mx-auto aspect-square flex items-center justify-center"
             >
               {/* Background glow */}
               <div
@@ -1404,7 +1404,7 @@ export default function Home() {
       </main>
 
       {/* ══════════════ BOTTOM CTA BANNER (Compact Variant) ══════════════ */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-12 sm:mb-16">
         <CTABanner
           variant="compact"
           title="Ready to experience DataForge with your own data?"
