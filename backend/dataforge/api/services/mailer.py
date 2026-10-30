@@ -91,8 +91,15 @@ class EmailDeliveryService:
         # Exclusively use Resend HTTP API
         if settings.RESEND_API_KEY:
             try:
+                sender = (
+                    getattr(settings, "RESEND_FROM_EMAIL", None)
+                    or getattr(settings, "MAIL_FROM", None)
+                    or "notifications@numan-10.site"
+                )
+                from_field = sender if "<" in sender else f"DataForge <{sender}>"
+
                 resend_payload = json.dumps({
-                    "from": settings.MAIL_FROM,
+                    "from": from_field,
                     "to": [recipient_email],
                     "subject": subject,
                     "text": text_body,

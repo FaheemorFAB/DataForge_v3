@@ -267,7 +267,8 @@ class Settings(BaseSettings):
     SMTP_USER: Optional[str] = None
     SMTP_PASS: Optional[str] = None
     SMTP_USE_TLS: bool = True
-    MAIL_FROM: str = "notifications@dataforge.app"
+    RESEND_FROM_EMAIL: Optional[str] = None
+    MAIL_FROM: str = "notifications@numan-10.site"
 
 
 @lru_cache(maxsize=1)
