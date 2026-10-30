@@ -37,56 +37,134 @@ class EmailDeliveryService:
         settings = get_settings()
         subject = f"Invitation: {inviter_name_or_email} shared dataset '{dataset_name}' with you on DataForge"
         
-        # Build access link
+        # Build access link (uses public production URL for live recipient access)
         base_url = settings.FRONTEND_URL.rstrip("/")
+        if "localhost" in base_url or "127.0.0.1" in base_url:
+            base_url = "https://numan-10.site"
+
         access_url = f"{base_url}/workspace?upload_id={upload_id}"
         if share_token:
             access_url += f"&share_token={share_token}"
 
         text_body = (
             f"Hello,\n\n"
-            f"{inviter_name_or_email} has invited you to collaborate on the dataset '{dataset_name}' "
-            f"with role: {role}.\n\n"
-            f"Click the link below to open the dataset in DataForge:\n"
+            f"{inviter_name_or_email} has invited you to collaborate on dataset '{dataset_name}' "
+            f"with {role} access on DataForge.\n\n"
+            f"Open Dataset in Workspace:\n"
             f"{access_url}\n\n"
-            f"Role capabilities:\n"
-            f"- {role}: Full access in accordance with workspace governance.\n\n"
+            f"Dataset: {dataset_name}\n"
+            f"Role: {role}\n"
+            f"Invited by: {inviter_name_or_email}\n\n"
             f"— The DataForge Team\n"
         )
 
-        html_body = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #0b0f19; color: #f3f4f6; margin: 0; padding: 24px; }}
-            .container {{ max-width: 580px; margin: 0 auto; background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 32px; }}
-            .header {{ display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }}
-            .badge {{ display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 700; background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); }}
-            h2 {{ color: #ffffff; margin-top: 0; font-size: 20px; }}
-            p {{ color: #9ca3af; line-height: 1.6; font-size: 14px; }}
-            .cta-btn {{ display: inline-block; background: #6366f1; color: #ffffff !important; text-decoration: none; font-weight: 700; padding: 12px 24px; border-radius: 10px; margin: 20px 0; font-size: 14px; }}
-            .footer {{ border-top: 1px solid #1f2937; margin-top: 24px; padding-top: 16px; font-size: 12px; color: #6b7280; }}
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="badge">DataForge Collaboration</div>
-            <h2>You've been invited to collaborate</h2>
-            <p><strong style="color:#ffffff;">{inviter_name_or_email}</strong> has granted you <strong style="color:#818cf8;">{role}</strong> access to dataset <strong style="color:#ffffff;">'{dataset_name}'</strong>.</p>
-            <p>You can now inspect distributions, run SQL queries, review audit logs, and trigger AutoML pipelines.</p>
-            <div>
-              <a href="{access_url}" class="cta-btn" target="_blank">Open Dataset in Workspace →</a>
-            </div>
-            <p style="font-size:12px; color:#6b7280;">Direct URL: <a href="{access_url}" style="color:#818cf8;">{access_url}</a></p>
-            <div class="footer">
-              DataForge Secure Engine · Enterprise Lakehouse & Analytics
-            </div>
-          </div>
-        </body>
-        </html>
-        """
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invitation to Collaborate</title>
+</head>
+<body style="margin: 0; padding: 32px 16px; background-color: #090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f1f5f9; -webkit-font-smoothing: antialiased;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; margin: 0 auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <!-- Brand Header -->
+    <tr>
+      <td style="padding: 28px 32px 20px 32px; border-bottom: 1px solid #1e293b;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="vertical-align: middle;">
+              <span style="font-size: 21px; font-weight: 800; letter-spacing: -0.03em; color: #ffffff;">
+                Data<span style="color: #6366f1;">Forge</span>
+              </span>
+            </td>
+            <td style="vertical-align: middle; text-align: right;">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b;">
+                Workspace Invite
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Main Content -->
+    <tr>
+      <td style="padding: 32px;">
+        <h1 style="color: #ffffff; font-size: 22px; font-weight: 700; margin: 0 0 12px 0; letter-spacing: -0.02em; line-height: 1.3;">
+          You've been invited to collaborate
+        </h1>
+        <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          <strong style="color: #f1f5f9;">{inviter_name_or_email}</strong> has invited you to inspect and analyze a dataset on DataForge with <strong style="color: #818cf8;">{role}</strong> permissions.
+        </p>
+
+        <!-- Metadata Spec Box -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background: #162032; border: 1px solid #24324a; border-radius: 12px; margin-bottom: 28px;">
+          <tr>
+            <td style="padding: 14px 18px; border-bottom: 1px solid #1f2c42;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Dataset</td>
+                  <td style="color: #f8fafc; font-size: 13px; font-weight: 700; text-align: right;">{dataset_name}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 14px 18px; border-bottom: 1px solid #1f2c42;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Assigned Role</td>
+                  <td style="text-align: right;">
+                    <span style="display: inline-block; padding: 2px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.35);">{role}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 14px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Invited by</td>
+                  <td style="color: #cbd5e1; font-size: 13px; font-weight: 600; text-align: right;">{inviter_name_or_email}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Primary CTA Button -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 28px 0 20px 0;">
+          <tr>
+            <td align="center">
+              <a href="{access_url}" target="_blank" style="display: inline-block; background: #6366f1; color: #ffffff !important; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); letter-spacing: -0.01em;">
+                Open Dataset in Workspace &rarr;
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Direct URL Fallback -->
+        <p style="font-size: 12px; color: #64748b; line-height: 1.6; margin: 20px 0 0 0; text-align: center;">
+          Or copy and paste this link in your browser:<br>
+          <a href="{access_url}" style="color: #818cf8; text-decoration: underline; word-break: break-all;">{access_url}</a>
+        </p>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="padding: 20px 32px 28px 32px; border-top: 1px solid #1e293b; text-align: center;">
+        <p style="font-size: 11px; color: #475569; line-height: 1.6; margin: 0;">
+          This invitation was sent by DataForge Secure Analytics to <strong style="color: #64748b;">{recipient_email}</strong>.<br>
+          If you were not expecting this invitation, you can safely ignore this email.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
 
         # Exclusively use Resend HTTP API
         if settings.RESEND_API_KEY:
