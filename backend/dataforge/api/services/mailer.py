@@ -2,16 +2,14 @@
 dataforge/api/services/mailer.py
 ────────────────────────────────
 Production Outbound Email & Notification Dispatch Service.
-Supports Resend API (HTTP) and standard SMTP (STARTTLS / SSL) transports
-with graceful dev fallback and templated dataset invitation messages.
+Exclusively uses Resend API (HTTP) for transactional and collaboration emails,
+with graceful simulated fallback for local development when credentials are absent.
 """
 
 from __future__ import annotations
 
-import email.message
 import json
 import logging
-import smtplib
 import urllib.request
 from typing import Any, Dict, Optional
 
@@ -21,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 class EmailDeliveryService:
-    """Dispatches transactional emails for collaboration invites, notifications, and alerts."""
+    """Dispatches transactional emails for collaboration invites, notifications, and alerts via Resend."""
 
     @classmethod
     def send_collaborator_invite(
@@ -34,7 +32,7 @@ class EmailDeliveryService:
         share_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Sends an official email invitation to access a dataset in DataForge.
+        Sends an official email invitation to access a dataset in DataForge via Resend.
         """
         settings = get_settings()
         subject = f"Invitation: {inviter_name_or_email} shared dataset '{dataset_name}' with you on DataForge"
@@ -90,7 +88,7 @@ class EmailDeliveryService:
         </html>
         """
 
-        # 1. Try Resend HTTP API
+        # Exclusively use Resend HTTP API
         if settings.RESEND_API_KEY:
             try:
                 resend_payload = json.dumps({
@@ -122,50 +120,24 @@ class EmailDeliveryService:
                         "access_url": access_url,
                     }
             except Exception as e:
-                log.warning("[mailer/resend] Failed to send via Resend: %s. Falling back to SMTP/simulated.", e)
-
-        # 2. Try Standard SMTP (if host provided)
-        if settings.SMTP_HOST:
-            try:
-                msg = email.message.EmailMessage()
-                msg["Subject"] = subject
-                msg["From"] = settings.MAIL_FROM
-                msg["To"] = recipient_email
-                msg.set_content(text_body)
-                msg.add_alternative(html_body, subtype="html")
-
-                if settings.SMTP_PORT == 465:
-                    with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
-                        if settings.SMTP_USER and settings.SMTP_PASS:
-                            server.login(settings.SMTP_USER, settings.SMTP_PASS)
-                        server.send_message(msg)
-                else:
-                    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
-                        if settings.SMTP_USE_TLS:
-                            server.starttls()
-                        if settings.SMTP_USER and settings.SMTP_PASS:
-                            server.login(settings.SMTP_USER, settings.SMTP_PASS)
-                        server.send_message(msg)
-
-                log.info("[mailer/smtp] Successfully sent invite email to %s via %s", recipient_email, settings.SMTP_HOST)
+                log.error("[mailer/resend] Failed to send email via Resend: %s", e)
                 return {
-                    "sent": True,
-                    "transport": "smtp",
+                    "sent": False,
+                    "transport": "resend",
+                    "error": str(e),
                     "recipient": recipient_email,
                     "access_url": access_url,
                 }
-            except Exception as e:
-                log.warning("[mailer/smtp] Failed to send via SMTP (%s): %s", settings.SMTP_HOST, e)
 
-        # 3. Development / Sandbox fallback: Log simulated delivery
+        # Simulated fallback for local dev when RESEND_API_KEY is omitted
         log.info(
-            "[mailer/simulated] Email to %s for dataset %s with access link: %s",
+            "[mailer/simulated] (No RESEND_API_KEY configured) Simulated email to %s for dataset %s with access link: %s",
             recipient_email, upload_id, access_url
         )
         return {
             "sent": False,
             "transport": "simulated",
-            "reason": "Missing RESEND_API_KEY or SMTP credentials in .env",
+            "reason": "Missing RESEND_API_KEY in .env (configure RESEND_API_KEY to send real emails)",
             "recipient": recipient_email,
             "access_url": access_url,
         }
