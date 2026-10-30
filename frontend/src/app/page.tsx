@@ -1124,7 +1124,7 @@ export default function Home() {
                   className="max-w-lg text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed transition-colors duration-300"
                   style={{ color: "var(--txt-m)" }}
                 >
-                  Transform raw spreadsheets into statistical insights, predictive models, and executive reports without code.
+                  Transform raw spreadsheets into statistical insights, predictive models, and executive reports <Scratch>without code.</Scratch>
                 </p>
               </motion.div>
 
