@@ -1,11 +1,11 @@
-"""
+﻿"""
 dataforge/api/app.py
-──────────────────────
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 FastAPI application factory.
 
 Lifecycle (lifespan):
-  startup  → bootstrap JobRegistry, init WebSocket manager, warm executor, setup OAuth
-  shutdown → graceful executor shutdown
+  startup  â†’ bootstrap JobRegistry, init WebSocket manager, warm executor, setup OAuth
+  shutdown â†’ graceful executor shutdown
 
 Registered routers:
   /api/v1/*        (auth, upload, workspace, insights, automl, dashboard, projects, tasks)
@@ -14,7 +14,7 @@ Registered routers:
 
 Middleware:
   CORS
-  SessionMiddleware (for OAuth state only — not for auth)
+  SessionMiddleware (for OAuth state only â€” not for auth)
   RequestLoggingMiddleware
   SlowAPI rate limiting
 """
@@ -51,32 +51,32 @@ def _setup_logging():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager — replaces Flask's app.before_first_request."""
+    """Application lifespan manager â€” replaces Flask's app.before_first_request."""
     _setup_logging()
     settings.validate_production_environment()
     log.info("Starting DataForge API v%s", settings.APP_VERSION)
 
-    # ── Initialize WebSocket manager ──────────────────────────────────────────
+    # â”€â”€ Initialize WebSocket manager â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     from dataforge.api.websocket.manager import get_ws_manager
     ws_manager = get_ws_manager()
     app.state.ws_manager = ws_manager
     log.info("WebSocket manager initialized")
 
-    # ── Warm up ThreadPoolExecutor ─────────────────────────────────────────────
+    # â”€â”€ Warm up ThreadPoolExecutor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     from dataforge.api.jobs.executor import get_executor
     executor = get_executor()
     app.state.executor = executor
     log.info("ThreadPoolExecutor ready: max_workers=%d", executor._max_workers)
 
-    # ── Bootstrap JobRegistry from Supabase ───────────────────────────────────
+    # â”€â”€ Bootstrap JobRegistry from Supabase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     from dataforge.api.jobs import registry
     await registry.bootstrap()
 
-    # ── Initialize JobManager ─────────────────────────────────────────────────
+    # â”€â”€ Initialize JobManager â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     from dataforge.api.jobs.manager import get_job_manager
     app.state.job_manager = get_job_manager()
 
-    # ── Google OAuth client ───────────────────────────────────────────────────
+    # â”€â”€ Google OAuth client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if settings.GOOGLE_AUTH_ENABLED:
         try:
             from authlib.integrations.starlette_client import OAuth
@@ -98,9 +98,9 @@ async def lifespan(app: FastAPI):
         log.info("Google OAuth disabled (GOOGLE_CLIENT_ID not set)")
 
     log.info("DataForge API startup complete")
-    yield  # ← Application runs here
+    yield  # â† Application runs here
 
-    # ── Cleanup ───────────────────────────────────────────────────────────────
+    # â”€â”€ Cleanup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     from dataforge.api.jobs.executor import shutdown_executor
     shutdown_executor()
     log.info("DataForge API shutdown complete")
@@ -111,14 +111,14 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
-        description="DataForge — Intelligent Data Analysis Platform",
+        description="DataForge â€” Intelligent Data Analysis Platform",
         lifespan=lifespan,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
     )
 
-    # ── Middleware stack ──────────────────────────────────────────────────────
+    # â”€â”€ Middleware stack â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     # CORS (dev: allow all localhost; prod: restrict to FRONTEND_URL / ALLOWED_ORIGINS)
     app.add_middleware(
@@ -129,12 +129,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Session middleware — used ONLY for OAuth state (not for auth)
+    # Session middleware â€” used ONLY for OAuth state (not for auth)
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.JWT_SECRET,
         session_cookie="df_session",
-        max_age=300,  # 5 min — just enough for OAuth round-trip
+        max_age=300,  # 5 min â€” just enough for OAuth round-trip
         https_only=settings.SESSION_HTTPS_ONLY,  # True in production (HTTPS), False in dev
         same_site="lax",
     )
@@ -162,11 +162,11 @@ def create_app() -> FastAPI:
         app.add_middleware(SlowAPIMiddleware)
         log.info("SlowAPI rate limiting enabled")
     except ImportError:
-        log.warning("slowapi not installed — rate limiting disabled")
+        log.warning("slowapi not installed â€” rate limiting disabled")
 
     # ── Register routers ──────────────────────────────────────────────────────
     from dataforge.api.routes import (
-        auth, automl, dashboard, health, insights, joins, models, pipeline, procedures, projects, subscription, tasks, teams, workspace,
+        auth, automl, dashboard, health, insights, models, pipeline, procedures, projects, subscription, tasks, teams, workspace,
     )
     
     @app.get("/", include_in_schema=False)
@@ -182,7 +182,6 @@ def create_app() -> FastAPI:
     api_routers = [
         upload_router(),
         workspace.router,
-        joins.router,
         automl.router,
         insights.router,
         dashboard.router,
@@ -198,7 +197,7 @@ def create_app() -> FastAPI:
         app.include_router(r, prefix="/api/v1")
         app.include_router(r, prefix="/api")
 
-    # ── WebSocket endpoint ────────────────────────────────────────────────────
+    # â”€â”€ WebSocket endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     @app.websocket("/ws")
     async def websocket_endpoint(
         websocket: WebSocket,
@@ -225,7 +224,7 @@ def create_app() -> FastAPI:
         try:
             # Send welcome event
             await mgr.send_to_user(uid, "connected", {"user_id": uid, "upload_id": upload_id})
-            # Keep connection alive — wait for disconnect
+            # Keep connection alive â€” wait for disconnect
             while True:
                 data = await websocket.receive_text()
                 # Echo/ping-pong keepalive
@@ -236,7 +235,7 @@ def create_app() -> FastAPI:
         finally:
             await mgr.disconnect(websocket, uid, upload_id)
 
-    # ── Global exception handler ──────────────────────────────────────────────
+    # â”€â”€ Global exception handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
         log.exception("Unhandled exception: %s", exc)
@@ -245,7 +244,7 @@ def create_app() -> FastAPI:
             content={"error": "Internal server error", "detail": str(exc) if settings.DEBUG else None},
         )
 
-    # ── Static files ──────────────────────────────────────────────────────────
+    # â”€â”€ Static files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     static_dir = settings.STATIC_DIR
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")

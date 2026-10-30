@@ -1,4 +1,4 @@
-"""
+﻿"""
 backend/tests/test_tenant_isolation.py
 ──────────────────────────────────────
 Security Suite: Cross-tenant boundary verification.
@@ -100,31 +100,6 @@ def test_cross_tenant_workspace_isolation(client, user_a, user_b):
     )
     assert res_stats_a.status_code == 200
 
-
-def test_cross_tenant_joins_isolation(client, user_a, user_b):
-    """User B cannot preview or join datasets owned by User A."""
-    upload_id = "tenant_iso_join_101"
-    df = pd.DataFrame({"user_id": [1, 2], "score": [95, 88]})
-    meta = {
-        "id": upload_id,
-        "user_id": user_a["id"],
-        "filename": "scores.csv",
-        "rows": 2,
-        "cols": 2,
-    }
-    save(upload_id, "meta", meta)
-    save(upload_id, "df_raw", df)
-
-    res_join = client.post(
-        "/api/joins/preview",
-        json={
-            "upload_id": upload_id,
-            "base_table": "scores",
-            "joins": [],
-        },
-        headers=user_b["headers"],
-    )
-    assert res_join.status_code == 403
 
 
 def test_cross_tenant_model_registry_isolation(client, user_a, user_b):

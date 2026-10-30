@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -10,8 +10,6 @@ import { AutoMLTab } from "./components/AutoMLTab";
 import { InsightsTab } from "./components/InsightsTab";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { DashboardTab } from "./components/DashboardTab";
-import { JoinCanvasTab } from "./components/JoinCanvasTab";
-import { MultiSheetTab } from "./components/MultiSheetTab";
 import { TeamGovernanceDrawer } from "./components/TeamGovernanceDrawer";
 import { ModelRegistryTab } from "./components/ModelRegistryTab";
 import { PipelineStudioModal } from "./components/PipelineStudioModal";
@@ -29,14 +27,14 @@ import {
   Table, GitMerge, Wand2, LayoutDashboard, Lightbulb, MessageSquare,
   FileText, Bot, Database, Boxes, Users, Code, UploadCloud, Sparkles,
   RefreshCw, PlusCircle, CheckCircle2, AlertTriangle, ChevronDown,
-  ArrowRight, Zap, MoreHorizontal, FileSpreadsheet,
+  ArrowRight, Zap, MoreHorizontal,
 } from "lucide-react";
 import {
   SupabaseLogo, PostgresLogo,
   CSVLogo, ParquetLogo,
 } from "../components/landing/DataLogos";
 
-// ── Role Config (Strict 3-Tier Enterprise RBAC)
+// â”€â”€ Role Config (Strict 3-Tier Enterprise RBAC)
 const ROLES = [
   { id: "Admin",   label: "Admin",   color: "var(--accent)", desc: "Full platform & team governance" },
   { id: "Analyst", label: "Analyst", color: "var(--accent)", desc: "EDA, AutoML, transforms & insights" },
@@ -44,7 +42,7 @@ const ROLES = [
 ] as const;
 type RoleId = typeof ROLES[number]["id"];
 
-// ── Tab Config
+// â”€â”€ Tab Config
 const TABS = [
   { id: "preview",   label: "My Data",     icon: Table,          desc: "View and search your dataset" },
   { id: "cleaning",  label: "Clean & Fix", icon: Wand2,          desc: "Repair blanks and fix data types" },
@@ -54,11 +52,10 @@ const TABS = [
   { id: "automl",    label: "AutoML",      icon: Bot,            desc: "Train predictive models with AutoML" },
   { id: "models",    label: "Models",      icon: Boxes,          desc: "Manage trained prediction models" },
   { id: "eda",       label: "Reports",     icon: FileText,       desc: "Export executive briefing deck" },
-  { id: "multisheet",label: "Multi-Sheet", icon: FileSpreadsheet,desc: "Multi-table & multi-sheet analytics studio" },
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
-const PRIMARY_TAB_IDS: TabId[] = ["preview", "cleaning", "dashboard", "insights", "query", "automl", "models", "eda", "multisheet"];
+const PRIMARY_TAB_IDS: TabId[] = ["preview", "cleaning", "dashboard", "insights", "query", "automl", "models", "eda"];
 
 function WorkspaceContent() {
   const {
@@ -159,7 +156,7 @@ function WorkspaceContent() {
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: "var(--bg)", color: "var(--txt)" }}>
 
-      {/* ══ TOP NAV ══ */}
+      {/* â•â• TOP NAV â•â• */}
       <nav
         className="sticky top-0 z-30 flex items-center justify-between shrink-0 px-2 sm:px-4 h-[52px] border-b gap-1.5 sm:gap-2"
         style={{ background: "var(--nav)", borderColor: "var(--border)" }}
@@ -185,9 +182,9 @@ function WorkspaceContent() {
                 <span className="font-semibold truncate max-w-[70px] xs:max-w-[100px] sm:max-w-[140px] md:max-w-[180px]" style={{ color: "var(--txt)" }}>
                   {profile?.filename ?? "Dataset"}
                 </span>
-                <span className="hidden md:inline" style={{ color: "var(--border)" }}>·</span>
+                <span className="hidden md:inline" style={{ color: "var(--border)" }}>Â·</span>
                 <span className="shrink-0 hidden md:inline">{activeRows.toLocaleString()} rows</span>
-                <span className="hidden lg:inline" style={{ color: "var(--border)" }}>·</span>
+                <span className="hidden lg:inline" style={{ color: "var(--border)" }}>Â·</span>
                 <span className="shrink-0 hidden lg:inline">{activeCols} cols</span>
                 <button
                   onClick={() => { if (!isClean) setActiveTab("cleaning" as any); }}
@@ -197,11 +194,11 @@ function WorkspaceContent() {
                     borderColor: isClean ? "rgba(16,185,129,.3)"  : "rgba(245,158,11,.3)",
                     color:       isClean ? "#10b981"               : "#f59e0b",
                   }}
-                  title={isClean ? "Data is clean" : `${missing} blanks — click to fix`}
+                  title={isClean ? "Data is clean" : `${missing} blanks â€” click to fix`}
                 >
                   {isClean
                     ? <><CheckCircle2 size={10} /><span className="hidden sm:inline">Clean</span></>
-                    : <><AlertTriangle size={10} /><span className="sm:hidden">{missing}</span><span className="hidden sm:inline">{health}% · {missing} blanks</span></>
+                    : <><AlertTriangle size={10} /><span className="sm:hidden">{missing}</span><span className="hidden sm:inline">{health}% Â· {missing} blanks</span></>
                   }
                 </button>
               </div>
@@ -256,7 +253,7 @@ function WorkspaceContent() {
               title="Build, automate, and export your custom data pipeline (DF-SPE, dbt, Airflow)"
             >
               <Code size={13} />
-              <span className="hidden lg:inline">⚡ Pipeline Studio</span>
+              <span className="hidden lg:inline">âš¡ Pipeline Studio</span>
               <span className="lg:hidden">Pipeline</span>
             </button>
           )}
@@ -371,7 +368,7 @@ function WorkspaceContent() {
                     style={{ color: "#818cf8" }}
                   >
                     <Code size={13} />
-                    <span className="font-medium">⚡ Pipeline Studio</span>
+                    <span className="font-medium">âš¡ Pipeline Studio</span>
                   </button>
                 )}
 
@@ -414,7 +411,7 @@ function WorkspaceContent() {
         </div>
       </nav>
 
-      {/* ══ TAB STRIP ══ */}
+      {/* â•â• TAB STRIP â•â• */}
       <div
         className="w-full h-[42px] border-b shrink-0 flex items-center px-2 sm:px-3 gap-0.5 overflow-x-auto no-scrollbar no-print"
         style={{ background: "var(--nav)", borderColor: "var(--border)", WebkitOverflowScrolling: "touch" }}
@@ -478,7 +475,7 @@ function WorkspaceContent() {
         )}
       </div>
 
-      {/* ══ MAIN CONTENT ══ */}
+      {/* â•â• MAIN CONTENT â•â• */}
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         {!mounted || (isLoadingWorkspace && !profile) || isLoadingSample || (uploadId && !profile && !apiError) ? (
           <div className="min-h-full flex flex-col items-center justify-center p-8 text-center animate-fadeIn">
@@ -492,7 +489,6 @@ function WorkspaceContent() {
         ) : (
           <>
             <div className={`workspace-tab-panel ${activeTab === "preview" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "preview"   ? "block" : "none", height: "100%" }}><ExplorerTab /></div>
-            <div className={`workspace-tab-panel ${activeTab === "multisheet" || activeTab === "joins" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "multisheet" || activeTab === "joins" ? "block" : "none", height: "100%" }}><MultiSheetTab /></div>
             <div className={`workspace-tab-panel ${activeTab === "cleaning" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "cleaning"  ? "block" : "none", height: "100%" }}><CleanerTab /></div>
             <div className={`workspace-tab-panel ${activeTab === "eda" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "eda"       ? "block" : "none", height: "100%" }}><EDATab /></div>
             <div className={`workspace-tab-panel ${activeTab === "automl" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "automl"    ? "block" : "none", height: "100%" }}><AutoMLTab /></div>

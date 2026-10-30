@@ -1,0 +1,83 @@
+services:
+  - type: web
+    name: dataforge-backend
+    runtime: python
+    region: oregon
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # ── Core ──────────────────────────────────────────────────────────────────
+      - key: PRODUCTION
+        value: "true"
+      - key: FRONTEND_URL
+        sync: false   # Set in Render dashboard: https://YOUR-APP.vercel.app
+      - key: BACKEND_URL
+        sync: false   # Set in Render dashboard: https://YOUR-BACKEND.onrender.com
+      - key: ALLOWED_ORIGINS
+        sync: false   # Set in Render dashboard: https://YOUR-APP.vercel.app
+
+      # ── Security ──────────────────────────────────────────────────────────────
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+
+      # ── Google OAuth ──────────────────────────────────────────────────────────
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false   # https://YOUR-BACKEND.onrender.com/auth/google/callback
+
+      # ── AI ────────────────────────────────────────────────────────────────────
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-4-argon
+
+      # ── Supabase ──────────────────────────────────────────────────────────────
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: dataforge-datasets
+
+      # ── Resend Email ──────────────────────────────────────────────────────────
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        value: notifications@dataforge.app
+
+      # ── Dodo Payments (LIVE) ──────────────────────────────────────────────────
+      - key: PAYMENT_PROVIDER
+        value: dodo
+      - key: DODO_PAYMENTS_API_KEY
+        sync: false
+      - key: DODO_PAYMENTS_WEBHOOK_KEY
+        sync: false
+      - key: DODO_PAYMENTS_ENVIRONMENT
+        value: live_mode
+      - key: DODO_PRODUCT_PRO_MONTHLY
+        sync: false
+      - key: DODO_PRODUCT_TEAM_MONTHLY
+        sync: false
+
+      # ── Feature Flags ─────────────────────────────────────────────────────────
+      - key: DATAFORGE_SYNC_FALLBACK
+        value: "1"
+      - key: ALLOW_LOCAL_DATABASE
+        value: "false"
+
+      # ── Tier Whitelists ───────────────────────────────────────────────────────
+      - key: TEAM_TIER_EMAILS
+        sync: false
+      - key: PRO_TIER_EMAILS
+        sync: false
+
