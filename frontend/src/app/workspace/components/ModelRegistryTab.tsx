@@ -166,7 +166,18 @@ export function ModelRegistryTab() {
   // Handle register custom model
   const handleRegisterModel = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newModelName.trim()) return;
+    if (!newModelName.trim()) {
+      setRegisterError("Please enter a model name.");
+      return;
+    }
+    if (!newModelTarget.trim()) {
+      setRegisterError("Please enter a target column name.");
+      return;
+    }
+    if (!newModelFeatures.trim()) {
+      setRegisterError("Please enter at least one feature column.");
+      return;
+    }
     setRegistering(true);
     setRegisterError("");
 
@@ -941,14 +952,13 @@ export function ModelRegistryTab() {
               </div>
             )}
 
-            <form onSubmit={handleRegisterModel} className="space-y-3.5">
+            <form noValidate onSubmit={handleRegisterModel} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold mb-1" style={{ color: "var(--txt-m)" }}>
                   Model Name *
                 </label>
                 <input
                   type="text"
-                  required
                   placeholder="e.g. Annual Family Income Inr Predictor"
                   value={newModelName}
                   onChange={(e) => setNewModelName(e.target.value)}
@@ -1000,7 +1010,6 @@ export function ModelRegistryTab() {
                 </label>
                 <input
                   type="text"
-                  required
                   placeholder="e.g. annual_family_income_inr"
                   value={newModelTarget}
                   onChange={(e) => setNewModelTarget(e.target.value)}
@@ -1015,7 +1024,6 @@ export function ModelRegistryTab() {
                 </label>
                 <textarea
                   rows={2}
-                  required
                   placeholder="e.g. age, gender, city, state, school_type"
                   value={newModelFeatures}
                   onChange={(e) => setNewModelFeatures(e.target.value)}

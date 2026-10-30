@@ -123,7 +123,7 @@ export default function LoginPage() {
         </div>
 
         {/* Email & Password Form */}
-        <form onSubmit={handleEmailAuth} className="space-y-3">
+        <form noValidate onSubmit={handleEmailAuth} className="space-y-3">
           <div>
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5">
               <Mail size={14} className="text-zinc-400" />
@@ -133,8 +133,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-transparent text-xs text-white focus:outline-none w-full"
-                required
-              />
+                />
             </div>
           </div>
 
@@ -147,8 +146,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-transparent text-xs text-white focus:outline-none w-full"
-                required
-              />
+                />
             </div>
           </div>
 

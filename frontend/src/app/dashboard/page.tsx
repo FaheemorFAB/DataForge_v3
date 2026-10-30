@@ -127,6 +127,7 @@ export default function DashboardPage() {
   const [editEmailInput, setEditEmailInput] = useState<string>("");
   const [editAvatarId, setEditAvatarId] = useState<string>("avatar-1");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>("");
+  const [editProfileError, setEditProfileError] = useState<string>("");
 
   // Teams State (Members are ingested via email invite only)
   const [teams, setTeams] = useState<TeamItem[]>([]);
@@ -524,12 +525,24 @@ export default function DashboardPage() {
   // Profile Save Handler (Avatar, Name, Email)
   const handleSaveProfile = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!editNameInput.trim()) return;
+    setEditProfileError("");
+
+    if (!editNameInput.trim()) {
+      setEditProfileError("Please enter your full name.");
+      return;
+    }
+    if (!editEmailInput.trim()) {
+      setEditProfileError("Please enter your work email address.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editEmailInput.trim())) {
+      setEditProfileError("Please enter a valid work email address (e.g. name@company.com).");
+      return;
+    }
 
     setUserName(editNameInput.trim());
-    if (editEmailInput.trim()) {
-      setUserEmail(editEmailInput.trim());
-    }
+    setUserEmail(editEmailInput.trim());
     setUserAvatarId(editAvatarId);
     setIsEditingProfile(false);
 
@@ -564,6 +577,7 @@ export default function DashboardPage() {
     setEditNameInput(userName);
     setEditEmailInput(userEmail);
     setEditAvatarId(userAvatarId);
+    setEditProfileError("");
     setIsEditingProfile(true);
   };
 
@@ -595,8 +609,17 @@ export default function DashboardPage() {
       return;
     }
 
-    if (!inviteName.trim() || !inviteEmail.trim()) {
-      setInviteError("Name and email are required.");
+    if (!inviteName.trim()) {
+      setInviteError("Please enter the member's full name.");
+      return;
+    }
+    if (!inviteEmail.trim()) {
+      setInviteError("Please enter the member's work email address.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inviteEmail.trim())) {
+      setInviteError("Please enter a valid email address (e.g. name@company.com).");
       return;
     }
 
@@ -1725,7 +1748,21 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProfile} className="space-y-4">
+            {editProfileError && (
+              <div
+                className="p-3 rounded-xl border text-xs flex items-center gap-2 mb-3"
+                style={{
+                  background: "rgba(239, 68, 68, 0.1)",
+                  borderColor: "rgba(239, 68, 68, 0.3)",
+                  color: "#ef4444",
+                }}
+              >
+                <AlertCircle size={14} className="shrink-0" />
+                <p className="text-[11px] leading-relaxed font-medium">{editProfileError}</p>
+              </div>
+            )}
+
+            <form noValidate onSubmit={handleSaveProfile} className="space-y-4">
               {/* Avatar Selector */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -1778,14 +1815,16 @@ export default function DashboardPage() {
                   <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--txt-m)" }} />
                   <input
                     type="text"
-                    required
                     value={editNameInput}
-                    onChange={(e) => setEditNameInput(e.target.value)}
+                    onChange={(e) => {
+                      setEditNameInput(e.target.value);
+                      if (editProfileError) setEditProfileError("");
+                    }}
                     placeholder="Alex Morgan"
-                    className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border outline-none focus:border-[var(--accent)]"
+                    className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border outline-none transition-colors"
                     style={{
                       background: "var(--inp-bg)",
-                      borderColor: "var(--border)",
+                      borderColor: editProfileError && !editNameInput.trim() ? "#ef4444" : "var(--border)",
                       color: "var(--txt)",
                     }}
                   />
@@ -1801,14 +1840,16 @@ export default function DashboardPage() {
                   <Mail size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--txt-m)" }} />
                   <input
                     type="email"
-                    required
                     value={editEmailInput}
-                    onChange={(e) => setEditEmailInput(e.target.value)}
+                    onChange={(e) => {
+                      setEditEmailInput(e.target.value);
+                      if (editProfileError) setEditProfileError("");
+                    }}
                     placeholder="alex.morgan@dataforge.internal"
-                    className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border outline-none focus:border-[var(--accent)]"
+                    className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border outline-none transition-colors"
                     style={{
                       background: "var(--inp-bg)",
-                      borderColor: "var(--border)",
+                      borderColor: editProfileError && (!editEmailInput.trim() || !editEmailInput.includes("@")) ? "#ef4444" : "var(--border)",
                       color: "var(--txt)",
                     }}
                   />
@@ -1888,7 +1929,7 @@ export default function DashboardPage() {
 
             {inviteError && (
               <div
-                className="p-3 rounded-xl border text-xs flex flex-col gap-1.5"
+                className="p-3 rounded-xl border text-xs flex flex-col gap-1.5 animate-in fade-in"
                 style={{
                   background: "rgba(239, 68, 68, 0.1)",
                   borderColor: "rgba(239, 68, 68, 0.3)",
@@ -1897,38 +1938,47 @@ export default function DashboardPage() {
               >
                 <div className="flex items-center gap-1.5 font-bold">
                   <AlertCircle size={14} />
-                  <span>Limit Exceeded</span>
+                  <span>{inviteError.toLowerCase().includes("limit") ? "Limit Exceeded" : "Please Check Details"}</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">{inviteError}</p>
-                <Link
-                  href="/pricing"
-                  className="font-bold underline text-xs pt-1 flex items-center gap-1"
-                  style={{ color: "var(--accent)" }}
-                >
-                  <span>Upgrade to unlock higher team limits</span>
-                  <ArrowRight size={12} />
-                </Link>
+                {inviteError.toLowerCase().includes("limit") && (
+                  <Link
+                    href="/pricing"
+                    className="font-bold underline text-xs pt-1 flex items-center gap-1"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    <span>Upgrade to unlock higher team limits</span>
+                    <ArrowRight size={12} />
+                  </Link>
+                )}
               </div>
             )}
 
-            <form onSubmit={handleInviteMember} className="space-y-3.5">
+            <form noValidate onSubmit={handleInviteMember} className="space-y-3.5">
               <div className="space-y-1">
                 <label className="block text-xs font-semibold" style={{ color: "var(--txt)" }}>
                   Member Name
                 </label>
                 <input
                   type="text"
-                  required
                   value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
+                  onChange={(e) => {
+                    setInviteName(e.target.value);
+                    if (inviteError) setInviteError("");
+                  }}
                   placeholder="e.g. Jordan Lee"
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none focus:border-[var(--accent)]"
+                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none transition-colors"
                   style={{
                     background: "var(--inp-bg)",
-                    borderColor: "var(--border)",
+                    borderColor: inviteError && !inviteName.trim() ? "#ef4444" : "var(--border)",
                     color: "var(--txt)",
                   }}
                 />
+                {inviteError && !inviteName.trim() && (
+                  <p className="text-[11px] text-red-500 font-medium flex items-center gap-1 mt-0.5">
+                    <AlertCircle size={11} /> Please enter member name
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -1937,17 +1987,24 @@ export default function DashboardPage() {
                 </label>
                 <input
                   type="email"
-                  required
                   value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
+                  onChange={(e) => {
+                    setInviteEmail(e.target.value);
+                    if (inviteError) setInviteError("");
+                  }}
                   placeholder="jordan.lee@company.com"
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none focus:border-[var(--accent)]"
+                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none transition-colors"
                   style={{
                     background: "var(--inp-bg)",
-                    borderColor: "var(--border)",
+                    borderColor: inviteError && (!inviteEmail.trim() || !inviteEmail.includes("@")) ? "#ef4444" : "var(--border)",
                     color: "var(--txt)",
                   }}
                 />
+                {inviteError && (!inviteEmail.trim() || !inviteEmail.includes("@")) && (
+                  <p className="text-[11px] text-red-500 font-medium flex items-center gap-1 mt-0.5">
+                    <AlertCircle size={11} /> Please enter a valid work email
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1">

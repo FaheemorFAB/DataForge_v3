@@ -744,7 +744,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
           {/* Split — Visual animation placed above 6 pipelines on mobile */}
           <div className="flex flex-col md:flex-row gap-6 md:gap-8 lg:gap-12 items-start">
             {/* Left (on desktop) / Bottom (on mobile) — timeline of 6 pipelines */}
-            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0 order-2 md:order-1">
+            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0">
               <div
                 className="absolute left-6 top-0 bottom-0 w-px"
                 style={{ background: "var(--border)", zIndex: 0 }}
@@ -837,7 +837,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
             </div>
 
             {/* Right (on desktop) / Top (on mobile) — visual animation panel */}
-            <div ref={visualPanelRef} className="w-full md:w-7/12 lg:w-3/5 order-1 md:order-2">
+            <div ref={visualPanelRef} className="hidden md:block w-full md:w-7/12 lg:w-3/5 order-1 md:order-2">
               <div
                 className="rounded-2xl border overflow-hidden shadow-2xl transition-all duration-500"
                 style={{
@@ -1093,7 +1093,7 @@ export default function Home() {
 
       <main className="flex-1 w-full flex flex-col">
         {/* ══════════════ HERO ══════════════ */}
-        <section className="relative overflow-hidden md:min-h-[calc(100vh-80px)] flex md:items-center pt-5 pb-6 sm:py-16 md:py-20 px-4 sm:px-8">
+        <section className="relative overflow-hidden min-h-[calc(100dvh-64px)] min-h-[calc(100vh-64px)] md:min-h-[calc(100vh-80px)] flex flex-col justify-center md:items-center pt-8 pb-10 sm:py-16 md:py-20 px-4 sm:px-8">
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div
               className="w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] rounded-full filter blur-[100px] sm:blur-[140px] opacity-[0.14] transition-colors duration-500"
@@ -1101,7 +1101,7 @@ export default function Home() {
             />
           </div>
 
-          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center">
+          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center my-auto">
             {/* Left side: Text & CTA */}
             <div className="flex flex-col items-start text-left gap-5 sm:gap-7 w-full max-w-xl md:max-w-none">
               <motion.div
