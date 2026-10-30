@@ -1117,7 +1117,7 @@ export default function Home() {
 
       <main className="flex-1 w-full flex flex-col">
         {/* ══════════════ HERO ══════════════ */}
-        <section className="relative overflow-hidden min-h-[calc(100dvh-64px)] min-h-[calc(100vh-64px)] md:min-h-[calc(100vh-80px)] flex flex-col justify-center md:items-center pt-8 pb-10 sm:py-16 md:py-20 px-4 sm:px-8">
+        <section className="relative overflow-hidden pt-6 pb-12 sm:pt-12 sm:pb-16 md:py-20 md:min-h-[calc(100vh-80px)] md:flex md:flex-col md:justify-center md:items-center px-4 sm:px-8">
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div
               className="w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] rounded-full filter blur-[100px] sm:blur-[140px] opacity-[0.14] transition-colors duration-500"
@@ -1125,39 +1125,27 @@ export default function Home() {
             />
           </div>
 
-          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center my-auto">
+          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center my-0 md:my-auto">
             {/* Left side: Text & CTA */}
-            <div className="flex flex-col items-start text-left gap-5 sm:gap-7 w-full max-w-xl md:max-w-none">
+            <div className="flex flex-col items-start text-left gap-4 sm:gap-6 w-full max-w-xl md:max-w-none">
               <motion.div
                 initial="hidden"
                 animate="visible"
                 variants={fadeUp}
                 className="flex flex-col items-start w-full"
               >
-
-
                 <h1
-                  className="text-[2.25rem] xs:text-[2.5rem] sm:text-5xl md:text-[2.6rem] lg:text-5xl xl:text-6xl font-black leading-[1.12] mb-3.5 sm:mb-5 transition-colors duration-300"
+                  className="text-3xl xs:text-4xl sm:text-5xl md:text-[2.6rem] lg:text-5xl xl:text-6xl font-black leading-[1.15] tracking-tight mb-3 sm:mb-5 transition-colors duration-300"
                   style={{ color: "var(--txt)" }}
                 >
-                  Turning Messy
-                  <br />
-                  Data
-                  <br />
-                  Into{" "}
-                  <span style={{ color: "var(--accent)" }}>Clear</span>
-                  <br />
-                  <span style={{ color: "var(--accent)" }}>Decisions.</span>
+                  Turning Messy Data<br className="hidden sm:inline" /> Into{" "}
+                  <span style={{ color: "var(--accent)" }}>Clear Decisions.</span>
                 </h1>
                 <p
-                  className="max-w-lg text-[15px] sm:text-base md:text-lg lg:text-xl leading-relaxed transition-colors duration-300"
+                  className="max-w-lg text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed transition-colors duration-300"
                   style={{ color: "var(--txt-m)" }}
                 >
-                  Transform raw spreadsheets into
-                  <br />
-                  statistical insights, predictive models,
-                  <br />
-                  and executive reports without code.
+                  Transform raw spreadsheets into statistical insights, predictive models, and executive reports without code.
                 </p>
               </motion.div>
 
@@ -1229,7 +1217,7 @@ export default function Home() {
                 Why We Built DataForge
               </h2>
               <div
-                className="flex flex-col gap-5 text-base sm:text-lg leading-relaxed text-justify transition-colors duration-300"
+                className="flex flex-col gap-5 text-base sm:text-lg leading-relaxed text-left transition-colors duration-300"
                 style={{ color: "var(--txt-m)" }}
               >
                 <p>

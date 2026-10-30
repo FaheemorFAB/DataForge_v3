@@ -52,7 +52,7 @@ export default function BuiltFor() {
   };
 
   return (
-    <section id="audiences" className="min-h-[100dvh] min-h-[100vh] lg:h-screen lg:max-h-screen flex flex-col justify-center py-8 sm:py-12 lg:py-0 border-t w-full transition-colors duration-300 relative overflow-hidden" style={{ borderColor: "var(--border)" }}>
+    <section id="audiences" className="py-12 sm:py-16 lg:h-screen lg:max-h-screen lg:py-0 flex flex-col justify-center border-t w-full transition-colors duration-300 relative overflow-visible lg:overflow-hidden" style={{ borderColor: "var(--border)" }}>
       <div className="max-w-6xl mx-auto px-5 sm:px-8 w-full my-auto">
         
         {/* Section Header */}
