@@ -41,6 +41,8 @@ export default function PricingPage() {
   const [launchModalOpen, setLaunchModalOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [mobileFilter, setMobileFilter] = useState<"all" | "free" | "pro" | "team">("all");
+  const [expandedCardFeatures, setExpandedCardFeatures] = useState<Record<string, boolean>>({});
   const { user } = useAuth();
 
   const handleCtaClick = (action: "free" | "pro" | "team" | "enterprise") => {
@@ -53,6 +55,13 @@ export default function PricingPage() {
     }
   };
 
+  const toggleCardFeatures = (id: string) => {
+    setExpandedCardFeatures((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   // 3 Subscription Tiers: Free Starter, Pro Analyst, Team Collaboration
   const tiers: PricingTier[] = [
     {
@@ -60,7 +69,7 @@ export default function PricingPage() {
       name: "Free Starter",
       description: "For students, researchers & solo analysts exploring automated analytics in-browser.",
       monthlyPrice: 0,
-      rowLimit: "25,000 Rows (Capped)",
+      rowLimit: "25,000 Rows",
       storageLimit: "250 MB Storage",
       teamSeats: "1 solo user",
       ctaText: "Get Started Free",
@@ -144,17 +153,17 @@ export default function PricingPage() {
   ];
 
   const quickSpecs = [
-    { spec: "Data Ingestion Quota", free: "Capped (3 projects, 25K rows)", pro: "Unlimited Data Ingestion", team: "Unlimited Team Ingestion" },
-    { spec: "Supported Ingestion Sources", free: "Local CSV/Excel + Google Sheets only", free_sub: "", pro: "Local, Google Sheets & OneDrive/M365", team: "All Sources + Database Connection Vault" },
+    { spec: "Data Ingestion Quota", free: "Capped (3 projects, 25K rows)", pro: "Unlimited Ingestion", team: "Unlimited Team Ingestion" },
+    { spec: "Supported Sources", free: "Local CSV/Excel + Sheets only", pro: "Local, Sheets & OneDrive/M365", team: "All Sources + DB Connection Vault" },
     { spec: "Row Limit per Dataset", free: "25,000", pro: "250,000", team: "1,000,000" },
     { spec: "Cloud Storage Quota", free: "250 MB", pro: "5 GB", team: "25 GB" },
     { spec: "Team Seats & Roles", free: "1 solo user", pro: "1 solo user", team: "Up to 5 (Viewer, Analyst, Admin)" },
-    { spec: "AutoML Tournaments", free: "5 / mo (in-app)", pro: "50 / mo + Docker download", team: "200 / mo + Registry" },
-    { spec: "AI Natural Language Queries", free: "25 / mo", pro: "250 / mo", team: "1,000 / mo" },
+    { spec: "AutoML Tournaments", free: "5 / mo (in-app)", pro: "50 / mo + Docker", team: "200 / mo + Registry API" },
+    { spec: "AI Natural Queries", free: "25 / mo", pro: "250 / mo", team: "1,000 / mo" },
     { spec: "DuckDB Join Canvas", free: "Up to 2 tables", pro: "Multi-table visual join", team: "Multi-table + Database joins" },
-    { spec: "Exports & Deliverables", free: "No downloads (In-browser only)", pro: "Full Export (CSV, XLSX, Parquet, Slides, Docker, dbt)", team: "All Pro + Airflow DAGs, DB Push & Audit Logs" },
+    { spec: "Exports & Deliverables", free: "Locked (In-browser only)", pro: "Full (CSV, XLSX, Parquet, Slides, Docker)", team: "All Pro + Airflow DAGs & DB Push" },
     { spec: "Security & Governance", free: "Local Workspace Auth", pro: "Encrypted Storage", team: "3-Tier Roles + Audit Logs" },
-    { spec: "Support & Onboarding", free: "Community Docs", pro: "Priority Email", team: "Priority Team Support" },
+    { spec: "Support & SLA", free: "Community Docs", pro: "Priority Email", team: "Priority Team Support" },
   ];
 
   const faqs = [
@@ -180,6 +189,11 @@ export default function PricingPage() {
     },
   ];
 
+  const visibleTiers = tiers.filter((t) => {
+    if (mobileFilter === "all") return true;
+    return t.id === mobileFilter;
+  });
+
   return (
     <div
       className="min-h-screen flex flex-col transition-colors duration-300 relative selection:bg-[var(--accent)] selection:text-white"
@@ -191,60 +205,122 @@ export default function PricingPage() {
         onLaunchWorkspace={() => setLaunchModalOpen(true)}
       />
 
-      <main className="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-20">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 sm:pt-12 pb-14 sm:pb-20">
         {/* Subtle Ambient Background Mesh */}
         <div className="noise" />
         <div className="mesh" />
 
         {/* Header Block */}
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-3" style={{ color: "var(--txt)" }}>
+        <div className="text-center max-w-3xl mx-auto mb-8 sm:mb-12 px-2">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider mb-3 border shadow-sm"
+            style={{
+              background: "rgba(255, 67, 16, 0.08)",
+              borderColor: "rgba(255, 67, 16, 0.25)",
+              color: "var(--accent)",
+            }}
+          >
+            <Sparkles size={13} />
+            <span>Simple &amp; Transparent</span>
+          </div>
+          <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl font-black tracking-tight mb-2.5 sm:mb-3 leading-tight" style={{ color: "var(--txt)" }}>
             Predictable plans. Built for data teams.
           </h1>
-          <p className="text-sm sm:text-base max-w-xl mx-auto" style={{ color: "var(--txt-m)" }}>
+          <p className="text-xs sm:text-sm md:text-base max-w-xl mx-auto leading-relaxed" style={{ color: "var(--txt-m)" }}>
             Simple, honest pricing with out-of-core DuckDB performance. Choose the plan that fits your dataset volume.
           </p>
         </div>
 
+        {/* ── MOBILE PLAN SELECTOR TABS (< md) ── */}
+        <div className="flex md:hidden items-center justify-center p-1 rounded-xl bg-[var(--surface)] border border-[var(--border)] max-w-xs sm:max-w-sm mx-auto mb-6 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setMobileFilter("all")}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+              mobileFilter === "all"
+                ? "bg-[var(--card-bg)] text-[var(--txt)] shadow-sm border border-[var(--border)]"
+                : "text-[var(--txt-m)] hover:text-[var(--txt)]"
+            }`}
+          >
+            All Plans
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileFilter("free")}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+              mobileFilter === "free"
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-[var(--txt-m)] hover:text-[var(--txt)]"
+            }`}
+          >
+            Free ($0)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileFilter("pro")}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+              mobileFilter === "pro"
+                ? "bg-[var(--accent)] text-white shadow-sm"
+                : "text-[var(--txt-m)] hover:text-[var(--txt)]"
+            }`}
+          >
+            Pro ($29)
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileFilter("team")}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
+              mobileFilter === "team"
+                ? "bg-[var(--accent)] text-white shadow-sm"
+                : "text-[var(--txt-m)] hover:text-[var(--txt)]"
+            }`}
+          >
+            Team ($79)
+          </button>
+        </div>
+
         {/* ── 3 TIERS GRID (FREE, PRO, TEAM) ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 items-stretch max-w-6xl mx-auto">
-          {tiers.map((tier) => {
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6 mb-12 sm:mb-16 items-stretch max-w-6xl mx-auto">
+          {visibleTiers.map((tier) => {
             const price = tier.monthlyPrice;
+            const isExpanded = !!expandedCardFeatures[tier.id];
+            const maxMobileHighlights = isExpanded ? tier.highlights.length : 5;
 
             return (
               <div
                 key={tier.id}
-                className={`relative rounded-3xl p-6 flex flex-col justify-between border transition-all ${tier.popular
-                    ? "border-[var(--accent)] bg-[var(--card-bg)] shadow-2xl ring-2 ring-[var(--accent)]/30"
-                    : "border-[var(--border)] bg-[var(--card-bg)] shadow-lg"
-                  }`}
+                className={`relative rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-7 flex flex-col justify-between border transition-all ${
+                  tier.popular
+                    ? "border-[var(--accent)] bg-[var(--card-bg)] shadow-xl ring-2 ring-[var(--accent)]/30"
+                    : "border-[var(--border)] bg-[var(--card-bg)] shadow-md"
+                }`}
               >
                 {/* Popular / Free Pill */}
                 {tier.badge && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[var(--accent)] text-white shadow-md">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[var(--accent)] text-white shadow-md whitespace-nowrap z-10">
                     {tier.badge}
                   </div>
                 )}
                 {tier.id === "free" && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow-md">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-md whitespace-nowrap z-10">
                     100% Free
                   </div>
                 )}
 
                 <div>
                   <div className="mb-4">
-                    <h3 className="text-xl font-bold mb-1" style={{ color: "var(--txt)" }}>
+                    <h3 className="text-lg sm:text-xl font-bold mb-1" style={{ color: "var(--txt)" }}>
                       {tier.name}
                     </h3>
-                    <p className="text-xs min-h-[34px]" style={{ color: "var(--txt-m)" }}>
+                    <p className="text-xs min-h-0 sm:min-h-[36px] leading-relaxed" style={{ color: "var(--txt-m)" }}>
                       {tier.description}
                     </p>
                   </div>
 
                   {/* Price */}
-                  <div className="mb-5 pb-5 border-b" style={{ borderColor: "var(--border)" }}>
+                  <div className="mb-4 pb-4 border-b" style={{ borderColor: "var(--border)" }}>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-black" style={{ color: "var(--txt)" }}>
+                      <span className="text-3xl sm:text-4xl font-black tracking-tight" style={{ color: "var(--txt)" }}>
                         ${price}
                       </span>
                       <span className="text-xs font-semibold" style={{ color: "var(--txt-m)" }}>
@@ -252,21 +328,21 @@ export default function PricingPage() {
                       </span>
                     </div>
 
-                    <div className="flex flex-col gap-1 mt-3">
-                      <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-md border" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--accent)" }}>
                         {tier.rowLimit} • {tier.storageLimit}
                       </span>
-                      <span className="text-[11px] font-medium" style={{ color: "var(--txt-m)" }}>
+                      <span className="text-[11px] font-medium opacity-80" style={{ color: "var(--txt-m)" }}>
                         {tier.teamSeats}
                       </span>
                     </div>
                   </div>
 
                   {/* Features list */}
-                  <div className="space-y-2.5 mb-6">
+                  <div className="space-y-2 mb-6">
                     {tier.id === "pro" && (
                       <div
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3 shadow-sm"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold mb-2.5 shadow-sm"
                         style={{
                           background: "var(--surface)",
                           borderColor: "var(--accent)",
@@ -279,7 +355,7 @@ export default function PricingPage() {
                     )}
                     {tier.id === "team" && (
                       <div
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3 shadow-sm"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold mb-2.5 shadow-sm"
                         style={{
                           background: "var(--surface)",
                           borderColor: "var(--accent)",
@@ -290,45 +366,81 @@ export default function PricingPage() {
                         <span>Everything in Pro Analyst, plus:</span>
                       </div>
                     )}
+
                     <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-                      {tier.id === "free" ? "Included Features:" : "Exclusive Tier Capabilities:"}
+                      {tier.id === "free" ? "Included Features:" : "Tier Highlights:"}
                     </p>
-                    {tier.highlights.map((feat, i) => (
-                      <div key={i} className="flex items-start gap-2 text-xs" style={{ color: "var(--txt)" }}>
-                        <div className="w-4 h-4 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
-                          <Check size={10} strokeWidth={3} />
-                        </div>
-                        <span className="leading-tight">{feat}</span>
-                      </div>
-                    ))}
+
+                    {/* Desktop: shows all. Mobile: shows top 5 unless expanded */}
+                    <div className="space-y-2">
+                      {tier.highlights.map((feat, i) => {
+                        const isHiddenOnMobile = i >= maxMobileHighlights;
+                        return (
+                          <div
+                            key={i}
+                            className={`items-start gap-2 text-xs ${
+                              isHiddenOnMobile ? "hidden md:flex" : "flex"
+                            }`}
+                            style={{ color: "var(--txt)" }}
+                          >
+                            <div className="w-4 h-4 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
+                              <Check size={10} strokeWidth={3} />
+                            </div>
+                            <span className="leading-tight break-words">{feat}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
 
                     {/* Excluded Features with Cross Sign */}
                     {tier.nonFeatures && tier.nonFeatures.length > 0 && (
-                      <div className="pt-2.5 border-t border-[var(--border)]/50 space-y-2.5">
+                      <div className={`pt-2 border-t border-[var(--border)]/50 space-y-2 ${isExpanded ? "block" : "hidden md:block"}`}>
                         {tier.nonFeatures.map((feat, i) => (
                           <div key={i} className="flex items-start gap-2 text-xs opacity-50" style={{ color: "var(--txt-m)" }}>
                             <div className="w-4 h-4 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center shrink-0 mt-0.5 border border-red-500/25">
                               <X size={10} strokeWidth={2.5} />
                             </div>
-                            <span className="leading-tight">{feat}</span>
+                            <span className="leading-tight break-words">{feat}</span>
                           </div>
                         ))}
                       </div>
+                    )}
+
+                    {/* Mobile toggle to expand all features */}
+                    {tier.highlights.length > 5 && (
+                      <button
+                        type="button"
+                        onClick={() => toggleCardFeatures(tier.id)}
+                        className="md:hidden text-[11px] font-bold text-[var(--accent)] hover:underline pt-1 flex items-center gap-1 cursor-pointer"
+                      >
+                        {isExpanded ? (
+                          <>
+                            <span>Show fewer</span>
+                            <ChevronUp size={12} />
+                          </>
+                        ) : (
+                          <>
+                            <span>+ {tier.highlights.length - 5} more features</span>
+                            <ChevronDown size={12} />
+                          </>
+                        )}
+                      </button>
                     )}
                   </div>
                 </div>
 
                 {/* CTA Button */}
-                <div>
+                <div className="pt-2">
                   <button
                     type="button"
                     onClick={() => handleCtaClick(tier.id)}
-                    className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${tier.popular
-                        ? "bg-[var(--accent)] text-white hover:opacity-95 shadow-lg shadow-[var(--accent)]/20"
+                    className={`w-full py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md hover:scale-[1.01] active:scale-[0.99] ${
+                      tier.popular
+                        ? "bg-[var(--accent)] text-white hover:opacity-95 shadow-[var(--accent)]/20"
                         : tier.id === "free"
-                          ? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-md"
+                          ? "bg-emerald-600 text-white hover:bg-emerald-500"
                           : "bg-[var(--border)] text-[var(--txt)] hover:bg-[var(--accent)] hover:text-white"
-                      }`}
+                    }`}
                   >
                     <span>{tier.ctaText}</span>
                     <ArrowRight size={13} />
@@ -340,7 +452,7 @@ export default function PricingPage() {
         </div>
 
         {/* ── MINIMAL INLINE CTA BANNER (Compact Shape) ── */}
-        <div className="mb-16 max-w-4xl mx-auto">
+        <div className="mb-12 sm:mb-16 max-w-4xl mx-auto px-1 sm:px-0">
           <CTABanner
             variant="compact"
             title="Test DataForge with your dataset"
@@ -353,25 +465,33 @@ export default function PricingPage() {
         </div>
 
         {/* ── CONCISE SPECS COMPARISON SUMMARY ── */}
-        <div className="mb-16">
-          <div className="text-center mb-8">
+        <div className="mb-12 sm:mb-16">
+          <div className="text-center mb-6 sm:mb-8 px-2">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight" style={{ color: "var(--txt)" }}>
               Plan Specifications Comparison
             </h2>
             <p className="text-xs mt-1" style={{ color: "var(--txt-m)" }}>
-              Transparent feature breakdown across Free, Pro, Team, and Enterprise tiers.
+              Transparent feature breakdown across Free, Pro, and Team tiers.
             </p>
           </div>
 
+          {/* Mobile swipe hint */}
+          <div className="flex md:hidden items-center justify-between text-[11px] font-medium mb-2 px-1" style={{ color: "var(--txt-m)" }}>
+            <span>Capacity &amp; Feature Matrix</span>
+            <span className="flex items-center gap-1 text-[var(--accent)] font-semibold">
+              Scroll horizontally <ArrowRight size={11} className="animate-pulse" />
+            </span>
+          </div>
+
           <div
-            className="rounded-2xl border overflow-hidden shadow-sm"
+            className="rounded-xl sm:rounded-2xl border overflow-hidden shadow-sm"
             style={{
               background: "var(--card-bg)",
               borderColor: "var(--border)",
             }}
           >
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
+            <div className="overflow-x-auto scrollbar-thin">
+              <table className="w-full min-w-[580px] sm:min-w-full text-xs text-left border-collapse">
                 <thead>
                   <tr
                     className="border-b font-mono font-bold uppercase text-[10px] tracking-wider"
@@ -381,10 +501,21 @@ export default function PricingPage() {
                       color: "var(--txt-m)",
                     }}
                   >
-                    <th className="p-3.5 sm:px-6">Capacity &amp; Engine</th>
-                    <th className="p-3.5 text-center text-emerald-400">Free Starter</th>
-                    <th className="p-3.5 text-center">Pro Analyst</th>
-                    <th className="p-3.5 text-center" style={{ color: "var(--accent)" }}>Team Collaboration</th>
+                    <th className="sticky left-0 z-20 p-3 sm:p-3.5 sm:px-6 min-w-[140px] sm:min-w-[180px] border-r border-[var(--border)] shadow-[2px_0_6px_rgba(0,0,0,0.06)]" style={{ background: "var(--surface)" }}>
+                      Capacity &amp; Engine
+                    </th>
+                    <th className="p-3 sm:p-3.5 text-center text-emerald-400 min-w-[125px] sm:min-w-0">
+                      <div>Free Starter</div>
+                      <div className="text-[9px] opacity-75 font-normal tracking-normal">$0 / forever</div>
+                    </th>
+                    <th className="p-3 sm:p-3.5 text-center min-w-[125px] sm:min-w-0" style={{ color: "var(--txt)" }}>
+                      <div>Pro Analyst</div>
+                      <div className="text-[9px] opacity-75 font-normal tracking-normal">$29 / month</div>
+                    </th>
+                    <th className="p-3 sm:p-3.5 text-center min-w-[135px] sm:min-w-0" style={{ color: "var(--accent)" }}>
+                      <div>Team Collaboration</div>
+                      <div className="text-[9px] opacity-75 font-normal tracking-normal">$79 / month</div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -393,16 +524,22 @@ export default function PricingPage() {
                       key={idx}
                       className="hover:bg-white/5 transition-colors"
                     >
-                      <td className="p-3.5 sm:px-6 font-semibold" style={{ color: "var(--txt)" }}>
+                      <td
+                        className="sticky left-0 z-10 p-3 sm:p-3.5 sm:px-6 font-semibold border-r border-[var(--border)] min-w-[140px] sm:min-w-[180px] shadow-[2px_0_6px_rgba(0,0,0,0.06)] transition-colors"
+                        style={{
+                          background: "var(--card-bg)",
+                          color: "var(--txt)",
+                        }}
+                      >
                         {row.spec}
                       </td>
-                      <td className="p-3.5 text-center font-mono text-emerald-400">
+                      <td className="p-3 sm:p-3.5 text-center font-mono text-emerald-400">
                         {row.free}
                       </td>
-                      <td className="p-3.5 text-center font-mono" style={{ color: "var(--txt-m)" }}>
+                      <td className="p-3 sm:p-3.5 text-center font-mono" style={{ color: "var(--txt-m)" }}>
                         {row.pro}
                       </td>
-                      <td className="p-3.5 text-center font-mono font-bold" style={{ color: "var(--accent)" }}>
+                      <td className="p-3 sm:p-3.5 text-center font-mono font-bold" style={{ color: "var(--accent)" }}>
                         {row.team}
                       </td>
                     </tr>
@@ -414,24 +551,24 @@ export default function PricingPage() {
         </div>
 
         {/* ── CONCISE FAQ SECTION ── */}
-        <div className="mb-16 max-w-3xl mx-auto">
-          <div className="text-center mb-8">
+        <div className="mb-12 sm:mb-16 max-w-3xl mx-auto px-1 sm:px-0">
+          <div className="text-center mb-6 sm:mb-8">
             <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider mb-1" style={{ color: "var(--accent)" }}>
               <HelpCircle size={13} />
               <span>Questions &amp; Answers</span>
             </div>
-            <h2 className="text-2xl font-bold tracking-tight" style={{ color: "var(--txt)" }}>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight" style={{ color: "var(--txt)" }}>
               Frequently Asked Questions
             </h2>
           </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-2 sm:space-y-2.5">
             {faqs.map((faq, idx) => {
               const isOpen = expandedFaq === idx;
               return (
                 <div
                   key={idx}
-                  className="rounded-xl border transition-all overflow-hidden"
+                  className="rounded-xl sm:rounded-2xl border transition-all overflow-hidden"
                   style={{
                     background: "var(--card-bg)",
                     borderColor: isOpen ? "var(--accent)" : "var(--border)",
@@ -440,10 +577,10 @@ export default function PricingPage() {
                   <button
                     type="button"
                     onClick={() => setExpandedFaq(isOpen ? null : idx)}
-                    className="w-full p-4 text-left flex items-center justify-between gap-3 font-semibold text-xs sm:text-sm cursor-pointer"
+                    className="w-full p-3.5 sm:p-4 text-left flex items-center justify-between gap-3 font-semibold text-xs sm:text-sm cursor-pointer"
                     style={{ color: "var(--txt)" }}
                   >
-                    <span>{faq.q}</span>
+                    <span className="leading-snug">{faq.q}</span>
                     <div
                       className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
                       style={{
@@ -456,7 +593,7 @@ export default function PricingPage() {
                   </button>
                   {isOpen && (
                     <div
-                      className="px-4 pb-4 text-xs font-normal leading-relaxed border-t pt-2.5"
+                      className="px-3.5 pb-3.5 sm:px-4 sm:pb-4 text-xs font-normal leading-relaxed border-t pt-2.5"
                       style={{
                         borderColor: "var(--border)",
                         color: "var(--txt-m)",
