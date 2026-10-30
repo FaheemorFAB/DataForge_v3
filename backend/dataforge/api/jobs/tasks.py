@@ -216,70 +216,71 @@ async def run_automl_task(
             with FileLock(str(lock_path)):
                 (d / "model_pkl.joblib").write_bytes(model_pkl)
 
-            # Auto-register into ModelRegistry so it appears in the Models catalog immediately
-            try:
-                from dataforge.models.registry import ModelRegistry
-                algo_raw = result.get("best_estimator", "AutoML")
-                algo_map = {
-                    "lgbm": "LightGBM",
-                    "lightgbm": "LightGBM",
-                    "xgboost": "XGBoost",
-                    "xgb": "XGBoost",
-                    "catboost": "CatBoost",
-                    "rf": "Random Forest",
-                    "random_forest": "Random Forest",
-                    "extra_tree": "Extra Trees",
-                    "extra_trees": "Extra Trees",
-                    "gradient_boosting": "Hist Gradient Boosting",
-                    "hist_gradient_boosting": "Hist Gradient Boosting",
-                    "linear": "Linear / Ridge",
-                    "logistic_regression": "Logistic Regression",
-                    "ridge": "Ridge",
-                    "decision_tree": "Decision Tree",
-                    "knn": "K-Nearest Neighbors",
-                    "kneighbors": "K-Nearest Neighbors",
-                    "svm": "Support Vector Machine",
-                    "linearsvc": "Support Vector Machine",
-                    "linearsvr": "Support Vector Machine",
-                }
-                algo_label = algo_map.get(str(algo_raw).lower(), str(algo_raw).replace("_", " ").title())
-                eff_name = (model_name or "").strip()
-                if not eff_name:
-                    eff_name = f"{target_col.title()} {algo_label} Predictor"
+        # Auto-register into ModelRegistry so it appears in the Models catalog immediately
+        try:
+            from dataforge.models.registry import ModelRegistry
+            algo_raw = result.get("best_estimator", "AutoML")
+            algo_map = {
+                "lgbm": "LightGBM",
+                "lightgbm": "LightGBM",
+                "xgboost": "XGBoost",
+                "xgb": "XGBoost",
+                "catboost": "CatBoost",
+                "rf": "Random Forest",
+                "random_forest": "Random Forest",
+                "extra_tree": "Extra Trees",
+                "extra_trees": "Extra Trees",
+                "gradient_boosting": "Hist Gradient Boosting",
+                "hist_gradient_boosting": "Hist Gradient Boosting",
+                "linear": "Linear / Ridge",
+                "logistic_regression": "Logistic Regression",
+                "ridge": "Ridge",
+                "decision_tree": "Decision Tree",
+                "knn": "K-Nearest Neighbors",
+                "kneighbors": "K-Nearest Neighbors",
+                "svm": "Support Vector Machine",
+                "linearsvc": "Support Vector Machine",
+                "linearsvr": "Support Vector Machine",
+            }
+            algo_label = algo_map.get(str(algo_raw).lower(), str(algo_raw).replace("_", " ").title())
+            eff_name = (model_name or "").strip()
+            if not eff_name:
+                eff_name = f"{target_col.title()} {algo_label} Predictor"
 
-                m_metrics = result.get("metrics") or {}
-                if not m_metrics and result.get("best_loss") is not None:
-                    m_metrics = {"loss": float(result.get("best_loss"))}
+            m_metrics = result.get("metrics") or {}
+            if not m_metrics and result.get("best_loss") is not None:
+                m_metrics = {"loss": float(result.get("best_loss"))}
 
-                user_rec = db_get("users", user_id)
-                user_email = user_rec.get("email") if user_rec else f"user_{user_id}@dataforge.app"
+            user_rec = db_get("users", user_id)
+            user_email = user_rec.get("email") if user_rec else f"user_{user_id}@dataforge.app"
 
-                features_list = result.get("feature_columns") or result.get("selected_features") or feature_whitelist or []
+            features_list = result.get("feature_columns") or result.get("selected_features") or feature_whitelist or []
 
-                reg_model = ModelRegistry.register_model(
-                    org_id="default",
-                    model_name=eff_name,
-                    task_type=result.get("task", "classification"),
-                    algorithm=algo_label,
-                    target_column=target_col,
-                    features=features_list,
-                    metrics=m_metrics,
-                    created_by=user_email,
-                    upload_id=str(upload_id),
-                    version="v1.0.0",
-                    summary=f"Champion {algo_label} model trained via AutoML on dataset {upload_id}."
-                )
+            reg_model = ModelRegistry.register_model(
+                org_id="default",
+                model_name=eff_name,
+                task_type=result.get("task", "classification"),
+                algorithm=algo_label,
+                target_column=target_col,
+                features=features_list,
+                metrics=m_metrics,
+                created_by=user_email,
+                upload_id=str(upload_id),
+                version="v1.0.0",
+                summary=f"Champion {algo_label} model trained via AutoML on dataset {upload_id}."
+            )
 
-                reg_id = reg_model["id"]
+            reg_id = reg_model["id"]
+            if model_pkl:
                 models_dir = STORE_DIR / "models"
                 models_dir.mkdir(parents=True, exist_ok=True)
                 (models_dir / f"{reg_id}.joblib").write_bytes(model_pkl)
 
-                result["registered_model_id"] = reg_id
-                result["model_name"] = eff_name
-                log.info("AutoML model successfully registered in ModelRegistry as '%s' (id=%s)", eff_name, reg_id)
-            except Exception as reg_exc:
-                log.warning("Failed to auto-register AutoML model in ModelRegistry: %s", reg_exc)
+            result["registered_model_id"] = reg_id
+            result["model_name"] = eff_name
+            log.info("AutoML model successfully registered in ModelRegistry as '%s' (id=%s)", eff_name, reg_id)
+        except Exception as reg_exc:
+            log.warning("Failed to auto-register AutoML model in ModelRegistry: %s", reg_exc)
 
         save(upload_id, "automl_meta", result)
 

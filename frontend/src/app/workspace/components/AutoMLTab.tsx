@@ -326,6 +326,9 @@ export function AutoMLTab() {
       const result = await pollTask(data.task_id);
       setAutomlResult(result);
       if (setAutomlMeta) setAutomlMeta(result);
+      if (refreshWorkspace && uploadId) {
+        refreshWorkspace(uploadId);
+      }
     } catch (e: any) {
       setAutomlError(String(e.message || e));
     } finally {

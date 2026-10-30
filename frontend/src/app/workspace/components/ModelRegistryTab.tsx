@@ -134,6 +134,38 @@ export function ModelRegistryTab() {
         const d = await res.json();
         if (d.automl_meta && !d.automl_meta.error) {
           setDatasetModel(d.automl_meta);
+          // If the model hasn't been saved to catalog yet, auto-register it now
+          if (!d.automl_meta.registered_model_id) {
+            const algo = d.automl_meta.best_estimator || "AutoML";
+            const target = d.automl_meta.target_col || d.automl_meta.target || "target";
+            const name = d.automl_meta.model_name || `${target} ${algo} Predictor`;
+            const feats = d.automl_meta.feature_columns || d.automl_meta.selected_features || [];
+            try {
+              const regRes = await apiFetch("/models", {
+                method: "POST",
+                body: JSON.stringify({
+                  model_name: name,
+                  task_type: d.automl_meta.task || "classification",
+                  algorithm: algo,
+                  target_column: target,
+                  features: feats.length > 0 ? feats : ["feature_1", "feature_2"],
+                  metrics: d.automl_meta.metrics || {},
+                  upload_id: uploadId,
+                  version: "v1.0.0",
+                  summary: `AutoML champion model trained on dataset ${uploadId}.`,
+                }),
+              });
+              if (regRes.ok) {
+                const regData = await regRes.json();
+                if (regData.model?.id) {
+                  setDatasetModel((prev: any) => ({ ...prev, registered_model_id: regData.model.id }));
+                }
+                fetchModels();
+              }
+            } catch (err) {
+              console.error("Auto-registration sync error:", err);
+            }
+          }
         } else {
           setDatasetModel(null);
         }
@@ -141,7 +173,7 @@ export function ModelRegistryTab() {
     } catch (e) {
       console.error("Failed to check dataset model:", e);
     }
-  }, [uploadId]);
+  }, [uploadId, fetchModels]);
 
   useEffect(() => {
     fetchModels();
@@ -610,6 +642,30 @@ export function ModelRegistryTab() {
         </div>
       </div>
 
+      {/* INFORMATIONAL INSTRUCTION BANNER */}
+      <div
+        className="shrink-0 px-4 py-2 border-b flex items-center justify-between gap-3 text-xs"
+        style={{
+          background: "rgba(99, 102, 241, 0.05)",
+          borderColor: "var(--border)",
+          color: "var(--txt-m)",
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <Sparkles size={13} className="text-indigo-400 shrink-0" />
+          <span>
+            Train a model in the <strong style={{ color: "var(--txt)" }}>AutoML Studio</strong> to see it appear here automatically with live inference playgrounds, batch scoring, and Docker packages.
+          </span>
+        </div>
+        <button
+          onClick={() => setActiveTab("automl")}
+          className="text-indigo-400 hover:text-indigo-300 font-bold shrink-0 flex items-center gap-1 cursor-pointer transition-colors"
+        >
+          <span>Open AutoML Studio</span>
+          <ArrowRight size={11} />
+        </button>
+      </div>
+
       {/* ACTIVE DATASET MODEL PROMPT CARD (if AutoML model exists for this dataset) */}
       {datasetModel && (
         <div
@@ -713,21 +769,56 @@ export function ModelRegistryTab() {
               Loading model registry artifacts...
             </p>
           </div>
-        ) : filteredModels.length === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center gap-3 text-center">
-            <Boxes size={40} style={{ color: "var(--txt-f)" }} />
-            <div>
-              <p className="font-bold text-sm" style={{ color: "var(--txt)" }}>No models found in catalog</p>
-              <p className="text-xs mt-1" style={{ color: "var(--txt-m)" }}>
-                Click "+ Register Model" or run an AutoML training tournament to register models and artifacts.
+        ) : models.length === 0 ? (
+          <div className="min-h-[360px] py-12 flex flex-col items-center justify-center gap-4 text-center px-4 max-w-lg mx-auto">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+              style={{
+                background: "rgba(99, 102, 241, 0.12)",
+                color: "#6366f1",
+                border: "1px solid rgba(99, 102, 241, 0.25)",
+              }}
+            >
+              <Sparkles size={30} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-black text-lg" style={{ color: "var(--txt)" }}>
+                No Trained Models in Registry Yet
+              </h3>
+              <p className="text-xs sm:text-sm leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                Train a model in the <strong className="text-indigo-400 font-bold">AutoML Studio</strong> to see it appear here automatically.
+                Whenever you train a model, your champion estimator will be registered here for live testing playgrounds, batch CSV scoring, REST API requests, and 1-click Docker container deployment.
               </p>
             </div>
+            <div className="flex flex-col sm:flex-row items-center gap-3 mt-2 w-full sm:w-auto">
+              <button
+                onClick={() => setActiveTab("automl")}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+              >
+                <Play size={13} fill="currentColor" />
+                <span>Train Model in AutoML Studio</span>
+                <ArrowRight size={13} />
+              </button>
+              <button
+                onClick={() => setShowRegisterModal(true)}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold border transition-all hover:bg-white/5 cursor-pointer"
+                style={{ borderColor: "var(--border)", color: "var(--txt)" }}
+              >
+                + Register Manually
+              </button>
+            </div>
+          </div>
+        ) : filteredModels.length === 0 ? (
+          <div className="h-64 flex flex-col items-center justify-center gap-2 text-center">
+            <Search size={32} style={{ color: "var(--txt-f)" }} />
+            <p className="font-bold text-sm" style={{ color: "var(--txt)" }}>No models match your search or filter</p>
+            <p className="text-xs" style={{ color: "var(--txt-m)" }}>Try clearing your search query or switching task filters.</p>
             <button
-              onClick={() => setShowRegisterModal(true)}
-              className="mt-2 px-4 py-2 rounded-xl text-xs font-bold text-white shadow"
-              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+              onClick={() => { setSearchQuery(""); setTaskFilter("all"); }}
+              className="mt-2 text-xs font-bold text-indigo-400 hover:underline cursor-pointer"
             >
-              + Register First Model
+              Reset Filters
             </button>
           </div>
         ) : (
