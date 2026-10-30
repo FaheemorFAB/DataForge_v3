@@ -127,14 +127,6 @@ export function CleanerTab() {
     );
   };
 
-  const selectAllFiltered = () => {
-    const names = filteredColumns.map((c: any) => typeof c === "string" ? c : c.name);
-    setSelectedCols(Array.from(new Set([...selectedCols, ...names])));
-  };
-
-  const clearSelection = () => {
-    setSelectedCols([]);
-  };
 
   // -- Construct Current Rule Object --
   const buildCurrentRule = () => {
@@ -428,49 +420,35 @@ export function CleanerTab() {
                   <span className="text-[11px] font-mono" style={{ color: "var(--txt-m)" }}>({selectedCols.length} of {rawColumns.length} chosen)</span>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
-                  {/* Type Filter Tabs */}
-                  <div className="flex p-0.5 rounded-lg border text-[10px] overflow-x-auto no-scrollbar max-w-[210px] xs:max-w-none shrink-0" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
-                    {[
-                      { id: "all", label: "All" },
-                      { id: "numeric", label: "Numeric" },
-                      { id: "text", label: "Text" },
-                      { id: "datetime", label: "Dates" },
-                      { id: "missing", label: "Missing >5%" },
-                    ].map((f) => (
+                {/* Type Filter Tabs */}
+                <div
+                  className="flex items-center p-0.5 sm:p-1 rounded-xl border text-[11px] sm:text-xs overflow-x-auto no-scrollbar w-full sm:w-auto gap-0.5 sm:gap-1"
+                  style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}
+                >
+                  {[
+                    { id: "all", label: "All" },
+                    { id: "numeric", label: "Numeric" },
+                    { id: "text", label: "Text" },
+                    { id: "datetime", label: "Dates" },
+                    { id: "missing", label: "Missing >5%" },
+                  ].map((f) => {
+                    const active = typeFilter === f.id;
+                    return (
                       <button
                         key={f.id}
+                        type="button"
                         onClick={() => setTypeFilter(f.id as any)}
-                        className="px-2 py-1 rounded-md font-bold transition-all cursor-pointer"
+                        className="flex-1 sm:flex-initial px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap text-center"
                         style={{
-                          background: typeFilter === f.id ? "var(--accent)" : "transparent",
-                          color: typeFilter === f.id ? "#ffffff" : "var(--txt-m)",
+                          background: active ? "var(--accent)" : "transparent",
+                          color: active ? "#ffffff" : "var(--txt-m)",
+                          boxShadow: active ? "0 2px 6px var(--glow)" : "none",
                         }}
                       >
                         {f.label}
                       </button>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={selectAllFiltered}
-                      className="text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all cursor-pointer shadow-xs hover:border-[var(--accent)]"
-                      style={{ borderColor: "var(--border)", color: "var(--txt)", background: "var(--card)" }}
-                    >
-                      Select Filtered
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearSelection}
-                      className="text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all cursor-pointer shadow-xs flex items-center gap-1 bg-red-500/25 border-red-500/50 text-red-300 hover:bg-red-500/40 shrink-0"
-                      title="Clear selection"
-                    >
-                      <X size={11} className="shrink-0" />
-                      <span>Clear</span>
-                    </button>
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
 
