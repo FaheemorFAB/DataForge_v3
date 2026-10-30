@@ -336,6 +336,13 @@ export default function WorkspaceLaunchModal({
   const [generationProgress, setGenerationProgress] = useState(15);
   const [generationStatus, setGenerationStatus] = useState("Ingesting dataset and authenticating data connection...");
 
+  // Auto-dismiss error notifications after 6 seconds
+  useEffect(() => {
+    if (!errorMsg) return;
+    const timer = setTimeout(() => setErrorMsg(""), 6000);
+    return () => clearTimeout(timer);
+  }, [errorMsg]);
+
   const handleDetectSheetTabs = async (urlToTest?: string) => {
     const rawUrl = urlToTest !== undefined ? urlToTest : connUri;
     const clean = sanitizeInput(rawUrl);
@@ -766,12 +773,35 @@ export default function WorkspaceLaunchModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-2.5 sm:p-4 backdrop-blur-sm animate-fadeIn"
       style={{ background: "rgba(0, 0, 0, 0.7)" }}
       onClick={isGeneratingWorkspace ? undefined : onClose}
     >
+      {/* Floating Top-Center Notification Banner */}
+      {errorMsg && (
+        <div
+          role="alert"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-xl border shadow-2xl flex items-center justify-between gap-3 bg-red-950/95 border-red-500/50 text-red-200 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200"
+        >
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <AlertCircle size={18} className="shrink-0 text-red-400" />
+            <span className="text-xs font-semibold leading-snug break-words">
+              {errorMsg}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMsg("")}
+            className="shrink-0 text-red-400 hover:text-red-200 p-1 rounded-md transition-colors cursor-pointer"
+            aria-label="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
       <div
-        className="w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-slideUp text-[var(--txt)]"
+        className="w-full max-w-3xl max-h-[92vh] rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-slideUp text-[var(--txt)]"
         style={{
           background: "var(--surface)",
           border: "1px solid var(--border)",
@@ -838,7 +868,7 @@ export default function WorkspaceLaunchModal({
 
             {/* Category Navigation (Minimal text tabs - no pills) */}
             <div
-              className="px-6 border-b flex items-center gap-6 text-xs"
+              className="px-4 sm:px-6 border-b flex items-center gap-4 sm:gap-6 text-xs overflow-x-auto no-scrollbar whitespace-nowrap shrink-0"
               style={{ borderColor: "var(--border)" }}
             >
               {[
@@ -867,10 +897,10 @@ export default function WorkspaceLaunchModal({
             </div>
 
             {/* Main Content Area */}
-            <div className="grid grid-cols-1 md:grid-cols-12 min-h-[380px]">
+            <div className="grid grid-cols-1 md:grid-cols-12 min-h-[380px] overflow-y-auto">
               {/* Left Column: Source Selection (5 cols) */}
               <div
-                className="md:col-span-5 border-b md:border-b-0 md:border-r p-4 flex flex-col gap-3"
+                className="md:col-span-5 border-b md:border-b-0 md:border-r p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3"
                 style={{ borderColor: "var(--border)" }}
               >
                 {/* Search */}
@@ -939,7 +969,7 @@ export default function WorkspaceLaunchModal({
               </div>
 
               {/* Right Column: Configuration & Actions (7 cols) */}
-              <div className="md:col-span-7 p-6 flex flex-col justify-between">
+              <div className="md:col-span-7 p-4 sm:p-6 flex flex-col justify-between">
                 <div>
                   {/* Selected Source Header */}
                   <div className="flex items-center gap-2.5 pb-4 border-b mb-5" style={{ borderColor: "var(--border)" }}>
@@ -1071,7 +1101,7 @@ export default function WorkspaceLaunchModal({
                       </div>
 
                       {/* Demo samples shortcuts (Minimal text list, NO PILLS) */}
-                      <div className="flex items-center gap-2 text-xs text-[var(--txt-m)] pt-1">
+                      <div className="flex items-center gap-2 text-xs text-[var(--txt-m)] pt-1 flex-wrap">
                         <span className="text-[var(--txt-f)]">Sample data:</span>
                         {SAMPLE_DATASETS.slice(0, 3).map((sample, idx) => (
                           <React.Fragment key={sample.id}>

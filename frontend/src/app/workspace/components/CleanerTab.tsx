@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
 import { apiFetch } from "@/lib/api";
 import {
-  Download, AlertTriangle, Sparkles, Sliders, Plus, Trash2, CheckCircle2,
+  Download, AlertTriangle, AlertCircle, Sparkles, Sliders, Plus, Trash2, CheckCircle2,
   FileCode, Eye, Check, X, Shield, Filter, Search, Copy, Terminal, RefreshCw
 } from 'lucide-react';
 
@@ -14,6 +14,13 @@ export function CleanerTab() {
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanError, setCleanError] = useState("");
   const [alreadyCleanModal, setAlreadyCleanModal] = useState(false);
+
+  // Auto-dismiss cleanError after 6 seconds
+  useEffect(() => {
+    if (!cleanError) return;
+    const timer = setTimeout(() => setCleanError(""), 6000);
+    return () => clearTimeout(timer);
+  }, [cleanError]);
 
   // -- Multi-Column Attribute Selection State --
   const [selectedCols, setSelectedCols] = useState<string[]>([]);
@@ -326,7 +333,7 @@ export function CleanerTab() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
+            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
               Enterprise Data Cleaning Studio
             </h2>
 
@@ -359,6 +366,29 @@ export function CleanerTab() {
           )}
         </div>
       </div>
+
+      {/* Floating Top-Center Notification */}
+      {cleanError && (
+        <div
+          role="alert"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-xl border shadow-2xl flex items-center justify-between gap-3 bg-red-950/95 border-red-500/50 text-red-200 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200"
+        >
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <AlertCircle size={18} className="shrink-0 text-red-400" />
+            <span className="text-xs font-semibold leading-snug break-words">
+              {cleanError}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCleanError("")}
+            className="shrink-0 text-red-400 hover:text-red-200 p-1 rounded-md transition-colors cursor-pointer"
+            aria-label="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {cleanError && (
         <div className="p-4 rounded-xl space-y-1" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>
@@ -400,7 +430,7 @@ export function CleanerTab() {
 
                 <div className="flex items-center gap-2">
                   {/* Type Filter Tabs */}
-                  <div className="flex p-0.5 rounded-lg border text-[10px]" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                  <div className="flex p-0.5 rounded-lg border text-[10px] overflow-x-auto no-scrollbar max-w-full" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
                     {[
                       { id: "all", label: "All" },
                       { id: "numeric", label: "Numeric" },
@@ -441,7 +471,7 @@ export function CleanerTab() {
               </div>
 
               {/* Column Selectors - Rectangular with checkmark and focus states */}
-              <div className="max-h-40 overflow-y-auto p-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 no-scrollbar">
+              <div className="max-h-48 overflow-y-auto p-1 grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 no-scrollbar">
                 {filteredColumns.map((c: any) => {
                   const name = typeof c === "string" ? c : c.name;
                   const isSelected = selectedCols.includes(name);
@@ -477,7 +507,7 @@ export function CleanerTab() {
               </div>
 
               {/* Category Navigation Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-1.5 p-1 rounded-xl mb-4 border" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+              <div className="flex sm:grid sm:grid-cols-7 gap-1.5 p-1 rounded-xl mb-4 border overflow-x-auto no-scrollbar" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
                 {[
                   { id: "impute", label: "Imputation" },
                   { id: "outlier", label: "Outliers" },
@@ -490,7 +520,7 @@ export function CleanerTab() {
                   <button
                     key={cat.id}
                     onClick={() => setActionCategory(cat.id as any)}
-                    className="py-2 px-1 text-[11px] font-bold rounded-lg transition-all text-center cursor-pointer"
+                    className="py-2 px-3 sm:px-1 text-[11px] font-bold rounded-lg transition-all text-center cursor-pointer shrink-0 min-w-[85px] sm:min-w-0"
                     style={{
                       background: actionCategory === cat.id ? "var(--accent)" : "transparent",
                       color: actionCategory === cat.id ? "#ffffff" : "var(--txt-m)",

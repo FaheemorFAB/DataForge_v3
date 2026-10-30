@@ -27,7 +27,7 @@ import {
   Table, GitMerge, Wand2, LayoutDashboard, Lightbulb, MessageSquare,
   FileText, Bot, Database, Boxes, Users, Code, UploadCloud, Sparkles,
   RefreshCw, PlusCircle, CheckCircle2, AlertTriangle, ChevronDown,
-  ArrowRight, Zap, MoreHorizontal,
+  ArrowRight, Zap, MoreHorizontal, AlertCircle, X,
 } from "lucide-react";
 import {
   SupabaseLogo, PostgresLogo,
@@ -73,6 +73,13 @@ function WorkspaceContent() {
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
   const [isLoadingSample, setIsLoadingSample] = useState(false);
+  const [workspaceToast, setWorkspaceToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  useEffect(() => {
+    if (!workspaceToast) return;
+    const t = setTimeout(() => setWorkspaceToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [workspaceToast]);
   const roleMenuRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -133,8 +140,14 @@ function WorkspaceContent() {
       if (res.ok) {
         const data = await res.json();
         window.location.href = `/workspace?upload_id=${data.upload_id}`;
+      } else {
+        const data = await res.json().catch(() => ({ detail: "Upload failed" }));
+        setWorkspaceToast({ message: data.detail || "Authentication required", type: "error" });
       }
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error(e);
+      setWorkspaceToast({ message: e.message || "Failed to load dataset", type: "error" });
+    }
     finally { setIsLoadingSample(false); }
   };
 
@@ -155,6 +168,28 @@ function WorkspaceContent() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: "var(--bg)", color: "var(--txt)" }}>
+      {/* Floating Top-Center Notification */}
+      {workspaceToast && (
+        <div
+          role="alert"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-xl border shadow-2xl flex items-center justify-between gap-3 bg-red-950/95 border-red-500/50 text-red-200 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200"
+        >
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <AlertCircle size={18} className="shrink-0 text-red-400" />
+            <span className="text-xs font-semibold leading-snug break-words">
+              {workspaceToast.message}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setWorkspaceToast(null)}
+            className="shrink-0 text-red-400 hover:text-red-200 p-1 rounded-md transition-colors cursor-pointer"
+            aria-label="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {/* â•â• TOP NAV â•â• */}
       <nav

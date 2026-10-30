@@ -510,7 +510,7 @@ export function ModelRegistryTab() {
       {/* TOAST NOTIFICATION */}
       {applyToast && (
         <div
-          className={`shrink-0 mx-4 mt-3 px-4 py-3 rounded-xl border flex items-center justify-between text-xs font-bold shadow-lg transition-all animate-in fade-in slide-in-from-top-2 ${
+          className={`fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-xl border flex items-center justify-between text-xs font-bold shadow-2xl backdrop-blur-xl transition-all animate-in fade-in slide-in-from-top-4 duration-200 ${
             applyToast.type === "success"
               ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
               : "bg-rose-500/15 border-rose-500/30 text-rose-600 dark:text-rose-400"

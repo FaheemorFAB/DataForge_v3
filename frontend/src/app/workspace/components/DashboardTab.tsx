@@ -132,16 +132,16 @@ function KpiCard({ stat, idx }: { stat: any; idx: number }) {
   const color = stat.color || PALETTE[idx % PALETTE.length];
   const icon = stat.type === "entity_count" ? <Layers size={14} /> : stat.type === "distinct" ? <PieChart size={14} /> : stat.type === "completeness" ? <Activity size={14} /> : stat.type === "rows" ? <LayoutDashboard size={14} /> : <BarChart4 size={14} />;
   return (
-    <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid var(--border)", minHeight: 110 }}>
+    <div className="relative overflow-hidden rounded-2xl p-3.5 sm:p-5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid var(--border)", minHeight: 105 }}>
       <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-15 blur-2xl pointer-events-none" style={{ background: color }} />
-      <div className="flex items-start justify-between">
-        <p className="text-[10px] font-bold uppercase tracking-widest truncate pr-2" style={{ color: "var(--txt-m)" }}>{stat.label}</p>
+      <div className="flex items-start justify-between gap-1.5">
+        <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-snug break-words" style={{ color: "var(--txt-m)" }}>{stat.label}</p>
         <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}>
           {icon}
         </div>
       </div>
       <div>
-        <p className="text-3xl font-black tracking-tight mt-2" style={{ color }}>{stat.value}</p>
+        <p className="text-2xl sm:text-3xl font-black tracking-tight mt-1.5 sm:mt-2" style={{ color }}>{stat.value}</p>
         {stat.sub && <p className="text-[10px] font-semibold mt-1 truncate" style={{ color: "var(--txt-m)" }}>{stat.sub}</p>}
       </div>
     </div>
@@ -908,7 +908,7 @@ export function DashboardTab() {
   // Skeleton
   if (isDashLoading && dashStats.length === 0) return (
     <div className="tab-panel px-4 py-6 md:px-6 space-y-6 animate-pulse">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
         {Array.from({ length: 4 }).map((_, i) => <div key={i} className="rounded-2xl p-5 h-28" style={{ background: "var(--surface)", border: "1px solid rgba(255,255,255,0.05)" }}><div className="h-2 w-16 rounded mb-4" style={{ background: "rgba(255,255,255,0.07)" }} /><div className="h-8 w-20 rounded" style={{ background: "rgba(255,255,255,0.1)" }} /></div>)}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -923,15 +923,15 @@ export function DashboardTab() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2.5">
-            <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Executive Dashboard</h2>
+            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Executive Dashboard</h2>
           </div>
 
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           {/* Primary KPI Attribute Selector */}
           {(validMetrics.length > 0 || idCols.length > 0 || catCols.length > 0 || profileCols.length > 0) && (
             <div
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm"
+              className="flex items-center justify-between sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm w-full sm:w-auto"
               style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
               title="Select which attribute anchors the executive summary KPI"
             >
@@ -940,7 +940,7 @@ export function DashboardTab() {
               <select
                 value={selectedMetric}
                 onChange={e => handleMetricChange(e.target.value)}
-                className="bg-transparent border-none outline-none cursor-pointer font-sans text-[11px] font-semibold max-w-[140px] truncate"
+                className="bg-transparent border-none outline-none cursor-pointer font-sans text-[11px] font-semibold max-w-[160px] sm:max-w-[140px] truncate"
                 style={{ color: "var(--txt)" }}
               >
                 {validMetrics.length > 0 && (
@@ -981,7 +981,7 @@ export function DashboardTab() {
 
           {/* Palette / Theme Selector */}
           <div
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold"
+            className="flex-1 sm:flex-initial flex items-center justify-between sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold"
             style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
           >
             <Palette size={13} style={{ color: "var(--accent)" }} />
@@ -1003,7 +1003,7 @@ export function DashboardTab() {
           {/* Add Chart Button */}
           <button
             onClick={() => setBuilderOpen(b => !b)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer"
+            className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer"
             style={{
               borderColor: builderOpen ? "#6366f1" : "var(--border)",
               background: builderOpen ? "rgba(99,102,241,0.12)" : "var(--card)",
@@ -1015,7 +1015,7 @@ export function DashboardTab() {
           </button>
 
           {/* Refresh Button */}
-          <button onClick={() => loadDashboard()} disabled={isDashLoading} className="bp flex items-center gap-1.5 cursor-pointer">
+          <button onClick={() => loadDashboard()} disabled={isDashLoading} className="bp flex items-center justify-center gap-1.5 cursor-pointer w-full sm:w-auto">
             {isDashLoading ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : <RefreshCw size={13} />}
             {isDashLoading ? "Refreshing…" : "Refresh"}
           </button>

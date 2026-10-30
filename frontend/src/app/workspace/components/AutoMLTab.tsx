@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import {
   Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders,
   Cpu, Check, Download, Play, RefreshCw, Search, Filter,
-  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag,
+  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag, X,
   Trophy, Settings2, Sparkles, SlidersHorizontal
 } from "lucide-react";
 
@@ -84,6 +84,13 @@ export function AutoMLTab() {
   const [detectedNUnique, setDetectedNUnique] = useState(0);
   const [isTraining, setIsTraining] = useState(false);
   const [automlError, setAutomlError] = useState("");
+
+  // Auto-dismiss error notifications after 6 seconds
+  useEffect(() => {
+    if (!automlError) return;
+    const timer = setTimeout(() => setAutomlError(""), 6000);
+    return () => clearTimeout(timer);
+  }, [automlError]);
   const [automlResult, setAutomlResult] = useState<any>(null);
   // Restore previous AutoML result on refresh
   useEffect(() => {
@@ -1298,6 +1305,29 @@ export function AutoMLTab() {
           )}
         </button>
       </div>
+
+      {/* Floating Top-Center Notification */}
+      {automlError && (
+        <div
+          role="alert"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-xl border shadow-2xl flex items-center justify-between gap-3 bg-red-950/95 border-red-500/50 text-red-200 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200"
+        >
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <AlertCircle size={18} className="shrink-0 text-red-400" />
+            <span className="text-xs font-semibold leading-snug break-words">
+              {automlError}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAutomlError("")}
+            className="shrink-0 text-red-400 hover:text-red-200 p-1 rounded-md transition-colors cursor-pointer"
+            aria-label="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {/* -- ERROR DISPLAY -- */}
       {automlError && (
