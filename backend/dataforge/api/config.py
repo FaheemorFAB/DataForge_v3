@@ -1,4 +1,4 @@
-"""
+﻿"""
 dataforge/api/config.py
 ─────────────────────────
 Pydantic Settings — single source of truth for all configuration.
@@ -14,7 +14,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from functools import lru_cache
-from typing import Optional
+import json
+from typing import Optional, Union
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -51,7 +52,28 @@ class Settings(BaseSettings):
     # CORS origins: env var wins; falls back to FRONTEND_URL + localhost.
     # Set ALLOWED_ORIGINS as a comma-separated string in .env for production,
     # e.g. ALLOWED_ORIGINS=https://app.yourdomain.com,https://yourdomain.com
-    ALLOWED_ORIGINS: list[str] = []
+    ALLOWED_ORIGINS: Union[list[str], str] = []
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def _parse_allowed_origins(cls, v: object) -> list[str]:
+        if not v:
+            return []
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return []
+            if s.startswith("[") and s.endswith("]"):
+                try:
+                    parsed = json.loads(s)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed if str(x).strip()]
+                except Exception:
+                    pass
+            return [x.strip() for x in s.split(",") if x.strip()]
+        if isinstance(v, (list, tuple, set)):
+            return [str(x).strip() for x in v if str(x).strip()]
+        return []
 
     @property
     def CORS_ORIGINS(self) -> list[str]:
@@ -89,7 +111,28 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60  # Short-lived access token: 60 minutes
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Refresh token lifetime: 7 days
     ENABLE_DEV_AUTH: bool = False  # Fail-closed: Must be explicitly enabled in non-production environments
-    TRUSTED_PROXIES: list[str] = ["127.0.0.1", "::1"]  # CIDRs or IPs of trusted reverse proxies
+    TRUSTED_PROXIES: Union[list[str], str] = ["127.0.0.1", "::1"]
+
+    @field_validator("TRUSTED_PROXIES", mode="before")
+    @classmethod
+    def _parse_trusted_proxies(cls, v: object) -> list[str]:
+        if not v:
+            return ["127.0.0.1", "::1"]
+        if isinstance(v, str):
+            s = v.strip()
+            if not s:
+                return ["127.0.0.1", "::1"]
+            if s.startswith("[") and s.endswith("]"):
+                try:
+                    parsed = json.loads(s)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed if str(x).strip()]
+                except Exception:
+                    pass
+            return [x.strip() for x in s.split(",") if x.strip()]
+        if isinstance(v, (list, tuple, set)):
+            return [str(x).strip() for x in v if str(x).strip()]
+        return ["127.0.0.1", "::1"]  # CIDRs or IPs of trusted reverse proxies
 
     @property
     def JWT_SECRET(self) -> str:
