@@ -135,7 +135,7 @@ export default function ShareModal({
         if (delivery?.sent) {
           setSuccessMsg(`✓ Invitation email dispatched to ${inviteEmail} as ${inviteRole}!`);
         } else {
-          setSuccessMsg(`✓ Added ${inviteEmail} (${inviteRole}). Relay simulated (add SMTP/Resend keys in .env); link is ready below.`);
+          setSuccessMsg(`✓ Added ${inviteEmail} (${inviteRole}). Access granted! Direct link is ready below.`);
         }
         setTimeout(() => setSuccessMsg(""), 5000);
       } else {

@@ -115,7 +115,25 @@ export interface NavSection {
 }
 
 export default function DocumentationPage() {
-  const [activeArticleId, setActiveArticleId] = useState<string>("cleaning-dynamic");
+  const [activeArticleId, setActiveArticleId] = useState<string>("governance-roles");
+
+  // Read URL query parameter ?topic=... or #... on load
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const topic = params.get("topic") || params.get("article") || (window.location.hash ? window.location.hash.replace("#", "") : "");
+      if (topic) {
+        setActiveArticleId(topic);
+      }
+    }
+  }, []);
+
+  const handleSelectArticle = (id: string) => {
+    setActiveArticleId(id);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `/docs?topic=${id}`);
+    }
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [copiedCodeKey, setCopiedCodeKey] = useState<string | null>(null);
   const [launchModalOpen, setLaunchModalOpen] = useState(false);
@@ -1933,60 +1951,60 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
       id: "governance-roles",
       category: "governance",
       categoryTitle: "Deployment & Governance",
-      badge: "3 SIMPLE ROLES",
-      title: "3-Tier Roles & Access Permissions",
-      description: "Clear team access management with exactly 3 role levels: Viewer, Analyst, and Admin.",
-      breadcrumb: "Governance > 3-Tier Roles",
+      badge: "ROLES & PERMISSIONS",
+      title: "Team Roles & Permissions (Owner, Admin, Analyst, Viewer)",
+      description: "Simple, plain-English guide to what each role can and cannot do in DataForge.",
+      breadcrumb: "Governance > Roles & Access",
       icon: Users,
       callout: {
-        title: "Simple & Foolproof",
-        text: "No confusing matrices of 50 different toggles. DataForge uses 3 intuitive roles so everyone on your team knows exactly who can view, analyze, and manage.",
+        title: "Clear, Plain-English Permissions",
+        text: "No confusing 50-checkbox permission matrices. DataForge uses simple, intuitive roles so everyone knows who can view, who can clean, and who can manage.",
       },
       whatItIs:
-        "Managing team permissions shouldn't require a computer science degree or hours of navigating confusing menus. To prevent permission sprawl and accidental data modifications, DataForge organizes access into exactly 3 clear, intuitive roles: Viewer, Analyst, and Admin. This makes it effortless to share insights with department managers while ensuring that only authorized colleagues can modify data or invite new members.",
+        "Every dataset in DataForge is protected by role-based access control. When you share a dataset or add teammates under 'Add People and Groups', you assign them one of four roles: Owner, Admin, Analyst, or Viewer. This guarantees that outside stakeholders can review dashboards safely without accidentally altering raw numbers or modifying your automated pipelines.",
       howItWorksSteps: [
         {
           step: "01",
-          title: "Viewer (Level 1 - Read Only)",
-          detail: "Can inspect tables, explore charts, read EDA reports, and ask questions in the AI chat without being able to modify data or change cleaning rules.",
+          title: "Viewer (Read-Only Safe Mode)",
+          detail: "What they CAN do: View and scroll through rows in the data grid, explore charts, inspect statistical EDA summaries, and read AI reports. What they CANNOT do: Run data cleaning, alter cells, train ML models, join tables, or invite other users. Perfect for executives, clients, and external auditors.",
         },
         {
           step: "02",
-          title: "Analyst (Level 2 - Full Analysis)",
-          detail: "Can upload new files, run 1-click cleaning, create custom rules, join tables, train AutoML models, and export clean datasets.",
+          title: "Analyst (Data Work & Transformation)",
+          detail: "What they CAN do: Run 1-Click Auto Clean, create custom cleaning and imputation rules, merge tables in the Join Canvas, train predictive models with AutoML, generate executive reports, and download clean datasets. What they CANNOT do: Change dataset security settings or manage team membership.",
         },
         {
           step: "03",
-          title: "Admin (Level 3 - Full Management)",
-          detail: "Can manage organization members, change roles, configure database connection credentials in the Vault, and review audit logs.",
+          title: "Admin (Dataset & Team Management)",
+          detail: "What they CAN do: Everything an Analyst can do, plus invite new colleagues by email under 'Add People and Groups', change member permissions (switch between Viewer and Analyst), and manage database connections in the Vault. What they CANNOT do: Remove the original dataset Owner.",
         },
         {
           step: "04",
-          title: "Instant Role Switching",
-          detail: "Dataset owners and Admins can adjust any member's role anytime from the Share modal or Team Governance drawer.",
+          title: "Owner (Original Dataset Creator)",
+          detail: "What they CAN do: Unrestricted full control. The Owner created or uploaded the dataset. They can run all operations, grant Admin/Analyst/Viewer roles, revoke public share links, transfer ownership, and delete the dataset. Only the Owner can permanently delete the dataset.",
         },
       ],
       whyUseIt: [
-        "Eliminates permission confusion: everyone knows exactly what each role is allowed to do.",
-        "Protects clean data: Viewers can explore dashboards freely without any risk of accidentally deleting or modifying records.",
-        "Audit-ready governance: ensures your organization meets internal security and data compliance policies.",
+        "Prevents accidental data corruption: Viewers cannot accidentally trigger cleaning pipelines or delete rows.",
+        "Simple, crystal-clear delegation: Assign colleagues Analyst access to let them build models without granting administrative rights.",
+        "Audit-compliant security: Every transformation and role adjustment is timestamped in the audit log.",
       ],
       useCases: [
         {
-          industry: "Department Sharing",
-          title: "Executive Stakeholder Access",
-          description: "Give department heads Viewer access so they can view live charts without altering clean data.",
+          industry: "Client & Stakeholder Reporting",
+          title: "Safe Client Review",
+          description: "Give outside clients Viewer access so they can explore interactive charts without touching raw rows.",
           icon: Building,
         },
         {
-          industry: "Analytics Teams",
-          title: "Team Model Building",
-          description: "Assign data analysts the Analyst role so they can collaborate on cleaning and AutoML.",
+          industry: "Data Engineering & Analytics",
+          title: "Collaborative Data Cleaning",
+          description: "Grant teammates the Analyst role to collaborate on missing-value imputation and model benchmarking.",
           icon: Users,
         },
       ],
       proTips: [
-        "When sharing with outside clients or executives, always assign the Viewer role for safe, worry-free exploration.",
+        "Always default to Viewer when sharing links publicly or with executives. You can upgrade any collaborator to Analyst anytime.",
       ],
     },
     {
@@ -2007,23 +2025,23 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
       howItWorksSteps: [
         {
           step: "01",
-          title: "Click 'Share' in the Workspace",
-          detail: "Click the 'Share' button in the top navigation bar to open the sharing settings and see who has access.",
+          title: "Open the Share Dialog",
+          detail: "Click the purple 'Share' button in the workspace top navigation bar to open dataset collaboration settings.",
         },
         {
           step: "02",
-          title: "Invite Teammates by Email",
-          detail: "Type a colleague's email address, select their role (Viewer, Analyst, or Admin), and click 'Invite'.",
+          title: "Add People and Groups by Email",
+          detail: "Under the 'ADD PEOPLE AND GROUPS' section, enter your colleague's email address, select their role (Viewer, Analyst, or Admin), and click 'Invite'. They will immediately be granted access and sent an invitation email with a direct link.",
         },
         {
           step: "03",
-          title: "Choose Link Access Mode",
-          detail: "Pick 'Restricted' (only invited team members can open the link) or 'Anyone with the link' (anyone with the secret URL can open the dataset).",
+          title: "Manage People with Access",
+          detail: "Under 'PEOPLE WITH ACCESS', see everyone who has access along with their avatars. You can change their role at any time via the role dropdown or click the trash can icon to instantly revoke their access.",
         },
         {
           step: "04",
-          title: "Copy Link & Instant Revoke",
-          detail: "Click 'Copy link' to paste into Slack or email. If you ever need to cancel access, click 'Reset link' to revoke the old URL and generate a fresh one immediately.",
+          title: "General Link Access (Restricted vs Anyone with the link)",
+          detail: "Configure link sharing: choose 'Restricted' (only users invited under Add People and Groups can open it) or 'Anyone with the link' (allows anyone with the URL to view or analyze). Click 'Reset link' anytime to invalidate previous URLs.",
         },
       ],
       whyUseIt: [
@@ -2510,7 +2528,7 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
                   <button
                     key={res.id}
                     onClick={() => {
-                      setActiveArticleId(res.id);
+                      handleSelectArticle(res.id);
                       setSearchQuery("");
                       setMobileSidebarOpen(false);
                     }}
@@ -2544,7 +2562,7 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
                       if (hasSubItems) {
                         toggleSection(sec.id);
                       } else {
-                        setActiveArticleId(sec.id);
+                        handleSelectArticle(sec.id);
                         setMobileSidebarOpen(false);
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }
@@ -2624,7 +2642,7 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setActiveArticleId(sub.id);
+                                  handleSelectArticle(sub.id);
                                   setMobileSidebarOpen(false);
                                   window.scrollTo({ top: 0, behavior: "smooth" });
                                 }}
@@ -2682,7 +2700,7 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          setActiveArticleId(child.id);
+                                          handleSelectArticle(child.id);
                                           setMobileSidebarOpen(false);
                                           window.scrollTo({ top: 0, behavior: "smooth" });
                                         }}
@@ -3090,7 +3108,7 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
             {prevArticle ? (
               <button
                 onClick={() => {
-                  setActiveArticleId(prevArticle.id);
+                  handleSelectArticle(prevArticle.id);
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 className="w-full sm:w-1/2 p-4 rounded-2xl border text-left transition-all cursor-pointer group active:scale-98"
@@ -3112,7 +3130,7 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
             {nextArticle ? (
               <button
                 onClick={() => {
-                  setActiveArticleId(nextArticle.id);
+                  handleSelectArticle(nextArticle.id);
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 className="w-full sm:w-1/2 p-4 rounded-2xl border text-right transition-all cursor-pointer group active:scale-98"
