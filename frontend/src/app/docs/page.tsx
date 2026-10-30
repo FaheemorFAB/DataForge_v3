@@ -3076,11 +3076,11 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
           <div className="my-8">
             <CTABanner
               variant="compact"
-              title="Want to test DataForge with your dataset first?"
-              subtitle="Start on the Free Starter plan — zero setup, instant automated EDA."
-              buttonText="Launch Free Workspace"
+              title="Test DataForge with your dataset"
+              subtitle="Free plan — zero setup, instant automated EDA."
+              buttonText="Launch Workspace"
               onAction={() => setLaunchModalOpen(true)}
-              secondaryButtonText="Explore Architecture"
+              secondaryButtonText="Architecture"
               secondaryHref="/#about"
             />
           </div>

@@ -149,7 +149,7 @@ export default function CTABanner({
     return (
       <div className={`w-full ${containerClassName}`}>
         <div
-          className={`relative rounded-2xl p-4 sm:p-5 border overflow-hidden backdrop-blur-xl transition-all ${className}`}
+          className={`relative rounded-2xl p-3 sm:p-5 border overflow-hidden backdrop-blur-xl transition-all ${className}`}
           style={{
             background: defaultBackground,
             borderColor: "rgba(255, 67, 16, 0.25)",
@@ -161,33 +161,33 @@ export default function CTABanner({
             style={{ background: "var(--accent)" }}
           />
 
-          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3 text-left">
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-2.5 sm:gap-3 text-left min-w-0">
               <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-inner"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-inner"
                 style={{
                   background: "var(--card-bg)",
                   borderColor: "var(--border)",
                   color: "var(--accent)",
                 }}
               >
-                <ActionIcon size={17} />
+                <ActionIcon size={16} />
               </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-bold tracking-tight" style={{ color: "var(--txt)" }}>
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm md:text-base font-bold tracking-tight leading-tight truncate sm:whitespace-normal" style={{ color: "var(--txt)" }}>
                   {title || "Ready to experience DataForge?"}
                 </h3>
                 {subtitle && (
-                  <p className="text-xs font-normal" style={{ color: "var(--txt-m)" }}>
+                  <p className="text-[11px] sm:text-xs font-normal text-[var(--txt-m)] mt-0.5 leading-snug truncate sm:whitespace-normal">
                     {subtitle}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-              {renderSecondaryButton("px-3.5 py-2 text-xs")}
-              {renderPrimaryButton("px-4 py-2 text-xs")}
+            <div className="flex items-center gap-2 w-full md:w-auto justify-stretch md:justify-end shrink-0 pt-0.5 md:pt-0">
+              {renderSecondaryButton("flex-1 md:flex-initial px-3 sm:px-3.5 py-2 text-[11px] sm:text-xs text-center justify-center")}
+              {renderPrimaryButton("flex-1 md:flex-initial px-3.5 sm:px-4 py-2 text-[11px] sm:text-xs text-center justify-center")}
             </div>
           </div>
         </div>

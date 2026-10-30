@@ -1706,11 +1706,11 @@ export default function DashboardPage() {
         <div className="pt-2">
           <CTABanner
             variant="compact"
-            title="Ready to launch a new data exploration or AutoML run?"
-            subtitle="Connect spreadsheets, PostgreSQL, or Snowflake for zero-config profiling and model training."
+            title="Launch exploration or AutoML run"
+            subtitle="Connect spreadsheets or databases for instant profiling."
             buttonText="Launch Workspace"
             href="/workspace"
-            secondaryButtonText="Pricing & Seats"
+            secondaryButtonText="Plans & Seats"
             secondaryHref="/pricing"
           />
         </div>

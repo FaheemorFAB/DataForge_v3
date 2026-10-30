@@ -1387,23 +1387,23 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ══════════════ CTA BANNER (Above How It Works) ══════════════ */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 my-6 sm:my-8">
+          <CTABanner
+            variant="compact"
+            title="Test DataForge with your dataset"
+            subtitle="Free plan — zero setup, instant automated EDA."
+            buttonText="Launch Workspace"
+            onAction={handleLaunchWorkspace}
+            secondaryButtonText="Architecture"
+            secondaryHref="/#about"
+          />
+        </div>
+
         {/* ══════════════ PIPELINE ══════════════ */}
         <section id="pipeline">
           <PipelineShowcase onTryDataset={handleLaunchWorkspace} />
         </section>
-
-        {/* ══════════════ MID-PAGE CTA BANNER (Compact Variant) ══════════════ */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 my-10 sm:my-14">
-          <CTABanner
-            variant="compact"
-            title="Want to test DataForge with your dataset first?"
-            subtitle="Start on the Free Starter plan — zero setup, instant automated EDA."
-            buttonText="Launch Workspace"
-            onAction={handleLaunchWorkspace}
-            secondaryButtonText="Explore Architecture"
-            secondaryHref="/#about"
-          />
-        </div>
 
         {/* ══════════════ WHO USES DATAFORGE ══════════════ */}
         <BuiltFor />
