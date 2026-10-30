@@ -115,11 +115,12 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<string>("overview");
 
   // User & Identity State
-  const [userName, setUserName] = useState<string>("Alex Morgan");
-  const [userEmail, setUserEmail] = useState<string>("alex.morgan@dataforge.internal");
+  const [userName, setUserName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
   const [userRole, setUserRole] = useState<TeamRole>("Admin");
   const [userAvatarId, setUserAvatarId] = useState<string>("avatar-1");
   const [userTier, setUserTier] = useState<string>("free");
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState<boolean>(true);
 
   // Profile Edit Modal State
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
@@ -142,10 +143,10 @@ export default function DashboardPage() {
 
   // System Stats
   const [stats, setStats] = useState({
-    uploads: 1,
-    analyses: 6,
-    models: 3,
-    reports: 2
+    uploads: 0,
+    analyses: 0,
+    models: 0,
+    reports: 0
   });
 
   // Datasets
@@ -156,46 +157,12 @@ export default function DashboardPage() {
   const [deleteMessage, setDeleteMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Models
-  const [models, setModels] = useState<ModelItem[]>([
-    {
-      id: "mdl-01",
-      name: "Customer Retention Predictor",
-      algorithm: "LightGBM Classifier",
-      target: "churn_flag",
-      metric: "ROC-AUC",
-      score: "0.942",
-      status: "Ready",
-      created_at: "2 hours ago"
-    },
-    {
-      id: "mdl-02",
-      name: "Quarterly Revenue Forecast",
-      algorithm: "XGBoost Regressor",
-      target: "monthly_revenue",
-      metric: "R² / RMSE",
-      score: "0.918",
-      status: "Ready",
-      created_at: "1 day ago"
-    },
-    {
-      id: "mdl-03",
-      name: "Transaction Risk Scoring",
-      algorithm: "Random Forest Classifier",
-      target: "is_fraudulent",
-      metric: "F1 Score",
-      score: "0.895",
-      status: "Trained",
-      created_at: "3 days ago"
-    }
-  ]);
+  const [models, setModels] = useState<ModelItem[]>([]);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [deleteModelConfirmId, setDeleteModelConfirmId] = useState<string | null>(null);
 
   // Reports
-  const [reports, setReports] = useState<any[]>([
-    { id: 101, filename: "customer_churn_q3.csv", triggered_by: "Executive Briefing", created_at: "Today, 08:30 AM" },
-    { id: 102, filename: "sales_pipeline_2026.csv", triggered_by: "Weekly Automated EDA", created_at: "Yesterday" }
-  ]);
+  const [reports, setReports] = useState<any[]>([]);
   const [deletingReportId, setDeletingReportId] = useState<number | string | null>(null);
   const [deleteReportConfirmId, setDeleteReportConfirmId] = useState<number | string | null>(null);
 
@@ -242,43 +209,7 @@ export default function DashboardPage() {
       }
     } catch (e) {}
 
-    // Fetch user subscription tier
-    apiFetch("/subscription")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        const plan = data?.subscription?.plan || data?.plan;
-        if (plan) {
-          const clean = plan.toLowerCase();
-          setUserTier(clean);
-          localStorage.setItem("df_user_tier", clean);
-        }
-      })
-      .catch(() => {});
 
-    // Fetch live user info from backend
-    apiFetch("/v1/auth/me")
-      .then((res) => {
-        if (res.status === 401) {
-          if (typeof window !== "undefined") {
-            window.location.href = "/?login=1";
-          }
-          return null;
-        }
-        return res.ok ? res.json() : null;
-      })
-      .then((data) => {
-        if (data) {
-          if (data.name) setUserName(data.name);
-          if (data.email) setUserEmail(data.email);
-          const savedAvatar = localStorage.getItem("df_user_avatar");
-          if (savedAvatar) {
-            setUserAvatarId(savedAvatar);
-          } else if (data.avatar) {
-            setUserAvatarId(data.avatar);
-          }
-        }
-      })
-      .catch(() => {});
 
     // 3. Check and clean cached teams
     try {
@@ -366,7 +297,7 @@ export default function DashboardPage() {
         console.warn("Failed to fetch teams:", err);
       }
     };
-    fetchTeams();
+// fetchTeams will run in initAllDashboard
 
     // 4. Fetch datasets
     const fetchDashboard = async () => {
@@ -403,7 +334,54 @@ export default function DashboardPage() {
       }
     };
 
-    fetchDashboard();
+    const initAllDashboard = async () => {
+      try {
+        await Promise.allSettled([
+          apiFetch("/subscription")
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              const plan = data?.subscription?.plan || data?.plan;
+              if (plan) {
+                const clean = plan.toLowerCase();
+                setUserTier(clean);
+                localStorage.setItem("df_user_tier", clean);
+              }
+            })
+            .catch(() => {}),
+
+          apiFetch("/v1/auth/me")
+            .then((res) => {
+              if (res.status === 401) {
+                if (typeof window !== "undefined") {
+                  window.location.href = "/?login=1";
+                }
+                return null;
+              }
+              return res.ok ? res.json() : null;
+            })
+            .then((data) => {
+              if (data) {
+                if (data.name) setUserName(data.name);
+                if (data.email) setUserEmail(data.email);
+                const savedAvatar = localStorage.getItem("df_user_avatar");
+                if (savedAvatar) {
+                  setUserAvatarId(savedAvatar);
+                } else if (data.avatar) {
+                  setUserAvatarId(data.avatar);
+                }
+              }
+            })
+            .catch(() => {}),
+
+          fetchTeams(),
+          fetchDashboard()
+        ]);
+      } finally {
+        setIsLoadingDashboard(false);
+      }
+    };
+
+    initAllDashboard();
   }, []);
 
   // Auto-dismiss delete alert message
@@ -740,6 +718,24 @@ export default function DashboardPage() {
 
       {/* ── MAIN DASHBOARD CONTAINER ── */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-8 py-6 space-y-6">
+        {isLoadingDashboard ? (
+          <div className="min-h-[55vh] flex flex-col items-center justify-center py-24 space-y-4">
+            <div className="relative flex items-center justify-center">
+              <div
+                className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin"
+                style={{
+                  borderColor: "var(--border)",
+                  borderTopColor: "var(--accent)",
+                }}
+              />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-sm font-bold" style={{ color: "var(--txt)" }}>Loading Command Center...</p>
+              <p className="text-xs" style={{ color: "var(--txt-m)" }}>Fetching your datasets, models, and analytics ledger</p>
+            </div>
+          </div>
+        ) : (
+          <>
         {/* Success Alert Banner */}
         {saveSuccessMsg && (
           <div
@@ -1714,6 +1710,8 @@ export default function DashboardPage() {
             secondaryHref="/pricing"
           />
         </div>
+          </>
+        )}
       </main>
 
       {/* ── EDIT PROFILE MODAL (Avatar, Name, Email) ── */}

@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Zap,
+  Loader2,
 } from "lucide-react";
 
 interface PipelineStudioModalProps {
@@ -292,7 +293,14 @@ export function PipelineStudioModal({
 
         {/* BODY */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {activeTab === "quality" ? (
+          {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-3">
+              <Loader2 size={24} className="animate-spin text-indigo-500" />
+              <span className="text-xs font-semibold" style={{ color: "var(--txt-m)" }}>
+                Exporting pipeline code and architecture...
+              </span>
+            </div>
+          ) : activeTab === "quality" ? (
             <div className="space-y-4">
               {/* QUALITY SCORECARD */}
               <div

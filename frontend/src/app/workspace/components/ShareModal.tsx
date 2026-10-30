@@ -299,6 +299,15 @@ export default function ShareModal({
 
         {/* Modal Body */}
         <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+          {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-3">
+              <Loader2 size={24} className="animate-spin" style={{ color: "var(--accent)" }} />
+              <span className="text-xs font-semibold" style={{ color: "var(--txt-m)" }}>
+                Loading share permissions...
+              </span>
+            </div>
+          ) : (
+            <>
           {/* Notifications */}
           {errorMsg && (
             <div
@@ -668,6 +677,8 @@ export default function ShareModal({
               </div>
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Footer (Copy link & Done) */}

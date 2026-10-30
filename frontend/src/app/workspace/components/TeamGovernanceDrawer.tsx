@@ -445,6 +445,15 @@ export function TeamGovernanceDrawer({
 
         {/* TAB BODY */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-3">
+              <Loader2 size={24} className="animate-spin" style={{ color: "var(--accent)" }} />
+              <span className="text-xs font-semibold" style={{ color: "var(--txt-m)" }}>
+                Loading team governance data...
+              </span>
+            </div>
+          ) : (
+            <>
           {activeTab === "members" && (
             <div className="space-y-4">
               {/* TOOLBAR */}
@@ -694,6 +703,8 @@ export function TeamGovernanceDrawer({
                 )}
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
 
