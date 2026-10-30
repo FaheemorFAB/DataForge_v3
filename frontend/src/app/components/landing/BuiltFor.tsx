@@ -52,8 +52,8 @@ export default function BuiltFor() {
   };
 
   return (
-    <section id="audiences" className="py-24 border-t w-full transition-colors duration-300" style={{ borderColor: "var(--border)" }}>
-      <div className="max-w-6xl mx-auto px-5 sm:px-8">
+    <section id="audiences" className="min-h-[100dvh] min-h-[100vh] flex flex-col justify-center py-12 sm:py-16 md:py-20 lg:py-24 border-t w-full transition-colors duration-300" style={{ borderColor: "var(--border)" }}>
+      <div className="max-w-6xl mx-auto px-5 sm:px-8 w-full my-auto">
         
         {/* Section Header */}
         <motion.div
@@ -61,7 +61,7 @@ export default function BuiltFor() {
           whileInView="visible"
           viewport={{ once: true, margin: "-60px" }}
           variants={fadeUp}
-          className="max-w-2xl text-left mb-16 space-y-3"
+          className="max-w-2xl text-left mb-6 sm:mb-10 lg:mb-14 space-y-2 sm:space-y-3"
         >
           <div className="inline-flex items-center gap-2">
             <span className="text-[11px] font-extrabold font-mono uppercase tracking-widest" style={{ color: "var(--accent)" }}>
@@ -77,7 +77,7 @@ export default function BuiltFor() {
         </motion.div>
 
         {/* Rows */}
-        <div className="space-y-3.5">
+        <div className="space-y-2.5 sm:space-y-3.5">
           {personas.map((p, idx) => {
             const Icon = p.icon;
             return (
@@ -87,7 +87,7 @@ export default function BuiltFor() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{ delay: idx * 0.08, duration: 0.4 }}
-                className="audience-row group flex items-start sm:items-center justify-between p-4 sm:p-6 rounded-2xl border transition-all duration-300 hover:border-[var(--accent)] hover:-translate-y-0.5 hover:shadow-xl relative overflow-hidden"
+                className="audience-row group flex items-start sm:items-center justify-between p-3 sm:p-5 md:p-6 rounded-2xl border transition-all duration-300 hover:border-[var(--accent)] hover:-translate-y-0.5 hover:shadow-xl relative overflow-hidden"
                 style={{
                   borderColor: "var(--border)",
                   background: "var(--card-bg, var(--card))",
