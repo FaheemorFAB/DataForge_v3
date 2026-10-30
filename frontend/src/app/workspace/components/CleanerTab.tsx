@@ -5,11 +5,11 @@ import { useWorkspace } from "./WorkspaceProvider";
 import { apiFetch } from "@/lib/api";
 import {
   Download, AlertTriangle, AlertCircle, Sparkles, Sliders, Plus, Trash2, CheckCircle2,
-  FileCode, Eye, Check, X, Shield, Filter, Search, Copy, Terminal, RefreshCw
+  FileCode, Eye, Check, X, Shield, Filter, Search, Copy, Terminal, RefreshCw, Lock, ShieldAlert, Info
 } from 'lucide-react';
 
 export function CleanerTab() {
-  const { uploadId, profile, setCleanProfile, cleanResult, setCleanResult } = useWorkspace();
+  const { uploadId, profile, setCleanProfile, cleanResult, setCleanResult, shareMeta } = useWorkspace();
   const [mode, setMode] = useState<"auto" | "dynamic">("dynamic");
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanError, setCleanError] = useState("");
@@ -257,6 +257,10 @@ export function CleanerTab() {
 
   // -- 1-Click Auto Clean --
   const runAutoCleaning = async () => {
+    if (shareMeta?.is_shared && shareMeta?.effective_role === "Viewer") {
+      setCleanError("Read-Only Permission: You have 'Viewer' access to this shared dataset. To run data cleaning, ask the owner (" + (shareMeta.owner_name || "Owner") + ") for 'Analyst' or 'Admin' permissions.");
+      return;
+    }
     setIsCleaning(true);
     setCleanError("");
     try {
@@ -265,9 +269,23 @@ export function CleanerTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ upload_id: uploadId }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setCleanError(data.error || "Cleaning failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403) {
+          const detail = typeof data.detail === "string" ? data.detail : "";
+          if (detail.includes("Analyst") || detail.includes("Viewer") || shareMeta?.effective_role === "Viewer") {
+            setCleanError("Read-Only Permission: You have 'Viewer' access to this shared dataset. Ask the owner (" + (shareMeta?.owner_name || "Owner") + ") for 'Analyst' or 'Admin' permissions to run data cleaning.");
+          } else {
+            setCleanError(detail || "Access Denied: You do not have permission to clean this dataset.");
+          }
+        } else {
+          const msg = data.detail || data.error || data.message || "Data cleaning failed. Please verify your dataset and try again.";
+          setCleanError(typeof msg === "string" ? msg : JSON.stringify(msg));
+        }
+        return;
+      }
+      if (data.error) {
+        setCleanError(data.error);
         return;
       }
       setCleanResult(data);
@@ -289,6 +307,10 @@ export function CleanerTab() {
   // -- Run Granular Custom Rules Clean --
   const runDynamicCleaning = async () => {
     if (rules.length === 0) return;
+    if (shareMeta?.is_shared && shareMeta?.effective_role === "Viewer") {
+      setCleanError("Read-Only Permission: You have 'Viewer' access to this shared dataset. To run custom cleaning rules, ask the owner (" + (shareMeta.owner_name || "Owner") + ") for 'Analyst' or 'Admin' permissions.");
+      return;
+    }
     setIsCleaning(true);
     setCleanError("");
     try {
@@ -297,9 +319,23 @@ export function CleanerTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ upload_id: uploadId, rules }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setCleanError(data.error || "Dynamic cleaning failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403) {
+          const detail = typeof data.detail === "string" ? data.detail : "";
+          if (detail.includes("Analyst") || detail.includes("Viewer") || shareMeta?.effective_role === "Viewer") {
+            setCleanError("Read-Only Permission: You have 'Viewer' access to this shared dataset. Ask the owner (" + (shareMeta?.owner_name || "Owner") + ") for 'Analyst' or 'Admin' permissions to run custom cleaning rules.");
+          } else {
+            setCleanError(detail || "Access Denied: You do not have permission to clean this dataset.");
+          }
+        } else {
+          const msg = data.detail || data.error || data.message || "Dynamic cleaning pipeline failed. Please check your rules and try again.";
+          setCleanError(typeof msg === "string" ? msg : JSON.stringify(msg));
+        }
+        return;
+      }
+      if (data.error) {
+        setCleanError(data.error);
         return;
       }
       setCleanResult(data);
@@ -359,22 +395,53 @@ export function CleanerTab() {
         </div>
       </div>
 
+      {/* Informational Read-Only Banner for Viewers */}
+      {shareMeta?.is_shared && shareMeta?.effective_role === "Viewer" && (
+        <div
+          className="p-4 rounded-xl border flex items-center gap-3.5 mb-2 shadow-sm transition-all"
+          style={{
+            background: "rgba(59, 130, 246, 0.08)",
+            borderColor: "rgba(59, 130, 246, 0.25)",
+          }}
+        >
+          <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+            <Lock size={16} />
+          </div>
+          <div className="text-left flex-1 min-w-0">
+            <p className="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+              <span>Read-Only Shared Dataset</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-300 uppercase font-mono">Viewer Role</span>
+            </p>
+            <p className="text-[11px] text-blue-200/80 leading-relaxed mt-0.5">
+              You have read-only permissions for this dataset. To execute data cleaning pipelines or custom imputations, request <strong>Analyst</strong> or <strong>Admin</strong> access from the owner ({shareMeta.owner_name || "Dataset Owner"}).
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Floating Top-Center Notification */}
       {cleanError && (
         <div
           role="alert"
-          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-xl border shadow-2xl flex items-center justify-between gap-3 bg-red-950/95 border-red-500/50 text-red-200 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[94vw] max-w-lg px-4 py-3.5 rounded-2xl border shadow-2xl flex items-center justify-between gap-3 bg-zinc-950/95 border-amber-500/40 text-zinc-100 backdrop-blur-2xl animate-in fade-in slide-in-from-top-4 duration-200"
         >
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <AlertCircle size={18} className="shrink-0 text-red-400" />
-            <span className="text-xs font-semibold leading-snug break-words">
-              {cleanError}
-            </span>
+          <div className="flex items-center gap-3 min-w-0 flex-1 text-left">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/15 border border-amber-500/30 text-amber-400">
+              <ShieldAlert size={18} />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <p className="text-xs font-bold text-amber-400">
+                {cleanError.includes("Permission") || cleanError.includes("Access") ? "Permission Notice" : "Cleaning Notice"}
+              </p>
+              <p className="text-[12px] text-zinc-300 leading-snug break-words mt-0.5">
+                {cleanError}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={() => setCleanError("")}
-            className="shrink-0 text-red-400 hover:text-red-200 p-1 rounded-md transition-colors cursor-pointer"
+            className="shrink-0 text-zinc-400 hover:text-white p-1.5 rounded-lg transition-colors cursor-pointer"
             aria-label="Dismiss notification"
           >
             <X size={15} />
@@ -383,9 +450,11 @@ export function CleanerTab() {
       )}
 
       {cleanError && (
-        <div className="p-4 rounded-xl space-y-1" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>
-          <p className="font-bold text-sm text-red-400 flex items-center gap-1.5"><AlertTriangle size={16} /> Cleaning Error</p>
-          <p className="font-mono text-xs text-red-400">{cleanError}</p>
+        <div className="p-3.5 rounded-xl space-y-1 text-left" style={{ background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+          <p className="font-bold text-xs text-amber-400 flex items-center gap-1.5">
+            <AlertCircle size={14} /> Notice
+          </p>
+          <p className="text-xs text-amber-200/90 leading-relaxed">{cleanError}</p>
         </div>
       )}
 

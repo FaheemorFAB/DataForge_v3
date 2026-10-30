@@ -246,6 +246,7 @@ async def require_upload_access(
     current_user: User,
     min_role: str = "Viewer",
     share_token: Optional[str] = None,
+    request: Optional[Request] = None,
 ) -> dict:
     """
     Validate that the upload exists and the user has permission to access it.
@@ -258,6 +259,9 @@ async def require_upload_access(
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    if not share_token and request:
+        share_token = request.headers.get("x-share-token") or request.query_params.get("share_token")
 
     from dataforge.api.services.sharing import DatasetSharingService
 
@@ -321,11 +325,14 @@ async def require_upload_with_data(
     current_user: User,
     min_role: str = "Viewer",
     share_token: Optional[str] = None,
+    request: Optional[Request] = None,
 ) -> dict:
     """
     Like require_upload_access but also checks that a dataset is loaded.
     """
-    upload = await require_upload_access(upload_id, current_user, min_role=min_role, share_token=share_token)
+    if not share_token and request:
+        share_token = request.headers.get("x-share-token") or request.query_params.get("share_token")
+    upload = await require_upload_access(upload_id, current_user, min_role=min_role, share_token=share_token, request=request)
     if not exists(upload_id, "df_raw") and not exists(upload_id, "df_clean"):
         from dataforge.api.storage.manager import load
         # Attempt to restore from Supabase if it exists there

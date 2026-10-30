@@ -480,7 +480,8 @@ async def api_clean(
     upload_id = body.upload_id
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user, min_role="Analyst")
+    share_token = getattr(body, "share_token", None) or request.headers.get("x-share-token") or request.query_params.get("share_token")
+    await require_upload_with_data(upload_id, current_user, min_role="Analyst", share_token=share_token, request=request)
 
     df_raw = load(upload_id, "df_raw")
     if df_raw is None:
@@ -583,7 +584,8 @@ async def api_clean_dynamic(
     rules = body.get("rules", [])
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user, min_role="Analyst")
+    share_token = body.get("share_token") or request.headers.get("x-share-token") or request.query_params.get("share_token")
+    await require_upload_with_data(upload_id, current_user, min_role="Analyst", share_token=share_token, request=request)
 
     df_raw = load(upload_id, "df_raw")
     if df_raw is None:

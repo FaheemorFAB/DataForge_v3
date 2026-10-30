@@ -13,6 +13,7 @@ class CleanRequest(BaseModel):
     upload_id: Optional[str] = None
     expected_version_id: Optional[str] = Field(default=None, description="OCC version token for compare-and-swap")
     preview_only: bool = Field(default=False, description="If True, preview the cleaning operations without mutating dataset state or committing a snapshot")
+    share_token: Optional[str] = Field(default=None, description="Share token for link-accessed datasets")
 
 
 class EDARequest(BaseModel):

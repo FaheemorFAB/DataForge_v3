@@ -605,12 +605,15 @@ export default function WorkspaceLaunchModal({
       if (typeof window !== "undefined") {
         localStorage.setItem("df_user_role", "Admin");
         localStorage.setItem("df_last_upload_id", uploadId);
+        try {
+          sessionStorage.removeItem("df_share_token_" + uploadId);
+        } catch {}
       }
 
       setTimeout(() => {
         onClose();
-        router.push(`/workspace?upload_id=${uploadId}`);
-      }, 1200);
+        window.location.href = `/workspace?upload_id=${uploadId}`;
+      }, 1000);
     } catch (err: any) {
       setIsGeneratingWorkspace(false);
       setIsConnecting(false);
@@ -751,11 +754,14 @@ export default function WorkspaceLaunchModal({
       if (typeof window !== "undefined") {
         localStorage.setItem("df_user_role", "Admin");
         localStorage.setItem("df_last_upload_id", uploadId);
+        try {
+          sessionStorage.removeItem("df_share_token_" + uploadId);
+        } catch {}
       }
 
       setTimeout(() => {
         onClose();
-        router.push(`/workspace?upload_id=${uploadId}`);
+        window.location.href = `/workspace?upload_id=${uploadId}`;
       }, 1000);
     } catch (err: any) {
       setIsGeneratingWorkspace(false);
