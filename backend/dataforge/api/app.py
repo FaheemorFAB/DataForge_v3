@@ -134,9 +134,9 @@ def create_app() -> FastAPI:
         SessionMiddleware,
         secret_key=settings.JWT_SECRET,
         session_cookie="df_session",
-        max_age=300,  # 5 min â€” just enough for OAuth round-trip
-        https_only=settings.SESSION_HTTPS_ONLY,  # True in production (HTTPS), False in dev
-        same_site="lax",
+        max_age=600,
+        https_only=settings.SESSION_HTTPS_ONLY,
+        same_site="lax" if not settings.PRODUCTION else "none",
     )
 
     # Request logging

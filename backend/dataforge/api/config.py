@@ -111,17 +111,17 @@ class Settings(BaseSettings):
     JWT_EXPIRE_MINUTES: int = 60  # Short-lived access token: 60 minutes
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7  # Refresh token lifetime: 7 days
     ENABLE_DEV_AUTH: bool = False  # Fail-closed: Must be explicitly enabled in non-production environments
-    TRUSTED_PROXIES: Union[list[str], str] = ["127.0.0.1", "::1"]
+    TRUSTED_PROXIES: Union[list[str], str] = ["*"]
 
     @field_validator("TRUSTED_PROXIES", mode="before")
     @classmethod
     def _parse_trusted_proxies(cls, v: object) -> list[str]:
         if not v:
-            return ["127.0.0.1", "::1"]
+            return ["*"]
         if isinstance(v, str):
             s = v.strip()
             if not s:
-                return ["127.0.0.1", "::1"]
+                return ["*"]
             if s.startswith("[") and s.endswith("]"):
                 try:
                     parsed = json.loads(s)
@@ -132,7 +132,7 @@ class Settings(BaseSettings):
             return [x.strip() for x in s.split(",") if x.strip()]
         if isinstance(v, (list, tuple, set)):
             return [str(x).strip() for x in v if str(x).strip()]
-        return ["127.0.0.1", "::1"]  # CIDRs or IPs of trusted reverse proxies
+        return ["*"]  # CIDRs or IPs of trusted reverse proxies
 
     @property
     def JWT_SECRET(self) -> str:

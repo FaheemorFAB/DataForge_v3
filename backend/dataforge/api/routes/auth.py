@@ -1,4 +1,4 @@
-"""
+﻿"""
 dataforge/api/routes/auth.py
 ──────────────────────────────
 Authentication routes: Google OAuth, mock login, logout.
@@ -161,20 +161,39 @@ async def auth_google_callback(request: Request):
     except Exception as exc:
         log.error("Google OAuth callback error: %s", exc)
         code = request.query_params.get("code")
-        if code and ("mismatching_state" in str(exc).lower() or "state" in str(exc).lower()):
+        if code:
             try:
-                log.info("State mismatch caught — attempting direct token exchange with code...")
-                oauth = request.app.state.oauth
+                log.info("Attempting direct Google token exchange with code...")
+                import httpx
                 redirect_uri = get_google_redirect_uri()
-                token = await oauth.google.fetch_token(
-                    redirect_uri=redirect_uri,
-                    code=code,
-                )
-                userinfo = token.get("userinfo")
-                if not userinfo:
-                    userinfo = await oauth.google.userinfo(token=token)
+                async with httpx.AsyncClient(timeout=10.0) as http_client:
+                    token_resp = await http_client.post(
+                        "https://oauth2.googleapis.com/token",
+                        data={
+                            "code": code,
+                            "client_id": settings.GOOGLE_CLIENT_ID,
+                            "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                            "redirect_uri": redirect_uri,
+                            "grant_type": "authorization_code",
+                        },
+                        headers={"Accept": "application/json"},
+                    )
+                    if token_resp.status_code == 200:
+                        token_data = token_resp.json()
+                        access_token = token_data.get("access_token")
+                        userinfo_resp = await http_client.get(
+                            "https://www.googleapis.com/oauth2/v3/userinfo",
+                            headers={"Authorization": f"Bearer {access_token}"},
+                        )
+                        if userinfo_resp.status_code == 200:
+                            userinfo = userinfo_resp.json()
+                            log.info("Direct Google token exchange succeeded: email=%s", userinfo.get("email"))
+                        else:
+                            log.error("Google userinfo fetch failed (%s): %s", userinfo_resp.status_code, userinfo_resp.text)
+                    else:
+                        log.error("Direct Google token exchange failed (%s): %s", token_resp.status_code, token_resp.text)
             except Exception as exc2:
-                log.error("Direct token exchange failed: %s", exc2)
+                log.error("Direct Google token exchange exception: %s", exc2)
 
     if not userinfo:
         return RedirectResponse(url=f"{settings.FRONTEND_URL}/?login=1&error=oauth")
