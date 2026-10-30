@@ -70,7 +70,6 @@ function WorkspaceContent() {
   const [showPipelineModal, setShowPipelineModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [activeRole, setActiveRole] = useState<RoleId>("Analyst");
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
   const [isLoadingSample, setIsLoadingSample] = useState(false);
   const [workspaceToast, setWorkspaceToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -80,7 +79,6 @@ function WorkspaceContent() {
     const t = setTimeout(() => setWorkspaceToast(null), 6000);
     return () => clearTimeout(t);
   }, [workspaceToast]);
-  const roleMenuRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -105,18 +103,13 @@ function WorkspaceContent() {
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (roleMenuRef.current && !roleMenuRef.current.contains(e.target as Node)) setShowRoleMenu(false);
       if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) setShowOverflow(false);
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const handleRoleChange = (role: RoleId) => {
-    setActiveRole(role);
-    localStorage.setItem("df_user_role", role);
-    setShowRoleMenu(false);
-  };
+
 
   const activeRows = (cleanProfile || profile)?.rows || 0;
   const activeCols = (cleanProfile || profile)?.cols || 0;
@@ -127,7 +120,6 @@ function WorkspaceContent() {
 
   const primaryTabs  = TABS.filter(t => PRIMARY_TAB_IDS.includes(t.id as TabId));
   const overflowTabs = TABS.filter(t => !PRIMARY_TAB_IDS.includes(t.id as TabId));
-  const currentRole  = ROLES.find(r => r.id === activeRole) ?? ROLES[2];
 
   const handleLaunchSample = async (sample: SampleDataset) => {
     setIsLoadingSample(true);
@@ -343,42 +335,7 @@ function WorkspaceContent() {
             </div>
           )}
 
-          {/* Role Selector */}
-          <div className="relative" ref={roleMenuRef}>
-            <button
-              onClick={() => setShowRoleMenu(!showRoleMenu)}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer shrink-0"
-              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
-              title={`Role: ${currentRole.label}`}
-            >
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: currentRole.color }} />
-              <span className="hidden sm:inline" suppressHydrationWarning>{currentRole.label}</span>
-              <ChevronDown size={11} style={{ color: "var(--txt-m)" }} />
-            </button>
-            {showRoleMenu && (
-              <div
-                className="absolute right-0 mt-1.5 w-56 rounded-xl border p-1.5 shadow-2xl z-50"
-                style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-              >
-                <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--txt-f)" }}>
-                  Switch Role
-                </p>
-                {ROLES.map(role => (
-                  <button
-                    key={role.id}
-                    onClick={() => handleRoleChange(role.id as RoleId)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs cursor-pointer hover:bg-[var(--row-h)]"
-                    style={{ color: "var(--txt)" }}
-                  >
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: role.color }} />
-                    <span className="font-semibold flex-1 text-left">{role.label}</span>
-                    {activeRole === role.id && <CheckCircle2 size={12} style={{ color: "var(--accent)" }} />}
-                    <span className="text-[10px]" style={{ color: "var(--txt-f)" }}>{role.desc}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+
 
           {/* Overflow / More Tools */}
           <div className="relative" ref={overflowRef}>
