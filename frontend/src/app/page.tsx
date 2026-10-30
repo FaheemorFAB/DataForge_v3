@@ -695,34 +695,11 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
     pauseTimerRef.current = setTimeout(() => {
       setIsPaused(false);
     }, 7000);
-
-    if (typeof window !== "undefined" && window.innerWidth < 768 && visualPanelRef.current) {
-      const rect = visualPanelRef.current.getBoundingClientRect();
-      if (rect.top < 70) {
-        visualPanelRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
-    }
   };
-
-  // Automatically cycle through Stage 1 to Stage 6 on mobile screens
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const isMobile = window.innerWidth < 1024;
-    if (!isMobile || isPaused) return;
-
-    const timer = setInterval(() => {
-      setActive((prev) => (prev + 1) % PIPELINE_STAGES.length);
-    }, 3200);
-
-    return () => clearInterval(timer);
-  }, [isPaused]);
 
   useEffect(() => {
     const onScroll = () => {
       if (typeof window !== "undefined" && (window as any).__isProgrammaticScrolling) {
-        return;
-      }
-      if (typeof window !== "undefined" && window.innerWidth < 1024) {
         return;
       }
       const outer = outerRef.current;
@@ -746,8 +723,8 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
   const timelineFill = (active / (PIPELINE_STAGES.length - 1)) * 100;
 
   return (
-    <div ref={outerRef} className="relative h-auto lg:h-[600vh]">
-      <div className="lg:sticky lg:top-0 lg:h-screen flex flex-col justify-center lg:overflow-hidden px-5 sm:px-8 py-20 lg:py-0">
+    <div ref={outerRef} className="relative h-[240vh] md:h-[400vh] lg:h-[600vh]">
+      <div className="sticky top-16 h-[calc(100dvh-64px)] h-[calc(100vh-64px)] flex flex-col justify-center overflow-hidden px-5 sm:px-8 py-4 lg:py-0">
         <div className="max-w-6xl mx-auto w-full flex flex-col gap-8">
           {/* Section header */}
           <div className="flex flex-col gap-2">
@@ -765,10 +742,10 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
             </h2>
           </div>
 
-          {/* Split — Visual animation placed above 6 pipelines on mobile */}
+          {/* Split — Visual animation hidden on mobile screens */}
           <div className="flex flex-col md:flex-row gap-6 md:gap-8 lg:gap-12 items-start">
-            {/* Left (on desktop) / Bottom (on mobile) — timeline of 6 pipelines */}
-            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0 order-2 md:order-1">
+            {/* Left (on desktop) / Full width (on mobile) — timeline of 6 pipelines */}
+            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0 order-1">
               <div
                 className="absolute left-6 top-0 bottom-0 w-px"
                 style={{ background: "var(--border)", zIndex: 0 }}
@@ -789,7 +766,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                   <button
                     key={i}
                     onClick={() => handleStageSelect(i)}
-                    className="relative z-10 pl-16 pb-6 last:pb-0 text-left group w-full cursor-pointer"
+                    className="relative z-10 pl-16 pb-3.5 sm:pb-5 last:pb-0 text-left group w-full cursor-pointer"
                   >
                     <div
                       className="absolute left-0 top-0 w-12 h-12 rounded-full z-10"
@@ -860,8 +837,8 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
               })}
             </div>
 
-            {/* Right (on desktop) / Top (on mobile) — visual animation panel */}
-            <div ref={visualPanelRef} className="w-full md:w-7/12 lg:w-3/5 order-1 md:order-2">
+            {/* Right (on desktop) — visual animation panel (hidden on mobile screens) */}
+            <div ref={visualPanelRef} className="hidden md:block w-full md:w-7/12 lg:w-3/5 order-2">
               <div
                 className="rounded-2xl border overflow-hidden shadow-2xl transition-all duration-500"
                 style={{
@@ -1117,7 +1094,7 @@ export default function Home() {
 
       <main className="flex-1 w-full flex flex-col">
         {/* ══════════════ HERO ══════════════ */}
-        <section className="relative overflow-hidden pt-6 pb-12 sm:pt-12 sm:pb-16 md:py-20 md:min-h-[calc(100vh-80px)] md:flex md:flex-col md:justify-center md:items-center px-4 sm:px-8">
+        <section className="relative overflow-hidden min-h-[calc(100dvh-64px)] min-h-[calc(100vh-64px)] flex flex-col justify-center items-center px-4 sm:px-8 py-6 sm:py-10 md:py-12">
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div
               className="w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] rounded-full filter blur-[100px] sm:blur-[140px] opacity-[0.14] transition-colors duration-500"
@@ -1125,7 +1102,7 @@ export default function Home() {
             />
           </div>
 
-          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center my-0 md:my-auto">
+          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center my-auto">
             {/* Left side: Text & CTA */}
             <div className="flex flex-col items-start text-left gap-4 sm:gap-6 w-full max-w-xl md:max-w-none">
               <motion.div
@@ -1135,11 +1112,13 @@ export default function Home() {
                 className="flex flex-col items-start w-full"
               >
                 <h1
-                  className="text-3xl xs:text-4xl sm:text-5xl md:text-[2.6rem] lg:text-5xl xl:text-6xl font-black leading-[1.15] tracking-tight mb-3 sm:mb-5 transition-colors duration-300"
+                  className="text-[2.1rem] xs:text-[2.6rem] sm:text-5xl md:text-[2.75rem] lg:text-5xl xl:text-6xl font-black leading-[1.08] tracking-tight mb-3 sm:mb-5 transition-colors duration-300"
                   style={{ color: "var(--txt)" }}
                 >
-                  Turning Messy Data<br className="hidden sm:inline" /> Into{" "}
-                  <span style={{ color: "var(--accent)" }}>Clear Decisions.</span>
+                  <span className="whitespace-nowrap">Turning Messy</span><br />
+                  Data<br />
+                  Into <span style={{ color: "var(--accent)" }}>Clear</span><br />
+                  <span style={{ color: "var(--accent)" }}>Decisions.</span>
                 </h1>
                 <p
                   className="max-w-lg text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed transition-colors duration-300"

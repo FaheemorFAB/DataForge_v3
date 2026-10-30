@@ -9,7 +9,6 @@ import {
   BookOpen,
   Building2,
   ArrowRight,
-  Sparkles,
 } from "lucide-react";
 
 export default function BuiltFor() {
@@ -17,31 +16,31 @@ export default function BuiltFor() {
     {
       num: "01",
       role: "Business & Growth Analysts",
-      desc: "Instant revenue drivers, KPI cohort breakdowns, and churn metrics without wrestling with complex SQL scripts or python virtualenvs.",
+      desc: "Revenue drivers, cohort breakdowns, and churn metrics without complex SQL scripts or python environments.",
       icon: TrendingUp,
     },
     {
       num: "02",
       role: "Academic & Thesis Researchers",
-      desc: "Fast exploratory profiling, variance checks, and baseline AutoML regression/classification models for thesis papers and lab validation.",
+      desc: "Exploratory profiling, variance checks, and AutoML models for thesis papers and lab validation.",
       icon: GraduationCap,
     },
     {
       num: "03",
       role: "Product & Growth Managers",
-      desc: "User engagement telemetry, feature adoption metrics, and funnel analysis directly from raw event exports.",
+      desc: "Engagement telemetry, feature adoption, and funnel drop-off metrics from raw exports.",
       icon: Briefcase,
     },
     {
       num: "04",
       role: "Students & Self-Learners",
-      desc: "Grasp end-to-end data science lifecycle—from cleaning to model leadership boards—with a live, transparent pipeline.",
+      desc: "Explore the full data science lifecycle—cleaning to model leaderboards—in a live, visual pipeline.",
       icon: BookOpen,
     },
     {
       num: "05",
       role: "Founders & SME Leaders",
-      desc: "Extract answers from company sales and inventory logs in minutes without hiring a costly dedicated data engineering unit.",
+      desc: "Answers from sales and inventory logs in minutes without a costly data team.",
       icon: Building2,
     },
   ];
@@ -71,8 +70,8 @@ export default function BuiltFor() {
           <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight transition-colors duration-300" style={{ color: "var(--txt)" }}>
             Engineered for Anyone Holding a Dataset.
           </h2>
-          <p className="text-sm sm:text-base leading-relaxed transition-colors duration-300" style={{ color: "var(--txt-m)" }}>
-            No python environments to configure. No SQL databases to tune. Instant answers from the moment you drop a file.
+          <p className="text-xs sm:text-sm md:text-base leading-relaxed transition-colors duration-300" style={{ color: "var(--txt-m)" }}>
+            No Python or SQL configuration required. Instant analytical answers the moment you drop a file.
           </p>
         </motion.div>
 
@@ -87,7 +86,7 @@ export default function BuiltFor() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{ delay: idx * 0.08, duration: 0.4 }}
-                className="audience-row group flex items-start sm:items-center justify-between p-3 sm:p-4 lg:p-4.5 rounded-xl sm:rounded-2xl border transition-all duration-300 hover:border-[var(--accent)] hover:-translate-y-0.5 hover:shadow-xl relative overflow-hidden"
+                className="audience-row group flex items-start sm:items-center justify-between p-2.5 sm:p-3.5 lg:p-4 rounded-xl sm:rounded-2xl border transition-all duration-300 hover:border-[var(--accent)] hover:-translate-y-0.5 hover:shadow-xl relative overflow-hidden"
                 style={{
                   borderColor: "var(--border)",
                   background: "var(--card-bg, var(--card))",
@@ -101,23 +100,23 @@ export default function BuiltFor() {
                   }}
                 />
 
-                <div className="flex items-start sm:items-center gap-3.5 sm:gap-5 flex-1 min-w-0 relative z-10">
+                <div className="flex items-start sm:items-center gap-3 sm:gap-4.5 flex-1 min-w-0 relative z-10">
                   <div
-                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center flex-shrink-0 border transition-transform duration-300 group-hover:scale-105"
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 border transition-transform duration-300 group-hover:scale-105"
                     style={{
                       background: "rgba(255, 67, 16, 0.08)",
                       borderColor: "rgba(255, 67, 16, 0.25)",
                       color: "var(--accent)",
                     }}
                   >
-                    <Icon size={18} className="sm:w-5 sm:h-5" />
+                    <Icon size={17} className="sm:w-4.5 sm:h-4.5" />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-1 md:gap-5 flex-1 items-start sm:items-center">
-                    <span className="text-sm sm:text-base font-bold md:col-span-4 group-hover:text-[var(--accent)] transition-colors" style={{ color: "var(--txt)" }}>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-1 md:gap-4 flex-1 items-start sm:items-center">
+                    <span className="text-xs sm:text-sm md:text-base font-bold md:col-span-4 group-hover:text-[var(--accent)] transition-colors" style={{ color: "var(--txt)" }}>
                       {p.role}
                     </span>
-                    <span className="text-xs sm:text-sm md:col-span-8 leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                    <span className="text-[11px] sm:text-xs md:text-sm md:col-span-8 leading-relaxed" style={{ color: "var(--txt-m)" }}>
                       {p.desc}
                     </span>
                   </div>

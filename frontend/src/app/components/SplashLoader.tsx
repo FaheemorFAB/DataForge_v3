@@ -42,26 +42,10 @@ export default function SplashLoader({ isLoading, onComplete }: SplashLoaderProp
       }`}
       style={{ background: "var(--bg)" }}
     >
-      <div className="flex flex-col items-center justify-center gap-5 sm:gap-6 max-w-xs sm:max-w-sm w-full text-center">
+      <div className="flex flex-col items-center justify-center max-w-xs sm:max-w-sm w-full text-center">
         <div style={{ animation: "twinkle 2.5s ease-in-out infinite" }}>
-          <Logo size={40} textSize={22} />
+          <Logo size={42} textSize={24} />
         </div>
-
-        {/* Dynamic Progress indicator */}
-        <div className="w-36 sm:w-44 h-1 rounded-full bg-zinc-800/80 overflow-hidden relative border border-white/5 shadow-inner">
-          <div 
-            className="absolute top-0 bottom-0 left-0 rounded-full"
-            style={{
-              width: "65%",
-              background: "linear-gradient(90deg, #06B6D4, #4F46E5, #ff7043)",
-              animation: "pulse 1.6s ease-in-out infinite",
-            }}
-          />
-        </div>
-
-        <span className="text-[10px] sm:text-[11px] font-semibold tracking-widest text-zinc-400 uppercase font-mono">
-          Starting Engine...
-        </span>
       </div>
     </div>
   );
