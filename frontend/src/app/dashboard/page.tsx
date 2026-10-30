@@ -36,6 +36,8 @@ import {
   Sparkles,
   Trash2,
   Loader2,
+  Award,
+  Crown,
 } from "lucide-react";
 
 interface DatasetItem {
@@ -85,11 +87,11 @@ const ROLE_BADGES: Record<TeamRole, { label: string; color: string; glow: string
   Viewer: { label: "Viewer", color: "#f59e0b", glow: "rgba(245,158,11,0.15)" },
 };
 
-const TIER_LIMITS: Record<string, { name: string; maxMembers: number; badgeColor: string }> = {
-  free: { name: "Free Starter", maxMembers: 1, badgeColor: "#64748b" },
-  pro: { name: "Pro Analyst", maxMembers: 1, badgeColor: "#3b82f6" },
-  team: { name: "Team Collaboration", maxMembers: 25, badgeColor: "#10b981" },
-  enterprise: { name: "Enterprise Scale", maxMembers: 1000, badgeColor: "#8b5cf6" },
+const TIER_LIMITS: Record<string, { name: string; maxMembers: number; badgeColor: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = {
+  free: { name: "Free", maxMembers: 1, badgeColor: "#94a3b8", icon: Award },
+  pro: { name: "Pro", maxMembers: 1, badgeColor: "#6366f1", icon: Crown },
+  team: { name: "Team collaboration", maxMembers: 25, badgeColor: "#10b981", icon: Users },
+  enterprise: { name: "Team collaboration", maxMembers: 1000, badgeColor: "#10b981", icon: Users },
 };
 
 const THEMES = [
@@ -117,7 +119,7 @@ export default function DashboardPage() {
   const [userEmail, setUserEmail] = useState<string>("alex.morgan@dataforge.internal");
   const [userRole, setUserRole] = useState<TeamRole>("Admin");
   const [userAvatarId, setUserAvatarId] = useState<string>("avatar-1");
-  const [userTier, setUserTier] = useState<string>("pro");
+  const [userTier, setUserTier] = useState<string>("free");
 
   // Profile Edit Modal State
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
@@ -127,23 +129,7 @@ export default function DashboardPage() {
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>("");
 
   // Teams State (Members are ingested via email invite only)
-  const [teams, setTeams] = useState<TeamItem[]>([
-    {
-      id: "team-1",
-      name: "Enterprise Workspace",
-      myRole: "Admin",
-      members: [
-        {
-          id: "m-owner",
-          name: "Enterprise Lead",
-          email: "analyst@dataforge.app",
-          role: "Admin",
-          avatarId: "avatar-6",
-          avatarUrl: "/avatars/avatar-6.svg",
-        },
-      ],
-    },
-  ]);
+  const [teams, setTeams] = useState<TeamItem[]>([]);
 
   // Invite Member Modal State
   const [inviteModalOpen, setInviteModalOpen] = useState<boolean>(false);
@@ -255,6 +241,19 @@ export default function DashboardPage() {
       }
     } catch (e) {}
 
+    // Fetch user subscription tier
+    apiFetch("/subscription")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const plan = data?.subscription?.plan || data?.plan;
+        if (plan) {
+          const clean = plan.toLowerCase();
+          setUserTier(clean);
+          localStorage.setItem("df_user_tier", clean);
+        }
+      })
+      .catch(() => {});
+
     // Fetch live user info from backend
     apiFetch("/v1/auth/me")
       .then((res) => {
@@ -338,12 +337,12 @@ export default function DashboardPage() {
                 } catch {}
                 if (memberList.length === 0) {
                   memberList = [{
-                    id: `m-${org.owner_id || 1}`,
-                    name: "Enterprise Lead",
-                    email: "analyst@dataforge.app",
+                    id: `m-${org.owner_id || "owner"}`,
+                    name: userName || "Workspace Owner",
+                    email: userEmail || "owner@dataforge.app",
                     role: (org.my_role as TeamRole) || "Admin",
-                    avatarId: "avatar-6",
-                    avatarUrl: "/avatars/avatar-6.svg",
+                    avatarId: userAvatarId || "avatar-1",
+                    avatarUrl: resolveAvatarUrl(userAvatarId || "avatar-1"),
                   }];
                 }
                 return {
@@ -382,75 +381,22 @@ export default function DashboardPage() {
           }
           if (data.stats) {
             setStats({
-              uploads: data.stats.uploads || 1,
-              analyses: data.stats.analyses || 6,
-              models: data.stats.models || 3,
-              reports: data.stats.reports || 2
+              uploads: data.stats.uploads ?? 0,
+              analyses: data.stats.analyses ?? 0,
+              models: data.stats.models ?? 0,
+              reports: data.stats.reports ?? 0
             });
           }
-          if (Array.isArray(data.recent_uploads) && data.recent_uploads.length > 0) {
+          if (Array.isArray(data.recent_uploads)) {
             setDatasets(data.recent_uploads);
           } else {
-            setDatasets([
-              {
-                id: 1,
-                filename: "customer_churn_analysis.csv",
-                source_type: "csv",
-                rows: 7043,
-                cols: 21,
-                missing_pct: 0.15,
-                time_ago: "10m ago",
-                has_clean: true
-              },
-              {
-                id: 2,
-                filename: "ecommerce_sales_transactions.csv",
-                source_type: "sheets",
-                rows: 15200,
-                cols: 14,
-                missing_pct: 1.2,
-                time_ago: "2h ago",
-                has_clean: false
-              }
-            ]);
+            setDatasets([]);
           }
         } else {
-          setDatasets([
-            {
-              id: 1,
-              filename: "customer_churn_analysis.csv",
-              source_type: "csv",
-              rows: 7043,
-              cols: 21,
-              missing_pct: 0.15,
-              time_ago: "10m ago",
-              has_clean: true
-            },
-            {
-              id: 2,
-              filename: "ecommerce_sales_transactions.csv",
-              source_type: "sheets",
-              rows: 15200,
-              cols: 14,
-              missing_pct: 1.2,
-              time_ago: "2h ago",
-              has_clean: false
-            }
-          ]);
+          setDatasets([]);
         }
       } catch (err) {
-        setDatasets([
-          {
-            id: 1,
-            filename: "customer_churn_analysis.csv",
-            source_type: "csv",
-            rows: 7043,
-            cols: 21,
-            missing_pct: 0.15,
-            time_ago: "10m ago",
-            has_clean: true
-          }
-        ]);
+        setDatasets([]);
       } finally {
         setLoadingDatasets(false);
       }
@@ -726,7 +672,8 @@ export default function DashboardPage() {
 
   const currentAvatar = getAvatarById(userAvatarId);
   const currentRoleMeta = ROLE_BADGES[userRole] || ROLE_BADGES["Admin"];
-  const currentTierInfo = TIER_LIMITS[userTier] || TIER_LIMITS["pro"];
+  const currentTierInfo = TIER_LIMITS[userTier] || TIER_LIMITS["free"];
+  const TierIcon = currentTierInfo.icon || Award;
 
   return (
     <div
@@ -763,18 +710,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/workspace"
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm no-underline"
-            style={{
-              background: "var(--accent)",
-              color: "#ffffff",
-            }}
-          >
-            <Play size={13} fill="currentColor" />
-            <span>Launch Studio</span>
-          </Link>
-
           <ThemeSwitcher />
           <UserMenu />
         </div>
@@ -853,14 +788,15 @@ export default function DashboardPage() {
 
                   {/* Tier Badge */}
                   <span
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider"
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-md border tracking-wider inline-flex items-center gap-1.5 shadow-sm"
                     style={{
                       background: "var(--surface)",
                       borderColor: currentTierInfo.badgeColor,
                       color: currentTierInfo.badgeColor,
                     }}
                   >
-                    {currentTierInfo.name}
+                    <TierIcon size={12} />
+                    <span>{currentTierInfo.name}</span>
                   </span>
                 </div>
 
@@ -885,17 +821,7 @@ export default function DashboardPage() {
                 <span>Edit Profile</span>
               </button>
 
-              <Link
-                href="/workspace"
-                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-all no-underline"
-                style={{
-                  background: "var(--accent)",
-                  color: "#ffffff",
-                }}
-              >
-                <Play size={13} fill="currentColor" />
-                <span>Open Studio</span>
-              </Link>
+
             </div>
           </div>
         </section>
@@ -938,7 +864,15 @@ export default function DashboardPage() {
 
           {/* Teams Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {teams.map((team) => {
+            {teams.length === 0 ? (
+              <div
+                className="col-span-1 md:col-span-3 text-center py-8 rounded-xl border border-dashed text-xs"
+                style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}
+              >
+                No team workspaces found. Click &quot;+ New Team&quot; above to create a team workspace and invite members.
+              </div>
+            ) : (
+              teams.map((team) => {
               const roleMeta = ROLE_BADGES[team.myRole] || ROLE_BADGES["Analyst"];
               const tierLimit = currentTierInfo.maxMembers;
               const isAtCapacity = team.members.length >= tierLimit;
@@ -1051,7 +985,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         </section>
 
@@ -1751,7 +1685,7 @@ export default function DashboardPage() {
             variant="compact"
             title="Ready to launch a new data exploration or AutoML run?"
             subtitle="Connect spreadsheets, PostgreSQL, or Snowflake for zero-config profiling and model training."
-            buttonText="Open Studio"
+            buttonText="Launch Workspace"
             href="/workspace"
             secondaryButtonText="Pricing & Seats"
             secondaryHref="/pricing"

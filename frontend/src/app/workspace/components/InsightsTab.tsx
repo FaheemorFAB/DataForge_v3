@@ -1494,7 +1494,7 @@ function ExecutiveBriefingCard({
             <Brain size={18} />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
               <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>AI Executive Briefing</h3>
             </div>
             <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>Automated synthesis anchored to computed statistical findings</p>
@@ -1769,8 +1769,8 @@ export function InsightsTab() {
           <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Insight Engine</h2>
           <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>Trends · Anomalies · Correlations · Rankings · Distributions · Contributions</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center p-0.5 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <div className="flex items-center p-0.5 rounded-xl border flex-1 sm:flex-initial justify-center" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
             {[3, 6, 9].map(n => {
               const active = parseInt(insightTopN, 10) === n;
               return (
@@ -1788,7 +1788,7 @@ export function InsightsTab() {
               );
             })}
           </div>
-          <button onClick={() => runInsights()} className="bp flex items-center gap-2 cursor-pointer"><Sparkles size={14} /> Run Insights</button>
+          <button onClick={() => runInsights()} className="bp flex items-center justify-center gap-2 cursor-pointer w-full sm:w-auto"><Sparkles size={14} /> Run Insights</button>
         </div>
       </div>
 
@@ -1804,7 +1804,7 @@ export function InsightsTab() {
           <p className="font-black text-base mb-1" style={{ color: "var(--txt)" }}>No Insights Generated Yet</p>
           <p className="text-sm max-w-sm" style={{ color: "var(--txt-m)" }}>Click <strong>Run Insights</strong> to discover verified statistical signals, anchored correlations, and distribution findings.</p>
         </div>
-        <button onClick={() => runInsights()} className="px-6 py-3 rounded-xl font-bold text-sm text-white cursor-pointer" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>Run Insights</button>
+        <button onClick={() => runInsights()} className="px-6 py-3 rounded-xl font-bold text-sm text-white cursor-pointer w-full sm:w-auto max-w-xs flex items-center justify-center gap-2" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}><Sparkles size={16} /><span>Run Insights</span></button>
       </div>
     </div>
   );
@@ -1838,7 +1838,7 @@ export function InsightsTab() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Target KPI Anchor Selector (Section 4.1 & 5.1) */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+          <div className="flex items-center justify-between sm:justify-start gap-1.5 px-3 py-1.5 rounded-xl border w-full sm:w-auto" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <Target size={13} className="text-amber-500" />
             <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Anchor KPI:</span>
             <select
@@ -1893,7 +1893,7 @@ export function InsightsTab() {
             })}
           </div>
 
-          <button onClick={() => runInsights()} disabled={isRunning} className="bp flex items-center gap-1.5 cursor-pointer">
+          <button onClick={() => runInsights()} disabled={isRunning} className="bp flex items-center justify-center gap-1.5 cursor-pointer w-full sm:w-auto">
             {isRunning
               ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
               : <Sparkles size={13} />

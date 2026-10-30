@@ -428,9 +428,9 @@ export function CleanerTab() {
                   <span className="text-[11px] font-mono" style={{ color: "var(--txt-m)" }}>({selectedCols.length} of {rawColumns.length} chosen)</span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-between sm:justify-end">
                   {/* Type Filter Tabs */}
-                  <div className="flex p-0.5 rounded-lg border text-[10px] overflow-x-auto no-scrollbar max-w-full" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+                  <div className="flex p-0.5 rounded-lg border text-[10px] overflow-x-auto no-scrollbar max-w-[210px] xs:max-w-none shrink-0" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
                     {[
                       { id: "all", label: "All" },
                       { id: "numeric", label: "Numeric" },
@@ -452,8 +452,25 @@ export function CleanerTab() {
                     ))}
                   </div>
 
-                  <button onClick={selectAllFiltered} className="text-[10px] font-bold px-2 py-1 rounded-md border hover:opacity-80 transition-opacity" style={{ borderColor: "var(--border)", color: "var(--txt-m)", background: "var(--card)" }}>Select Filtered</button>
-                  <button onClick={clearSelection} className="text-[10px] font-bold px-2 py-1 rounded-md border text-red-400 hover:bg-red-500/10" style={{ borderColor: "rgba(239,68,68,0.3)" }}>Clear</button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={selectAllFiltered}
+                      className="text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all cursor-pointer shadow-xs hover:border-[var(--accent)]"
+                      style={{ borderColor: "var(--border)", color: "var(--txt)", background: "var(--card)" }}
+                    >
+                      Select Filtered
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearSelection}
+                      className="text-[11px] font-bold px-2.5 py-1 rounded-md border transition-all cursor-pointer shadow-xs flex items-center gap-1 bg-red-500/15 border-red-500/40 text-red-400 hover:bg-red-500/25 shrink-0"
+                      title="Clear selection"
+                    >
+                      <X size={11} className="shrink-0" />
+                      <span>Clear</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

@@ -288,7 +288,7 @@ function WorkspaceContent() {
               title="Build, automate, and export your custom data pipeline (DF-SPE, dbt, Airflow)"
             >
               <Code size={13} />
-              <span className="hidden lg:inline">âš¡ Pipeline Studio</span>
+              <span className="hidden lg:inline">Pipeline Studio</span>
               <span className="lg:hidden">Pipeline</span>
             </button>
           )}
@@ -403,7 +403,7 @@ function WorkspaceContent() {
                     style={{ color: "#818cf8" }}
                   >
                     <Code size={13} />
-                    <span className="font-medium">âš¡ Pipeline Studio</span>
+                    <span className="font-medium">Pipeline Studio</span>
                   </button>
                 )}
 
