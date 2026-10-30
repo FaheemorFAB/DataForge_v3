@@ -15,6 +15,7 @@ import {
   MicrosoftExcelOnlineLogo,
 } from "./DataLogos";
 import { SAMPLE_DATASETS, SampleDataset } from "./sampleDatasets";
+import Logo from "../Logo";
 import {
   Search,
   X,
@@ -439,13 +440,7 @@ export default function WorkspaceLaunchModal({
   };
 
   const filteredConnectors = ALL_CONNECTORS.filter((c) => {
-    const matchesSearch =
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.tag.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "all" || c.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    return selectedCategory === "all" || c.category === selectedCategory;
   });
 
   const localFiles = ALL_CONNECTORS.filter((c) => c.category === "files");
@@ -801,7 +796,7 @@ export default function WorkspaceLaunchModal({
       )}
 
       <div
-        className="w-full max-w-3xl max-h-[92vh] rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-slideUp text-[var(--txt)]"
+        className="w-[90vw] sm:w-full max-w-3xl max-h-[68vh] sm:max-h-[85vh] rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-slideUp text-[var(--txt)]"
         style={{
           background: "var(--surface)",
           border: "1px solid var(--border)",
@@ -810,24 +805,39 @@ export default function WorkspaceLaunchModal({
       >
         {/* Header */}
         <div
-          className="px-6 py-4 border-b flex items-center justify-between shrink-0"
+          className="px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center justify-between shrink-0"
           style={{ borderColor: "var(--border)" }}
         >
-          <div>
-            <h3 className="text-sm font-semibold tracking-tight">
-              {isGeneratingWorkspace ? "Opening Workspace" : "Import Data"}
-            </h3>
-            <p className="text-xs text-[var(--txt-m)] mt-0.5">
-              {isGeneratingWorkspace
-                ? "Setting up your data session..."
-                : "Select a source to load into your workspace"}
-            </p>
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <Logo size={24} showText={false} />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs sm:text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
+                  {isGeneratingWorkspace ? "Opening Workspace" : "Import Data"}
+                </h3>
+                <span
+                  className="text-[9px] sm:text-[10px] font-bold font-mono px-1.5 py-0.5 rounded border uppercase"
+                  style={{
+                    background: "var(--glow)",
+                    borderColor: "var(--border)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  Hub
+                </span>
+              </div>
+              <p className="text-[10px] sm:text-xs text-[var(--txt-m)] mt-0.5 line-clamp-1">
+                {isGeneratingWorkspace
+                  ? "Setting up your data session..."
+                  : "Select a source to load into your workspace"}
+              </p>
+            </div>
           </div>
 
           {!isGeneratingWorkspace && (
             <button
               onClick={onClose}
-              className="text-[var(--txt-m)] hover:text-[var(--txt)] p-1 rounded-md transition-colors cursor-pointer"
+              className="text-[var(--txt-m)] hover:text-[var(--txt)] p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
               aria-label="Close"
             >
               <X size={16} />
@@ -897,29 +907,14 @@ export default function WorkspaceLaunchModal({
             </div>
 
             {/* Main Content Area */}
-            <div className="grid grid-cols-1 md:grid-cols-12 min-h-[380px] overflow-y-auto">
+            <div className="grid grid-cols-1 md:grid-cols-12 min-h-0 sm:min-h-[360px] overflow-y-auto flex-1">
               {/* Left Column: Source Selection (5 cols) */}
               <div
                 className="md:col-span-5 border-b md:border-b-0 md:border-r p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3"
                 style={{ borderColor: "var(--border)" }}
               >
-                {/* Search */}
-                <div className="relative">
-                  <Search
-                    size={13}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--txt-f)] pointer-events-none"
-                  />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search sources..."
-                    className="w-full rounded-md py-1.5 pl-8 pr-2.5 text-xs bg-[var(--bg)] border border-[var(--border)] text-[var(--txt)] focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-
                 {/* List */}
-                <div className="flex-1 overflow-y-auto space-y-1 pr-1 max-h-[320px]">
+                <div className="flex-1 overflow-y-auto space-y-1 pr-1 max-h-[140px] sm:max-h-[340px]">
                   {selectedCategory === "samples" ? (
                     SAMPLE_DATASETS.map((sample) => (
                       <button
@@ -969,7 +964,7 @@ export default function WorkspaceLaunchModal({
               </div>
 
               {/* Right Column: Configuration & Actions (7 cols) */}
-              <div className="md:col-span-7 p-4 sm:p-6 flex flex-col justify-between">
+              <div className="md:col-span-7 p-3.5 sm:p-6 flex flex-col justify-between overflow-y-auto">
                 <div>
                   {/* Selected Source Header */}
                   <div className="flex items-center gap-2.5 pb-4 border-b mb-5" style={{ borderColor: "var(--border)" }}>
