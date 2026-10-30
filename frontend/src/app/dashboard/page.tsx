@@ -824,7 +824,7 @@ export default function DashboardPage() {
                 </div>
 
                 <p className="text-xs mt-1" style={{ color: "var(--txt-m)" }}>
-                  {userEmail} • <span className="font-mono">Org: DATAFORGE-PROD</span>
+                  {userEmail}
                 </p>
               </div>
             </div>
