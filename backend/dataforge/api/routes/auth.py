@@ -536,21 +536,48 @@ async def reset_password(request: Request, response: Response, req: ResetPasswor
     try:
         from dataforge.db import db_client
         if db_client and hasattr(db_client, "auth") and hasattr(db_client.auth, "admin"):
-            users_resp = db_client.auth.admin.list_users()
+            clean_email = email.strip().lower()
+            users_resp = db_client.auth.admin.list_users(per_page=1000)
             users_list = getattr(users_resp, "users", users_resp) if not isinstance(users_resp, list) else users_resp
             if hasattr(users_resp, "data"):
                 users_list = users_resp.data
             target_uid = None
             for u in users_list:
                 u_email = getattr(u, "email", None) or (u.get("email") if isinstance(u, dict) else None)
-                if u_email and u_email.strip().lower() == email.strip().lower():
+                if u_email and u_email.strip().lower() == clean_email:
                     target_uid = getattr(u, "id", None) or (u.get("id") if isinstance(u, dict) else None)
                     break
+
             if target_uid:
-                db_client.auth.admin.update_user_by_id(target_uid, {"password": new_pw})
-                log.info("[auth/reset] Synchronized Supabase user password for %s (%s)", email, target_uid)
+                db_client.auth.admin.update_user_by_id(target_uid, {
+                    "password": new_pw,
+                    "email_confirm": True,
+                })
+                log.info("[auth/reset] Synchronized Supabase user password for %s (%s)", clean_email, target_uid)
+            else:
+                try:
+                    new_auth_user = db_client.auth.admin.create_user({
+                        "email": clean_email,
+                        "password": new_pw,
+                        "email_confirm": True,
+                    })
+                    new_uid = getattr(new_auth_user, "id", None) or (new_auth_user.user.id if hasattr(new_auth_user, "user") else "created")
+                    log.info("[auth/reset] Created new Supabase Auth user with password for %s (%s)", clean_email, new_uid)
+                except Exception as create_err:
+                    if "already been registered" in str(create_err).lower():
+                        re_list = db_client.auth.admin.list_users(per_page=1000)
+                        for ru in getattr(re_list, "users", re_list):
+                            if getattr(ru, "email", "").strip().lower() == clean_email:
+                                db_client.auth.admin.update_user_by_id(ru.id, {
+                                    "password": new_pw,
+                                    "email_confirm": True,
+                                })
+                                log.info("[auth/reset] Updated existing Supabase user after duplicate catch: %s", clean_email)
+                                break
+                    else:
+                        raise create_err
     except Exception as exc:
-        log.warning("[auth/reset] Supabase admin password sync error (non-fatal): %s", exc)
+        log.error("[auth/reset] Supabase admin password sync error: %s", exc, exc_info=True)
 
     # 2. Update / create user in local repository
     from dataforge.api.repositories.user import user_repo
