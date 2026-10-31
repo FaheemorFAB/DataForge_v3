@@ -145,15 +145,15 @@ function LoginContent() {
             {mode === "signup"
               ? "Create your account"
               : mode === "forgot"
-              ? "Reset your password"
-              : "Welcome back"}
+                ? "Reset your password"
+                : "Welcome back"}
           </h1>
           <p className="text-xs" style={{ color: "var(--txt-m)" }}>
             {mode === "signup"
               ? "Start analyzing, transforming, and collaborating with DataForge"
               : mode === "forgot"
-              ? "Enter your account email to receive a secure reset link"
-              : "Sign in to access your personal and team workspaces"}
+                ? "Enter your account email to receive a secure reset link"
+                : "Sign in to access your personal and team workspaces"}
           </p>
         </div>
 
@@ -324,10 +324,10 @@ function LoginContent() {
                 {loading
                   ? "Processing..."
                   : mode === "signup"
-                  ? "Create Account"
-                  : mode === "forgot"
-                  ? "Send Reset Link"
-                  : "Sign In"}
+                    ? "Create Account"
+                    : mode === "forgot"
+                      ? "Send Reset Link"
+                      : "Sign In"}
               </span>
               <ArrowRight size={13} />
             </button>
