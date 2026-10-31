@@ -64,7 +64,7 @@ function LoginContent() {
       try {
         await resetPasswordForEmail(email);
         setResetSent(true);
-        setStatusMsg("If an account exists for this email, reset instructions have been sent. Please check your inbox.");
+        setStatusMsg("Reset instructions have been dispatched to your inbox. Please check your email to continue.");
       } catch (err: any) {
         setErrorMsg(err.message || "Unable to send reset email. Please try again.");
       } finally {

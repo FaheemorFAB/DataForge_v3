@@ -279,15 +279,17 @@ export function useAuth() {
 
   const resetPasswordForEmail = async (email: string) => {
     // 1. Dispatch branded Resend password reset email via backend
-    let backendRes: any = null;
-    try {
-      const res = await fetch("/api/auth/password/forgot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      backendRes = await res.json().catch(() => null);
-    } catch {}
+    const res = await fetch("/api/auth/password/forgot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const backendRes = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const errDetail = backendRes?.detail || backendRes?.message || "No account found with this email address.";
+      throw new Error(errDetail);
+    }
 
     // 2. Also notify Supabase auth if client is active
     try {

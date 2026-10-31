@@ -441,6 +441,37 @@ async def forgot_password(request: Request, response: Response, req: ForgotPassw
     if not clean_email or "@" not in clean_email:
         raise HTTPException(status_code=400, detail="Please provide a valid email address.")
 
+    # Explicitly check whether user exists in local repository or Supabase
+    user_exists = False
+    from dataforge.api.repositories.user import user_repo
+    try:
+        if user_repo.get_by_email(clean_email):
+            user_exists = True
+    except Exception as exc:
+        log.warning("[auth/forgot] user_repo lookup error: %s", exc)
+
+    if not user_exists:
+        try:
+            from dataforge.db import db_client
+            if db_client and hasattr(db_client, "auth") and hasattr(db_client.auth, "admin"):
+                users_resp = db_client.auth.admin.list_users()
+                users_list = getattr(users_resp, "users", users_resp) if not isinstance(users_resp, list) else users_resp
+                if hasattr(users_resp, "data"):
+                    users_list = users_resp.data
+                for u in users_list:
+                    u_email = getattr(u, "email", None) or (u.get("email") if isinstance(u, dict) else None)
+                    if u_email and u_email.strip().lower() == clean_email:
+                        user_exists = True
+                        break
+        except Exception as exc:
+            log.warning("[auth/forgot] Supabase admin user check warning: %s", exc)
+
+    if not user_exists:
+        raise HTTPException(
+            status_code=404,
+            detail="No account found with this email address. Please check your spelling or sign up."
+        )
+
     # Generate token
     token = create_password_reset_token(clean_email)
 

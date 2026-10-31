@@ -58,3 +58,5 @@ Thumbs.db
 deployment.md
 report/slide_previews/
 catboost_info/
+.vercel
+.env*

@@ -43,7 +43,18 @@ def test_password_reset_token_lifecycle():
 
 
 def test_forgot_and_reset_flow(client: TestClient):
+    from dataforge.api.repositories.user import user_repo
+
+    # Verify non-existent email returns 404
+    non_existent = "nonexistent-user-xyz@nowhere.com"
+    resp_none = client.post("/api/auth/password/forgot", json={"email": non_existent})
+    assert resp_none.status_code == 404
+    assert "No account found with this email" in resp_none.json()["detail"]
+
     test_email = "analyst-reset@numan-10.site"
+    # Seed user in user_repo so test passes
+    if not user_repo.get_by_email(test_email):
+        user_repo.create({"email": test_email, "name": "Analyst Reset", "role": "Admin"})
 
     # 1. Request forgot password link
     resp = client.post("/api/auth/password/forgot", json={"email": test_email})
