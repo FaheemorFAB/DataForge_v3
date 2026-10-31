@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -21,8 +22,8 @@ import {
   X,
   Server,
   Zap,
+  Clock,
 } from "lucide-react";
-import { SAMPLE_DATASETS, SampleDataset } from "./sampleDatasets";
 import { GoogleSheetsLogo, MicrosoftExcelOnlineLogo } from "./DataLogos";
 
 interface IngestionCardProps {
@@ -175,19 +176,30 @@ export default function IngestionCard(props: IngestionCardProps) {
   const [wizardStep, setWizardStep] = useState<1 | 2>(1);
   const [loadingSampleId, setLoadingSampleId] = useState<string | null>(null);
   const [showPreviewDrawer, setShowPreviewDrawer] = useState(false);
+  const [recentDatasets, setRecentDatasets] = useState<Array<{ id: string; filename: string; rows?: number; cols?: number }>>([]);
 
-  // 1-Click Sample Dataset Handler
-  const handleSampleClick = async (dataset: SampleDataset) => {
+  // Load Ingestion History scoped to active workspace (Only if user is logged in)
+  useEffect(() => {
     if (!props.isLoggedIn) {
-      props.onLoginRequired();
+      setRecentDatasets([]);
       return;
     }
-    setLoadingSampleId(dataset.id);
-    const blob = new Blob([dataset.csvContent], { type: "text/csv" });
-    const file = new File([blob], dataset.filename, { type: "text/csv" });
-    await props.uploadFile(file);
-    setLoadingSampleId(null);
-  };
+    const fetchRecent = async () => {
+      try {
+        const wsId = (typeof window !== "undefined" && localStorage.getItem("df_active_workspace")) || "personal";
+        const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(wsId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.recent_uploads)) {
+            setRecentDatasets(data.recent_uploads);
+          }
+        }
+      } catch {
+        // silent
+      }
+    };
+    fetchRecent();
+  }, [props.isLoggedIn]);
 
   return (
     <div className="w-full relative">
@@ -440,34 +452,33 @@ export default function IngestionCard(props: IngestionCardProps) {
                     </div>
                   </div>
 
-                  {/* 1-Click Quick Samples */}
-                  <div className="pt-2 flex items-center justify-between text-xs">
-                    <span className="text-[10px] font-mono uppercase tracking-wider opacity-60" style={{ color: "var(--txt-m)" }}>
-                      Or load demo:
-                    </span>
-                    <div className="flex gap-1.5">
-                      {SAMPLE_DATASETS.map((ds) => (
-                        <button
-                          key={ds.id}
-                          onClick={() => handleSampleClick(ds)}
-                          disabled={props.isUploading || !!loadingSampleId}
-                          className="px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all hover:bg-white/5 active:scale-95"
-                          style={{
-                            background: "rgba(255, 255, 255, 0.03)",
-                            borderColor: loadingSampleId === ds.id ? "var(--accent)" : "var(--border)",
-                            color: "var(--txt)",
-                          }}
-                        >
-                          {loadingSampleId === ds.id ? (
-                            <RefreshCw size={10} className="animate-spin inline mr-1" />
-                          ) : (
-                            <span className="opacity-60 mr-1">✦</span>
-                          )}
-                          <span>{ds.name.split(" ")[0]}</span>
-                        </button>
-                      ))}
+                  {/* Dynamic Ingestion History (Hidden completely if user is not logged in) */}
+                  {props.isLoggedIn && recentDatasets.length > 0 && (
+                    <div className="pt-2 flex items-center justify-between text-xs animate-in fade-in">
+                      <span className="text-[10px] font-mono uppercase tracking-wider opacity-60 flex items-center gap-1" style={{ color: "var(--txt-m)" }}>
+                        <Clock size={11} style={{ color: "var(--accent)" }} />
+                        <span>Recent:</span>
+                      </span>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {recentDatasets.slice(0, 3).map((ds) => (
+                          <button
+                            key={ds.id}
+                            type="button"
+                            onClick={() => props.goToWorkspace(ds.id)}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all hover:border-[var(--accent)] hover:bg-white/5 active:scale-95 cursor-pointer max-w-[130px] truncate"
+                            style={{
+                              background: "rgba(255, 255, 255, 0.03)",
+                              borderColor: "var(--border)",
+                              color: "var(--txt)",
+                            }}
+                            title={`Reopen ${ds.filename}`}
+                          >
+                            <span className="truncate">{ds.filename}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 

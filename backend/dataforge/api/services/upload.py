@@ -20,7 +20,8 @@ log = logging.getLogger(__name__)
 class UploadService:
 
     def process_dataframe(self, df, filename: str, source_type: str,
-                          user: User, source_config: Optional[dict] = None) -> dict:
+                          user: User, source_config: Optional[dict] = None,
+                          org_id: Optional[str] = None) -> dict:
         """
         Profile a DataFrame, log it to DB, save to disk.
         Returns: {"upload_id": int, "profile": dict} or raises on error.
@@ -41,6 +42,8 @@ class UploadService:
             "cols": profile.get("cols", len(df.columns)),
             "storage_path": json.dumps(source_config) if source_config else None,
             "source_config": source_config,
+            "org_id": org_id,
+            "workspace_id": org_id if org_id else "personal",
         }
         save(upload_id, "meta", meta)
         save(upload_id, "df_raw", df)

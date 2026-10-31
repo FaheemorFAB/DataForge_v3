@@ -1,4 +1,4 @@
-﻿"""
+"""
 dataforge/api/routes/auth.py
 ──────────────────────────────
 Authentication routes: Google OAuth, mock login, logout.
@@ -339,5 +339,221 @@ async def update_me(req: UpdateProfileRequest, current_user: CurrentUser):
         "role": getattr(current_user, "role", "Admin") or "Admin",
         "created_at": current_user.created_at,
     }
+
+
+# ── Password Reset (Transactional via Resend) ─────────────────────────────────
+
+import secrets
+import threading
+from datetime import datetime, timezone, timedelta
+from dataforge.api.services.mailer import EmailDeliveryService
+
+_RESET_LOCK = threading.Lock()
+_ROOT_DIR = Path(__file__).resolve().parents[4] if len(Path(__file__).resolve().parents) > 4 else Path(".")
+_RESET_TOKENS_FILE = _ROOT_DIR / "instance" / "password_resets.json"
+
+
+def _load_reset_tokens() -> dict[str, dict]:
+    if not _RESET_TOKENS_FILE.exists():
+        return {}
+    try:
+        return json.loads(_RESET_TOKENS_FILE.read_text(encoding="utf-8"))
+    except Exception as exc:
+        log.warning("[auth/reset] Could not read reset tokens file: %s", exc)
+        return {}
+
+
+def _save_reset_tokens(tokens: dict[str, dict]):
+    try:
+        _RESET_TOKENS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _RESET_TOKENS_FILE.write_text(json.dumps(tokens, indent=2), encoding="utf-8")
+    except Exception as exc:
+        log.error("[auth/reset] Could not save reset tokens: %s", exc)
+
+
+def create_password_reset_token(email: str) -> str:
+    clean_email = email.strip().lower()
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(hours=1)
+    record = {
+        "email": clean_email,
+        "created_at": now.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "used": False,
+    }
+    with _RESET_LOCK:
+        tokens = _load_reset_tokens()
+        # Clean up tokens older than 48 hours
+        cutoff = (now - timedelta(hours=48)).isoformat()
+        pruned = {
+            t: d for t, d in tokens.items()
+            if d.get("created_at", "") > cutoff
+        }
+        pruned[token] = record
+        _save_reset_tokens(pruned)
+    return token
+
+
+def verify_password_reset_token(token: str) -> tuple[bool, str, Optional[str]]:
+    if not token or not token.strip():
+        return False, "Invalid or missing token.", None
+    with _RESET_LOCK:
+        tokens = _load_reset_tokens()
+        record = tokens.get(token)
+    if not record:
+        return False, "Reset link is invalid or does not exist.", None
+    if record.get("used"):
+        return False, "This reset link has already been used. Please request a new one.", record.get("email")
+    try:
+        expires_at = datetime.fromisoformat(record["expires_at"])
+        if datetime.now(timezone.utc) > expires_at:
+            return False, "This reset link has expired. Please request a new one.", record.get("email")
+    except Exception:
+        return False, "Invalid token timestamp.", None
+    return True, "Token is valid.", record.get("email")
+
+
+def mark_reset_token_used(token: str):
+    with _RESET_LOCK:
+        tokens = _load_reset_tokens()
+        if token in tokens:
+            tokens[token]["used"] = True
+            tokens[token]["used_at"] = datetime.now(timezone.utc).isoformat()
+            _save_reset_tokens(tokens)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/api/auth/password/forgot", summary="Request password reset link via Resend")
+@router.post("/v1/auth/password/forgot", summary="Request password reset link alias")
+@router.post("/auth/password/forgot", summary="Request password reset link alias")
+@limiter.limit("10/minute")
+async def forgot_password(request: Request, response: Response, req: ForgotPasswordRequest):
+    clean_email = req.email.strip().lower()
+    if not clean_email or "@" not in clean_email:
+        raise HTTPException(status_code=400, detail="Please provide a valid email address.")
+
+    # Generate token
+    token = create_password_reset_token(clean_email)
+
+    # Determine frontend URL
+    frontend_base = settings.FRONTEND_URL.rstrip("/")
+    if "localhost" in frontend_base or "127.0.0.1" in frontend_base:
+        frontend_base = "https://numan-10.site"
+    reset_url = f"{frontend_base}/reset-password?token={token}"
+
+    # Dispatch email via Resend
+    dispatch_res = EmailDeliveryService.send_password_reset_email(
+        recipient_email=clean_email,
+        reset_url=reset_url,
+    )
+
+    log.info("[auth/forgot] Password reset email dispatched to %s (sent=%s)", clean_email, dispatch_res.get("sent"))
+    return {
+        "ok": True,
+        "message": f"If an account exists for {clean_email}, a password reset link has been dispatched to your inbox.",
+        "sent": dispatch_res.get("sent", False),
+    }
+
+
+@router.get("/api/auth/password/verify-token", summary="Verify validity of a password reset token")
+@router.get("/v1/auth/password/verify-token", summary="Verify reset token alias")
+@router.get("/auth/password/verify-token", summary="Verify reset token alias")
+async def verify_reset_token(token: str):
+    is_valid, reason, email = verify_password_reset_token(token)
+    masked_email = None
+    if email and "@" in email:
+        parts = email.split("@")
+        name_part = parts[0]
+        masked = (name_part[:2] + "***") if len(name_part) > 2 else name_part + "***"
+        masked_email = f"{masked}@{parts[1]}"
+    return {
+        "valid": is_valid,
+        "reason": reason,
+        "email": masked_email,
+    }
+
+
+@router.post("/api/auth/password/reset", summary="Update password using verified reset token")
+@router.post("/v1/auth/password/reset", summary="Update password alias")
+@router.post("/auth/password/reset", summary="Update password alias")
+@limiter.limit("10/minute")
+async def reset_password(request: Request, response: Response, req: ResetPasswordRequest):
+    new_pw = req.new_password.strip()
+    if len(new_pw) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long."
+        )
+
+    is_valid, reason, email = verify_password_reset_token(req.token)
+    if not is_valid or not email:
+        raise HTTPException(status_code=400, detail=reason)
+
+    # Invalidate token so it cannot be used again
+    mark_reset_token_used(req.token)
+
+    # 1. Synchronize password with Supabase admin auth if configured
+    try:
+        from dataforge.db import db_client
+        if db_client and hasattr(db_client, "auth") and hasattr(db_client.auth, "admin"):
+            users_resp = db_client.auth.admin.list_users()
+            users_list = getattr(users_resp, "users", users_resp) if not isinstance(users_resp, list) else users_resp
+            if hasattr(users_resp, "data"):
+                users_list = users_resp.data
+            target_uid = None
+            for u in users_list:
+                u_email = getattr(u, "email", None) or (u.get("email") if isinstance(u, dict) else None)
+                if u_email and u_email.strip().lower() == email.strip().lower():
+                    target_uid = getattr(u, "id", None) or (u.get("id") if isinstance(u, dict) else None)
+                    break
+            if target_uid:
+                db_client.auth.admin.update_user_by_id(target_uid, {"password": new_pw})
+                log.info("[auth/reset] Synchronized Supabase user password for %s (%s)", email, target_uid)
+    except Exception as exc:
+        log.warning("[auth/reset] Supabase admin password sync error (non-fatal): %s", exc)
+
+    # 2. Update / create user in local repository
+    from dataforge.api.repositories.user import user_repo
+    user_data = user_repo.get_by_email(email)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if not user_data:
+        user_data = user_repo.create({
+            "email": email,
+            "name": email.split("@")[0].capitalize(),
+            "avatar": "/avatars/avatar-1.svg",
+            "role": "Admin",
+            "last_login": now_iso,
+        })
+    else:
+        user_repo.update(user_data["id"], {"last_login": now_iso})
+        user_data = user_repo.get_by_id(user_data["id"]) or user_data
+
+    user = User(**user_data)
+    jwt_token = auth_service.create_token_for_user(user)
+    _set_auth_cookie(response, jwt_token)
+
+    log.info("[auth/reset] Successfully updated password and logged in user: %s (id=%s)", email, user.id)
+    return {
+        "ok": True,
+        "message": "Password updated successfully. You are now logged in.",
+        "token": jwt_token,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "avatar": user.avatar,
+            "role": getattr(user, "role", "Admin") or "Admin",
+        },
+    }
+
 
 

@@ -73,8 +73,23 @@ class TeamManager:
         try:
             with open(p, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            # Remove any legacy hardcoded demo members
+            # Remove legacy hardcoded demo members and auto-provisioned solo placeholder teams
             memberships = data.get("memberships", [])
+            organizations = data.get("organizations", {})
+            auto_org_ids = {
+                oid for oid, org in organizations.items()
+                if org.get("slug", "").startswith("team-") and org.get("name", "").endswith(" Enterprise Team")
+            }
+            if auto_org_ids:
+                data["organizations"] = {
+                    oid: org for oid, org in organizations.items()
+                    if oid not in auto_org_ids
+                }
+                memberships = [
+                    m for m in memberships
+                    if m.get("org_id") not in auto_org_ids
+                ]
+
             data["memberships"] = [
                 m for m in memberships
                 if not str(m.get("id", "")).startswith("mem_seed_")
@@ -158,11 +173,17 @@ class TeamManager:
             return org_record
 
     @classmethod
+    def get_organization(cls, org_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves organization details by ID."""
+        with _LOCK:
+            data = cls._read_data()
+            return data.get("organizations", {}).get(org_id)
+
+    @classmethod
     def get_user_organizations(
         cls, user_id: int, user_email: str, user_name: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Returns all organizations the user belongs to, with their role."""
-        cls.ensure_default_team_for_user(user_id, user_email, user_name)
         with _LOCK:
             data = cls._read_data()
             memberships = data.get("memberships", [])

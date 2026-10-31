@@ -38,6 +38,7 @@ import {
   Loader2,
   Award,
   Crown,
+  ChevronDown,
 } from "lucide-react";
 
 interface DatasetItem {
@@ -130,6 +131,10 @@ export default function DashboardPage() {
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>("");
   const [editProfileError, setEditProfileError] = useState<string>("");
 
+  // Active Workspace Context: "personal" | org_id
+  const [activeWorkspace, setActiveWorkspace] = useState<string>("personal");
+  const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState<boolean>(false);
+
   // Teams State (Members are ingested via email invite only)
   const [teams, setTeams] = useState<TeamItem[]>([]);
 
@@ -140,6 +145,7 @@ export default function DashboardPage() {
   const [inviteEmail, setInviteEmail] = useState<string>("");
   const [inviteRole, setInviteRole] = useState<TeamRole>("Analyst");
   const [inviteError, setInviteError] = useState<string>("");
+  const [isSubmittingInvite, setIsSubmittingInvite] = useState<boolean>(false);
 
   // System Stats
   const [stats, setStats] = useState({
@@ -211,31 +217,22 @@ export default function DashboardPage() {
 
 
 
-    // 3. Check and clean cached teams
+    // 3. Check and clean cached teams & active workspace
+    const savedWs = localStorage.getItem("df_active_workspace") || "personal";
+    setActiveWorkspace(savedWs);
+
     try {
       const rawTeams = localStorage.getItem("df_teams_data");
       if (rawTeams) {
         const parsed = JSON.parse(rawTeams);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const MOCK_EMAILS = [
-            "alex.morgan@dataforge.internal",
-            "sarah.chen@dataforge.internal",
-            "marcus.v@dataforge.internal",
-            "david.kim@dataforge.internal",
-            "liam.oc@dataforge.internal",
-            "elena.r@dataforge.internal",
-            "maya.patel@dataforge.internal",
-            "amara.o@dataforge.internal",
-            "sarah.chen@company.com",
-            "marcus.vance@company.com",
-            "elena.rostova@company.com",
-          ];
-          const cleaned = parsed.map((t: TeamItem) => ({
-            ...t,
-            members: Array.isArray(t.members) ? t.members.filter(m => !MOCK_EMAILS.includes(m.email)) : [],
-          })).filter((t: TeamItem) => t.members.length > 0);
+          // Remove legacy placeholder teams
+          const cleaned = parsed.filter((t: TeamItem) => !t.name.endsWith("Enterprise Team") || t.members.length > 1);
           if (cleaned.length > 0) {
             setTeams(cleaned);
+          } else {
+            setTeams([]);
+            localStorage.removeItem("df_teams_data");
           }
         }
       }
@@ -285,26 +282,27 @@ export default function DashboardPage() {
                 };
               })
             );
-            if (orgTeams.length > 0) {
-              setTeams(orgTeams);
-              try {
-                localStorage.setItem("df_teams_data", JSON.stringify(orgTeams));
-              } catch {}
-            }
+            setTeams(orgTeams);
+            try {
+              localStorage.setItem("df_teams_data", JSON.stringify(orgTeams));
+            } catch {}
+          } else {
+            setTeams([]);
+            try {
+              localStorage.removeItem("df_teams_data");
+            } catch {}
           }
         }
       } catch (err) {
         console.warn("Failed to fetch teams:", err);
       }
     };
-// fetchTeams will run in initAllDashboard
 
-    // 4. Fetch datasets
+    // 4. Fetch datasets and stats scoped to workspace
     const fetchDashboard = async () => {
       try {
-        const res = await fetch("/api/dashboard/init", {
-          headers: { Accept: "application/json" }
-        });
+        const currentWs = localStorage.getItem("df_active_workspace") || "personal";
+        const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(currentWs)}`);
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
@@ -383,6 +381,64 @@ export default function DashboardPage() {
 
     initAllDashboard();
   }, []);
+
+  const handleSwitchWorkspace = (workspaceId: string) => {
+    setActiveWorkspace(workspaceId);
+    setWorkspaceDropdownOpen(false);
+    try {
+      localStorage.setItem("df_active_workspace", workspaceId);
+    } catch {}
+    loadDashboardData(workspaceId);
+  };
+
+  const loadDashboardData = async (wsId: string) => {
+    setLoadingDatasets(true);
+    try {
+      const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(wsId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.stats) {
+          setStats({
+            uploads: data.stats.uploads ?? 0,
+            analyses: data.stats.analyses ?? 0,
+            models: data.stats.models ?? 0,
+            reports: data.stats.reports ?? 0,
+          });
+        }
+        if (Array.isArray(data.recent_uploads)) {
+          setDatasets(data.recent_uploads);
+        } else {
+          setDatasets([]);
+        }
+      } else {
+        setDatasets([]);
+      }
+    } catch {
+      setDatasets([]);
+    } finally {
+      setLoadingDatasets(false);
+    }
+
+    try {
+      const mOrg = wsId === "personal" ? "" : `?org_id=${encodeURIComponent(wsId)}`;
+      const mRes = await apiFetch(`/models${mOrg}`);
+      if (mRes.ok) {
+        const mData = await mRes.json();
+        if (Array.isArray(mData.models)) {
+          setModels(mData.models.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            algorithm: m.algorithm || "AutoML Champion",
+            target: m.target_column || "Target",
+            metric: Object.keys(m.metrics || {})[0] || "accuracy",
+            score: String(Object.values(m.metrics || {})[0] || "0.92"),
+            status: m.status === "production" ? "Trained" : "Ready",
+            created_at: m.created_at || new Date().toISOString(),
+          })));
+        }
+      }
+    } catch {}
+  };
 
   // Auto-dismiss delete alert message
   useEffect(() => {
@@ -569,8 +625,8 @@ export default function DashboardPage() {
     setInviteModalOpen(true);
   };
 
-  // Add Member / Role with Tier Limit Enforcement
-  const handleInviteMember = (e: React.FormEvent) => {
+  // Add Member / Role with Tier Limit Enforcement and Verified Resend Email Dispatch
+  const handleInviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTeamId) return;
 
@@ -601,49 +657,69 @@ export default function DashboardPage() {
       return;
     }
 
-    const randomAvatar = HUMAN_AVATARS[Math.floor(Math.random() * HUMAN_AVATARS.length)];
-    const newMember: TeamMember = {
-      id: `m-${Date.now()}`,
-      name: inviteName.trim(),
-      email: inviteEmail.trim(),
-      role: inviteRole,
-      avatarId: randomAvatar.id,
-      avatarUrl: randomAvatar.url,
-      avatarBg: randomAvatar.bg,
-    };
+    setIsSubmittingInvite(true);
+    setInviteError("");
 
-    const updatedTeams = teams.map((t) => {
-      if (t.id === selectedTeamId) {
-        return {
-          ...t,
-          members: [...t.members, newMember],
-        };
-      }
-      return t;
-    });
-
-    setTeams(updatedTeams);
     try {
-      localStorage.setItem("df_teams_data", JSON.stringify(updatedTeams));
-    } catch {}
-
-    // Dispatch invitation email and audit log to backend if team exists
-    if (selectedTeamId) {
-      apiFetch(`/teams/${selectedTeamId}/invite`, {
+      const res = await apiFetch(`/teams/${selectedTeamId}/invite`, {
         method: "POST",
         body: JSON.stringify({
           email: inviteEmail.trim(),
           name: inviteName.trim(),
           role: inviteRole,
         }),
-      }).catch((err: any) => {
-        console.warn("Backend team invite sync note:", err);
       });
-    }
 
-    setInviteModalOpen(false);
-    setSaveSuccessMsg(`Sent invitation to ${newMember.email} as ${newMember.role}`);
-    setTimeout(() => setSaveSuccessMsg(""), 3000);
+      if (res.ok) {
+        const data = await res.json();
+        const delivery = data.email_delivery;
+        const emailSent = delivery?.sent === true || delivery?.transport === "simulated";
+
+        if (emailSent) {
+          // Verified: Email was sent by Resend -> Now add member to team workspace
+          const randomAvatar = HUMAN_AVATARS[Math.floor(Math.random() * HUMAN_AVATARS.length)];
+          const newMember: TeamMember = {
+            id: data.member?.id || `m-${Date.now()}`,
+            name: inviteName.trim(),
+            email: inviteEmail.trim(),
+            role: inviteRole,
+            avatarId: randomAvatar.id,
+            avatarUrl: randomAvatar.url,
+            avatarBg: randomAvatar.bg,
+          };
+
+          const updatedTeams = teams.map((t) => {
+            if (t.id === selectedTeamId) {
+              return {
+                ...t,
+                members: [...t.members, newMember],
+              };
+            }
+            return t;
+          });
+
+          setTeams(updatedTeams);
+          try {
+            localStorage.setItem("df_teams_data", JSON.stringify(updatedTeams));
+          } catch {}
+
+          setInviteModalOpen(false);
+          setInviteName("");
+          setInviteEmail("");
+          setSaveSuccessMsg(`✓ Email has been sent to ${newMember.email}! They have been added to ${targetTeam.name} as ${newMember.role}.`);
+          setTimeout(() => setSaveSuccessMsg(""), 5000);
+        } else {
+          setInviteError(delivery?.error || "Email delivery failed via Resend. Colleague was not added.");
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setInviteError(err.detail || "Failed to invite member. Please check details.");
+      }
+    } catch (err: any) {
+      setInviteError(err.message || "Failed to invite member.");
+    } finally {
+      setIsSubmittingInvite(false);
+    }
   };
 
   // Theme Switcher Handler
@@ -711,6 +787,131 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* ── WORKSPACE CONTEXT BADGE OR SWITCHER ── */}
+          {teams.length > 0 ? (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer hover:border-[var(--accent)] shadow-sm"
+                style={{
+                  background: "var(--card)",
+                  borderColor: "var(--border)",
+                  color: "var(--txt)",
+                }}
+                title="Switch Workspace"
+              >
+                {activeWorkspace === "personal" ? (
+                  <>
+                    <User size={13} style={{ color: "var(--accent)" }} />
+                    <span className="hidden sm:inline">Personal Space</span>
+                    <span className="sm:hidden">Personal</span>
+                  </>
+                ) : (
+                  <>
+                    <Users size={13} style={{ color: "#10b981" }} />
+                    <span className="truncate max-w-[110px] sm:max-w-[150px]">
+                      {teams.find((t) => t.id === activeWorkspace)?.name || "Team Workspace"}
+                    </span>
+                  </>
+                )}
+                <ChevronDown size={12} className="opacity-60 shrink-0" />
+              </button>
+
+              {workspaceDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setWorkspaceDropdownOpen(false)}
+                  />
+                  <div
+                    className="absolute right-0 mt-2 w-64 rounded-xl border p-2 shadow-2xl z-50 animate-in fade-in zoom-in-95 space-y-1"
+                    style={{
+                      background: "var(--card)",
+                      borderColor: "var(--border)",
+                    }}
+                  >
+                    <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                      Switch Workspace
+                    </div>
+
+                    {/* Personal Workspace Option */}
+                    <button
+                      type="button"
+                      onClick={() => handleSwitchWorkspace("personal")}
+                      className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-left"
+                      style={{
+                        background: activeWorkspace === "personal" ? "var(--surface)" : "transparent",
+                        color: "var(--txt)",
+                      }}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <User size={14} style={{ color: "var(--accent)" }} />
+                        <div className="truncate">
+                          <div className="truncate font-bold">Personal Space</div>
+                          <div className="text-[10px]" style={{ color: "var(--txt-m)" }}>Private datasets &amp; models</div>
+                        </div>
+                      </div>
+                      {activeWorkspace === "personal" && (
+                        <Check size={14} style={{ color: "var(--accent)" }} className="shrink-0" />
+                      )}
+                    </button>
+
+                    {/* Team Workspaces */}
+                    <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
+                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                      Company Workspaces
+                    </div>
+                    {teams.map((t) => {
+                      const isCurrent = activeWorkspace === t.id;
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => handleSwitchWorkspace(t.id)}
+                          className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-left"
+                          style={{
+                            background: isCurrent ? "var(--surface)" : "transparent",
+                            color: "var(--txt)",
+                          }}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <Users size={14} style={{ color: "#10b981" }} />
+                            <div className="truncate">
+                              <div className="truncate font-bold">{t.name}</div>
+                              <div className="text-[10px] flex items-center gap-1.5" style={{ color: "var(--txt-m)" }}>
+                                <span>{t.myRole}</span>
+                                <span>•</span>
+                                <span>{t.members.length} members</span>
+                              </div>
+                            </div>
+                          </div>
+                          {isCurrent && (
+                            <Check size={14} style={{ color: "#10b981" }} className="shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold"
+              style={{
+                background: "var(--card)",
+                borderColor: "var(--border)",
+                color: "var(--txt)",
+              }}
+              title="Personal Space (Private datasets & models)"
+            >
+              <User size={13} style={{ color: "var(--accent)" }} />
+              <span className="hidden sm:inline">Personal Space</span>
+              <span className="sm:hidden">Personal</span>
+            </div>
+          )}
+
           <ThemeSwitcher />
           <UserMenu />
         </div>
@@ -845,168 +1046,228 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ── MY TEAMS & WORKSPACES (With Role Badges & Tier Limit Enforcement) ── */}
-        <section
-          className="rounded-2xl border p-5 md:p-6 shadow-sm space-y-4"
-          style={{
-            background: "var(--card)",
-            borderColor: "var(--border)",
-          }}
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3" style={{ borderColor: "var(--border)" }}>
-            <div>
-              <div className="flex items-center gap-2">
-                <Users size={16} style={{ color: "var(--accent)" }} />
-                <h3 className="text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
-                  My Teams &amp; Workspaces
-                </h3>
+        {/* ── MY TEAMS & WORKSPACES (Only shown if member belongs to teams or is on Team Collaboration plan) ── */}
+        {(teams.length > 0 || ["team", "enterprise"].includes(userTier.toLowerCase())) && (
+          <section
+            className="rounded-2xl border p-5 md:p-6 shadow-sm space-y-4"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border)",
+            }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3" style={{ borderColor: "var(--border)" }}>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Users size={16} style={{ color: "var(--accent)" }} />
+                  <h3 className="text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
+                    My Teams &amp; Workspaces
+                  </h3>
+                </div>
+                <p className="text-xs" style={{ color: "var(--txt-m)" }}>
+                  {teams.length === 0
+                    ? "Collaborate with colleagues, share datasets, and pool quotas."
+                    : "Teams you are assigned to, active role badges, and seat quotas."}
+                </p>
               </div>
-              <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                Teams you are assigned to, active role badges, and seat quotas.
-              </p>
-            </div>
 
-            {/* Plan Tier Limit Indicator */}
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-[11px] font-medium" style={{ color: "var(--txt-m)" }}>
-                Seat Quota: <strong style={{ color: "var(--txt)" }}>{currentTierInfo.maxMembers} seats / team</strong> ({currentTierInfo.name})
-              </span>
-              <Link
-                href="/pricing"
-                className="text-[11px] font-bold underline transition-colors cursor-pointer"
-                style={{ color: "var(--accent)" }}
-              >
-                Upgrade Plan →
-              </Link>
-            </div>
-          </div>
-
-          {/* Teams Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {teams.length === 0 ? (
-              <div
-                className="col-span-1 md:col-span-3 text-center py-8 rounded-xl border border-dashed text-xs"
-                style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}
-              >
-                No team workspaces found. Click &quot;+ New Team&quot; above to create a team workspace and invite members.
-              </div>
-            ) : (
-              teams.map((team) => {
-              const roleMeta = ROLE_BADGES[team.myRole] || ROLE_BADGES["Analyst"];
-              const tierLimit = currentTierInfo.maxMembers;
-              const isAtCapacity = team.members.length >= tierLimit;
-
-              return (
-                <div
-                  key={team.id}
-                  className="rounded-xl border p-4 flex flex-col justify-between space-y-3 transition-all"
-                  style={{
-                    background: "var(--surface)",
-                    borderColor: "var(--border)",
-                  }}
+              {/* Plan Tier Limit Indicator */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-[11px] font-medium" style={{ color: "var(--txt-m)" }}>
+                  Seat Quota: <strong style={{ color: "var(--txt)" }}>{currentTierInfo.maxMembers} seats / team</strong> ({currentTierInfo.name})
+                </span>
+                <Link
+                  href="/pricing"
+                  className="text-[11px] font-bold underline transition-colors cursor-pointer"
+                  style={{ color: "var(--accent)" }}
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-bold text-xs sm:text-sm" style={{ color: "var(--txt)" }}>
-                        {team.name}
-                      </h4>
-                      {/* User's Role Badge in this team */}
-                      <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0"
-                        style={{
-                          background: roleMeta.glow,
-                          borderColor: roleMeta.color,
-                          color: roleMeta.color,
-                        }}
-                      >
-                        {team.myRole}
-                      </span>
-                    </div>
+                  Upgrade Plan →
+                </Link>
+              </div>
+            </div>
 
-                    {/* Member Quota Progress */}
+            {/* Teams Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {teams.length === 0 ? (
+                <div
+                  className="col-span-1 md:col-span-3 p-6 rounded-xl border border-dashed flex flex-col md:flex-row items-center justify-between gap-4"
+                  style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+                >
+                  <div className="flex items-start gap-3.5">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
+                      style={{ background: "rgba(16, 185, 129, 0.1)", borderColor: "rgba(16, 185, 129, 0.25)", color: "#10b981" }}
+                    >
+                      <Users size={20} />
+                    </div>
                     <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10px]" style={{ color: "var(--txt-m)" }}>
-                        <span>Members</span>
-                        <span className="font-mono font-semibold" style={{ color: isAtCapacity ? "#ef4444" : "var(--txt)" }}>
-                          {team.members.length} / {tierLimit} seats
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs font-bold" style={{ color: "var(--txt)" }}>
+                          Team Collaboration Active
+                        </h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border" style={{ background: "rgba(16,185,129,0.12)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
+                          Organization
                         </span>
                       </div>
-                      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--inp-bg)" }}>
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${Math.min(100, (team.members.length / tierLimit) * 100)}%`,
-                            background: isAtCapacity ? "#ef4444" : "var(--accent)",
-                          }}
-                        />
-                      </div>
+                      <p className="text-xs max-w-xl leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                        You have Team Collaboration enabled. Workspaces you belong to will appear here with team seat quotas, roles, and shared datasets.
+                      </p>
                     </div>
-
-                    {/* Member Avatars List */}
-                    <div className="pt-1.5 space-y-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-                        Active Members:
-                      </span>
-                      <div className="space-y-1 max-h-24 overflow-y-auto no-scrollbar">
-                        {team.members.map((m) => (
-                          <div
-                            key={m.id}
-                            className="flex items-center justify-between text-[11px] px-2 py-1 rounded-lg border"
-                            style={{
-                              background: "var(--card)",
-                              borderColor: "var(--border)",
-                            }}
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              <img
-                                src={resolveAvatarUrl(m.avatarUrl || m.avatarId)}
-                                className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/20"
-                                alt={m.name}
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = "/avatars/avatar-1.svg";
-                                }}
-                              />
-                              <span className="truncate font-medium" style={{ color: "var(--txt)" }}>
-                                {m.name}
-                              </span>
-                            </div>
-                            <span className="text-[9px] font-mono opacity-70 shrink-0">{m.role}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Add Member Button with tier limit check */}
-                  <div className="pt-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenInvite(team.id)}
-                      className="w-full py-1.5 px-3 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:border-[var(--accent)]"
-                      style={{
-                        background: "var(--card)",
-                        borderColor: isAtCapacity ? "rgba(239, 68, 68, 0.4)" : "var(--border)",
-                        color: isAtCapacity ? "#ef4444" : "var(--txt)",
-                      }}
-                    >
-                      {isAtCapacity ? (
-                        <>
-                          <Lock size={12} />
-                          <span>Tier Limit Reached</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus size={12} />
-                          <span>Add Team Member</span>
-                        </>
-                      )}
-                    </button>
                   </div>
                 </div>
-              );
-            }))}
+              ) : (
+              teams.map((team) => {
+                const roleMeta = ROLE_BADGES[team.myRole] || ROLE_BADGES["Analyst"];
+                const tierLimit = currentTierInfo.maxMembers;
+                const isAtCapacity = team.members.length >= tierLimit;
+                const isActive = activeWorkspace === team.id;
+
+                return (
+                  <div
+                    key={team.id}
+                    className="rounded-xl border p-4 flex flex-col justify-between space-y-3 transition-all"
+                    style={{
+                      background: isActive ? "var(--surface)" : "var(--card)",
+                      borderColor: isActive ? "var(--accent)" : "var(--border)",
+                      boxShadow: isActive ? "0 0 16px rgba(59,130,246,0.12)" : "none",
+                    }}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-xs sm:text-sm" style={{ color: "var(--txt)" }}>
+                            {team.name}
+                          </h4>
+                          {isActive && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border" style={{ background: "rgba(16,185,129,0.1)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
+                              ● Active Workspace
+                            </span>
+                          )}
+                        </div>
+                        {/* User's Role Badge in this team */}
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0"
+                          style={{
+                            background: roleMeta.glow,
+                            borderColor: roleMeta.color,
+                            color: roleMeta.color,
+                          }}
+                        >
+                          {team.myRole}
+                        </span>
+                      </div>
+
+                      {/* Member Quota Progress */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px]" style={{ color: "var(--txt-m)" }}>
+                          <span>Members</span>
+                          <span className="font-mono font-semibold" style={{ color: isAtCapacity ? "#ef4444" : "var(--txt)" }}>
+                            {team.members.length} / {tierLimit} seats
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--inp-bg)" }}>
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, (team.members.length / tierLimit) * 100)}%`,
+                              background: isAtCapacity ? "#ef4444" : "var(--accent)",
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Member Avatars List */}
+                      <div className="pt-1.5 space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+                          Active Members:
+                        </span>
+                        <div className="space-y-1 max-h-24 overflow-y-auto no-scrollbar">
+                          {team.members.map((m) => (
+                            <div
+                              key={m.id}
+                              className="flex items-center justify-between text-[11px] px-2 py-1 rounded-lg border"
+                              style={{
+                                background: "var(--card)",
+                                borderColor: "var(--border)",
+                              }}
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <img
+                                  src={resolveAvatarUrl(m.avatarUrl || m.avatarId)}
+                                  className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/20"
+                                  alt={m.name}
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = "/avatars/avatar-1.svg";
+                                  }}
+                                />
+                                <span className="truncate font-medium" style={{ color: "var(--txt)" }}>
+                                  {m.name}
+                                </span>
+                              </div>
+                              <span className="text-[9px] font-mono opacity-70 shrink-0">{m.role}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions: Switch Workspace & Add Member */}
+                    <div className="pt-2 border-t flex flex-col gap-2" style={{ borderColor: "var(--border)" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchWorkspace(team.id)}
+                        className="w-full py-1.5 px-3 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        style={{
+                          background: isActive ? "var(--accent)" : "var(--surface)",
+                          borderColor: isActive ? "var(--accent)" : "var(--border)",
+                          color: isActive ? "#fff" : "var(--txt)",
+                        }}
+                      >
+                        {isActive ? (
+                          <>
+                            <Check size={12} />
+                            <span>Current Workspace</span>
+                          </>
+                        ) : (
+                          <>
+                            <ArrowRight size={12} />
+                            <span>Switch to this Workspace</span>
+                          </>
+                        )}
+                      </button>
+
+                      {team.myRole === "Admin" && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInvite(team.id)}
+                          disabled={isAtCapacity}
+                          className="w-full py-1 px-3 rounded-lg text-[11px] font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer opacity-80 hover:opacity-100"
+                          style={{
+                            background: "transparent",
+                            borderColor: isAtCapacity ? "rgba(239, 68, 68, 0.4)" : "var(--border)",
+                            color: isAtCapacity ? "#ef4444" : "var(--txt-m)",
+                          }}
+                        >
+                          {isAtCapacity ? (
+                            <>
+                              <Lock size={11} />
+                              <span>Seat Limit Reached</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={11} />
+                              <span>Add Team Member</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </section>
+      )}
 
         {/* ── KPI METRICS CARDS ── */}
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
@@ -1125,11 +1386,25 @@ export default function DashboardPage() {
                 style={{ borderColor: "var(--border)" }}
               >
                 <div>
-                  <h2 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
-                    Ingested Datasets
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
+                      Ingested Datasets
+                    </h2>
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                      style={{
+                        background: activeWorkspace === "personal" ? "rgba(59,130,246,0.12)" : "rgba(16,185,129,0.12)",
+                        borderColor: activeWorkspace === "personal" ? "rgba(59,130,246,0.3)" : "rgba(16,185,129,0.3)",
+                        color: activeWorkspace === "personal" ? "var(--accent)" : "#10b981",
+                      }}
+                    >
+                      {activeWorkspace === "personal" ? "Personal Space" : (teams.find((t) => t.id === activeWorkspace)?.name || "Team Workspace")}
+                    </span>
+                  </div>
                   <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                    Launch any dataset directly into the clean, EDA, or AutoML studio tabs.
+                    {activeWorkspace === "personal"
+                      ? "Your private datasets in Personal Space."
+                      : `Shared team datasets in ${teams.find((t) => t.id === activeWorkspace)?.name || "this workspace"}.`}
                   </p>
                 </div>
 
@@ -2038,17 +2313,29 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setInviteModalOpen(false)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold border cursor-pointer"
+                  disabled={isSubmittingInvite}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold border cursor-pointer disabled:opacity-50"
                   style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-white cursor-pointer shadow-md"
+                  disabled={isSubmittingInvite}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white cursor-pointer shadow-md flex items-center gap-1.5 disabled:opacity-50"
                   style={{ background: "var(--accent)" }}
                 >
-                  Add to Team
+                  {isSubmittingInvite ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Sending Invite Email...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={13} />
+                      <span>Add to Team</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

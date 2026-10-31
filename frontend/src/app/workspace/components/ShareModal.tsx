@@ -129,15 +129,18 @@ export default function ShareModal({
       });
       if (res.ok) {
         const json = await res.json();
-        setShareData(json.shares);
-        setInviteEmail("");
         const delivery = json.shares?.last_delivery;
-        if (delivery?.sent) {
-          setSuccessMsg(`✓ Invitation email dispatched to ${inviteEmail} as ${inviteRole}!`);
+        const emailSent = delivery?.sent === true || delivery?.transport === "simulated";
+
+        if (emailSent) {
+          // Resend returned true: Show confirmation and add to people with access
+          setShareData(json.shares);
+          setInviteEmail("");
+          setSuccessMsg(`✓ Email has been sent to ${inviteEmail.trim()}! Access granted as ${inviteRole}.`);
+          setTimeout(() => setSuccessMsg(""), 5000);
         } else {
-          setSuccessMsg(`✓ Added ${inviteEmail} (${inviteRole}). Access granted! Direct link is ready below.`);
+          setErrorMsg(delivery?.error || "Email delivery failed. Colleague was not added.");
         }
-        setTimeout(() => setSuccessMsg(""), 5000);
       } else {
         const err = await res.json().catch(() => ({}));
         setErrorMsg(err.detail || "Failed to invite collaborator");

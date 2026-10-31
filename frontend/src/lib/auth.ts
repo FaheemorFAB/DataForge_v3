@@ -246,10 +246,54 @@ export function useAuth() {
     return data;
   };
 
-  const signupWithSupabase = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+  const signupWithSupabase = async (email: string, password: string, name?: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: name ? { data: { full_name: name, name } } : undefined,
+    });
     if (error) throw error;
+    if (data.user && data.session?.access_token) {
+      document.cookie = `access_token=${data.session.access_token}; path=/; max-age=604800; SameSite=Lax`;
+      localStorage.setItem("access_token", data.session.access_token);
+      const supaUser = {
+        id: data.user.id,
+        email: data.user.email,
+        name: name || data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "User",
+        avatar: data.user.user_metadata?.avatar_url || "/avatars/avatar-1.svg",
+        provider: "supabase",
+        role: "Admin",
+      };
+      setUser(supaUser);
+      setCachedUser(supaUser);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("dataforge:auth-state", { detail: supaUser }));
+      }
+    }
     return data;
+  };
+
+  const resetPasswordForEmail = async (email: string) => {
+    // 1. Dispatch branded Resend password reset email via backend
+    let backendRes: any = null;
+    try {
+      const res = await fetch("/api/auth/password/forgot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      backendRes = await res.json().catch(() => null);
+    } catch {}
+
+    // 2. Also notify Supabase auth if client is active
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${origin}/reset-password`,
+      });
+    } catch {}
+
+    return backendRes || { ok: true };
   };
 
   const loginWithOAuth = async (provider: "google" | "github") => {
@@ -304,5 +348,6 @@ export function useAuth() {
     loginWithSupabase,
     signupWithSupabase,
     loginWithOAuth,
+    resetPasswordForEmail,
   };
 }

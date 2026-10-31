@@ -277,6 +277,33 @@ class DatasetSharingService:
             existing = next((m for m in collaborators if m.get("email", "").lower() == cleaned_email), None)
 
             now_iso = datetime.now(timezone.utc).isoformat()
+
+            # Dispatch email invitation via Resend
+            from dataforge.api.services.mailer import EmailDeliveryService
+            from dataforge.db import db_get
+            up_row = db_get("uploads", upload_id) or {}
+            ds_name = up_row.get("filename") or f"Dataset {upload_id[:8]}"
+            owner_label = shares.get("owner_email") or f"User #{operator_id}"
+            share_token = shares.get("share_token")
+
+            try:
+                delivery = EmailDeliveryService.send_collaborator_invite(
+                    recipient_email=cleaned_email,
+                    role=role,
+                    dataset_name=ds_name,
+                    upload_id=upload_id,
+                    inviter_name_or_email=owner_label,
+                    share_token=share_token,
+                )
+            except Exception as e:
+                log.error("[sharing] Exception during email dispatch to %s: %s", cleaned_email, e)
+                delivery = {"sent": False, "transport": "resend", "error": str(e)}
+
+            # Only grant access and persist collaborator if Resend returns sent: True (or simulated in dev)
+            if not delivery.get("sent", False) and delivery.get("transport") != "simulated":
+                err_detail = delivery.get("error") or "Failed to deliver invitation email via Resend"
+                raise ValueError(f"Email dispatch failed: {err_detail}. Collaborator was not added.")
+
             if existing:
                 existing["role"] = canonical_role
                 existing["updated_at"] = now_iso
@@ -290,26 +317,7 @@ class DatasetSharingService:
                 })
 
             shares["collaborators"] = collaborators
-
-            # Dispatch email invitation
-            try:
-                from dataforge.api.services.mailer import EmailDeliveryService
-                from dataforge.db import db_get
-                up_row = db_get("uploads", upload_id) or {}
-                ds_name = up_row.get("filename") or f"Dataset {upload_id[:8]}"
-                owner_label = shares.get("owner_email") or f"User #{operator_id}"
-                share_token = shares.get("share_token")
-                delivery = EmailDeliveryService.send_collaborator_invite(
-                    recipient_email=cleaned_email,
-                    role=role,
-                    dataset_name=ds_name,
-                    upload_id=upload_id,
-                    inviter_name_or_email=owner_label,
-                    share_token=share_token,
-                )
-                shares["last_delivery"] = delivery
-            except Exception as e:
-                log.warning("[sharing] Failed to dispatch invitation email to %s: %s", cleaned_email, e)
+            shares["last_delivery"] = delivery
 
             cls._save_shares(upload_id, shares)
             return shares

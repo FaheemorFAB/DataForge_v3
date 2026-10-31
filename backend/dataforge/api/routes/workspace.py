@@ -993,7 +993,7 @@ async def api_query(
     target_upload_id = body.upload_id or upload_id
     if not target_upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(target_upload_id, current_user)
+    await require_upload_with_data(target_upload_id, current_user, min_role="Analyst")
 
     df_clean = load(target_upload_id, "df_clean")
     df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
@@ -1137,7 +1137,7 @@ async def api_chat_session_create(
     target_upload_id = (body.upload_id if body else None) or upload_id
     if not target_upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(target_upload_id, current_user)
+    await require_upload_with_data(target_upload_id, current_user, min_role="Analyst")
 
     chat_raw = load(target_upload_id, "chat_history")
     chat_data, _ = _normalize_chat_data(chat_raw)
@@ -1190,7 +1190,7 @@ async def api_chat_session_select(
         raise HTTPException(400, "upload_id required")
     if not target_session_id:
         raise HTTPException(400, "session_id required")
-    await require_upload_with_data(target_upload_id, current_user)
+    await require_upload_with_data(target_upload_id, current_user, min_role="Analyst")
 
     chat_raw = load(target_upload_id, "chat_history")
     chat_data, _ = _normalize_chat_data(chat_raw)
@@ -1249,7 +1249,7 @@ async def api_chat_session_rename(
         raise HTTPException(400, "session_id required")
     if not name.strip():
         raise HTTPException(400, "name required")
-    await require_upload_with_data(target_upload_id, current_user)
+    await require_upload_with_data(target_upload_id, current_user, min_role="Analyst")
 
     chat_raw = load(target_upload_id, "chat_history")
     chat_data, _ = _normalize_chat_data(chat_raw)

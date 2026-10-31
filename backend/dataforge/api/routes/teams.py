@@ -105,19 +105,48 @@ async def invite_team_member(
     req: InviteMemberRequest,
     current_user: CurrentUser,
 ):
-    """Adds a new team member with specified RBAC role and records an audit log (Admin only)."""
+    """Adds a new team member with specified RBAC role, dispatches invitation email via Resend, and records an audit log (Admin only)."""
     uid, email, _ = _resolve_user_ctx(current_user)
     _require_org_member(org_id, uid, min_role="Admin")
+
+    # 1. Resolve workspace details
+    org = TeamManager.get_organization(org_id)
+    org_name = org.get("name", "Team Workspace") if org else "Team Workspace"
+
+    # 2. Dispatch invitation email via Resend
+    from dataforge.api.services.mailer import EmailDeliveryService
+    delivery = EmailDeliveryService.send_team_workspace_invite(
+        recipient_email=req.email.strip().lower(),
+        role=req.role,
+        org_name=org_name,
+        inviter_name_or_email=email,
+        org_id=org_id,
+    )
+
+    # 3. Require successful email dispatch (or simulated transport in dev) before adding member
+    if not delivery.get("sent", False) and delivery.get("transport") != "simulated":
+        err_msg = delivery.get("error") or "Failed to deliver invitation email via Resend"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Email dispatch failed: {err_msg}",
+        )
+
     try:
         new_member = TeamManager.invite_member(
             org_id=org_id,
             inviter_id=uid,
             inviter_email=email,
-            email=req.email,
+            email=req.email.strip().lower(),
             name=req.name,
             role=req.role,
         )
-        return JSONResponse(content=safe_jsonable({"ok": True, "member": new_member}))
+        return JSONResponse(
+            content=safe_jsonable({
+                "ok": True,
+                "member": new_member,
+                "email_delivery": delivery,
+            })
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

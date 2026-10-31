@@ -116,7 +116,7 @@ async def api_automl_train(
     if not target_upload_id:
         print("DEBUG: automl 400 - upload_id required")
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(target_upload_id, current_user)
+    await require_upload_with_data(target_upload_id, current_user, min_role="Analyst")
 
     # Validate target column exists
     df_clean = load(target_upload_id, "df_clean")

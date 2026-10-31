@@ -56,6 +56,7 @@ async def api_upload(
     upload_id_override: Optional[int] = Form(default=None),
     expected_format: Optional[str] = Form(default=None),
     current_upload_id: Optional[str] = Form(default=None),
+    workspace_id: Optional[str] = Form(default=None),
 ):
     """Accept a file upload, profile it, and persist to disk + Supabase."""
     _assert_no_active_workspace_dataset(current_upload_id)
@@ -130,7 +131,10 @@ async def api_upload(
     if not allowed_rows:
         raise HTTPException(status_code=402, detail=rows_reason)
 
-    result = upload_service.process_dataframe(df, filename, ext if ext in ("json", "parquet") else "csv", current_user)
+    target_org_id = workspace_id if (workspace_id and workspace_id != "personal") else None
+    result = upload_service.process_dataframe(
+        df, filename, ext if ext in ("json", "parquet") else "csv", current_user, org_id=target_org_id
+    )
     if ext in ("xls", "xlsx"):
         try:
             raw_wb_path = STORE_DIR / str(result["upload_id"]) / "raw_workbook.xlsx"

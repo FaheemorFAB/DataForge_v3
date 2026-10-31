@@ -1,59 +1,91 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import styles from "./login.module.css";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { Mail, Lock, Sparkles, ArrowRight, ShieldCheck } from "lucide-react";
+import { Mail, Lock, User as UserIcon, ArrowRight, ArrowLeft, CheckCircle2, ShieldCheck, AlertCircle } from "lucide-react";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
-  const { loginWithSupabase, signupWithSupabase, loginWithOAuth } = useAuth();
+  const searchParams = useSearchParams();
+  const { loginWithSupabase, signupWithSupabase, resetPasswordForEmail } = useAuth();
 
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "dark");
-  }, []);
+    const m = searchParams.get("mode");
+    if (m === "signup" || m === "forgot") {
+      setMode(m);
+    }
+  }, [searchParams]);
+
+  const switchMode = (newMode: "signin" | "signup" | "forgot") => {
+    setMode(newMode);
+    setErrorMsg("");
+    setStatusMsg("");
+    setResetSent(false);
+  };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      setErrorMsg("Please enter both email and password.");
-      return;
-    }
-    setLoading(true);
     setErrorMsg("");
     setStatusMsg("");
 
+    if (!email) {
+      setErrorMsg("Please enter your email address.");
+      return;
+    }
+
+    if (mode === "forgot") {
+      setLoading(true);
+      try {
+        await resetPasswordForEmail(email);
+        setResetSent(true);
+        setStatusMsg("If an account exists for this email, reset instructions have been sent. Please check your inbox.");
+      } catch (err: any) {
+        setErrorMsg(err.message || "Unable to send reset email. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!password) {
+      setErrorMsg("Please enter your password.");
+      return;
+    }
+
+    if (mode === "signup" && password.length < 8) {
+      setErrorMsg("Password must be at least 8 characters long.");
+      return;
+    }
+
+    setLoading(true);
     try {
-      if (isSignUp) {
-        await signupWithSupabase(email, password);
-        setStatusMsg("Account created! Check your email to confirm or sign in directly.");
+      if (mode === "signup") {
+        const res = await signupWithSupabase(email, password, name.trim() || undefined);
+        if (res.session?.access_token) {
+          router.push("/workspace");
+        } else {
+          setStatusMsg("Account created! Check your email to confirm or sign in directly.");
+        }
       } else {
         await loginWithSupabase(email, password);
         router.push("/workspace");
       }
     } catch (err: any) {
-      setErrorMsg(err.message || "Authentication failed. Check your Supabase credentials in .env");
+      setErrorMsg(err.message || "Authentication failed. Please verify your credentials.");
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOAuth = async (provider: "google" | "github") => {
-    setLoading(true);
-    setErrorMsg("");
-    try {
-      await loginWithOAuth(provider);
-    } catch (err: any) {
-      setErrorMsg(err.message || "OAuth redirection failed");
       setLoading(false);
     }
   };
@@ -64,129 +96,243 @@ export default function LoginPage() {
       <div className={styles.mesh}></div>
 
       <div className={styles.card}>
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-6">
-          <div
-            className="w-8 h-8 flex items-center justify-center rounded-sm"
-            style={{ background: "#fff" }}
-          >
-            <div className="w-4 h-4 rotate-45" style={{ background: "#050505" }}></div>
-          </div>
-          <span className="font-black text-sm tracking-widest uppercase text-white">
-            DataForge
+        {/* Brand Header */}
+        <div className="flex items-center justify-between mb-6">
+          <Link href="/" className="flex items-center gap-2.5 text-decoration-none">
+            <div
+              className="w-8 h-8 flex items-center justify-center rounded-sm"
+              style={{ background: "#fff" }}
+            >
+              <div className="w-4 h-4 rotate-45" style={{ background: "#050505" }}></div>
+            </div>
+            <span className="font-black text-sm tracking-widest uppercase text-white">
+              DataForge
+            </span>
+          </Link>
+          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+            {mode === "forgot" ? "Recovery" : "Secure Auth"}
           </span>
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-            Supabase Auth
-          </span>
         </div>
 
-        <h1 className="text-2xl font-black tracking-tight mb-1 text-white">
-          {isSignUp ? "Create an account" : "Welcome back"}
-        </h1>
-        <p className="text-xs mb-6" style={{ color: "var(--txt-m)" }}>
-          Powered by Supabase Auth with encrypted sessions
-        </p>
-
-        {/* OAuth Buttons */}
-        <div className="space-y-2 mb-4">
-          <a
-            href="/api/auth/login/google"
-            className={styles.googleBtn}
-            style={{ textDecoration: "none" }}
-          >
-            <svg width="18" height="18" viewBox="0 0 48 48">
-              <path
-                fill="#EA4335"
-                d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-              />
-              <path
-                fill="#4285F4"
-                d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-              />
-              <path
-                fill="#34A853"
-                d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-              />
-            </svg>
-            Continue with Google
-          </a>
+        {/* Title & Description */}
+        <div className="mb-5">
+          <h1 className="text-2xl font-black tracking-tight mb-1 text-white">
+            {mode === "signup"
+              ? "Create your account"
+              : mode === "forgot"
+              ? "Reset your password"
+              : "Welcome back"}
+          </h1>
+          <p className="text-xs text-zinc-400">
+            {mode === "signup"
+              ? "Start analyzing, transforming, and collaborating with DataForge"
+              : mode === "forgot"
+              ? "Enter your account email to receive a secure reset link"
+              : "Sign in to access your personal and team workspaces"}
+          </p>
         </div>
 
-        <div className="flex items-center gap-3 my-4">
-          <div className="flex-1 h-px bg-white/10" />
-          <span className="text-[11px] font-mono text-zinc-500 uppercase">or with email</span>
-          <div className="flex-1 h-px bg-white/10" />
-        </div>
+        {/* Continue with Google button (preserved for signin and signup) */}
+        {mode !== "forgot" && (
+          <>
+            <div className="space-y-2 mb-4">
+              <a
+                href="/api/auth/login/google"
+                className={styles.googleBtn}
+                style={{ textDecoration: "none" }}
+              >
+                <svg width="18" height="18" viewBox="0 0 48 48">
+                  <path
+                    fill="#EA4335"
+                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                  />
+                  <path
+                    fill="#4285F4"
+                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                  />
+                </svg>
+                Continue with Google
+              </a>
+            </div>
 
-        {/* Email & Password Form */}
+            <div className="flex items-center gap-3 my-4">
+              <div className="flex-1 h-px bg-white/10" />
+              <span className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
+                or with email
+              </span>
+              <div className="flex-1 h-px bg-white/10" />
+            </div>
+          </>
+        )}
+
+        {/* Auth Form */}
         <form noValidate onSubmit={handleEmailAuth} className="space-y-3">
+          {/* Full Name (Sign Up only) */}
+          {mode === "signup" && (
+            <div>
+              <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
+                Full Name
+              </label>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 focus-within:border-indigo-500/50 transition-colors">
+                <UserIcon size={14} className="text-zinc-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Jane Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="bg-transparent text-xs text-white focus:outline-none w-full"
+                  autoComplete="name"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Email Address */}
           <div>
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5">
-              <Mail size={14} className="text-zinc-400" />
+            <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
+              Work Email
+            </label>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 focus-within:border-indigo-500/50 transition-colors">
+              <Mail size={14} className="text-zinc-400 shrink-0" />
               <input
                 type="email"
                 placeholder="name@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-transparent text-xs text-white focus:outline-none w-full"
-                />
+                autoComplete="email"
+                required
+              />
             </div>
           </div>
 
-          <div>
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5">
-              <Lock size={14} className="text-zinc-400" />
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="bg-transparent text-xs text-white focus:outline-none w-full"
+          {/* Password (Sign In & Sign Up) */}
+          {mode !== "forgot" && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-semibold text-zinc-400">
+                  Password
+                </label>
+                {mode === "signin" && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode("forgot")}
+                    className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors cursor-pointer"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 focus-within:border-indigo-500/50 transition-colors">
+                <Lock size={14} className="text-zinc-400 shrink-0" />
+                <input
+                  type="password"
+                  placeholder={mode === "signup" ? "At least 8 characters" : "••••••••"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="bg-transparent text-xs text-white focus:outline-none w-full"
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  required
                 />
+              </div>
             </div>
-          </div>
+          )}
 
+          {/* Error Message */}
           {errorMsg && (
-            <p className="text-[11px] font-mono text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
-              {errorMsg}
-            </p>
+            <div className="flex items-start gap-2 text-[11px] font-medium text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
+            </div>
           )}
 
+          {/* Status Message */}
           {statusMsg && (
-            <p className="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20">
-              {statusMsg}
-            </p>
+            <div className="flex items-start gap-2 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20">
+              <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
+              <span>{statusMsg}</span>
+            </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-xl text-xs font-bold bg-[var(--accent)] text-white hover:opacity-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-[var(--accent)]/20"
-          >
-            <span>{loading ? "Authenticating..." : isSignUp ? "Sign Up with Supabase" : "Sign In with Supabase"}</span>
-            <ArrowRight size={13} />
-          </button>
+          {/* Submit Button */}
+          {(!resetSent || mode !== "forgot") && (
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 mt-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+            >
+              <span>
+                {loading
+                  ? "Processing..."
+                  : mode === "signup"
+                  ? "Create Account"
+                  : mode === "forgot"
+                  ? "Send Reset Link"
+                  : "Sign In"}
+              </span>
+              <ArrowRight size={13} />
+            </button>
+          )}
         </form>
 
-        {/* Switch Sign In / Sign Up */}
-        <div className="mt-4 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setErrorMsg("");
-              setStatusMsg("");
-            }}
-            className="text-[11px] text-zinc-400 hover:text-white transition-colors cursor-pointer"
-          >
-            {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up with Supabase"}
-          </button>
+        {/* Footer / Switch View */}
+        <div className="mt-5 pt-4 border-t border-white/10 text-center">
+          {mode === "forgot" ? (
+            <button
+              type="button"
+              onClick={() => switchMode("signin")}
+              className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <ArrowLeft size={13} />
+              <span>Back to Sign In</span>
+            </button>
+          ) : mode === "signup" ? (
+            <p className="text-xs text-zinc-400">
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => switchMode("signin")}
+                className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer underline-offset-2 hover:underline"
+              >
+                Sign In
+              </button>
+            </p>
+          ) : (
+            <p className="text-xs text-zinc-400">
+              Don't have an account?{" "}
+              <button
+                type="button"
+                onClick={() => switchMode("signup")}
+                className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer underline-offset-2 hover:underline"
+              >
+                Create one now
+              </button>
+            </p>
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className={styles.container}>
+          <div className="text-white text-xs font-mono">Loading DataForge Auth...</div>
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }

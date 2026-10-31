@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import {
   PostgresLogo,
   MySQLLogo,
@@ -14,7 +15,6 @@ import {
   GoogleSheetsLogo,
   MicrosoftExcelOnlineLogo,
 } from "./DataLogos";
-import { SAMPLE_DATASETS, SampleDataset } from "./sampleDatasets";
 import Logo from "../Logo";
 import {
   Search,
@@ -23,6 +23,12 @@ import {
   AlertCircle,
   Loader2,
   UploadCloud,
+  Clock,
+  Lock,
+  User,
+  Users,
+  FileSpreadsheet,
+  Database,
 } from "lucide-react";
 
 interface WorkspaceLaunchModalProps {
@@ -34,7 +40,7 @@ interface WorkspaceLaunchModalProps {
   activeDatasetName?: string;
 }
 
-export type ConnectorCategory = "files" | "spreadsheets" | "relational" | "samples";
+export type ConnectorCategory = "files" | "spreadsheets" | "relational" | "history";
 
 interface ConnectorDef {
   id: string;
@@ -235,13 +241,6 @@ function validateConnectorInput(
     return { valid: true };
   }
 
-  if (category === "samples") {
-    if (!file) {
-      return { valid: false, error: "Please select one of the demo benchmark datasets." };
-    }
-    return { valid: true };
-  }
-
   const clean = sanitizeInput(uri);
   if (!clean) {
     return { valid: false, error: "Connection link or URI is required." };
@@ -299,6 +298,8 @@ export default function WorkspaceLaunchModal({
   activeDatasetName = "",
 }: WorkspaceLaunchModalProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
 
   // Selected Connector (defaults to initialConnectorId, csv or postgresql)
   const [selectedConnector, setSelectedConnector] = useState<ConnectorDef>(() => {
@@ -312,6 +313,73 @@ export default function WorkspaceLaunchModal({
   // Search & Category Filter
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<"all" | ConnectorCategory>("all");
+
+  // Ingestion History & Workspace Scoping
+  const [historyDatasets, setHistoryDatasets] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeHistoryWorkspace, setActiveHistoryWorkspace] = useState<string>("personal");
+  const [availableTeams, setAvailableTeams] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const currentWs = (typeof window !== "undefined" && localStorage.getItem("df_active_workspace")) || "personal";
+    setActiveHistoryWorkspace(currentWs);
+
+    try {
+      const cached = localStorage.getItem("df_teams_data");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setAvailableTeams(parsed.map((t: any) => ({ id: t.id, name: t.name })));
+        }
+      }
+    } catch {}
+
+    if (isLoggedIn) {
+      loadHistory(currentWs);
+    } else {
+      setHistoryDatasets([]);
+    }
+  }, [isOpen, isLoggedIn]);
+
+  const loadHistory = async (wsId: string) => {
+    setHistoryLoading(true);
+    try {
+      const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(wsId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.recent_uploads)) {
+          setHistoryDatasets(data.recent_uploads);
+        } else {
+          setHistoryDatasets([]);
+        }
+      }
+    } catch {
+      // non-blocking
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleSwitchHistoryWorkspace = (wsId: string) => {
+    setActiveHistoryWorkspace(wsId);
+    try {
+      localStorage.setItem("df_active_workspace", wsId);
+    } catch {}
+    loadHistory(wsId);
+  };
+
+  const handleLaunchExistingDataset = (uploadId: string) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("df_last_upload_id", uploadId);
+      try {
+        sessionStorage.removeItem("df_share_token_" + uploadId);
+      } catch {}
+    }
+    onClose();
+    router.push(`/workspace?upload_id=${encodeURIComponent(uploadId)}`);
+  };
 
   // Connection inputs
   const [connUri, setConnUri] = useState("");
@@ -506,22 +574,7 @@ export default function WorkspaceLaunchModal({
       const cleanUri = sanitizeInput(connUri);
       const cleanTable = sanitizeInput(targetTable);
 
-      if (selectedCategory === "samples" && selectedFile) {
-        setGenerationStatus(`Ingesting demo dataset: ${selectedFile.name}...`);
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-        formData.append("expected_format", "csv");
-        const res = await apiFetch("/upload", {
-          method: "POST",
-          body: formData,
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-          throw new Error(err.detail || "Demo dataset upload failed.");
-        }
-        const data = await res.json();
-        uploadId = data.upload_id;
-      } else if (selectedConnector.category === "spreadsheets") {
+      if (selectedConnector.category === "spreadsheets") {
         if (selectedConnector.id === "google_sheets") {
           setGenerationStatus("Streaming Google Sheets workbook tabs...");
           const res = await apiFetch("/upload/sheets", {
@@ -563,6 +616,10 @@ export default function WorkspaceLaunchModal({
         const formData = new FormData();
         formData.append("file", selectedFile);
         formData.append("expected_format", selectedConnector.id);
+        const activeWs = typeof window !== "undefined" ? localStorage.getItem("df_active_workspace") : null;
+        if (activeWs && activeWs !== "personal") {
+          formData.append("workspace_id", activeWs);
+        }
         const res = await apiFetch("/upload", {
           method: "POST",
           body: formData,
@@ -629,7 +686,7 @@ export default function WorkspaceLaunchModal({
 
     const val = validateConnectorInput(
       selectedConnector.id,
-      selectedCategory === "samples" ? "samples" : selectedConnector.category,
+      selectedConnector.category,
       connUri,
       selectedFile
     );
@@ -697,76 +754,6 @@ export default function WorkspaceLaunchModal({
     }
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleIncomingFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleQuickSample = (sample: SampleDataset) => {
-    if (hasActiveDataset) {
-      setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
-      return;
-    }
-    const csvConnector = ALL_CONNECTORS.find((c) => c.id === "csv") || selectedConnector;
-    setSelectedConnector(csvConnector);
-    const blob = new Blob([sample.csvContent], { type: "text/csv" });
-    const file = new File([blob], sample.filename, { type: "text/csv" });
-    setSelectedFile(file);
-    setErrorMsg("");
-  };
-
-  const handleLaunchSampleDirect = async (sample: SampleDataset) => {
-    if (hasActiveDataset) {
-      setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
-      return;
-    }
-    const csvConnector = ALL_CONNECTORS.find((c) => c.id === "csv") || selectedConnector;
-    setSelectedConnector(csvConnector);
-    const blob = new Blob([sample.csvContent], { type: "text/csv" });
-    const file = new File([blob], sample.filename, { type: "text/csv" });
-    setSelectedFile(file);
-    setErrorMsg("");
-
-    setIsConnecting(true);
-    setIsGeneratingWorkspace(true);
-    setGenerationStage(1);
-    setGenerationProgress(25);
-    setGenerationStatus(`Loading demo benchmark: ${sample.name}...`);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("expected_format", "csv");
-      const res = await apiFetch("/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-        throw new Error(err.detail || "Demo dataset upload failed.");
-      }
-      const data = await res.json();
-      const uploadId = data.upload_id;
-
-      setGenerationStage(4);
-      setGenerationProgress(100);
-      setGenerationStatus("Dataset ready! Launching workspace...");
-
-      if (typeof window !== "undefined") {
-        localStorage.setItem("df_user_role", "Admin");
-        localStorage.setItem("df_last_upload_id", uploadId);
-        try {
-          sessionStorage.removeItem("df_share_token_" + uploadId);
-        } catch {}
-      }
-
-      setTimeout(() => {
-        onClose();
-        window.location.href = `/workspace?upload_id=${uploadId}`;
-      }, 1000);
-    } catch (err: any) {
-      setIsGeneratingWorkspace(false);
-      setIsConnecting(false);
-      setErrorMsg(err.message || "Failed to launch demo dataset.");
     }
   };
 
@@ -884,11 +871,11 @@ export default function WorkspaceLaunchModal({
               style={{ borderColor: "var(--border)" }}
             >
               {[
-                { id: "all", label: "All" },
+                { id: "all", label: "All Connectors" },
                 { id: "files", label: "Files" },
                 { id: "spreadsheets", label: "Cloud Sheets" },
                 { id: "relational", label: "Databases" },
-                { id: "samples", label: "Sample Data" },
+                { id: "history", label: "Ingestion History" },
               ].map((cat) => {
                 const isActive = selectedCategory === cat.id;
                 return (
@@ -896,48 +883,169 @@ export default function WorkspaceLaunchModal({
                     key={cat.id}
                     type="button"
                     onClick={() => setSelectedCategory(cat.id as any)}
-                    className={`py-3 font-medium transition-colors border-b-2 -mb-px cursor-pointer ${
+                    className={`py-3 font-medium transition-colors border-b-2 -mb-px cursor-pointer flex items-center gap-1.5 ${
                       isActive
                         ? "border-indigo-500 text-[var(--txt)]"
                         : "border-transparent text-[var(--txt-m)] hover:text-[var(--txt)]"
                     }`}
                   >
-                    {cat.label}
+                    {cat.id === "history" && <Clock size={12} className={isActive ? "text-indigo-400" : "opacity-60"} />}
+                    <span>{cat.label}</span>
                   </button>
                 );
               })}
             </div>
 
             {/* Main Content Area */}
-            <div className="grid grid-cols-1 md:grid-cols-12 min-h-0 sm:min-h-[360px] overflow-y-auto minimal-scrollbar flex-1">
-              {/* Left Column: Source Selection (5 cols) */}
-              <div
-                className="md:col-span-5 border-b md:border-b-0 md:border-r p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3"
-                style={{ borderColor: "var(--border)" }}
-              >
-                {/* List */}
-                <div className="flex-1 overflow-y-auto minimal-scrollbar space-y-1.5 pr-1.5 max-h-[165px] sm:max-h-[340px]">
-                  {selectedCategory === "samples" ? (
-                    SAMPLE_DATASETS.map((sample) => (
+            {selectedCategory === "history" ? (
+              <div className="p-4 sm:p-6 flex flex-col min-h-0 sm:min-h-[380px] overflow-y-auto minimal-scrollbar flex-1 space-y-4">
+                {/* Header & Dynamic Workspace Switcher */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b" style={{ borderColor: "var(--border)" }}>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold flex items-center gap-2" style={{ color: "var(--txt)" }}>
+                      <Clock size={15} style={{ color: "var(--accent)" }} />
+                      <span>Ingested Datasets History</span>
+                    </h4>
+                    <p className="text-[11px] text-[var(--txt-m)] mt-0.5">
+                      {activeHistoryWorkspace === "personal"
+                        ? "Your private datasets in Personal Space. Click any dataset to immediately open your workspace session."
+                        : `Datasets ingested within ${availableTeams.find((t) => t.id === activeHistoryWorkspace)?.name || "this workspace"}.`}
+                    </p>
+                  </div>
+
+                  {/* Dynamic Workspace Switcher Pills */}
+                  {availableTeams.length > 0 && (
+                    <div className="flex items-center gap-1.5 p-1 rounded-xl border self-start sm:self-auto shrink-0" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
                       <button
-                        key={sample.id}
                         type="button"
-                        onClick={() => handleLaunchSampleDirect(sample)}
-                        className="w-full text-left p-2.5 rounded-lg border border-[var(--border)] hover:border-indigo-500/50 bg-[var(--card)] hover:bg-[var(--surface)] transition-all cursor-pointer"
+                        onClick={() => handleSwitchHistoryWorkspace("personal")}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                        style={{
+                          background: activeHistoryWorkspace === "personal" ? "var(--accent)" : "transparent",
+                          color: activeHistoryWorkspace === "personal" ? "#fff" : "var(--txt-m)",
+                        }}
                       >
-                        <div className="flex items-center justify-between text-xs font-medium">
-                          <span>{sample.name}</span>
-                          <span className="text-[10px] text-[var(--txt-f)] font-mono">
-                            {sample.rows} × {sample.cols}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[var(--txt-m)] line-clamp-1 mt-0.5">
-                          {sample.description}
-                        </p>
+                        <User size={12} />
+                        <span>Personal Space</span>
                       </button>
-                    ))
-                  ) : (
-                    filteredConnectors.map((c) => {
+                      {availableTeams.map((team) => {
+                        const isTeamSel = activeHistoryWorkspace === team.id;
+                        return (
+                          <button
+                            key={team.id}
+                            type="button"
+                            onClick={() => handleSwitchHistoryWorkspace(team.id)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                            style={{
+                              background: isTeamSel ? "#10b981" : "transparent",
+                              color: isTeamSel ? "#fff" : "var(--txt-m)",
+                            }}
+                          >
+                            <Users size={12} />
+                            <span className="truncate max-w-[110px]">{team.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* History Content */}
+                {!isLoggedIn ? (
+                  <div className="p-8 rounded-xl border border-dashed flex flex-col items-center justify-center text-center space-y-3 my-auto" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center border" style={{ background: "rgba(99,102,241,0.1)", borderColor: "rgba(99,102,241,0.25)", color: "var(--accent)" }}>
+                      <Lock size={20} />
+                    </div>
+                    <div className="space-y-1">
+                      <h5 className="text-xs font-bold" style={{ color: "var(--txt)" }}>Sign In to View Ingestion History</h5>
+                      <p className="text-xs max-w-sm" style={{ color: "var(--txt-m)" }}>
+                        Your uploaded datasets and past analyses are securely stored in your account. Sign in to view and resume them instantly.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        router.push("/login");
+                      }}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90 cursor-pointer shadow-md"
+                      style={{ background: "var(--accent)" }}
+                    >
+                      Sign In to Account →
+                    </button>
+                  </div>
+                ) : historyLoading ? (
+                  <div className="p-12 flex flex-col items-center justify-center text-center space-y-2 my-auto">
+                    <Loader2 size={24} className="animate-spin text-indigo-500" />
+                    <span className="text-xs text-[var(--txt-m)] font-medium">Loading workspace history...</span>
+                  </div>
+                ) : historyDatasets.length === 0 ? (
+                  <div className="p-8 rounded-xl border border-dashed flex flex-col items-center justify-center text-center space-y-2 my-auto" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                    <Database size={24} className="opacity-40" />
+                    <h5 className="text-xs font-bold" style={{ color: "var(--txt)" }}>No Datasets Ingested Yet</h5>
+                    <p className="text-xs text-[var(--txt-m)] max-w-xs">
+                      No datasets have been ingested in this workspace yet. Select a file or connector to upload your first dataset.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategory("files")}
+                      className="text-xs font-bold underline mt-1 cursor-pointer"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Upload a file now →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto minimal-scrollbar pr-1">
+                    {historyDatasets.map((ds) => (
+                      <div
+                        key={ds.id}
+                        onClick={() => handleLaunchExistingDataset(ds.id)}
+                        className="p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-2.5 hover:border-[var(--accent)] hover:shadow-md cursor-pointer group"
+                        style={{
+                          background: "var(--card)",
+                          borderColor: "var(--border)",
+                        }}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 truncate">
+                              <FileSpreadsheet size={15} style={{ color: "var(--accent)" }} className="shrink-0" />
+                              <span className="text-xs font-bold truncate group-hover:text-indigo-400 transition-colors" style={{ color: "var(--txt)" }}>
+                                {ds.filename || `Dataset ${ds.id.slice(0, 8)}`}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
+                              {ds.source_type?.toUpperCase() || "CSV"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2.5 text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
+                            <span>{ds.rows?.toLocaleString() || 0} rows × {ds.cols || 0} cols</span>
+                            <span>•</span>
+                            <span>{ds.time_ago || "recently"}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--accent)" }}>
+                          <span>Open in Workspace</span>
+                          <span className="transition-transform group-hover:translate-x-1">→</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-12 min-h-0 sm:min-h-[360px] overflow-y-auto minimal-scrollbar flex-1">
+                {/* Left Column: Source Selection (5 cols) */}
+                <div
+                  className="md:col-span-5 border-b md:border-b-0 md:border-r p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  {/* List */}
+                  <div className="flex-1 overflow-y-auto minimal-scrollbar space-y-1.5 pr-1.5 max-h-[165px] sm:max-h-[340px]">
+                    {filteredConnectors.map((c) => {
                       const isSelected = selectedConnector.id === c.id;
                       const Logo = c.Logo;
                       return (
@@ -960,18 +1068,17 @@ export default function WorkspaceLaunchModal({
                           </div>
                         </button>
                       );
-                    })
-                  )}
-                </div>
+                    })}
+                  </div>
 
-                {/* Mobile Scroll Indicator */}
-                <div className="md:hidden pt-1 flex items-center justify-between text-[10px] text-[var(--txt-m)] border-t border-[var(--border)]/40 shrink-0">
-                  <span className="flex items-center gap-1 font-medium">
-                    <span>Scroll for more sources</span>
-                  </span>
-                  <span className="text-[9px] font-mono text-[var(--accent)] font-bold animate-bounce">↓</span>
+                  {/* Mobile Scroll Indicator */}
+                  <div className="md:hidden pt-1 flex items-center justify-between text-[10px] text-[var(--txt-m)] border-t border-[var(--border)]/40 shrink-0">
+                    <span className="flex items-center gap-1 font-medium">
+                      <span>Scroll for more sources</span>
+                    </span>
+                    <span className="text-[9px] font-mono text-[var(--accent)] font-bold animate-bounce">↓</span>
+                  </div>
                 </div>
-              </div>
 
               {/* Right Column: Configuration & Actions (7 cols) */}
               <div className="md:col-span-7 p-3.5 sm:p-6 flex flex-col justify-between overflow-y-auto">
@@ -1105,22 +1212,35 @@ export default function WorkspaceLaunchModal({
                         )}
                       </div>
 
-                      {/* Demo samples shortcuts (Minimal text list, NO PILLS) */}
-                      <div className="flex items-center gap-2 text-xs text-[var(--txt-m)] pt-1 flex-wrap">
-                        <span className="text-[var(--txt-f)]">Sample data:</span>
-                        {SAMPLE_DATASETS.slice(0, 3).map((sample, idx) => (
-                          <React.Fragment key={sample.id}>
-                            <button
-                              type="button"
-                              onClick={() => handleQuickSample(sample)}
-                              className="text-[var(--txt)] hover:text-indigo-400 transition-colors cursor-pointer"
-                            >
-                              {sample.name}
-                            </button>
-                            {idx < 2 && <span className="text-[var(--txt-f)]">·</span>}
-                          </React.Fragment>
-                        ))}
-                      </div>
+                      {/* Recent Ingestion Shortcuts (Hidden completely if user is not logged in) */}
+                      {isLoggedIn && historyDatasets.length > 0 && (
+                        <div className="flex items-center gap-2 text-xs text-[var(--txt-m)] pt-1 flex-wrap">
+                          <span className="text-[var(--txt-f)] flex items-center gap-1">
+                            <Clock size={11} style={{ color: "var(--accent)" }} />
+                            <span>Recent history:</span>
+                          </span>
+                          {historyDatasets.slice(0, 3).map((ds, idx) => (
+                            <React.Fragment key={ds.id}>
+                              <button
+                                type="button"
+                                onClick={() => handleLaunchExistingDataset(ds.id)}
+                                className="text-[var(--txt)] hover:text-indigo-400 transition-colors cursor-pointer max-w-[130px] truncate underline"
+                                title={`Open ${ds.filename}`}
+                              >
+                                {ds.filename}
+                              </button>
+                              {idx < Math.min(historyDatasets.length - 1, 2) && <span className="text-[var(--txt-f)]">·</span>}
+                            </React.Fragment>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCategory("history")}
+                            className="text-indigo-400 hover:underline text-[11px] cursor-pointer ml-1 font-semibold"
+                          >
+                            All history →
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     /* Databases */
@@ -1208,6 +1328,7 @@ export default function WorkspaceLaunchModal({
                 </div>
               </div>
             </div>
+          )}
           </>
         )}
       </div>

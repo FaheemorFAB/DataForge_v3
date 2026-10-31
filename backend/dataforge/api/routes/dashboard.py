@@ -61,11 +61,23 @@ async def api_correlation_matrix(
 
 # ── Dashboard initialization ────────────────────────────────────────────────
 @router.get("/dashboard/init", summary="Get initialization data for the dashboard")
-async def api_dashboard_init(current_user: CurrentUser):
+async def api_dashboard_init(
+    current_user: CurrentUser,
+    workspace_id: Optional[str] = Query(None, description="'personal' or an org_id UUID"),
+):
     from dataforge.db import db_client, db_all, db_count
+    from dataforge.teams.manager import TeamManager
+    from dataforge.models.registry import ModelRegistry
+    from dataforge.api.storage.manager import STORE_DIR, load
     
     user = current_user
-    recent_uploads = db_all("uploads", {"user_id": user.id}, order_by="uploaded_at", limit=10)
+    is_team_workspace = bool(workspace_id and workspace_id != "personal")
+
+    # If scoped to a specific team/org workspace, verify membership
+    if is_team_workspace:
+        role = TeamManager.get_user_role(workspace_id, user.id)
+        if not role:
+            raise HTTPException(status_code=403, detail="Access denied: You are not a member of this workspace")
 
     def _time_ago_local(dt_str):
         if not dt_str: return ""
@@ -80,15 +92,62 @@ async def api_dashboard_init(current_user: CurrentUser):
         if s < 86400:    return f"{s//3600}h ago"
         return f"{s//86400}d ago"
 
-    uploads_data = [{
-        "filename":    u.get("filename", ""),
-        "rows":        u.get("rows", 0) or 0,
-        "cols":        u.get("cols", 0) or 0,
-        "missing_pct": u.get("missing_pct", 0) or 0,
-        "time_ago":    _time_ago_local(u.get("uploaded_at")),
-        "id":          u.get("id"),
-        "source_type": u.get("source_type", "csv") or "csv",
-    } for u in recent_uploads]
+    # Fetch uploads according to active workspace scope
+    uploads_data = []
+    if is_team_workspace:
+        # Team workspace: show uploads tagged with this org_id
+        try:
+            if STORE_DIR.exists():
+                for item in STORE_DIR.iterdir():
+                    if item.is_dir() and (item / "meta.json").exists():
+                        m = load(item.name, "meta")
+                        if m and m.get("org_id") == workspace_id:
+                            uploads_data.append({
+                                "filename":    m.get("filename", ""),
+                                "rows":        m.get("rows", 0) or 0,
+                                "cols":        m.get("cols", 0) or 0,
+                                "missing_pct": m.get("missing_pct", 0) or 0,
+                                "time_ago":    _time_ago_local(m.get("created_at") or m.get("uploaded_at")),
+                                "id":          m.get("id"),
+                                "source_type": m.get("source_type", "csv") or "csv",
+                            })
+        except Exception as e:
+            log.warning("Failed scanning team uploads: %s", e)
+    else:
+        # Personal workspace: show user's personal uploads (not tagged with an org_id)
+        db_uploads = db_all("uploads", {"user_id": user.id}, order_by="uploaded_at", limit=30)
+        for u in db_uploads:
+            m = load(str(u.get("id")), "meta")
+            if m and m.get("org_id"):
+                continue  # Belongs to an org workspace, skip in personal
+            uploads_data.append({
+                "filename":    u.get("filename", ""),
+                "rows":        u.get("rows", 0) or 0,
+                "cols":        u.get("cols", 0) or 0,
+                "missing_pct": u.get("missing_pct", 0) or 0,
+                "time_ago":    _time_ago_local(u.get("uploaded_at")),
+                "id":          u.get("id"),
+                "source_type": u.get("source_type", "csv") or "csv",
+            })
+        try:
+            if STORE_DIR.exists():
+                for item in STORE_DIR.iterdir():
+                    if item.is_dir() and (item / "meta.json").exists() and not any(str(ud["id"]) == item.name for ud in uploads_data):
+                        m = load(item.name, "meta")
+                        if m and m.get("user_id") == user.id and not m.get("org_id"):
+                            uploads_data.append({
+                                "filename":    m.get("filename", ""),
+                                "rows":        m.get("rows", 0) or 0,
+                                "cols":        m.get("cols", 0) or 0,
+                                "missing_pct": m.get("missing_pct", 0) or 0,
+                                "time_ago":    _time_ago_local(m.get("created_at") or m.get("uploaded_at")),
+                                "id":          m.get("id"),
+                                "source_type": m.get("source_type", "csv") or "csv",
+                            })
+        except Exception:
+            pass
+
+    uploads_data = uploads_data[:10]
 
     _icon_map = {"eda": "📊", "automl": "🤖", "clean": "🧹", "query": "💬", "insights": "💡", "report": "📄"}
     _map_labels = {
@@ -100,25 +159,34 @@ async def api_dashboard_init(current_user: CurrentUser):
         "report":   "Report Generated",
     }
 
-    analyses_res = db_client.table("analyses").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(30).execute()
-    recent_analyses = analyses_res.data if analyses_res and analyses_res.data else []
     analyses_data = []
-    for a in recent_analyses:
-        type_ = a.get("type", "")
-        up = a.get("uploads") or {}
-        analyses_data.append({
-            "type":     type_,
-            "label":    _map_labels.get(type_, type_.title()),
-            "icon":     _icon_map.get(type_, "⚡"),
-            "summary":  a.get("summary") or "",
-            "filename": up.get("filename", ""),
-            "time_ago": _time_ago_local(a.get("created_at")),
-        })
+    if not is_team_workspace and db_client:
+        try:
+            analyses_res = db_client.table("analyses").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(30).execute()
+            recent_analyses = analyses_res.data if analyses_res and analyses_res.data else []
+            for a in recent_analyses:
+                type_ = a.get("type", "")
+                up = a.get("uploads") or {}
+                analyses_data.append({
+                    "type":     type_,
+                    "label":    _map_labels.get(type_, type_.title()),
+                    "icon":     _icon_map.get(type_, "⚡"),
+                    "summary":  a.get("summary") or "",
+                    "filename": up.get("filename", ""),
+                    "time_ago": _time_ago_local(a.get("created_at")),
+                })
+        except Exception:
+            pass
 
-    alert_count = db_count("alerts", {"user_id": user.id, "resolved": False})
+    alert_count = db_count("alerts", {"user_id": user.id, "resolved": False}) if not is_team_workspace else 0
 
-    reports_res = db_client.table("reports").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(5).execute()
-    recent_reports = reports_res.data if reports_res and reports_res.data else []
+    recent_reports = []
+    if not is_team_workspace and db_client:
+        try:
+            reports_res = db_client.table("reports").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(5).execute()
+            recent_reports = reports_res.data if reports_res and reports_res.data else []
+        except Exception:
+            pass
     reports_data = []
     for r in recent_reports:
         up = r.get("uploads") or {}
@@ -129,7 +197,7 @@ async def api_dashboard_init(current_user: CurrentUser):
             "triggered_by": r.get("triggered_by", "auto"),
         })
 
-    schedule_count = db_count("schedules", {"user_id": user.id})
+    schedule_count = db_count("schedules", {"user_id": user.id}) if not is_team_workspace else 0
 
     member_since = ""
     try:
@@ -140,14 +208,16 @@ async def api_dashboard_init(current_user: CurrentUser):
     except Exception:
         pass
 
-    upload_count = db_count("uploads", {"user_id": user.id})
-    analysis_count = db_count("analyses", {"user_id": user.id})
-    query_count = db_count("chat_sessions", {"user_id": user.id})
+    upload_count = len(uploads_data)
+    analysis_count = len(analyses_data)
+    query_count = db_count("chat_sessions", {"user_id": user.id}) if not is_team_workspace else 0
+    models_list = ModelRegistry.list_models(org_id=workspace_id if is_team_workspace else None)
+    models_count = len(models_list)
 
     stats = {
         "uploads": upload_count,
         "analyses": analysis_count,
-        "models": 0,
+        "models": models_count,
         "queries": query_count,
     }
 
@@ -164,6 +234,7 @@ async def api_dashboard_init(current_user: CurrentUser):
         "recent_reports": reports_data,
         "schedule_count": schedule_count,
         "member_since": member_since,
+        "workspace_id": workspace_id or "personal",
     }
 
 
