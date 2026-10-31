@@ -264,14 +264,22 @@ async def require_upload_access(
         share_token = request.headers.get("x-share-token") or request.query_params.get("share_token")
 
     from dataforge.api.services.sharing import DatasetSharingService
+    from dataforge.api.storage.manager import STORE_DIR, exists, load
 
     upload = upload_repo.get_by_id(upload_id)
     if not upload:
-        from dataforge.api.storage.manager import STORE_DIR, exists, load
         meta = load(upload_id, "meta")
         if meta and isinstance(meta, dict):
             owner_id = meta.get("user_id")
-            if owner_id == current_user.id or (not settings.PRODUCTION and (current_user.id == 1 or owner_id == 1)):
+            owner_email = (meta.get("user_email") or "").strip().lower()
+            current_email = (getattr(current_user, "email", None) or "").strip().lower()
+
+            is_owner = (
+                (str(owner_id) == str(current_user.id))
+                or (bool(current_email) and owner_email == current_email)
+                or (not settings.PRODUCTION and (current_user.id == 1 or owner_id == 1))
+            )
+            if is_owner:
                 return meta
             # Check sharing permissions
             allowed, eff_role = DatasetSharingService.check_access(
@@ -300,7 +308,15 @@ async def require_upload_access(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
 
     owner_id = upload.get("user_id")
-    if owner_id == current_user.id or (not settings.PRODUCTION and (current_user.id == 1 or owner_id == 1)):
+    current_email = (getattr(current_user, "email", None) or "").strip().lower()
+    meta_for_email = load(upload_id, "meta") if not upload.get("user_email") else upload
+    owner_email = (meta_for_email.get("user_email") or "").strip().lower() if meta_for_email else ""
+    is_owner = (
+        (str(owner_id) == str(current_user.id))
+        or (bool(current_email) and owner_email == current_email)
+        or (not settings.PRODUCTION and (current_user.id == 1 or owner_id == 1))
+    )
+    if is_owner:
         return upload
 
     # Check collaborator / share link access

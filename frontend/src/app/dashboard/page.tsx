@@ -147,6 +147,13 @@ export default function DashboardPage() {
   const [inviteError, setInviteError] = useState<string>("");
   const [isSubmittingInvite, setIsSubmittingInvite] = useState<boolean>(false);
 
+  // Create Workspace Modal State
+  const [createWorkspaceModalOpen, setCreateWorkspaceModalOpen] = useState<boolean>(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState<string>("");
+  const [newWorkspacePlan, setNewWorkspacePlan] = useState<string>("Enterprise");
+  const [createWorkspaceError, setCreateWorkspaceError] = useState<string>("");
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
+
   // System Stats
   const [stats, setStats] = useState({
     uploads: 0,
@@ -722,6 +729,69 @@ export default function DashboardPage() {
     }
   };
 
+  // Create Team Workspace Handler
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWorkspaceName.trim()) {
+      setCreateWorkspaceError("Please enter a workspace name.");
+      return;
+    }
+
+    setIsCreatingWorkspace(true);
+    setCreateWorkspaceError("");
+
+    try {
+      const res = await apiFetch("/teams", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newWorkspaceName.trim(),
+          plan: newWorkspacePlan || "Enterprise",
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const createdOrg = data.organization;
+        const newTeam: TeamItem = {
+          id: createdOrg.id,
+          name: createdOrg.name,
+          myRole: "Admin",
+          members: [
+            {
+              id: `m-${createdOrg.owner_id || "owner"}`,
+              name: userName || "Workspace Owner",
+              email: userEmail || "owner@dataforge.app",
+              role: "Admin",
+              avatarId: userAvatarId || "avatar-1",
+              avatarUrl: resolveAvatarUrl(userAvatarId || "avatar-1"),
+            },
+          ],
+        };
+
+        const updatedTeams = [...teams, newTeam];
+        setTeams(updatedTeams);
+        try {
+          localStorage.setItem("df_teams_data", JSON.stringify(updatedTeams));
+        } catch {}
+
+        // Switch to newly created workspace
+        handleSwitchWorkspace(createdOrg.id);
+
+        setCreateWorkspaceModalOpen(false);
+        setNewWorkspaceName("");
+        setSaveSuccessMsg(`✓ Workspace "${createdOrg.name}" created successfully!`);
+        setTimeout(() => setSaveSuccessMsg(""), 4000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setCreateWorkspaceError(err.detail || "Failed to create workspace.");
+      }
+    } catch (err: any) {
+      setCreateWorkspaceError(err.message || "Failed to create workspace.");
+    } finally {
+      setIsCreatingWorkspace(false);
+    }
+  };
+
   // Theme Switcher Handler
   const handleThemeSelect = (themeId: string) => {
     setCurrentTheme(themeId);
@@ -787,130 +857,135 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* ── WORKSPACE CONTEXT BADGE OR SWITCHER ── */}
-          {teams.length > 0 ? (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer hover:border-[var(--accent)] shadow-sm"
-                style={{
-                  background: "var(--card)",
-                  borderColor: "var(--border)",
-                  color: "var(--txt)",
-                }}
-                title="Switch Workspace"
-              >
-                {activeWorkspace === "personal" ? (
-                  <>
-                    <User size={13} style={{ color: "var(--accent)" }} />
-                    <span className="hidden sm:inline">Personal Space</span>
-                    <span className="sm:hidden">Personal</span>
-                  </>
-                ) : (
-                  <>
-                    <Users size={13} style={{ color: "#10b981" }} />
-                    <span className="truncate max-w-[110px] sm:max-w-[150px]">
-                      {teams.find((t) => t.id === activeWorkspace)?.name || "Team Workspace"}
-                    </span>
-                  </>
-                )}
-                <ChevronDown size={12} className="opacity-60 shrink-0" />
-              </button>
-
-              {workspaceDropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setWorkspaceDropdownOpen(false)}
-                  />
-                  <div
-                    className="absolute right-0 mt-2 w-64 rounded-xl border p-2 shadow-2xl z-50 animate-in fade-in zoom-in-95 space-y-1"
-                    style={{
-                      background: "var(--card)",
-                      borderColor: "var(--border)",
-                    }}
-                  >
-                    <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider opacity-60">
-                      Switch Workspace
-                    </div>
-
-                    {/* Personal Workspace Option */}
-                    <button
-                      type="button"
-                      onClick={() => handleSwitchWorkspace("personal")}
-                      className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-left"
-                      style={{
-                        background: activeWorkspace === "personal" ? "var(--surface)" : "transparent",
-                        color: "var(--txt)",
-                      }}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <User size={14} style={{ color: "var(--accent)" }} />
-                        <div className="truncate">
-                          <div className="truncate font-bold">Personal Space</div>
-                          <div className="text-[10px]" style={{ color: "var(--txt-m)" }}>Private datasets &amp; models</div>
-                        </div>
-                      </div>
-                      {activeWorkspace === "personal" && (
-                        <Check size={14} style={{ color: "var(--accent)" }} className="shrink-0" />
-                      )}
-                    </button>
-
-                    {/* Team Workspaces */}
-                    <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
-                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider opacity-60">
-                      Company Workspaces
-                    </div>
-                    {teams.map((t) => {
-                      const isCurrent = activeWorkspace === t.id;
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => handleSwitchWorkspace(t.id)}
-                          className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-left"
-                          style={{
-                            background: isCurrent ? "var(--surface)" : "transparent",
-                            color: "var(--txt)",
-                          }}
-                        >
-                          <div className="flex items-center gap-2 truncate">
-                            <Users size={14} style={{ color: "#10b981" }} />
-                            <div className="truncate">
-                              <div className="truncate font-bold">{t.name}</div>
-                              <div className="text-[10px] flex items-center gap-1.5" style={{ color: "var(--txt-m)" }}>
-                                <span>{t.myRole}</span>
-                                <span>•</span>
-                                <span>{t.members.length} members</span>
-                              </div>
-                            </div>
-                          </div>
-                          {isCurrent && (
-                            <Check size={14} style={{ color: "#10b981" }} className="shrink-0" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold"
+          {/* ── WORKSPACE CONTEXT BADGE & SWITCHER ── */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer hover:border-[var(--accent)] shadow-sm"
               style={{
                 background: "var(--card)",
                 borderColor: "var(--border)",
                 color: "var(--txt)",
               }}
-              title="Personal Space (Private datasets & models)"
+              title="Switch or Create Workspace"
             >
-              <User size={13} style={{ color: "var(--accent)" }} />
-              <span className="hidden sm:inline">Personal Space</span>
-              <span className="sm:hidden">Personal</span>
-            </div>
-          )}
+              {activeWorkspace === "personal" ? (
+                <>
+                  <User size={13} style={{ color: "var(--accent)" }} />
+                  <span className="hidden sm:inline">Personal Space</span>
+                  <span className="sm:hidden">Personal</span>
+                </>
+              ) : (
+                <>
+                  <Users size={13} style={{ color: "#10b981" }} />
+                  <span className="truncate max-w-[110px] sm:max-w-[150px]">
+                    {teams.find((t) => t.id === activeWorkspace)?.name || "Team Workspace"}
+                  </span>
+                </>
+              )}
+              <ChevronDown size={12} className="opacity-60 shrink-0" />
+            </button>
+
+            {workspaceDropdownOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setWorkspaceDropdownOpen(false)}
+                />
+                <div
+                  className="absolute right-0 mt-2 w-64 rounded-xl border p-2 shadow-2xl z-50 animate-in fade-in zoom-in-95 space-y-1"
+                  style={{
+                    background: "var(--card)",
+                    borderColor: "var(--border)",
+                  }}
+                >
+                  <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                    Switch Workspace
+                  </div>
+
+                  {/* Personal Workspace Option */}
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchWorkspace("personal")}
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-left"
+                    style={{
+                      background: activeWorkspace === "personal" ? "var(--surface)" : "transparent",
+                      color: "var(--txt)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <User size={14} style={{ color: "var(--accent)" }} />
+                      <div className="truncate">
+                        <div className="truncate font-bold">Personal Space</div>
+                        <div className="text-[10px]" style={{ color: "var(--txt-m)" }}>Private datasets &amp; models</div>
+                      </div>
+                    </div>
+                    {activeWorkspace === "personal" && (
+                      <Check size={14} style={{ color: "var(--accent)" }} className="shrink-0" />
+                    )}
+                  </button>
+
+                  {/* Team Workspaces */}
+                  {teams.length > 0 && (
+                    <>
+                      <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
+                      <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                        Company Workspaces
+                      </div>
+                      {teams.map((t) => {
+                        const isCurrent = activeWorkspace === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => handleSwitchWorkspace(t.id)}
+                            className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-left"
+                            style={{
+                              background: isCurrent ? "var(--surface)" : "transparent",
+                              color: "var(--txt)",
+                            }}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <Users size={14} style={{ color: "#10b981" }} />
+                              <div className="truncate">
+                                <div className="truncate font-bold">{t.name}</div>
+                                <div className="text-[10px] flex items-center gap-1.5" style={{ color: "var(--txt-m)" }}>
+                                  <span>{t.myRole}</span>
+                                  <span>•</span>
+                                  <span>{t.members.length} members</span>
+                                </div>
+                              </div>
+                            </div>
+                            {isCurrent && (
+                              <Check size={14} style={{ color: "#10b981" }} className="shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Create Workspace Action */}
+                  <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWorkspaceDropdownOpen(false);
+                      setCreateWorkspaceError("");
+                      setNewWorkspaceName("");
+                      setCreateWorkspaceModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer text-left hover:bg-[var(--surface)]"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    <Plus size={14} />
+                    <span>+ Create New Workspace</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           <ThemeSwitcher />
           <UserMenu />
@@ -1046,32 +1121,32 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ── MY TEAMS & WORKSPACES (Only shown if member belongs to teams or is on Team Collaboration plan) ── */}
-        {(teams.length > 0 || ["team", "enterprise"].includes(userTier.toLowerCase())) && (
-          <section
-            className="rounded-2xl border p-5 md:p-6 shadow-sm space-y-4"
-            style={{
-              background: "var(--card)",
-              borderColor: "var(--border)",
-            }}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3" style={{ borderColor: "var(--border)" }}>
-              <div>
-                <div className="flex items-center gap-2">
-                  <Users size={16} style={{ color: "var(--accent)" }} />
-                  <h3 className="text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
-                    My Teams &amp; Workspaces
-                  </h3>
-                </div>
-                <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                  {teams.length === 0
-                    ? "Collaborate with colleagues, share datasets, and pool quotas."
-                    : "Teams you are assigned to, active role badges, and seat quotas."}
-                </p>
+        {/* ── MY TEAMS & WORKSPACES ── */}
+        <section
+          className="rounded-2xl border p-5 md:p-6 shadow-sm space-y-4"
+          style={{
+            background: "var(--card)",
+            borderColor: "var(--border)",
+          }}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3" style={{ borderColor: "var(--border)" }}>
+            <div>
+              <div className="flex items-center gap-2">
+                <Users size={16} style={{ color: "var(--accent)" }} />
+                <h3 className="text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
+                  My Teams &amp; Workspaces
+                </h3>
               </div>
+              <p className="text-xs" style={{ color: "var(--txt-m)" }}>
+                {teams.length === 0
+                  ? "Collaborate with colleagues, share datasets, and pool quotas."
+                  : "Teams you are assigned to, active role badges, and seat quotas."}
+              </p>
+            </div>
 
+            <div className="flex items-center gap-3">
               {/* Plan Tier Limit Indicator */}
-              <div className="flex items-center gap-2 text-xs">
+              <div className="hidden sm:flex items-center gap-2 text-xs">
                 <span className="text-[11px] font-medium" style={{ color: "var(--txt-m)" }}>
                   Seat Quota: <strong style={{ color: "var(--txt)" }}>{currentTierInfo.maxMembers} seats / team</strong> ({currentTierInfo.name})
                 </span>
@@ -1083,38 +1158,67 @@ export default function DashboardPage() {
                   Upgrade Plan →
                 </Link>
               </div>
-            </div>
 
-            {/* Teams Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {teams.length === 0 ? (
-                <div
-                  className="col-span-1 md:col-span-3 p-6 rounded-xl border border-dashed flex flex-col md:flex-row items-center justify-between gap-4"
-                  style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-                >
-                  <div className="flex items-start gap-3.5">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
-                      style={{ background: "rgba(16, 185, 129, 0.1)", borderColor: "rgba(16, 185, 129, 0.25)", color: "#10b981" }}
-                    >
-                      <Users size={20} />
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateWorkspaceError("");
+                  setNewWorkspaceName("");
+                  setCreateWorkspaceModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer hover:opacity-90 shrink-0"
+                style={{ background: "var(--accent)" }}
+              >
+                <Plus size={14} />
+                <span>Create Workspace</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Teams Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {teams.length === 0 ? (
+              <div
+                className="col-span-1 md:col-span-3 p-6 rounded-xl border border-dashed flex flex-col md:flex-row items-center justify-between gap-4"
+                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <div className="flex items-start gap-3.5">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
+                    style={{ background: "rgba(16, 185, 129, 0.1)", borderColor: "rgba(16, 185, 129, 0.25)", color: "#10b981" }}
+                  >
+                    <Users size={20} />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold" style={{ color: "var(--txt)" }}>
+                        Team Collaboration &amp; Shared Workspaces
+                      </h4>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border" style={{ background: "rgba(16,185,129,0.12)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
+                        Workspaces
+                      </span>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-bold" style={{ color: "var(--txt)" }}>
-                          Team Collaboration Active
-                        </h4>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border" style={{ background: "rgba(16,185,129,0.12)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
-                          Organization
-                        </span>
-                      </div>
-                      <p className="text-xs max-w-xl leading-relaxed" style={{ color: "var(--txt-m)" }}>
-                        You have Team Collaboration enabled. Workspaces you belong to will appear here with team seat quotas, roles, and shared datasets.
-                      </p>
-                    </div>
+                    <p className="text-xs max-w-xl leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                      Collaborate with teammates, assign roles (Admin, Analyst, Viewer), and pool dataset quotas in real-time.
+                    </p>
                   </div>
                 </div>
-              ) : (
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateWorkspaceError("");
+                    setNewWorkspaceName("");
+                    setCreateWorkspaceModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 shrink-0"
+                  style={{ background: "var(--accent)" }}
+                >
+                  <Plus size={14} />
+                  <span>+ Create Team Workspace</span>
+                </button>
+              </div>
+            ) : (
               teams.map((team) => {
                 const roleMeta = ROLE_BADGES[team.myRole] || ROLE_BADGES["Analyst"];
                 const tierLimit = currentTierInfo.maxMembers;
@@ -1267,7 +1371,6 @@ export default function DashboardPage() {
             )}
           </div>
         </section>
-      )}
 
         {/* ── KPI METRICS CARDS ── */}
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
@@ -2145,6 +2248,132 @@ export default function DashboardPage() {
                   style={{ background: "var(--accent)" }}
                 >
                   Save Profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE WORKSPACE MODAL ── */}
+      {createWorkspaceModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in"
+          style={{ background: "rgba(0, 0, 0, 0.7)" }}
+          onClick={() => setCreateWorkspaceModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border shadow-2xl p-6 space-y-4"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border)",
+              color: "var(--txt)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <Users size={16} style={{ color: "var(--accent)" }} />
+                <h3 className="font-bold text-sm" style={{ color: "var(--txt)" }}>
+                  Create Team Workspace
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateWorkspaceModalOpen(false)}
+                className="opacity-70 hover:opacity-100 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-xs leading-relaxed" style={{ color: "var(--txt-m)" }}>
+              Create an isolated organization workspace to collaborate with team members, share datasets, and pool quotas.
+            </p>
+
+            {createWorkspaceError && (
+              <div
+                className="p-3 rounded-xl border text-xs flex items-center gap-2 animate-in fade-in"
+                style={{
+                  background: "rgba(239, 68, 68, 0.1)",
+                  borderColor: "rgba(239, 68, 68, 0.3)",
+                  color: "#ef4444",
+                }}
+              >
+                <AlertCircle size={14} className="shrink-0" />
+                <span>{createWorkspaceError}</span>
+              </div>
+            )}
+
+            <form noValidate onSubmit={handleCreateWorkspace} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold" style={{ color: "var(--txt)" }}>
+                  Workspace Name
+                </label>
+                <input
+                  type="text"
+                  value={newWorkspaceName}
+                  onChange={(e) => {
+                    setNewWorkspaceName(e.target.value);
+                    if (createWorkspaceError) setCreateWorkspaceError("");
+                  }}
+                  placeholder="e.g. Acme Analytics, Growth Team"
+                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none transition-colors"
+                  style={{
+                    background: "var(--surface)",
+                    borderColor: "var(--border)",
+                    color: "var(--txt)",
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold" style={{ color: "var(--txt)" }}>
+                  Workspace Plan
+                </label>
+                <select
+                  value={newWorkspacePlan}
+                  onChange={(e) => setNewWorkspacePlan(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none cursor-pointer"
+                  style={{
+                    background: "var(--surface)",
+                    borderColor: "var(--border)",
+                    color: "var(--txt)",
+                  }}
+                >
+                  <option value="Enterprise">Enterprise (Unlimited Seats &amp; Models)</option>
+                  <option value="Team">Team Collaboration (Up to 15 Seats)</option>
+                  <option value="Starter">Starter (Up to 5 Seats)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateWorkspaceModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer"
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--txt-m)",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingWorkspace}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 disabled:opacity-50 flex items-center gap-1.5"
+                  style={{ background: "var(--accent)" }}
+                >
+                  {isCreatingWorkspace ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <span>Create Workspace</span>
+                  )}
                 </button>
               </div>
             </form>

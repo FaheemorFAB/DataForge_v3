@@ -345,6 +345,20 @@ export default function WorkspaceLaunchModal({
       }
     } catch {}
 
+    // Live sync teams to surface newly invited/created workspaces
+    apiFetch("/teams")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.organizations)) {
+          const list = data.organizations.map((t: any) => ({ id: t.id, name: t.name }));
+          setAvailableTeams(list);
+          try {
+            localStorage.setItem("df_teams_data", JSON.stringify(list));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
     loadHistory(currentWs);
   }, [isOpen, isLoggedIn, selectedCategory]);
 
@@ -579,6 +593,12 @@ export default function WorkspaceLaunchModal({
       const cleanUri = sanitizeInput(connUri);
       const cleanTable = sanitizeInput(targetTable);
 
+      const effectiveWs =
+        activeHistoryWorkspace && activeHistoryWorkspace !== "personal"
+          ? activeHistoryWorkspace
+          : (typeof window !== "undefined" ? localStorage.getItem("df_active_workspace") : null);
+      const targetWorkspaceId = (effectiveWs && effectiveWs !== "personal") ? effectiveWs : undefined;
+
       if (selectedConnector.category === "spreadsheets") {
         if (selectedConnector.id === "google_sheets") {
           setGenerationStatus("Streaming Google Sheets workbook tabs...");
@@ -587,6 +607,7 @@ export default function WorkspaceLaunchModal({
             body: JSON.stringify({
               url: cleanUri,
               sheet_name: cleanTable || undefined,
+              workspace_id: targetWorkspaceId,
             }),
           });
           if (!res.ok) {
@@ -603,6 +624,7 @@ export default function WorkspaceLaunchModal({
             body: JSON.stringify({
               url: cleanUri,
               sheet_name: cleanTable || undefined,
+              workspace_id: targetWorkspaceId,
             }),
           });
           if (!res.ok) {
@@ -621,9 +643,8 @@ export default function WorkspaceLaunchModal({
         const formData = new FormData();
         formData.append("file", selectedFile);
         formData.append("expected_format", selectedConnector.id);
-        const activeWs = typeof window !== "undefined" ? localStorage.getItem("df_active_workspace") : null;
-        if (activeWs && activeWs !== "personal") {
-          formData.append("workspace_id", activeWs);
+        if (targetWorkspaceId) {
+          formData.append("workspace_id", targetWorkspaceId);
         }
         const res = await apiFetch("/upload", {
           method: "POST",
@@ -644,6 +665,7 @@ export default function WorkspaceLaunchModal({
           limit: 5000,
           dataset_name: `${selectedConnector.name.toLowerCase()}_${cleanTable || "dataset"}.csv`,
           table_name: cleanTable || "public.users",
+          workspace_id: targetWorkspaceId,
         };
 
         const res = await apiFetch("/upload/database/ingest", {

@@ -7,6 +7,7 @@ Upload service: file processing, profiling, storage, and DB logging.
 from __future__ import annotations
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from dataforge.api.repositories.upload import upload_repo
@@ -44,6 +45,8 @@ class UploadService:
             "source_config": source_config,
             "org_id": org_id,
             "workspace_id": org_id if org_id else "personal",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
         }
         save(upload_id, "meta", meta)
         save(upload_id, "df_raw", df)

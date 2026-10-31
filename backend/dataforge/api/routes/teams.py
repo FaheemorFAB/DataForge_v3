@@ -71,9 +71,9 @@ async def get_roles_capabilities():
     )
 
 
-def _require_org_member(org_id: str, user_id: int, min_role: Optional[str] = None) -> str:
+def _require_org_member(org_id: str, user_id: int, user_email: Optional[str] = None, min_role: Optional[str] = None) -> str:
     """Verifies that the user belongs to the organization and holds sufficient role authority."""
-    role = TeamManager.get_user_role(org_id, user_id)
+    role = TeamManager.get_user_role(org_id, user_id, user_email=user_email)
     if not role:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -93,8 +93,8 @@ def _require_org_member(org_id: str, user_id: int, min_role: Optional[str] = Non
 @router.get("/{org_id}/members", summary="List team members and their roles")
 async def get_team_members(org_id: str, current_user: CurrentUser):
     """Lists all members of the organization with their assigned permissions."""
-    uid, _, _ = _resolve_user_ctx(current_user)
-    _require_org_member(org_id, uid)
+    uid, email, _ = _resolve_user_ctx(current_user)
+    _require_org_member(org_id, uid, user_email=email)
     members = TeamManager.get_team_members(org_id)
     return JSONResponse(content=safe_jsonable({"ok": True, "members": members}))
 
@@ -107,7 +107,7 @@ async def invite_team_member(
 ):
     """Adds a new team member with specified RBAC role, dispatches invitation email via Resend, and records an audit log (Admin only)."""
     uid, email, _ = _resolve_user_ctx(current_user)
-    _require_org_member(org_id, uid, min_role="Admin")
+    _require_org_member(org_id, uid, user_email=email, min_role="Admin")
 
     # 1. Resolve workspace details
     org = TeamManager.get_organization(org_id)
@@ -160,7 +160,7 @@ async def update_member_role(
 ):
     """Promotes or alters a member's RBAC role and logs the security audit event (Admin only)."""
     uid, email, _ = _resolve_user_ctx(current_user)
-    _require_org_member(org_id, uid, min_role="Admin")
+    _require_org_member(org_id, uid, user_email=email, min_role="Admin")
     try:
         updated = TeamManager.update_member_role(
             org_id=org_id,
@@ -182,7 +182,7 @@ async def remove_member(
 ):
     """Revokes organization access for a user and records an audit log (Admin only)."""
     uid, email, _ = _resolve_user_ctx(current_user)
-    _require_org_member(org_id, uid, min_role="Admin")
+    _require_org_member(org_id, uid, user_email=email, min_role="Admin")
     success = TeamManager.remove_member(
         org_id=org_id,
         remover_id=uid,
@@ -201,7 +201,7 @@ async def get_audit_logs(
     limit: int = Query(50, ge=1, le=200),
 ):
     """Retrieves chronological governance audit trail for regulatory compliance."""
-    uid, _, _ = _resolve_user_ctx(current_user)
-    _require_org_member(org_id, uid, min_role="Analyst")
+    uid, email, _ = _resolve_user_ctx(current_user)
+    _require_org_member(org_id, uid, user_email=email, min_role="Analyst")
     logs = TeamManager.get_audit_logs(org_id=org_id, limit=limit)
     return JSONResponse(content=safe_jsonable({"ok": True, "logs": logs}))

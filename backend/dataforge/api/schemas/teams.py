@@ -28,7 +28,7 @@ class UpdateRoleRequest(BaseModel):
 class TeamMemberResponse(BaseModel):
     id: str
     org_id: str
-    user_id: int
+    user_id: Any
     user_email: str
     user_name: str
     role: str
@@ -41,7 +41,7 @@ class OrganizationResponse(BaseModel):
     name: str
     slug: str
     plan: str
-    owner_id: int
+    owner_id: Any
     created_at: str
     my_role: Optional[str] = None
     member_count: Optional[int] = None
@@ -50,7 +50,7 @@ class OrganizationResponse(BaseModel):
 class AuditLogResponse(BaseModel):
     id: str
     org_id: str
-    user_id: int
+    user_id: Any
     user_email: str
     action: str
     target: str

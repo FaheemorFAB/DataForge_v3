@@ -75,7 +75,7 @@ async def api_dashboard_init(
 
     # If scoped to a specific team/org workspace, verify membership
     if is_team_workspace:
-        role = TeamManager.get_user_role(workspace_id, user.id)
+        role = TeamManager.get_user_role(workspace_id, user.id, user_email=user.email)
         if not role:
             raise HTTPException(status_code=403, detail="Access denied: You are not a member of this workspace")
 
@@ -101,53 +101,96 @@ async def api_dashboard_init(
                 for item in STORE_DIR.iterdir():
                     if item.is_dir() and (item / "meta.json").exists():
                         m = load(item.name, "meta")
-                        if m and m.get("org_id") == workspace_id:
+                        if m and (m.get("org_id") == workspace_id or m.get("workspace_id") == workspace_id):
+                            created_ts = m.get("created_at") or m.get("uploaded_at")
                             uploads_data.append({
-                                "filename":    m.get("filename", ""),
+                                "filename":    m.get("filename", item.name),
                                 "rows":        m.get("rows", 0) or 0,
                                 "cols":        m.get("cols", 0) or 0,
                                 "missing_pct": m.get("missing_pct", 0) or 0,
-                                "time_ago":    _time_ago_local(m.get("created_at") or m.get("uploaded_at")),
-                                "id":          m.get("id"),
+                                "time_ago":    _time_ago_local(created_ts),
+                                "id":          m.get("id", item.name),
                                 "source_type": m.get("source_type", "csv") or "csv",
+                                "timestamp":   created_ts,
                             })
         except Exception as e:
             log.warning("Failed scanning team uploads: %s", e)
     else:
         # Personal workspace: show user's personal uploads (not tagged with an org_id)
-        db_uploads = db_all("uploads", {"user_id": user.id}, order_by="uploaded_at", limit=30)
-        for u in db_uploads:
-            m = load(str(u.get("id")), "meta")
-            if m and m.get("org_id"):
-                continue  # Belongs to an org workspace, skip in personal
-            uploads_data.append({
-                "filename":    u.get("filename", ""),
-                "rows":        u.get("rows", 0) or 0,
-                "cols":        u.get("cols", 0) or 0,
-                "missing_pct": u.get("missing_pct", 0) or 0,
-                "time_ago":    _time_ago_local(u.get("uploaded_at")),
-                "id":          u.get("id"),
-                "source_type": u.get("source_type", "csv") or "csv",
-            })
+        c_email = (getattr(user, "email", None) or "").strip().lower()
+        seen_ids = set()
+
+        # 1. Query Supabase database uploads table
+        try:
+            db_uploads = db_all("uploads", {"user_id": user.id}, order_by="uploaded_at", limit=50)
+            for u in db_uploads:
+                uid_str = str(u.get("id"))
+                m = load(uid_str, "meta")
+                if m and (m.get("org_id") or m.get("workspace_id", "personal") != "personal"):
+                    continue  # Belongs to an org workspace, skip in personal
+                seen_ids.add(uid_str)
+                uploads_data.append({
+                    "filename":    u.get("filename", ""),
+                    "rows":        u.get("rows", 0) or 0,
+                    "cols":        u.get("cols", 0) or 0,
+                    "missing_pct": u.get("missing_pct", 0) or 0,
+                    "time_ago":    _time_ago_local(u.get("uploaded_at")),
+                    "id":          uid_str,
+                    "source_type": u.get("source_type", "csv") or "csv",
+                    "timestamp":   u.get("uploaded_at"),
+                })
+        except Exception as e:
+            log.warning("db_all uploads error: %s", e)
+
+        # 2. Scan local STORE_DIR for all personal datasets owned by user_id or email
         try:
             if STORE_DIR.exists():
                 for item in STORE_DIR.iterdir():
-                    if item.is_dir() and (item / "meta.json").exists() and not any(str(ud["id"]) == item.name for ud in uploads_data):
+                    if item.is_dir() and item.name not in seen_ids and (item / "meta.json").exists():
                         m = load(item.name, "meta")
-                        if m and m.get("user_id") == user.id and not m.get("org_id"):
+                        if not m or not isinstance(m, dict):
+                            continue
+                        if m.get("org_id") or m.get("workspace_id", "personal") != "personal":
+                            continue
+
+                        m_uid = str(m.get("user_id") or "")
+                        m_email = (m.get("user_email") or "").strip().lower()
+
+                        is_owner = (
+                            (m_uid and m_uid == str(user.id))
+                            or (bool(c_email) and m_email == c_email)
+                            or (not settings.PRODUCTION and (user.id == 1 or m_uid == "1"))
+                        )
+
+                        if is_owner:
+                            seen_ids.add(item.name)
+                            created_ts = m.get("created_at") or m.get("uploaded_at")
                             uploads_data.append({
-                                "filename":    m.get("filename", ""),
+                                "filename":    m.get("filename", item.name),
                                 "rows":        m.get("rows", 0) or 0,
                                 "cols":        m.get("cols", 0) or 0,
                                 "missing_pct": m.get("missing_pct", 0) or 0,
-                                "time_ago":    _time_ago_local(m.get("created_at") or m.get("uploaded_at")),
-                                "id":          m.get("id"),
+                                "time_ago":    _time_ago_local(created_ts),
+                                "id":          item.name,
                                 "source_type": m.get("source_type", "csv") or "csv",
+                                "timestamp":   created_ts,
                             })
-        except Exception:
-            pass
+        except Exception as e:
+            log.warning("STORE_DIR scan error: %s", e)
 
-    uploads_data = uploads_data[:10]
+    # Sort all uploads newest first
+    def _parse_ts(u):
+        for k in ("timestamp", "created_at", "uploaded_at"):
+            v = u.get(k)
+            if v:
+                try:
+                    return datetime.fromisoformat(str(v).replace("Z", "+00:00")).timestamp()
+                except Exception:
+                    pass
+        return 0.0
+
+    uploads_data.sort(key=_parse_ts, reverse=True)
+    uploads_data = uploads_data[:15]
 
     _icon_map = {"eda": "📊", "automl": "🤖", "clean": "🧹", "query": "💬", "insights": "💡", "report": "📄"}
     _map_labels = {

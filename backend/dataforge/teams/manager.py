@@ -189,11 +189,25 @@ class TeamManager:
             memberships = data.get("memberships", [])
             orgs_dict = data.get("organizations", {})
 
+            clean_email = (user_email or "").strip().lower()
+            needs_save = False
             result = []
+            seen_org_ids = set()
+
             for m in memberships:
-                if m.get("user_id") == user_id:
+                m_email = (m.get("user_email") or "").strip().lower()
+                m_uid = m.get("user_id")
+
+                is_member = (str(m_uid) == str(user_id)) or (bool(clean_email) and m_email == clean_email)
+                if is_member:
+                    # Link/sync actual user_id if membership was created via email invitation
+                    if str(m_uid) != str(user_id):
+                        m["user_id"] = user_id
+                        needs_save = True
+
                     o_id = m.get("org_id")
-                    if o_id in orgs_dict:
+                    if o_id in orgs_dict and o_id not in seen_org_ids:
+                        seen_org_ids.add(o_id)
                         o_copy = dict(orgs_dict[o_id])
                         o_copy["my_role"] = m.get("role", "Viewer")
                         o_copy["my_joined_at"] = m.get("joined_at")
@@ -202,6 +216,10 @@ class TeamManager:
                             1 for mem in memberships if mem.get("org_id") == o_id
                         )
                         result.append(o_copy)
+
+            if needs_save:
+                cls._write_data(data)
+
             return result
 
     @classmethod
@@ -282,23 +300,37 @@ class TeamManager:
         if role not in ROLE_HIERARCHY:
             raise ValueError(f"Invalid role '{role}'. Allowed: {list(ROLE_HIERARCHY.keys())}")
 
+        clean_email = email.strip().lower()
         with _LOCK:
             data = cls._read_data()
             memberships = data.get("memberships", [])
 
             # Check if user already in team
             for m in memberships:
-                if m.get("org_id") == org_id and m.get("user_email") == email:
-                    raise ValueError(f"User with email '{email}' is already in this team.")
+                m_email = (m.get("user_email") or "").strip().lower()
+                if m.get("org_id") == org_id and m_email == clean_email:
+                    raise ValueError(f"User with email '{clean_email}' is already in this team.")
 
             now_iso = datetime.now(timezone.utc).isoformat()
-            new_user_id = int(time.time() * 1000) % 1_000_000
+            
+            # Attempt to resolve registered user id
+            new_user_id = None
+            try:
+                from dataforge.api.repositories.user import user_repo
+                user_rec = user_repo.get_by_email(clean_email)
+                if user_rec and user_rec.get("id"):
+                    new_user_id = user_rec["id"]
+            except Exception:
+                pass
+            if not new_user_id:
+                new_user_id = int(time.time() * 1000) % 1_000_000
+
             new_member = {
                 "id": f"mem_{new_user_id}_{org_id}",
                 "org_id": org_id,
                 "user_id": new_user_id,
-                "user_email": email.strip(),
-                "user_name": name or email.split("@")[0].title(),
+                "user_email": clean_email,
+                "user_name": name or clean_email.split("@")[0].title(),
                 "role": role,
                 "joined_at": now_iso,
             }
@@ -447,12 +479,22 @@ class TeamManager:
             return logs[:limit]
 
     @classmethod
-    def get_user_role(cls, org_id: str, user_id: int) -> Optional[str]:
+    def get_user_role(cls, org_id: str, user_id: int, user_email: Optional[str] = None) -> Optional[str]:
         """Returns the user's role in the organization, or None if not a member."""
         with _LOCK:
             data = cls._read_data()
+            clean_email = (user_email or "").strip().lower() if user_email else None
+            needs_save = False
             for m in data.get("memberships", []):
-                if m.get("org_id") == org_id and m.get("user_id") == user_id:
-                    return m.get("role")
+                if m.get("org_id") == org_id:
+                    m_email = (m.get("user_email") or "").strip().lower()
+                    m_uid = m.get("user_id")
+                    if (str(m_uid) == str(user_id)) or (clean_email and m_email == clean_email):
+                        if str(m_uid) != str(user_id):
+                            m["user_id"] = user_id
+                            needs_save = True
+                        if needs_save:
+                            cls._write_data(data)
+                        return m.get("role")
             return None
 
