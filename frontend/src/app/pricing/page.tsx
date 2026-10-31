@@ -2,12 +2,12 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Header from "@/app/components/landing/Header";
 import Footer from "@/app/components/landing/Footer";
 import CTABanner from "@/app/components/landing/CTABanner";
 import WorkspaceLaunchModal from "@/app/components/landing/WorkspaceLaunchModal";
-import LoginModal from "@/app/components/landing/LoginModal";
 import { useAuth } from "@/lib/auth";
 import {
   Check,
@@ -38,8 +38,8 @@ interface PricingTier {
 }
 
 export default function PricingPage() {
+  const router = useRouter();
   const [launchModalOpen, setLaunchModalOpen] = useState(false);
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [mobileFilter, setMobileFilter] = useState<"all" | "free" | "pro" | "team">("all");
   const [expandedCardFeatures, setExpandedCardFeatures] = useState<Record<string, boolean>>({});
@@ -201,7 +201,7 @@ export default function PricingPage() {
     >
       {/* Top Header */}
       <Header
-        onLoginClick={() => setLoginModalOpen(true)}
+        onLoginClick={() => router.push("/login")}
         onLaunchWorkspace={() => setLaunchModalOpen(true)}
       />
 
@@ -615,11 +615,6 @@ export default function PricingPage() {
         isOpen={launchModalOpen}
         onClose={() => setLaunchModalOpen(false)}
       />
-
-      {/* Login Modal */}
-      {loginModalOpen && (
-        <LoginModal onClose={() => setLoginModalOpen(false)} />
-      )}
 
       {/* Global Footer */}
       <Footer />

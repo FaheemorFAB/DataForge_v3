@@ -5,7 +5,9 @@ import styles from "./login.module.css";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { Mail, Lock, User as UserIcon, ArrowRight, ArrowLeft, CheckCircle2, ShieldCheck, AlertCircle } from "lucide-react";
+import Logo from "../components/Logo";
+import ThemeSwitcher from "../components/ThemeSwitcher";
+import { Mail, Lock, User as UserIcon, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
 
 function LoginContent() {
   const router = useRouter();
@@ -22,7 +24,18 @@ function LoginContent() {
   const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", "dark");
+    // Respect the user's saved theme from localStorage instead of hardcoding dark mode
+    if (typeof window !== "undefined") {
+      const savedTheme = localStorage.getItem("analyst-theme") || "dark";
+      document.documentElement.setAttribute("data-theme", savedTheme);
+      const darkThemes = ["dark", "dracula", "slate", "emerald", "nord", "luxury"];
+      if (darkThemes.includes(savedTheme)) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    }
+
     const m = searchParams.get("mode");
     if (m === "signup" || m === "forgot") {
       setMode(m);
@@ -95,35 +108,47 @@ function LoginContent() {
       <div className={styles.noise}></div>
       <div className={styles.mesh}></div>
 
+      {/* Floating Theme Switcher at Top Right of Screen */}
+      <div className="fixed top-5 right-5 z-50">
+        <ThemeSwitcher />
+      </div>
+
       <div className={styles.card}>
         {/* Brand Header */}
         <div className="flex items-center justify-between mb-6">
-          <Link href="/" className="flex items-center gap-2.5 text-decoration-none">
-            <div
-              className="w-8 h-8 flex items-center justify-center rounded-sm"
-              style={{ background: "#fff" }}
+          <Link href="/" className="flex items-center gap-2.5 no-underline group">
+            <Logo size={28} showText={false} />
+            <span
+              className="font-black text-sm tracking-widest uppercase transition-colors"
+              style={{ color: "var(--txt)" }}
             >
-              <div className="w-4 h-4 rotate-45" style={{ background: "#050505" }}></div>
-            </div>
-            <span className="font-black text-sm tracking-widest uppercase text-white">
               DataForge
             </span>
           </Link>
-          <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
-            {mode === "forgot" ? "Recovery" : "Secure Auth"}
-          </span>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all no-underline cursor-pointer"
+            style={{
+              background: "var(--inp-bg)",
+              borderColor: "var(--border)",
+              color: "var(--txt-m)",
+            }}
+          >
+            <ArrowLeft size={13} />
+            <span>Back to Home</span>
+          </Link>
         </div>
 
         {/* Title & Description */}
         <div className="mb-5">
-          <h1 className="text-2xl font-black tracking-tight mb-1 text-white">
+          <h1 className="text-2xl font-black tracking-tight mb-1" style={{ color: "var(--txt)" }}>
             {mode === "signup"
               ? "Create your account"
               : mode === "forgot"
               ? "Reset your password"
               : "Welcome back"}
           </h1>
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs" style={{ color: "var(--txt-m)" }}>
             {mode === "signup"
               ? "Start analyzing, transforming, and collaborating with DataForge"
               : mode === "forgot"
@@ -132,7 +157,7 @@ function LoginContent() {
           </p>
         </div>
 
-        {/* Continue with Google button (preserved for signin and signup) */}
+        {/* Continue with Google button */}
         {mode !== "forgot" && (
           <>
             <div className="space-y-2 mb-4">
@@ -159,16 +184,16 @@ function LoginContent() {
                     d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
                   />
                 </svg>
-                Continue with Google
+                <span>Continue with Google</span>
               </a>
             </div>
 
             <div className="flex items-center gap-3 my-4">
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-[10px] font-mono tracking-widest text-zinc-500 uppercase">
+              <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+              <span className="text-[10px] font-mono tracking-widest uppercase" style={{ color: "var(--txt-f)" }}>
                 or with email
               </span>
-              <div className="flex-1 h-px bg-white/10" />
+              <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
             </div>
           </>
         )}
@@ -178,17 +203,24 @@ function LoginContent() {
           {/* Full Name (Sign Up only) */}
           {mode === "signup" && (
             <div>
-              <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
+              <label className="block text-[11px] font-semibold mb-1" style={{ color: "var(--txt-m)" }}>
                 Full Name
               </label>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 focus-within:border-indigo-500/50 transition-colors">
-                <UserIcon size={14} className="text-zinc-400 shrink-0" />
+              <div
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors"
+                style={{
+                  background: "var(--inp-bg)",
+                  borderColor: "var(--border)",
+                }}
+              >
+                <UserIcon size={14} className="shrink-0" style={{ color: "var(--txt-f)" }} />
                 <input
                   type="text"
                   placeholder="Jane Doe"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="bg-transparent text-xs text-white focus:outline-none w-full"
+                  className="bg-transparent text-xs focus:outline-none w-full"
+                  style={{ color: "var(--txt)" }}
                   autoComplete="name"
                 />
               </div>
@@ -197,17 +229,24 @@ function LoginContent() {
 
           {/* Email Address */}
           <div>
-            <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
+            <label className="block text-[11px] font-semibold mb-1" style={{ color: "var(--txt-m)" }}>
               Work Email
             </label>
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 focus-within:border-indigo-500/50 transition-colors">
-              <Mail size={14} className="text-zinc-400 shrink-0" />
+            <div
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors"
+              style={{
+                background: "var(--inp-bg)",
+                borderColor: "var(--border)",
+              }}
+            >
+              <Mail size={14} className="shrink-0" style={{ color: "var(--txt-f)" }} />
               <input
                 type="email"
                 placeholder="name@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-transparent text-xs text-white focus:outline-none w-full"
+                className="bg-transparent text-xs focus:outline-none w-full"
+                style={{ color: "var(--txt)" }}
                 autoComplete="email"
                 required
               />
@@ -218,27 +257,35 @@ function LoginContent() {
           {mode !== "forgot" && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-[11px] font-semibold text-zinc-400">
+                <label className="block text-[11px] font-semibold" style={{ color: "var(--txt-m)" }}>
                   Password
                 </label>
                 {mode === "signin" && (
                   <button
                     type="button"
                     onClick={() => switchMode("forgot")}
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition-colors cursor-pointer"
+                    className="text-[11px] font-medium transition-colors cursor-pointer"
+                    style={{ color: "var(--accent)" }}
                   >
                     Forgot password?
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 focus-within:border-indigo-500/50 transition-colors">
-                <Lock size={14} className="text-zinc-400 shrink-0" />
+              <div
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors"
+                style={{
+                  background: "var(--inp-bg)",
+                  borderColor: "var(--border)",
+                }}
+              >
+                <Lock size={14} className="shrink-0" style={{ color: "var(--txt-f)" }} />
                 <input
                   type="password"
                   placeholder={mode === "signup" ? "At least 8 characters" : "••••••••"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-transparent text-xs text-white focus:outline-none w-full"
+                  className="bg-transparent text-xs focus:outline-none w-full"
+                  style={{ color: "var(--txt)" }}
                   autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   required
                 />
@@ -248,7 +295,7 @@ function LoginContent() {
 
           {/* Error Message */}
           {errorMsg && (
-            <div className="flex items-start gap-2 text-[11px] font-medium text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+            <div className="flex items-start gap-2 text-[11px] font-medium text-rose-500 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
@@ -256,7 +303,7 @@ function LoginContent() {
 
           {/* Status Message */}
           {statusMsg && (
-            <div className="flex items-start gap-2 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20">
+            <div className="flex items-start gap-2 text-[11px] font-medium text-emerald-500 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20">
               <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
               <span>{statusMsg}</span>
             </div>
@@ -267,7 +314,11 @@ function LoginContent() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 mt-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+              className="w-full py-2.5 mt-2 rounded-xl text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg disabled:opacity-50 hover:opacity-95"
+              style={{
+                background: "var(--accent)",
+                boxShadow: "0 4px 14px var(--glow)",
+              }}
             >
               <span>
                 {loading
@@ -284,34 +335,40 @@ function LoginContent() {
         </form>
 
         {/* Footer / Switch View */}
-        <div className="mt-5 pt-4 border-t border-white/10 text-center">
+        <div
+          className="mt-5 pt-4 border-t text-center"
+          style={{ borderColor: "var(--border)" }}
+        >
           {mode === "forgot" ? (
             <button
               type="button"
               onClick={() => switchMode("signin")}
-              className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs transition-colors cursor-pointer"
+              style={{ color: "var(--txt-m)" }}
             >
               <ArrowLeft size={13} />
               <span>Back to Sign In</span>
             </button>
           ) : mode === "signup" ? (
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs" style={{ color: "var(--txt-m)" }}>
               Already have an account?{" "}
               <button
                 type="button"
                 onClick={() => switchMode("signin")}
-                className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer underline-offset-2 hover:underline"
+                className="font-semibold cursor-pointer underline-offset-2 hover:underline"
+                style={{ color: "var(--accent)" }}
               >
                 Sign In
               </button>
             </p>
           ) : (
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs" style={{ color: "var(--txt-m)" }}>
               Don't have an account?{" "}
               <button
                 type="button"
                 onClick={() => switchMode("signup")}
-                className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer underline-offset-2 hover:underline"
+                className="font-semibold cursor-pointer underline-offset-2 hover:underline"
+                style={{ color: "var(--accent)" }}
               >
                 Create one now
               </button>
@@ -328,7 +385,9 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className={styles.container}>
-          <div className="text-white text-xs font-mono">Loading DataForge Auth...</div>
+          <div className="text-xs font-mono" style={{ color: "var(--txt-m)" }}>
+            Loading DataForge Auth...
+          </div>
         </div>
       }
     >

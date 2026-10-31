@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import Header from "./components/landing/Header";
 import Footer from "./components/landing/Footer";
-import LoginModal from "./components/landing/LoginModal";
 import SplashLoader from "./components/SplashLoader";
 import BuiltFor from "./components/landing/BuiltFor";
 import TeamSection from "./components/landing/TeamSection";
@@ -973,7 +972,6 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 export default function Home() {
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [launchConnectorId, setLaunchConnectorId] = useState<string | undefined>(undefined);
   const [uploadAlert, setUploadAlert] = useState(false);
@@ -985,8 +983,7 @@ export default function Home() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("login") === "1") {
-        setShowLoginModal(true);
-        window.history.replaceState({}, "", "/");
+        router.push("/login");
       }
       if (params.get("launch") === "1" || params.get("ingest") === "1" || params.get("upload") === "1") {
         setShowLaunchModal(true);
@@ -1043,11 +1040,6 @@ export default function Home() {
         <SplashLoader isLoading={loading} onComplete={() => setShowSplash(false)} />
       )}
 
-      {/* Login Modal */}
-      {showLoginModal && (
-        <LoginModal onClose={() => setShowLoginModal(false)} />
-      )}
-
       {/* Universal Workspace Launch & Ingestion Modal */}
       <WorkspaceLaunchModal
         isOpen={showLaunchModal}
@@ -1088,7 +1080,7 @@ export default function Home() {
 
       {/* Main Navigation */}
       <Header
-        onLoginClick={() => setShowLoginModal(true)}
+        onLoginClick={() => router.push("/login")}
         onLaunchWorkspace={() => setShowLaunchModal(true)}
       />
 

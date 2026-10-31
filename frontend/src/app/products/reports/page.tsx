@@ -33,7 +33,7 @@ export default function ReportsPage() {
 
   return (
     <div className="min-h-screen flex flex-col transition-colors duration-300" style={{ background: "var(--bg)", color: "var(--txt)" }}>
-      <Header onLoginClick={() => window.location.href = '/?login=1'} />
+      <Header onLoginClick={() => window.location.href = '/login'} />
       
       <main className="flex-1 max-w-6xl mx-auto w-full px-5 md:px-8 py-20 md:py-32">
         <div className="flex flex-col lg:flex-row gap-16 lg:gap-24 relative">

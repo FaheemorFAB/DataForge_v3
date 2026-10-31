@@ -28,6 +28,10 @@ export function clearAuthSession() {
     localStorage.removeItem("access_token");
     localStorage.removeItem("df_access_token");
     localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem("df_teams_data");
+    localStorage.removeItem("df_active_workspace");
+    localStorage.removeItem("df_last_upload_id");
+    localStorage.removeItem("df_user_avatar");
 
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {

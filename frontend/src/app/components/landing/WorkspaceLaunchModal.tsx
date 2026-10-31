@@ -323,6 +323,15 @@ export default function WorkspaceLaunchModal({
   useEffect(() => {
     if (!isOpen) return;
 
+    if (!isLoggedIn) {
+      setAvailableTeams([]);
+      setHistoryDatasets([]);
+      if (selectedCategory === "history") {
+        setSelectedCategory("all");
+      }
+      return;
+    }
+
     const currentWs = (typeof window !== "undefined" && localStorage.getItem("df_active_workspace")) || "personal";
     setActiveHistoryWorkspace(currentWs);
 
@@ -336,12 +345,8 @@ export default function WorkspaceLaunchModal({
       }
     } catch {}
 
-    if (isLoggedIn) {
-      loadHistory(currentWs);
-    } else {
-      setHistoryDatasets([]);
-    }
-  }, [isOpen, isLoggedIn]);
+    loadHistory(currentWs);
+  }, [isOpen, isLoggedIn, selectedCategory]);
 
   const loadHistory = async (wsId: string) => {
     setHistoryLoading(true);
@@ -875,7 +880,7 @@ export default function WorkspaceLaunchModal({
                 { id: "files", label: "Files" },
                 { id: "spreadsheets", label: "Cloud Sheets" },
                 { id: "relational", label: "Databases" },
-                { id: "history", label: "Ingestion History" },
+                ...(isLoggedIn ? [{ id: "history", label: "Ingestion History" }] : []),
               ].map((cat) => {
                 const isActive = selectedCategory === cat.id;
                 return (
@@ -897,7 +902,7 @@ export default function WorkspaceLaunchModal({
             </div>
 
             {/* Main Content Area */}
-            {selectedCategory === "history" ? (
+            {isLoggedIn && selectedCategory === "history" ? (
               <div className="p-4 sm:p-6 flex flex-col min-h-0 sm:min-h-[380px] overflow-y-auto minimal-scrollbar flex-1 space-y-4">
                 {/* Header & Dynamic Workspace Switcher */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b" style={{ borderColor: "var(--border)" }}>

@@ -9,7 +9,7 @@ import UserMenu from "../UserMenu";
 import { LogIn, Menu, X, ArrowRight } from "lucide-react";
 
 interface HeaderProps {
-  onLoginClick: () => void;
+  onLoginClick?: () => void;
   onLaunchWorkspace?: () => void;
 }
 
@@ -60,7 +60,7 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
   const handleLaunch = () => {
     if (onLaunchWorkspace) {
       onLaunchWorkspace();
-    } else {
+    } else if (onLoginClick) {
       onLoginClick();
     }
   };
@@ -103,9 +103,9 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
           {!authLoading && isLoggedIn ? (
             <UserMenu />
           ) : (
-            <button
-              onClick={onLoginClick}
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-200 hover:scale-[1.02] hover:border-orange-500/50"
+            <Link
+              href="/login"
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-200 hover:scale-[1.02] hover:border-orange-500/50 no-underline cursor-pointer"
               style={{
                 background: "rgba(255, 255, 255, 0.04)",
                 borderColor: "var(--border)",
@@ -114,7 +114,7 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
             >
               <LogIn size={13} style={{ color: "var(--accent)" }} />
               <span>Sign In</span>
-            </button>
+            </Link>
           )}
 
           {/* Mobile hamburger button */}
@@ -162,12 +162,10 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
 
           {!authLoading && !isLoggedIn && (
             <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onLoginClick();
-                }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border"
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold border no-underline cursor-pointer"
                 style={{
                   borderColor: "var(--border)",
                   color: "var(--txt)",
@@ -176,7 +174,7 @@ export default function Header({ onLoginClick, onLaunchWorkspace }: HeaderProps)
               >
                 <LogIn size={14} style={{ color: "var(--accent)" }} />
                 <span>Sign In to DataForge</span>
-              </button>
+              </Link>
             </div>
           )}
         </div>

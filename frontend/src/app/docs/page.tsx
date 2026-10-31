@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Header from "@/app/components/landing/Header";
 import Footer from "@/app/components/landing/Footer";
 import WorkspaceLaunchModal from "@/app/components/landing/WorkspaceLaunchModal";
-import LoginModal from "@/app/components/landing/LoginModal";
 import CTABanner from "@/app/components/landing/CTABanner";
 import {
   Search,
@@ -134,10 +134,10 @@ export default function DocumentationPage() {
       window.history.replaceState(null, "", `/docs?topic=${id}`);
     }
   };
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [copiedCodeKey, setCopiedCodeKey] = useState<string | null>(null);
   const [launchModalOpen, setLaunchModalOpen] = useState(false);
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Accordion open/close state for tree navigation
@@ -2364,7 +2364,7 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
     >
       {/* Top Header */}
       <Header
-        onLoginClick={() => setLoginModalOpen(true)}
+        onLoginClick={() => router.push("/login")}
         onLaunchWorkspace={() => setLaunchModalOpen(true)}
       />
 
@@ -3237,11 +3237,6 @@ def run_auto_clean(df: pd.DataFrame) -> pd.DataFrame:
         isOpen={launchModalOpen}
         onClose={() => setLaunchModalOpen(false)}
       />
-
-      {/* Login Modal */}
-      {loginModalOpen && (
-        <LoginModal onClose={() => setLoginModalOpen(false)} />
-      )}
 
       {/* Site Footer */}
       <Footer />
