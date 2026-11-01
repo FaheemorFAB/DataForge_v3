@@ -20,6 +20,7 @@ class EDARequest(BaseModel):
     upload_id: Optional[str] = None
     minimal: bool = False
     sample_n: Optional[int] = Field(default=None, description="Max rows to sample, or 0/None for full dataset")
+    share_token: Optional[str] = None
 
 
 class QueryRequest(BaseModel):

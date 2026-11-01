@@ -253,15 +253,29 @@ async def require_upload_access(
     Supports Owner access, invited email collaborators, and share links (Google Sheets parity).
     Raises 401 if unauthenticated, 404 if not found, 403 on permission violation.
     """
+    if not share_token and request:
+        share_token = request.headers.get("x-share-token") or request.query_params.get("share_token")
+
     if not current_user:
+        if share_token:
+            from dataforge.api.services.sharing import DatasetSharingService
+            from dataforge.api.storage.manager import load
+            upload = upload_repo.get_by_id(upload_id) or load(upload_id, "meta") or {"id": upload_id}
+            owner_id = upload.get("user_id") if isinstance(upload, dict) else None
+            allowed, eff_role = DatasetSharingService.check_access(
+                upload_id=upload_id,
+                user=None,
+                owner_id=owner_id,
+                min_role=min_role,
+                share_token=share_token,
+            )
+            if allowed:
+                return upload
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    if not share_token and request:
-        share_token = request.headers.get("x-share-token") or request.query_params.get("share_token")
 
     from dataforge.api.services.sharing import DatasetSharingService
     from dataforge.api.storage.manager import STORE_DIR, exists, load

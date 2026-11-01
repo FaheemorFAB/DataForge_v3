@@ -16,7 +16,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from dataforge.api.deps import CurrentUser, get_job_manager_dep, get_upload_id, require_upload_with_data
+from dataforge.api.deps import CurrentUser, OptionalCurrentUser, get_job_manager_dep, get_upload_id, require_upload_with_data
 from dataforge.api.jobs.executor import run_in_executor
 from dataforge.api.jobs.manager import JobManager
 from dataforge.api.schemas.workspace import (
@@ -739,49 +739,66 @@ async def api_clean_export_script(
 @router.post("/eda", summary="Dispatch async EDA report generation")
 async def api_eda(
     body: EDARequest,
+    request: Request,
     current_user: CurrentUser,
     background_tasks: BackgroundTasks,
+    share_token: Optional[str] = Query(default=None),
     job_manager: JobManager = Depends(get_job_manager_dep),
 ):
     upload_id = body.upload_id
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    st = getattr(body, "share_token", None) or share_token
+    await require_upload_with_data(upload_id, current_user, share_token=st, request=request)
 
+    eff_sample = body.sample_n if (body.sample_n and int(body.sample_n) > 0 and int(body.sample_n) <= 10000) else 5000
     job_id = await job_manager.dispatch_eda(
-        background_tasks, upload_id, current_user.id, minimal=body.minimal, sample_n=body.sample_n
+        background_tasks, upload_id, current_user.id, minimal=body.minimal, sample_n=eff_sample
     )
     return {"task_id": job_id, "queued": True}
 
 
 @router.get("/eda/report", summary="Return or download the EDA HTML report")
 async def api_eda_report(
-    current_user: CurrentUser,
+    request: Request,
+    current_user: OptionalCurrentUser = None,
     upload_id: Optional[str] = Query(default=None),
     format: str = Query(default="html"),
     download: str = Query(default="0"),
+    share_token: Optional[str] = Query(default=None),
 ):
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    await require_upload_with_data(upload_id, current_user, share_token=share_token, request=request)
 
     from dataforge.api.storage.manager import load as _load
     from dataforge.settings import PROJECTS_DIR
 
     # Try file path first (large HTML), then disk storage, then database
     html = None
-    html_path = PROJECTS_DIR / str(upload_id) / "eda_html"
-    if html_path.exists():
-        try:
-            html = html_path.read_text(encoding="utf-8")
-        except Exception:
-            pass
+    d = PROJECTS_DIR / str(upload_id)
+    for p in (d / "eda_html", d / "eda_html.json", d / "eda_html.html"):
+        if p.exists():
+            try:
+                raw = p.read_text(encoding="utf-8")
+                if p.suffix == ".json":
+                    try:
+                        raw = json.loads(raw)
+                    except Exception:
+                        pass
+                if raw and isinstance(raw, str) and "<" in raw:
+                    html = raw
+                    break
+            except Exception:
+                pass
     if not html:
-        html = _load(upload_id, "eda_html")
+        loaded = _load(upload_id, "eda_html")
+        if loaded and isinstance(loaded, str):
+            html = loaded
     if not html:
         try:
-            from dataforge.db import db_query
-            rows = db_query("reports", {"upload_id": upload_id})
+            from dataforge.db import db_all
+            rows = db_all("reports", {"upload_id": upload_id})
             if rows:
                 for r in reversed(rows):
                     if r.get("eda_html"):
@@ -808,6 +825,21 @@ async def api_eda_report(
                 media_type="application/pdf",
                 headers={"Content-Disposition": f"attachment; filename=eda_report_{upload_id}.pdf"},
             )
+        # Printable HTML fallback
+        printable_html = html
+        if "window.print()" not in printable_html:
+            print_script = """
+            <script>
+              window.addEventListener('DOMContentLoaded', function() {
+                setTimeout(function() { window.print(); }, 500);
+              });
+            </script>
+            </body>"""
+            if "</body>" in printable_html:
+                printable_html = printable_html.replace("</body>", print_script)
+            else:
+                printable_html += print_script
+        return Response(content=printable_html, media_type="text/html")
 
     headers = {}
     if wants_download:
@@ -820,14 +852,17 @@ async def api_eda_report(
 @router.post("/data-report", summary="Dispatch a background business report generation job")
 async def api_data_report_generate(
     body: dict,
+    request: Request,
     current_user: CurrentUser,
     background_tasks: BackgroundTasks,
     upload_id: Optional[str] = Query(default=None),
+    share_token: Optional[str] = Query(default=None),
 ):
     target_upload_id = body.get("upload_id") or upload_id
     if not target_upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(target_upload_id, current_user)
+    st = body.get("share_token") or share_token
+    await require_upload_with_data(target_upload_id, current_user, share_token=st, request=request)
 
     from dataforge.api.jobs.manager import get_job_manager
     job_manager = get_job_manager()
@@ -837,29 +872,42 @@ async def api_data_report_generate(
 
 @router.get("/reports/latest", summary="Get the latest generated HTML business report")
 async def api_reports_latest(
-    current_user: CurrentUser,
+    request: Request,
+    current_user: OptionalCurrentUser = None,
     upload_id: Optional[str] = Query(default=None),
+    share_token: Optional[str] = Query(default=None),
 ):
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    await require_upload_with_data(upload_id, current_user, share_token=share_token, request=request)
 
     from dataforge.api.storage.manager import load as _load
     from dataforge.settings import PROJECTS_DIR
 
     html = None
-    html_path = PROJECTS_DIR / str(upload_id) / "report_html"
-    if html_path.exists():
-        try:
-            html = html_path.read_text(encoding="utf-8")
-        except Exception:
-            pass
+    d = PROJECTS_DIR / str(upload_id)
+    for p in (d / "report_html", d / "report_html.json", d / "data_report_html.json", d / "report_html.html"):
+        if p.exists():
+            try:
+                raw = p.read_text(encoding="utf-8")
+                if p.suffix == ".json":
+                    try:
+                        raw = json.loads(raw)
+                    except Exception:
+                        pass
+                if raw and isinstance(raw, str) and "<" in raw:
+                    html = raw
+                    break
+            except Exception:
+                pass
     if not html:
-        html = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
+        loaded = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
+        if loaded and isinstance(loaded, str):
+            html = loaded
     if not html:
         try:
-            from dataforge.db import db_query
-            rows = db_query("reports", {"upload_id": upload_id})
+            from dataforge.db import db_all
+            rows = db_all("reports", {"upload_id": upload_id})
             if rows:
                 for r in reversed(rows):
                     if r.get("report_html"):
@@ -875,8 +923,27 @@ async def api_reports_latest(
         _ancestors.append(settings.FRONTEND_URL.rstrip("/"))
     if settings.BACKEND_URL:
         _ancestors.append(settings.BACKEND_URL.rstrip("/"))
-    _ancestors.extend(["http://localhost:3000", "http://localhost:5000"])
-    _csp = f"frame-ancestors {' '.join(dict.fromkeys(_ancestors))}"
+    _ancestors.extend(["http://localhost:3000", "http://localhost:5000", "http://127.0.0.1:3000", "http://127.0.0.1:5000"])
+
+    client_origin = request.headers.get("origin")
+    if client_origin:
+        _ancestors.append(client_origin.rstrip("/"))
+    client_referer = request.headers.get("referer")
+    if client_referer:
+        try:
+            from urllib.parse import urlparse
+            ref_parsed = urlparse(client_referer)
+            if ref_parsed.scheme and ref_parsed.netloc:
+                _ancestors.append(f"{ref_parsed.scheme}://{ref_parsed.netloc}")
+        except Exception:
+            pass
+    client_host = request.headers.get("host")
+    if client_host:
+        _ancestors.append(f"https://{client_host}")
+        _ancestors.append(f"http://{client_host}")
+
+    unique_ancestors = list(dict.fromkeys(a for a in _ancestors if a))
+    _csp = f"frame-ancestors {' '.join(unique_ancestors)}"
 
     headers = {
         "Content-Disposition": "inline; filename=business_report.html",
@@ -888,30 +955,43 @@ async def api_reports_latest(
 
 @router.get("/data-report/download", summary="Download the business report as PDF or Printable Document")
 async def api_data_report_download(
-    current_user: CurrentUser,
+    request: Request,
+    current_user: OptionalCurrentUser = None,
     upload_id: Optional[str] = Query(default=None),
     print_pdf: Optional[bool] = Query(default=False, alias="print"),
+    share_token: Optional[str] = Query(default=None),
 ):
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    await require_upload_with_data(upload_id, current_user, share_token=share_token, request=request)
 
     from dataforge.api.storage.manager import load as _load
     from dataforge.settings import PROJECTS_DIR
 
     html = None
-    html_path = PROJECTS_DIR / str(upload_id) / "report_html"
-    if html_path.exists():
-        try:
-            html = html_path.read_text(encoding="utf-8")
-        except Exception:
-            pass
+    d = PROJECTS_DIR / str(upload_id)
+    for p in (d / "report_html", d / "report_html.json", d / "data_report_html.json", d / "report_html.html"):
+        if p.exists():
+            try:
+                raw = p.read_text(encoding="utf-8")
+                if p.suffix == ".json":
+                    try:
+                        raw = json.loads(raw)
+                    except Exception:
+                        pass
+                if raw and isinstance(raw, str) and "<" in raw:
+                    html = raw
+                    break
+            except Exception:
+                pass
     if not html:
-        html = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
+        loaded = _load(upload_id, "report_html") or _load(upload_id, "data_report_html")
+        if loaded and isinstance(loaded, str):
+            html = loaded
     if not html:
         try:
-            from dataforge.db import db_query
-            rows = db_query("reports", {"upload_id": upload_id})
+            from dataforge.db import db_all
+            rows = db_all("reports", {"upload_id": upload_id})
             if rows:
                 for r in reversed(rows):
                     if r.get("report_html"):

@@ -341,7 +341,10 @@ async def run_eda_task(
 
         def _generate():
             from dataforge.eda_report import generate_eda_report
-            return generate_eda_report(df, minimal=minimal, sample_n=sample_n)
+            eff_sample = sample_n if (sample_n and int(sample_n) > 0 and int(sample_n) <= 10000) else 5000
+            if len(df) <= 5000:
+                eff_sample = len(df)
+            return generate_eda_report(df, minimal=minimal, sample_n=eff_sample)
 
         report_res = await run_in_executor(_generate)
         html = report_res.get("html")

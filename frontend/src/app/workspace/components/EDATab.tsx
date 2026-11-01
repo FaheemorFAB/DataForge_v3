@@ -47,6 +47,13 @@ export function EDATab() {
   const token = typeof window !== "undefined" ? getAuthToken() : null;
   const authQuery = token ? `&token=${encodeURIComponent(token)}` : "";
 
+  const shareToken = typeof window !== "undefined"
+    ? (new URLSearchParams(window.location.search).get("share_token") ||
+       (uploadId ? sessionStorage.getItem("df_share_token_" + uploadId) : null) || "")
+    : "";
+  const shareQuery = shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : "";
+  const fullAuthQuery = `${authQuery}${shareQuery}`;
+
   const activeProfile = cleanProfile || profile;
   const rows = activeProfile?.rows || 0;
   const cols = activeProfile?.cols || 0;
@@ -63,9 +70,10 @@ export function EDATab() {
     (c: any) => !numericCols.includes(c)
   );
 
-  React.useEffect(() => {
+  const checkStatus = React.useCallback(() => {
     if (!uploadId) return;
-    apiFetch(`/workspace/state?upload_id=${uploadId}`)
+    const shareParam = shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : "";
+    apiFetch(`/workspace/state?upload_id=${uploadId}${shareParam}`)
       .then(async (res) => {
         if (res.ok) {
           const data = await res.json();
@@ -74,7 +82,17 @@ export function EDATab() {
         }
       })
       .catch(() => { });
-  }, [uploadId]);
+  }, [uploadId, shareToken]);
+
+  React.useEffect(() => {
+    checkStatus();
+  }, [checkStatus]);
+
+  React.useEffect(() => {
+    if (reportView === "eda" || reportView === "biz") {
+      checkStatus();
+    }
+  }, [reportView, checkStatus]);
 
   const runEda = async () => {
     setIsGeneratingEda(true);
@@ -86,8 +104,9 @@ export function EDATab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           upload_id: uploadId,
-          minimal: false,
-          sample_n: null,
+          share_token: shareToken || undefined,
+          minimal: true,
+          sample_n: 5000,
         }),
       });
       if (!res.ok) {
@@ -115,7 +134,7 @@ export function EDATab() {
       if (data.task_id) {
         const pollTask = async (taskId: string) => {
           let attempts = 0;
-          while (attempts < 60) {
+          while (attempts < 120) {
             attempts++;
             await new Promise((r) => setTimeout(r, 2000));
             const pRes = await apiFetch(`/tasks/status/${taskId}`);
@@ -148,7 +167,10 @@ export function EDATab() {
       const res = await apiFetch("/data-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upload_id: uploadId }),
+        body: JSON.stringify({
+          upload_id: uploadId,
+          share_token: shareToken || undefined,
+        }),
       });
       if (!res.ok) {
         let errStr = "Report generation failed: unexpected server response.";
@@ -173,7 +195,7 @@ export function EDATab() {
       if (data.task_id) {
         const pollTask = async (taskId: string) => {
           let attempts = 0;
-          while (attempts < 60) {
+          while (attempts < 120) {
             attempts++;
             await new Promise((r) => setTimeout(r, 2000));
             const pRes = await apiFetch(`/tasks/status/${taskId}`);
@@ -798,7 +820,7 @@ export function EDATab() {
               </button>
               {edaReady && (
                 <a
-                  href={`/api/eda/report?format=pdf&theme=cupcake&upload_id=${uploadId}${authQuery}`}
+                  href={`/api/eda/report?format=pdf&theme=cupcake&upload_id=${uploadId}${fullAuthQuery}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02]"
@@ -860,7 +882,7 @@ export function EDATab() {
             <div className="rounded-2xl border overflow-hidden shadow-lg" style={{ borderColor: "var(--border)" }}>
               <iframe
                 id="eda-frame"
-                src={`/api/eda/report?upload_id=${uploadId}${authQuery}&t=${reportKey}`}
+                src={`/api/eda/report?upload_id=${uploadId}${fullAuthQuery}&t=${reportKey}`}
                 className="w-full bg-[var(--bg)] border-none block"
                 style={{ height: "clamp(500px, calc(100vh - 240px), 1000px)" }}
               />
@@ -894,7 +916,7 @@ export function EDATab() {
               {bizReportReady && (
                 <>
                   <a
-                    href={`/api/data-report/download?print=true&upload_id=${uploadId}${authQuery}`}
+                    href={`/api/data-report/download?print=true&upload_id=${uploadId}${fullAuthQuery}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02]"
@@ -905,7 +927,7 @@ export function EDATab() {
                     <span>Download PDF</span>
                   </a>
                   <a
-                    href={`/api/reports/latest?upload_id=${uploadId}${authQuery}`}
+                    href={`/api/reports/latest?upload_id=${uploadId}${fullAuthQuery}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition hover:scale-[1.02]"
@@ -969,7 +991,7 @@ export function EDATab() {
             <div className="rounded-2xl border overflow-hidden shadow-xl" style={{ borderColor: "var(--border)" }}>
               <iframe
                 id="biz-report-frame"
-                src={`/api/reports/latest?upload_id=${uploadId}${authQuery}&t=${reportKey}`}
+                src={`/api/reports/latest?upload_id=${uploadId}${fullAuthQuery}&t=${reportKey}`}
                 className="w-full bg-[var(--bg)] border-none block"
                 style={{ height: "clamp(500px, calc(100vh - 240px), 1000px)" }}
               />
