@@ -43,7 +43,6 @@ const PLANS: Record<string, PlanConfig> = {
       "Pipeline Code Export: Standalone Python & dbt models",
       "50 AutoML tournaments / month",
       "250 AI natural-language queries / month",
-      "Relational Join Studio & multi-table merge",
       "Priority email support",
     ],
   },

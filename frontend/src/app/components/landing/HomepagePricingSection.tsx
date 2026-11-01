@@ -30,7 +30,6 @@ export default function HomepagePricingSection({ onSelectPlan }: Props) {
         "Pipeline Code Export: Standalone Python & dbt models",
         "50 AutoML tournaments (LightGBM, XGBoost)",
         "250 AI natural-language queries / mo (10x Free)",
-        "Relational Join Studio & multi-table merge",
         "Priority email support",
       ],
       nonFeatures: [
