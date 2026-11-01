@@ -790,6 +790,11 @@ export default function DashboardPage() {
       return;
     }
 
+    if (!isTeamCollaboration) {
+      setCreateWorkspaceError("Team workspaces are exclusively available on the Team Collaboration plan. Please upgrade your plan.");
+      return;
+    }
+
     setIsCreatingWorkspace(true);
     setCreateWorkspaceError("");
 
@@ -874,6 +879,11 @@ export default function DashboardPage() {
   const currentRoleMeta = ROLE_BADGES[userRole] || ROLE_BADGES["Admin"];
   const currentTierInfo = TIER_LIMITS[userTier] || TIER_LIMITS["free"];
   const TierIcon = currentTierInfo.icon || Award;
+  const isTeamCollaboration =
+    (userTier === "team" ||
+      userTier === "enterprise" ||
+      (currentTierInfo.name || "").toLowerCase().includes("team collaboration")) &&
+    userRole !== "Viewer";
 
   return (
     <div
@@ -1019,22 +1029,26 @@ export default function DashboardPage() {
                     </>
                   )}
 
-                  {/* Create Workspace Action */}
-                  <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setWorkspaceDropdownOpen(false);
-                      setCreateWorkspaceError("");
-                      setNewWorkspaceName("");
-                      setCreateWorkspaceModalOpen(true);
-                    }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer text-left hover:bg-[var(--surface)]"
-                    style={{ color: "var(--accent)" }}
-                  >
-                    <Plus size={14} />
-                    <span>+ Create New Workspace</span>
-                  </button>
+                  {/* Create Workspace Action (Only for Team Collaboration role) */}
+                  {isTeamCollaboration && (
+                    <>
+                      <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWorkspaceDropdownOpen(false);
+                          setCreateWorkspaceError("");
+                          setNewWorkspaceName("");
+                          setCreateWorkspaceModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer text-left hover:bg-[var(--surface)]"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        <Plus size={14} />
+                        <span>Create New Workspace</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -1212,19 +1226,21 @@ export default function DashboardPage() {
                 </Link>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setCreateWorkspaceError("");
-                  setNewWorkspaceName("");
-                  setCreateWorkspaceModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer hover:opacity-90 shrink-0"
-                style={{ background: "var(--accent)" }}
-              >
-                <Plus size={14} />
-                <span>Create Workspace</span>
-              </button>
+              {isTeamCollaboration && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateWorkspaceError("");
+                    setNewWorkspaceName("");
+                    setCreateWorkspaceModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer hover:opacity-90 shrink-0"
+                  style={{ background: "var(--accent)" }}
+                >
+                  <Plus size={14} />
+                  <span>Create Workspace</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1252,24 +1268,37 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <p className="text-xs max-w-xl leading-relaxed" style={{ color: "var(--txt-m)" }}>
-                      Collaborate with teammates, assign roles (Admin, Analyst, Viewer), and pool dataset quotas in real-time.
+                      {isTeamCollaboration
+                        ? "Collaborate with teammates, assign roles (Admin, Analyst, Viewer), and pool dataset quotas in real-time."
+                        : "Team collaboration workspaces are exclusively available on the Team Collaboration plan. Upgrade your plan to create shared workspaces and invite members."}
                     </p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreateWorkspaceError("");
-                    setNewWorkspaceName("");
-                    setCreateWorkspaceModalOpen(true);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 shrink-0"
-                  style={{ background: "var(--accent)" }}
-                >
-                  <Plus size={14} />
-                  <span>+ Create Team Workspace</span>
-                </button>
+                {isTeamCollaboration ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateWorkspaceError("");
+                      setNewWorkspaceName("");
+                      setCreateWorkspaceModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 shrink-0"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    <Plus size={14} />
+                    <span>Create Team Workspace</span>
+                  </button>
+                ) : (
+                  <Link
+                    href="/pricing"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 shrink-0"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    <span>Upgrade to Team Collaboration</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                )}
               </div>
             ) : (
               teams.map((team) => {

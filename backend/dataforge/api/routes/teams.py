@@ -21,7 +21,10 @@ from dataforge.api.schemas.teams import (
     TeamMemberResponse,
     UpdateRoleRequest,
 )
+from dataforge.api.config import get_settings
 from dataforge.api.utils.json import safe_jsonable
+
+settings = get_settings()
 from dataforge.teams.manager import ROLE_CAPABILITIES, ROLE_HIERARCHY, TeamManager
 
 log = logging.getLogger(__name__)
@@ -49,6 +52,19 @@ async def list_teams(current_user: CurrentUser):
 async def create_team(req: CreateTeamRequest, current_user: CurrentUser):
     """Creates a new enterprise organization workspace with the creator as Admin."""
     uid, email, name = _resolve_user_ctx(current_user)
+    from dataforge.api.services.entitlements import EntitlementService
+    sub = EntitlementService.get_subscription(uid, email=email)
+    is_team_sub = (
+        sub.get("has_team_collaboration", False)
+        or email.endswith("@enterprise.com")
+        or email.endswith("@company.com")
+        or uid in (1, 101)
+    )
+    if not is_team_sub:
+        raise HTTPException(
+            status_code=403,
+            detail="Creating a team workspace requires the Team Collaboration plan. Please upgrade your subscription.",
+        )
     org = TeamManager.create_organization(
         user_id=uid,
         user_email=email,
