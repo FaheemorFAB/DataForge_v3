@@ -13,6 +13,7 @@ FIXES (2026-03):
 """
 
 import re
+import difflib
 import pandas as pd
 import numpy as np
 
@@ -513,7 +514,24 @@ def run_dynamic_cleaning_pipeline(df_raw: pd.DataFrame, rules: list[dict]) -> di
                     logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": "Filled with 0", "type": "fill"})
 
                 elif method == "constant":
-                    c_val = val if val is not None and str(val).strip() != "" else "N/A"
+                    c_val = val if val is not None and str(val).strip() != "" else None
+                    if c_val is not None:
+                        c_val_str = str(c_val).strip()
+                        if pd.api.types.is_numeric_dtype(df[col]):
+                            try:
+                                num_val = float(c_val_str)
+                                if pd.api.types.is_integer_dtype(df[col]) and num_val.is_integer():
+                                    c_val = int(num_val)
+                                else:
+                                    c_val = num_val
+                            except (ValueError, TypeError):
+                                df[col] = df[col].astype(object)
+                                c_val = c_val_str
+                        else:
+                            c_val = c_val_str
+                    else:
+                        c_val = 0 if pd.api.types.is_numeric_dtype(df[col]) else "N/A"
+
                     df[col] = df[col].fillna(c_val)
                     logs.append({"column": col, "missing": n_miss, "pct_missing": pct_miss, "action": f"Filled with Constant ('{c_val}')", "type": "fill"})
 
@@ -849,8 +867,13 @@ def compute_rule_diff(df_raw: pd.DataFrame, rule: dict, max_sample_rows: int = 1
 
     # Helper to cleanly format numbers, strings, and missing values
     def _fmt_diff_val(val):
-        if pd.isna(val):
+        if val is None:
             return "NaN"
+        try:
+            if pd.isna(val):
+                return "NaN"
+        except (ValueError, TypeError):
+            pass
         if isinstance(val, (float, np.floating)):
             if np.isnan(val):
                 return "NaN"
@@ -870,11 +893,14 @@ def compute_rule_diff(df_raw: pd.DataFrame, rule: dict, max_sample_rows: int = 1
             "null_pct": round(nulls_before / len(df_sample) * 100, 1),
         }
         if is_num and df_sample[c].notna().sum() > 0:
-            stats_before["mean"] = round(float(df_sample[c].mean()), 4)
-            stats_before["median"] = round(float(df_sample[c].median()), 4)
-            stats_before["std"] = round(float(df_sample[c].std()), 4) if df_sample[c].count() > 1 else 0.0
-            stats_before["min"] = round(float(df_sample[c].min()), 4)
-            stats_before["max"] = round(float(df_sample[c].max()), 4)
+            try:
+                stats_before["mean"] = round(float(df_sample[c].mean()), 4)
+                stats_before["median"] = round(float(df_sample[c].median()), 4)
+                stats_before["std"] = round(float(df_sample[c].std()), 4) if df_sample[c].count() > 1 else 0.0
+                stats_before["min"] = round(float(df_sample[c].min()), 4)
+                stats_before["max"] = round(float(df_sample[c].max()), 4)
+            except Exception:
+                pass
 
         if c not in df_sim.columns:
             return {
@@ -899,12 +925,17 @@ def compute_rule_diff(df_raw: pd.DataFrame, rule: dict, max_sample_rows: int = 1
             "nulls": nulls_after,
             "null_pct": round(nulls_after / max(len(df_sim), 1) * 100, 1),
         }
-        if is_num and df_sim[c].notna().sum() > 0:
-            stats_after["mean"] = round(float(df_sim[c].mean()), 4)
-            stats_after["median"] = round(float(df_sim[c].median()), 4)
-            stats_after["std"] = round(float(df_sim[c].std()), 4) if df_sim[c].count() > 1 else 0.0
-            stats_after["min"] = round(float(df_sim[c].min()), 4)
-            stats_after["max"] = round(float(df_sim[c].max()), 4)
+        if is_num or pd.api.types.is_numeric_dtype(df_sim[c]):
+            try:
+                sim_num = pd.to_numeric(df_sim[c], errors="coerce")
+                if sim_num.notna().sum() > 0:
+                    stats_after["mean"] = round(float(sim_num.mean()), 4)
+                    stats_after["median"] = round(float(sim_num.median()), 4)
+                    stats_after["std"] = round(float(sim_num.std()), 4) if sim_num.count() > 1 else 0.0
+                    stats_after["min"] = round(float(sim_num.min()), 4)
+                    stats_after["max"] = round(float(sim_num.max()), 4)
+            except Exception:
+                pass
 
         changed_diff = []
         unchanged_diff = []
@@ -1025,8 +1056,13 @@ def generate_python_script(rules: list[dict], filename: str = "raw_dataset.csv")
                     lines.append(f'    df["{c}"] = df["{c}"].fillna(0)')
             elif method == "constant":
                 val = r.get("fill_value", "N/A")
+                try:
+                    num_v = float(val)
+                    clean_val = int(num_v) if num_v.is_integer() else num_v
+                except (ValueError, TypeError):
+                    clean_val = val
                 for c in cols:
-                    lines.append(f'    df["{c}"] = df["{c}"].fillna({repr(val)})')
+                    lines.append(f'    df["{c}"] = df["{c}"].fillna({repr(clean_val)})')
             elif method == "ffill":
                 for c in cols:
                     lines.append(f'    df["{c}"] = df["{c}"].ffill()')

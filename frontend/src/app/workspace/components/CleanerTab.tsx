@@ -217,6 +217,7 @@ export function CleanerTab() {
     if (!newRule) return;
     setRules(prev => [...prev, newRule]);
     setDiffResult(null);
+    setDiffError("");
   };
 
   const removeRule = (idx: number) => {
