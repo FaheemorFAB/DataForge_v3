@@ -12,6 +12,7 @@ import { HUMAN_AVATARS, getAvatarById, resolveAvatarUrl } from "@/lib/avatars";
 import {
   Shield,
   Database,
+  History,
   Cpu,
   Layers,
   Settings,
@@ -1536,9 +1537,7 @@ export default function DashboardPage() {
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           {[
-            { id: "overview", label: "Overview & Datasets", icon: Database },
-            { id: "models", label: "Model Registry", icon: Cpu },
-            { id: "reports", label: "Automated Reports", icon: FileText },
+            { id: "overview", label: "History", icon: History },
             { id: "preferences", label: "Themes & Preferences", icon: Settings }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -1560,7 +1559,7 @@ export default function DashboardPage() {
           })}
         </div>
 
-        {/* ── TAB 1: OVERVIEW & DATASETS ── */}
+        {/* ── TAB 1: HISTORY ── */}
         {activeTab === "overview" && (
           <div className="space-y-6">
             <div
@@ -1794,259 +1793,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── TAB 2: MODEL REGISTRY ── */}
-        {activeTab === "models" && (
-          <div className="space-y-6">
-            <div
-              className="rounded-2xl border p-5 shadow-sm"
-              style={{ background: "var(--card)", borderColor: "var(--border)" }}
-            >
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <div>
-                  <h2 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
-                    Machine Learning Models
-                  </h2>
-                  <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                    Automated ML models trained via LightGBM, XGBoost, and Scikit-Learn.
-                  </p>
-                </div>
-
-                <Link
-                  href="/workspace"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold no-underline"
-                  style={{ background: "var(--accent)", color: "#fff" }}
-                >
-                  <Plus size={13} />
-                  <span>Train New Model</span>
-                </Link>
-              </div>
-
-              {models.length === 0 ? (
-                <div
-                  className="p-8 text-center rounded-xl border border-dashed flex flex-col items-center justify-center gap-2"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <Cpu size={28} className="opacity-40" />
-                  <p className="text-xs font-bold" style={{ color: "var(--txt)" }}>No models in registry</p>
-                  <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>Train and register ML models via AutoML in the workspace.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                  {models.map((m) => (
-                    <div
-                      key={m.id}
-                      className="p-4 rounded-xl border flex flex-col justify-between transition-all"
-                      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span
-                            className="px-2 py-0.5 rounded text-[10px] font-bold border"
-                            style={{ background: "rgba(16,185,129,0.1)", borderColor: "#10b981", color: "#10b981" }}
-                          >
-                            {m.status}
-                          </span>
-                          <span className="text-[10px]" style={{ color: "var(--txt-m)" }}>{m.created_at}</span>
-                        </div>
-
-                        <h3 className="font-bold text-xs mb-0.5" style={{ color: "var(--txt)" }}>
-                          {m.name}
-                        </h3>
-                        <p className="text-[11px] font-mono mb-3" style={{ color: "var(--txt-m)" }}>
-                          {m.algorithm}
-                        </p>
-
-                        <div className="space-y-1 text-xs border-t pt-2" style={{ borderColor: "var(--border)" }}>
-                          <div className="flex justify-between">
-                            <span style={{ color: "var(--txt-m)" }}>Target:</span>
-                            <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{m.target}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span style={{ color: "var(--txt-m)" }}>{m.metric}:</span>
-                            <span className="font-mono font-bold text-emerald-500">{m.score}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-                        <Link
-                          href="/workspace"
-                          className="text-xs font-bold flex items-center gap-1 no-underline"
-                          style={{ color: "var(--accent)" }}
-                        >
-                          <span>Inspect</span>
-                          <ArrowRight size={12} />
-                        </Link>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => {
-                              setSaveSuccessMsg(`Model ${m.name} downloaded`);
-                              setTimeout(() => setSaveSuccessMsg(""), 2000);
-                            }}
-                            className="p-1 rounded text-xs opacity-75 hover:opacity-100 cursor-pointer"
-                            style={{ color: "var(--txt-m)" }}
-                            title="Download Weights (.joblib)"
-                          >
-                            <Download size={13} />
-                          </button>
-
-                          {deleteModelConfirmId === m.id ? (
-                            <div className="flex items-center gap-1 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-md">
-                              <button
-                                onClick={() => handleDeleteModel(m.id, m.name)}
-                                disabled={deletingModelId === m.id}
-                                className="text-[10px] font-bold text-red-400 hover:text-red-300 cursor-pointer flex items-center gap-0.5"
-                              >
-                                {deletingModelId === m.id ? <Loader2 size={10} className="animate-spin" /> : null}
-                                <span>{deletingModelId === m.id ? "..." : "Delete"}</span>
-                              </button>
-                              <button
-                                onClick={() => setDeleteModelConfirmId(null)}
-                                className="text-[10px] text-gray-400 hover:text-white cursor-pointer ml-1"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setDeleteModelConfirmId(m.id)}
-                              className="p-1 rounded text-xs opacity-75 hover:opacity-100 hover:text-red-400 transition-colors cursor-pointer"
-                              style={{ color: "var(--txt-m)" }}
-                              title="Delete Model from Registry"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── TAB 3: AUTOMATED REPORTS ── */}
-        {activeTab === "reports" && (
-          <div className="space-y-6">
-            <div
-              className="rounded-2xl border p-5 shadow-sm"
-              style={{ background: "var(--card)", borderColor: "var(--border)" }}
-            >
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <div>
-                  <h2 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
-                    Automated Reports
-                  </h2>
-                  <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                    HTML and PDF intelligence documents generated from dataset EDA.
-                  </p>
-                </div>
-
-                <Link
-                  href="/workspace"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold no-underline"
-                  style={{ background: "var(--accent)", color: "#fff" }}
-                >
-                  <Plus size={13} />
-                  <span>Generate Report</span>
-                </Link>
-              </div>
-
-              {reports.length === 0 ? (
-                <div
-                  className="p-8 text-center rounded-xl border border-dashed flex flex-col items-center justify-center gap-2"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <FileText size={28} className="opacity-40" />
-                  <p className="text-xs font-bold" style={{ color: "var(--txt)" }}>No automated reports found</p>
-                  <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>Generate intelligence reports from any dataset in the workspace.</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {reports.map((r) => (
-                    <div
-                      key={r.id}
-                      className="p-3.5 rounded-xl border flex items-center justify-between gap-3 flex-wrap"
-                      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                          style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}
-                        >
-                          <FileText size={18} />
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-xs" style={{ color: "var(--txt)" }}>
-                            {r.triggered_by} — {r.filename}
-                          </h4>
-                          <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
-                            Generated {r.created_at} • HTML &amp; PDF Formats
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`/api/reports/${r.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1 no-underline"
-                          style={{ borderColor: "var(--border)", color: "var(--txt)" }}
-                        >
-                          <ExternalLink size={12} />
-                          <span>Preview</span>
-                        </a>
-                        <a
-                          href={`/api/reports/${r.id}?format=pdf`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 no-underline"
-                          style={{ background: "var(--accent)", color: "#fff" }}
-                        >
-                          <Download size={12} />
-                          <span>PDF</span>
-                        </a>
-
-                        {deleteReportConfirmId === r.id ? (
-                          <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/30 px-2 py-1 rounded-lg">
-                            <button
-                              onClick={() => handleDeleteReport(r.id, r.filename)}
-                              disabled={deletingReportId === r.id}
-                              className="text-xs font-bold text-red-400 hover:text-red-300 cursor-pointer flex items-center gap-1"
-                            >
-                              {deletingReportId === r.id ? <Loader2 size={12} className="animate-spin" /> : null}
-                              <span>{deletingReportId === r.id ? "Deleting..." : "Confirm Delete"}</span>
-                            </button>
-                            <button
-                              onClick={() => setDeleteReportConfirmId(null)}
-                              className="text-xs text-gray-400 hover:text-white cursor-pointer ml-1"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteReportConfirmId(r.id)}
-                            className="p-1.5 rounded-lg border text-xs opacity-75 hover:opacity-100 hover:text-red-400 hover:border-red-500/40 transition-all cursor-pointer"
-                            style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}
-                            title="Delete Report"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── TAB 4: THEMES & PLATFORM PREFERENCES ── */}
+        {/* ── TAB 2: THEMES & PLATFORM PREFERENCES ── */}
         {activeTab === "preferences" && (
           <div className="space-y-6">
             {/* Theme Palettes Grid */}
