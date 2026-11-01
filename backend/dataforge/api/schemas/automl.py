@@ -12,11 +12,13 @@ from pydantic import BaseModel, Field
 class AutoMLDetectTaskRequest(BaseModel):
     upload_id: Optional[str] = None
     target_col: str = ""
+    share_token: Optional[str] = None
 
 
 class FeatureAnalysisRequest(BaseModel):
     upload_id: Optional[str] = None
     target_col: str = Field(..., min_length=1)
+    share_token: Optional[str] = None
 
 
 class AutoMLTrainRequest(BaseModel):
@@ -35,6 +37,7 @@ class AutoMLTrainRequest(BaseModel):
     mode: str = "tournament"  # "tournament" (leaderboard tournament) or "manual"
     selected_model: Optional[str] = None
     hyperparameters: Optional[dict] = None
+    share_token: Optional[str] = None
 
 
 class AutoMLTrainResponse(BaseModel):

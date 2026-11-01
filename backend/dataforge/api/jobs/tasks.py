@@ -606,14 +606,26 @@ async def check_alerts_task(
 def _load_df(upload_id: str):
     """
     Synchronous helper to load the best available DataFrame for an upload.
-    Tries df_clean first, then df_raw, then attempts Supabase restore.
+    Tries df_clean first, then df_raw, tables/*.parquet, then attempts Supabase restore.
     """
-    from dataforge.api.storage.manager import load
+    from dataforge.api.storage.manager import load, STORE_DIR
+    from dataforge.settings import PROJECTS_DIR
 
     for key in ("df_clean", "df_raw"):
         df = load(upload_id, key)
         if df is not None:
             return df
+
+    # Check tables/*.parquet for multi-table or Excel workbooks
+    for td in [STORE_DIR / str(upload_id) / "tables", PROJECTS_DIR / str(upload_id) / "tables"]:
+        if td.exists():
+            pqs = list(td.glob("*.parquet"))
+            if pqs:
+                try:
+                    import pandas as pd
+                    return pd.read_parquet(pqs[0])
+                except Exception:
+                    pass
 
     # Try remote restore
     from dataforge.api.storage.manager import load_persisted

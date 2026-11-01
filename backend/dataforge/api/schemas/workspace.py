@@ -123,6 +123,7 @@ class GranularCleanRequest(BaseModel):
 class RuleDiffRequest(BaseModel):
     upload_id: str
     rule: Dict[str, Any] = Field(default_factory=dict)
+    share_token: Optional[str] = None
 
 
 class ShareInviteRequest(BaseModel):

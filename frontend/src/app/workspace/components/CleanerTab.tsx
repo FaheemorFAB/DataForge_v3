@@ -2,6 +2,16 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
+function getShareToken(uid?: string | null): string {
+  if (typeof window === "undefined" || !uid) return "";
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("share_token") || sessionStorage.getItem("df_share_token_" + uid) || sessionStorage.getItem(`df_share_${uid}`) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
 import { apiFetch } from "@/lib/api";
 import {
   Download, AlertTriangle, AlertCircle, Sparkles, Sliders, Plus, Trash2, CheckCircle2,
@@ -232,14 +242,17 @@ export function CleanerTab() {
     setDiffError("");
     setDiffResult(null);
     try {
-      const res = await apiFetch("/clean/diff", {
+      const shareToken = getShareToken(uploadId);
+      const diffUrl = `/clean/diff?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`;
+      const res = await apiFetch(diffUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upload_id: uploadId, rule: candidateRule }),
+        body: JSON.stringify({ upload_id: uploadId, rule: candidateRule, share_token: shareToken }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || data.error) {
-        setDiffError(data.error || "Failed to generate preview diff");
+        const errMsg = data.detail || data.error || data.message || "Failed to generate preview diff";
+        setDiffError(typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg));
         return;
       }
       setDiffResult(data.diff);

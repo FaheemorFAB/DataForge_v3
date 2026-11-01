@@ -2,6 +2,16 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
+function getShareToken(uid?: string | null): string {
+  if (typeof window === "undefined" || !uid) return "";
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("share_token") || sessionStorage.getItem("df_share_token_" + uid) || sessionStorage.getItem(`df_share_${uid}`) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
 import { apiFetch } from "@/lib/api";
 import {
   Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders,
@@ -251,11 +261,12 @@ export function AutoMLTab() {
     if (!uploadId) return;
     setIsAnalyzingFeatures(true);
     try {
+      const shareToken = getShareToken(uploadId);
       // 1. Detect task
-      const taskRes = await apiFetch("/automl/detect-task", {
+      const taskRes = await apiFetch(`/automl/detect-task?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_col: target, upload_id: uploadId }),
+        body: JSON.stringify({ target_col: target, upload_id: uploadId, share_token: shareToken }),
       });
       if (taskRes.ok) {
         const taskData = await taskRes.json();
@@ -264,10 +275,10 @@ export function AutoMLTab() {
       }
 
       // 2. Comprehensive Feature Analysis & Leakage Audit
-      const featRes = await apiFetch("/automl/feature-analysis", {
+      const featRes = await apiFetch(`/automl/feature-analysis?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_col: target, upload_id: uploadId }),
+        body: JSON.stringify({ target_col: target, upload_id: uploadId, share_token: shareToken }),
       });
 
       if (featRes.ok) {
@@ -389,7 +400,9 @@ export function AutoMLTab() {
     setAutomlResult(null);
 
     try {
-      const res = await apiFetch("/automl/train", {
+      const shareToken = getShareToken(uploadId);
+      const trainUrl = `/automl/train?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`;
+      const res = await apiFetch(trainUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -403,6 +416,7 @@ export function AutoMLTab() {
           cv_folds: cvFolds,
           metric_override: metricOverride,
           upload_id: uploadId,
+          share_token: shareToken,
           model_name: customModelName.trim() || undefined,
           mode: trainingMode,
           selected_model: trainingMode === "manual" ? manualModel : undefined,
@@ -440,7 +454,8 @@ export function AutoMLTab() {
           const pData = await pRes.json();
           if (pData.status === "completed" || pData.status === "success") {
             if (pData.result?.key === "automl_meta" && uploadId) {
-              const metaRes = await apiFetch(`/workspace/state?upload_id=${uploadId}`);
+              const shareToken = getShareToken(uploadId);
+              const metaRes = await apiFetch(`/workspace/state?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`);
               if (metaRes.ok) {
                 const state = await metaRes.json();
                 if (state.automl_meta) return state.automl_meta;

@@ -50,15 +50,26 @@ def _resolve_column(col_name: str, df_columns) -> str:
 async def api_automl_detect_task(
     body: AutoMLDetectTaskRequest,
     current_user: CurrentUser,
+    request: Request = None,
     upload_id: Optional[str] = Query(default=None),
+    share_token: Optional[str] = Query(default=None),
 ):
     target_upload_id = body.upload_id or upload_id
+    eff_share_token = getattr(body, "share_token", None) or share_token or (request.headers.get("x-share-token") if request else None)
     if not target_upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(target_upload_id, current_user)
+    await require_upload_with_data(target_upload_id, current_user, share_token=eff_share_token, request=request)
 
     df_clean = load(target_upload_id, "df_clean")
     df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
+    if df is None:
+        for td in [STORE_DIR / str(target_upload_id) / "tables", PROJECTS_DIR / str(target_upload_id) / "tables"]:
+            if td.exists():
+                pqs = list(td.glob("*.parquet"))
+                if pqs:
+                    import pandas as pd
+                    df = pd.read_parquet(pqs[0])
+                    break
     if df is None:
         raise HTTPException(400, "No dataset loaded")
 
@@ -82,15 +93,26 @@ async def api_automl_detect_task(
 async def api_automl_feature_analysis(
     body: FeatureAnalysisRequest,
     current_user: CurrentUser,
+    request: Request = None,
     upload_id: Optional[str] = Query(default=None),
+    share_token: Optional[str] = Query(default=None),
 ):
     target_upload_id = body.upload_id or upload_id
+    eff_share_token = getattr(body, "share_token", None) or share_token or (request.headers.get("x-share-token") if request else None)
     if not target_upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(target_upload_id, current_user)
+    await require_upload_with_data(target_upload_id, current_user, share_token=eff_share_token, request=request)
 
     df_clean = load(target_upload_id, "df_clean")
     df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
+    if df is None:
+        for td in [STORE_DIR / str(target_upload_id) / "tables", PROJECTS_DIR / str(target_upload_id) / "tables"]:
+            if td.exists():
+                pqs = list(td.glob("*.parquet"))
+                if pqs:
+                    import pandas as pd
+                    df = pd.read_parquet(pqs[0])
+                    break
     if df is None:
         raise HTTPException(400, "No dataset loaded")
 
@@ -109,18 +131,28 @@ async def api_automl_train(
     body: AutoMLTrainRequest,
     current_user: CurrentUser,
     background_tasks: BackgroundTasks,
+    request: Request = None,
     job_manager: JobManager = Depends(get_job_manager_dep),
     upload_id: Optional[str] = Query(default=None),
+    share_token: Optional[str] = Query(default=None),
 ):
     target_upload_id = body.upload_id or upload_id
+    eff_share_token = getattr(body, "share_token", None) or share_token or (request.headers.get("x-share-token") if request else None)
     if not target_upload_id:
-        print("DEBUG: automl 400 - upload_id required")
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(target_upload_id, current_user, min_role="Analyst")
+    await require_upload_with_data(target_upload_id, current_user, min_role="Analyst", share_token=eff_share_token, request=request)
 
     # Validate target column exists
     df_clean = load(target_upload_id, "df_clean")
     df = df_clean if df_clean is not None else load(target_upload_id, "df_raw")
+    if df is None:
+        for td in [STORE_DIR / str(target_upload_id) / "tables", PROJECTS_DIR / str(target_upload_id) / "tables"]:
+            if td.exists():
+                pqs = list(td.glob("*.parquet"))
+                if pqs:
+                    import pandas as pd
+                    df = pd.read_parquet(pqs[0])
+                    break
     if df is None:
         print("DEBUG: automl 400 - No dataset loaded (df is None)")
         raise HTTPException(400, "No dataset loaded")
@@ -157,11 +189,14 @@ async def api_automl_train(
 @router.get("/automl/download", summary="Download the trained model (.joblib)")
 async def api_automl_download(
     current_user: CurrentUser,
+    request: Request = None,
     upload_id: Optional[str] = Query(default=None),
+    share_token: Optional[str] = Query(default=None),
 ):
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    eff_share_token = share_token or (request.headers.get("x-share-token") if request else None)
+    await require_upload_with_data(upload_id, current_user, share_token=eff_share_token, request=request)
 
     model_path = PROJECTS_DIR / str(upload_id) / "model_pkl.joblib"
     if not model_path.exists():

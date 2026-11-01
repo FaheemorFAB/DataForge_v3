@@ -685,17 +685,30 @@ async def api_snapshots_list(
 async def api_clean_diff(
     body: RuleDiffRequest,
     current_user: CurrentUser,
+    request: Request = None,
+    share_token: Optional[str] = Query(default=None),
 ):
     upload_id = body.upload_id
     rule = body.rule
     if not upload_id:
         raise HTTPException(400, "upload_id required")
-    await require_upload_with_data(upload_id, current_user)
+    eff_share_token = getattr(body, "share_token", None) or share_token or (request.headers.get("x-share-token") if request else None)
+    await require_upload_with_data(upload_id, current_user, share_token=eff_share_token, request=request)
 
-    # Use df_clean if it exists, otherwise df_raw
+    # Use df_clean if it exists, otherwise df_raw or tables/*.parquet
     df = load(upload_id, "df_clean")
     if df is None:
         df = load(upload_id, "df_raw")
+    if df is None:
+        from dataforge.api.storage.manager import STORE_DIR
+        from dataforge.settings import PROJECTS_DIR
+        for td in [STORE_DIR / str(upload_id) / "tables", PROJECTS_DIR / str(upload_id) / "tables"]:
+            if td.exists():
+                pqs = list(td.glob("*.parquet"))
+                if pqs:
+                    import pandas as pd
+                    df = pd.read_parquet(pqs[0])
+                    break
     if df is None:
         raise HTTPException(400, "No dataset loaded")
 
