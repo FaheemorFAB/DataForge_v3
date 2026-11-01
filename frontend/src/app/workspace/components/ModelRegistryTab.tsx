@@ -631,13 +631,13 @@ export function ModelRegistryTab() {
           </button>
 
           <button
-            onClick={() => setShowRegisterModal(true)}
+            onClick={() => setActiveTab("automl")}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white shadow-md transition-all hover:scale-[1.02] cursor-pointer"
             style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
-            title="Register a new model into catalog"
+            title="Train a new predictive model in AutoML Studio"
           >
-            <Plus size={14} />
-            <span>+ Register Model</span>
+            <Play size={12} fill="currentColor" />
+            <span>Train in AutoML</span>
           </button>
         </div>
       </div>
@@ -779,7 +779,7 @@ export function ModelRegistryTab() {
                 border: "1px solid rgba(99, 102, 241, 0.25)",
               }}
             >
-              <Sparkles size={30} />
+              <Boxes size={32} />
             </div>
             <div className="space-y-2">
               <h3 className="font-black text-lg" style={{ color: "var(--txt)" }}>
@@ -800,13 +800,7 @@ export function ModelRegistryTab() {
                 <span>Train Model in AutoML Studio</span>
                 <ArrowRight size={13} />
               </button>
-              <button
-                onClick={() => setShowRegisterModal(true)}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold border transition-all hover:bg-white/5 cursor-pointer"
-                style={{ borderColor: "var(--border)", color: "var(--txt)" }}
-              >
-                + Register Manually
-              </button>
+
             </div>
           </div>
         ) : filteredModels.length === 0 ? (
