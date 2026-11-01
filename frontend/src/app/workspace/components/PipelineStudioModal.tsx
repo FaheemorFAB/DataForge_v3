@@ -73,16 +73,20 @@ export function PipelineStudioModal({
     output_step_id: "s2_clean_filter"
   }, null, 2));
 
-  // Stored Procedure recipe JSON state (declarative specification)
-
   const fetchPipelineCode = useCallback(async () => {
     if (!uploadId) return;
     try {
       setLoading(true);
-      const res = await apiFetch(`/pipeline/export?upload_id=${uploadId}`);
+      const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const shareToken = searchParams?.get("share_token") || "";
+      const query = shareToken ? `?upload_id=${uploadId}&share_token=${shareToken}` : `?upload_id=${uploadId}`;
+      const res = await apiFetch(`/pipeline/export${query}`);
       if (res.ok) {
         const data = await res.json();
         setPipelineData(data);
+        if (data.recipe_json) {
+          setRecipeJson(JSON.stringify(data.recipe_json, null, 2));
+        }
       }
     } catch (e) {
       console.error("Failed to load pipeline export:", e);
@@ -95,9 +99,11 @@ export function PipelineStudioModal({
     if (!uploadId) return;
     try {
       setRunningAssertions(true);
+      const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const shareToken = searchParams?.get("share_token") || "";
       const res = await apiFetch("/pipeline/assert", {
         method: "POST",
-        body: JSON.stringify({ upload_id: uploadId }),
+        body: JSON.stringify({ upload_id: uploadId, share_token: shareToken || undefined }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -126,7 +132,10 @@ export function PipelineStudioModal({
   const handleDownloadZip = async () => {
     if (!uploadId) return;
     try {
-      const res = await apiFetch(`/pipeline/download-zip?upload_id=${uploadId}`);
+      const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const shareToken = searchParams?.get("share_token") || "";
+      const query = shareToken ? `?upload_id=${uploadId}&share_token=${shareToken}` : `?upload_id=${uploadId}`;
+      const res = await apiFetch(`/pipeline/download-zip${query}`);
       if (!res.ok) throw new Error("Download failed");
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -138,8 +147,11 @@ export function PipelineStudioModal({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch {
+      const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const shareToken = searchParams?.get("share_token") || "";
+      const query = shareToken ? `?upload_id=${uploadId}&share_token=${shareToken}` : `?upload_id=${uploadId}`;
       const link = document.createElement("a");
-      link.href = `/api/pipeline/download-zip?upload_id=${uploadId}`;
+      link.href = `/api/pipeline/download-zip${query}`;
       link.download = `dataforge-pipeline-${uploadId.slice(0, 8)}.zip`;
       document.body.appendChild(link);
       link.click();
@@ -148,6 +160,8 @@ export function PipelineStudioModal({
   };
 
   if (!isOpen) return null;
+
+  const isCleaned = Boolean(pipelineData?.is_cleaned);
 
   const currentCode =
     activeTab === "recipe"
@@ -183,7 +197,7 @@ export function PipelineStudioModal({
               <Code size={18} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-bold text-sm">Production Pipeline &amp; Data Quality Studio</h3>
                 <span
                   className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider"
@@ -195,9 +209,36 @@ export function PipelineStudioModal({
                 >
                   CI/CD Ready
                 </span>
+                {isCleaned ? (
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                    style={{
+                      background: "rgba(16, 185, 129, 0.15)",
+                      color: "#10b981",
+                      border: "1px solid rgba(16, 185, 129, 0.3)",
+                    }}
+                  >
+                    <CheckCircle2 size={11} />
+                    Production Cleaned Pipeline
+                  </span>
+                ) : (
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                    style={{
+                      background: "rgba(99, 102, 241, 0.15)",
+                      color: "#818cf8",
+                      border: "1px solid rgba(99, 102, 241, 0.3)",
+                    }}
+                  >
+                    <Zap size={11} />
+                    Raw Ingestion Baseline
+                  </span>
+                )}
               </div>
-              <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                Build custom Stored Procedures (DF-SPE) with assertion gates, or export to dbt, Airflow, and Python.
+              <p className="text-xs mt-0.5" style={{ color: "var(--txt-m)" }}>
+                {isCleaned
+                  ? `Synthesized from verified cleaned data (${pipelineData?.cleaning_summary?.rules_count || 1} rules applied). Export to DF-SPE, dbt, Airflow, and Python.`
+                  : "Baseline raw ingestion pipeline with schema validation. Run Clean & Fix in workspace to auto-generate transform rules."}
               </p>
             </div>
           </div>
@@ -250,7 +291,7 @@ export function PipelineStudioModal({
 
             <button
               onClick={() => setActiveTab("dbt")}
-              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === "dbt" ? "border-[var(--accent)] text-[var(--txt)]" : "border-transparent text-[var(--txt-m)]"
               }`}
             >
@@ -260,7 +301,7 @@ export function PipelineStudioModal({
 
             <button
               onClick={() => setActiveTab("airflow")}
-              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === "airflow" ? "border-[var(--accent)] text-[var(--txt)]" : "border-transparent text-[var(--txt-m)]"
               }`}
             >
@@ -270,7 +311,7 @@ export function PipelineStudioModal({
 
             <button
               onClick={() => setActiveTab("quality")}
-              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === "quality" ? "border-[var(--accent)] text-[var(--txt)]" : "border-transparent text-[var(--txt-m)]"
               }`}
             >
@@ -309,9 +350,9 @@ export function PipelineStudioModal({
               >
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-                    Automated Test Suite Status
+                    Automated Test Suite Status • {isCleaned ? "Production Cleaned State" : "Raw Pre-Cleaning State"}
                   </span>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span
                       className="text-lg font-black"
                       style={{ color: qualityResults?.overall_status === "PASSED" ? "#10b981" : "#f59e0b" }}
@@ -330,6 +371,23 @@ export function PipelineStudioModal({
                     >
                       {qualityResults?.overall_status || "PASSED"}
                     </span>
+                    {isCleaned && qualityResults?.raw_score !== undefined && (
+                      <span className="text-xs ml-1 font-mono" style={{ color: "var(--txt-m)" }}>
+                        (Raw baseline: {qualityResults.raw_score}%)
+                      </span>
+                    )}
+                    {isCleaned && Number(qualityResults?.improvement_pct || 0) > 0 && (
+                      <span
+                        className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase"
+                        style={{
+                          background: "rgba(16, 185, 129, 0.15)",
+                          color: "#10b981",
+                          border: "1px solid rgba(16, 185, 129, 0.3)",
+                        }}
+                      >
+                        +{qualityResults.improvement_pct}% Quality Gain
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -363,15 +421,33 @@ export function PipelineStudioModal({
                           <AlertTriangle size={16} className="text-amber-500 shrink-0" />
                         )}
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold">{ast.rule}</span>
                             <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border" style={{ borderColor: "var(--border)" }}>
                               {ast.column}
                             </span>
+                            {ast.resolved && (
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase flex items-center gap-1"
+                                style={{
+                                  background: "rgba(16, 185, 129, 0.15)",
+                                  color: "#10b981",
+                                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                                }}
+                              >
+                                <Sparkles size={10} />
+                                Resolved by Cleaning
+                              </span>
+                            )}
                           </div>
                           <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
                             {ast.message}
                           </p>
+                          {ast.resolved && ast.before_val && ast.after_val && (
+                            <p className="text-[10px] font-mono mt-0.5 text-emerald-400">
+                              Before: {ast.before_val} ➔ After: {ast.after_val}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -409,19 +485,27 @@ export function PipelineStudioModal({
                 style={{ background: "var(--card)", borderColor: "var(--border)" }}
               >
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-xs" style={{ color: "var(--txt)" }}>
                       Stored Procedure Engine (DF-SPE v1)
                     </span>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold">
                       DuckDB Sandbox
                     </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                      Declarative Specification
-                    </span>
+                    {isCleaned ? (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
+                        Production Cleaned Pipeline
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 font-bold">
+                        Raw Baseline Pipeline
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
-                    Define production DAG stages (sources, transform_sql, assertion_gates) with snapshot isolation.
+                    {isCleaned
+                      ? "Declarative DAG executing source ingestion, active cleaning transformations, and quality gates."
+                      : "Declarative DAG executing raw baseline source ingestion and schema verification gates."}
                   </p>
                 </div>
               </div>
@@ -429,12 +513,12 @@ export function PipelineStudioModal({
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-[11px] font-mono" style={{ color: "var(--txt-m)" }}>
                   <span>PROCEDURE RECIPE SPECIFICATION (JSON Schema v1)</span>
-                  <span>Editable</span>
+                  <span className="text-emerald-500 font-bold">Synchronized with Workspace State</span>
                 </div>
                 <textarea
                   value={recipeJson}
                   onChange={(e) => setRecipeJson(e.target.value)}
-                  rows={14}
+                  rows={15}
                   className="w-full p-3 rounded-xl text-xs font-mono border leading-relaxed focus:outline-none"
                   style={{
                     background: "var(--surface)",
