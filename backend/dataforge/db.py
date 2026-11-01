@@ -243,7 +243,7 @@ class Organization(BaseModel):
     name: str
     slug: str
     creator_user_id: int
-    plan: str = "Enterprise"
+    plan: str = "Team Collaboration"
     created_at: Optional[str] = None
 
 
@@ -269,7 +269,7 @@ class Project(BaseModel):
 class Subscription(BaseModel):
     id: str
     user_id: int
-    plan: str = "free"  # "free", "pro", "team", "enterprise"
+    plan: str = "free"  # "free", "pro", "team"
     status: str = "active"  # "active", "trialing", "past_due", "canceled"
     max_storage_mb: int = 250
     max_rows_per_dataset: int = 25000

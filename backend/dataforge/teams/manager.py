@@ -78,7 +78,9 @@ class TeamManager:
             organizations = data.get("organizations", {})
             auto_org_ids = {
                 oid for oid, org in organizations.items()
-                if org.get("slug", "").startswith("team-") and org.get("name", "").endswith(" Enterprise Team")
+                if org.get("slug", "").startswith("team-") and (
+                    org.get("name", "").endswith(" Enterprise Team") or org.get("name", "").endswith("'s Team")
+                )
             }
             if auto_org_ids:
                 data["organizations"] = {
@@ -130,14 +132,14 @@ class TeamManager:
             # Provision default organization
             org_id = f"org_{user_id}_{int(time.time())}"
             display_name = user_name or user_email.split("@")[0].title()
-            org_name = f"{display_name}'s Enterprise Team"
+            org_name = f"{display_name}'s Team"
 
             now_iso = datetime.now(timezone.utc).isoformat()
             org_record = {
                 "id": org_id,
                 "name": org_name,
                 "slug": f"team-{user_id}",
-                "plan": "Enterprise",
+                "plan": "Team Collaboration",
                 "owner_id": user_id,
                 "created_at": now_iso,
             }
@@ -165,7 +167,7 @@ class TeamManager:
                 "action": "CREATE_ORGANIZATION",
                 "target": org_name,
                 "timestamp": now_iso,
-                "metadata": {"plan": "Enterprise", "initial_members": 1},
+                "metadata": {"plan": "Team Collaboration", "initial_members": 1},
             }
             data.setdefault("audit_logs", []).append(audit_entry)
 
@@ -229,9 +231,10 @@ class TeamManager:
         user_email: str,
         user_name: Optional[str],
         name: str,
-        plan: str = "Enterprise",
+        plan: str = "Team Collaboration",
     ) -> Dict[str, Any]:
         """Creates a new organization and assigns creator as Admin."""
+        norm_plan = "Team Collaboration" if (plan or "").lower() in ("enterprise", "team") else (plan or "Team Collaboration")
         with _LOCK:
             data = cls._read_data()
             org_id = f"org_{int(time.time() * 1000)}"
@@ -241,7 +244,7 @@ class TeamManager:
                 "id": org_id,
                 "name": name.strip(),
                 "slug": name.lower().replace(" ", "-"),
-                "plan": plan,
+                "plan": norm_plan,
                 "owner_id": user_id,
                 "created_at": now_iso,
             }

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 interface PricingTier {
-  id: "free" | "pro" | "team" | "enterprise";
+  id: "free" | "pro" | "team";
   name: string;
   badge?: string;
   description: string;
@@ -45,13 +45,11 @@ export default function PricingPage() {
   const [expandedCardFeatures, setExpandedCardFeatures] = useState<Record<string, boolean>>({});
   const { user } = useAuth();
 
-  const handleCtaClick = (action: "free" | "pro" | "team" | "enterprise") => {
+  const handleCtaClick = (action: "free" | "pro" | "team") => {
     if (action === "free") {
       setLaunchModalOpen(true);
     } else if (action === "pro" || action === "team") {
       window.location.href = `/billing/checkout?plan=${action}`;
-    } else if (action === "enterprise") {
-      window.location.href = "mailto:sales@dataforge.internal?subject=DataForge%20Enterprise%20Inquiry";
     }
   };
 

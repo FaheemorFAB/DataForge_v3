@@ -91,7 +91,7 @@ export function TeamGovernanceDrawer({
 
   // Create team form state
   const [newTeamName, setNewTeamName] = useState("");
-  const [newTeamPlan, setNewTeamPlan] = useState("Enterprise");
+  const [newTeamPlan, setNewTeamPlan] = useState("Team Collaboration");
   const [createTeamError, setCreateTeamError] = useState("");
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
@@ -335,7 +335,7 @@ export function TeamGovernanceDrawer({
                     border: "1px solid rgba(16, 185, 129, 0.3)",
                   }}
                 >
-                  {activeOrg?.plan || "Enterprise"}
+                  {(activeOrg?.plan === "Enterprise" ? "Team Collaboration" : activeOrg?.plan) || "Team Collaboration"}
                 </span>
               </div>
               <p className="text-xs truncate" style={{ color: "var(--txt-m)" }}>
@@ -854,7 +854,7 @@ export function TeamGovernanceDrawer({
                     className="w-full px-3 py-2 rounded-xl text-xs border outline-none cursor-pointer"
                     style={{ borderColor: "var(--border)", color: "var(--txt)", background: "var(--inp-bg)" }}
                   >
-                    <option value="Enterprise">Shared Team Workspace (Multi-User Collaboration)</option>
+                    <option value="Team Collaboration">Team Collaboration (Multi-User Shared Workspace)</option>
                     <option value="Production">Production Analytics Environment</option>
                     <option value="Staging">Sandbox / Staging Research Cluster</option>
                   </select>

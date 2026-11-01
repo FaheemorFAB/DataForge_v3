@@ -50,7 +50,7 @@ async def list_teams(current_user: CurrentUser):
 
 @router.post("", summary="Create a new organization team")
 async def create_team(req: CreateTeamRequest, current_user: CurrentUser):
-    """Creates a new enterprise organization workspace with the creator as Admin."""
+    """Creates a new team organization workspace with the creator as Admin."""
     uid, email, name = _resolve_user_ctx(current_user)
     from dataforge.api.services.entitlements import EntitlementService
     sub = EntitlementService.get_subscription(uid, email=email)
@@ -65,12 +65,15 @@ async def create_team(req: CreateTeamRequest, current_user: CurrentUser):
             status_code=403,
             detail="Creating a team workspace requires the Team Collaboration plan. Please upgrade your subscription.",
         )
+    resolved_plan = req.plan or "Team Collaboration"
+    if resolved_plan.lower() in ("enterprise", "team"):
+        resolved_plan = "Team Collaboration"
     org = TeamManager.create_organization(
         user_id=uid,
         user_email=email,
         user_name=name,
         name=req.name,
-        plan=req.plan or "Enterprise",
+        plan=resolved_plan,
     )
     return JSONResponse(content=safe_jsonable({"ok": True, "organization": org}))
 

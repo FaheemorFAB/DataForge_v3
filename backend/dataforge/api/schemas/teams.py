@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 class CreateTeamRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=100, description="Organization team name")
-    plan: Optional[str] = Field("Enterprise", description="Plan tier: Enterprise, Team, Starter")
+    plan: Optional[str] = Field("Team Collaboration", description="Plan tier: Team Collaboration")
 
 
 class InviteMemberRequest(BaseModel):

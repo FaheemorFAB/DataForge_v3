@@ -89,10 +89,10 @@ const ROLE_BADGES: Record<TeamRole, { label: string; color: string; glow: string
 };
 
 const TIER_LIMITS: Record<string, { name: string; maxMembers: number; badgeColor: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = {
-  free: { name: "Free", maxMembers: 1, badgeColor: "#94a3b8", icon: Award },
-  pro: { name: "Pro", maxMembers: 1, badgeColor: "#6366f1", icon: Crown },
-  team: { name: "Team collaboration", maxMembers: 25, badgeColor: "#10b981", icon: Users },
-  enterprise: { name: "Team collaboration", maxMembers: 1000, badgeColor: "#10b981", icon: Users },
+  free: { name: "Free Starter", maxMembers: 1, badgeColor: "#94a3b8", icon: Award },
+  pro: { name: "Pro Analyst", maxMembers: 1, badgeColor: "#6366f1", icon: Crown },
+  team: { name: "Team Collaboration", maxMembers: 25, badgeColor: "#10b981", icon: Users },
+  enterprise: { name: "Team Collaboration", maxMembers: 25, badgeColor: "#10b981", icon: Users },
 };
 
 const THEMES = [
@@ -150,7 +150,7 @@ export default function DashboardPage() {
   // Create Workspace Modal State
   const [createWorkspaceModalOpen, setCreateWorkspaceModalOpen] = useState<boolean>(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState<string>("");
-  const [newWorkspacePlan, setNewWorkspacePlan] = useState<string>("Enterprise");
+  const [newWorkspacePlan, setNewWorkspacePlan] = useState<string>("Team");
   const [createWorkspaceError, setCreateWorkspaceError] = useState<string>("");
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
 
@@ -251,7 +251,7 @@ export default function DashboardPage() {
         const parsed = JSON.parse(rawTeams);
         if (Array.isArray(parsed) && parsed.length > 0) {
           // Remove legacy placeholder teams
-          const cleaned = parsed.filter((t: TeamItem) => !t.name.endsWith("Enterprise Team") || t.members.length > 1);
+          const cleaned = parsed.filter((t: TeamItem) => (!t.name.endsWith("Enterprise Team") && !t.name.endsWith("'s Team")) || t.members.length > 1);
           if (cleaned.length > 0) {
             setTeams(cleaned);
           } else {
@@ -364,7 +364,8 @@ export default function DashboardPage() {
             .then((data) => {
               const plan = data?.subscription?.plan || data?.plan;
               if (plan) {
-                const clean = plan.toLowerCase();
+                let clean = plan.toLowerCase();
+                if (clean === "enterprise") clean = "team";
                 setUserTier(clean);
                 localStorage.setItem("df_user_tier", clean);
               }
@@ -803,7 +804,7 @@ export default function DashboardPage() {
         method: "POST",
         body: JSON.stringify({
           name: newWorkspaceName.trim(),
-          plan: newWorkspacePlan || "Enterprise",
+          plan: newWorkspacePlan || "Team",
         }),
       });
 
@@ -877,13 +878,10 @@ export default function DashboardPage() {
 
   const currentAvatar = getAvatarById(userAvatarId);
   const currentRoleMeta = ROLE_BADGES[userRole] || ROLE_BADGES["Admin"];
-  const currentTierInfo = TIER_LIMITS[userTier] || TIER_LIMITS["free"];
+  const normalizedTier = userTier === "enterprise" ? "team" : (userTier || "free");
+  const currentTierInfo = TIER_LIMITS[normalizedTier] || TIER_LIMITS["free"];
   const TierIcon = currentTierInfo.icon || Award;
-  const isTeamCollaboration =
-    (userTier === "team" ||
-      userTier === "enterprise" ||
-      (currentTierInfo.name || "").toLowerCase().includes("team collaboration")) &&
-    userRole !== "Viewer";
+  const isTeamCollaboration = normalizedTier === "team" && userRole !== "Viewer";
 
   return (
     <div
@@ -2592,9 +2590,7 @@ export default function DashboardPage() {
                     color: "var(--txt)",
                   }}
                 >
-                  <option value="Enterprise">Enterprise (Unlimited Seats &amp; Models)</option>
-                  <option value="Team">Team Collaboration (Up to 15 Seats)</option>
-                  <option value="Starter">Starter (Up to 5 Seats)</option>
+                  <option value="Team">Team Collaboration (Shared Workspace • Up to 25 Seats)</option>
                 </select>
               </div>
 
