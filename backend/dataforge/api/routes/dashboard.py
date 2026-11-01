@@ -29,7 +29,7 @@ from dataforge.api.schemas.dashboard import (
     ScheduleCreateRequest,
 )
 from dataforge.api.storage.manager import exists, load, save, upath
-from dataforge.api.utils.helpers import format_stat_val, is_id_like_col, resolve_column, robust_numeric_series, time_ago
+from dataforge.api.utils.helpers import canonicalize_series, format_stat_val, is_id_like_col, resolve_column, robust_numeric_series, time_ago
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_client, db_get
 
@@ -426,13 +426,14 @@ def _compute_chart_data(df, config):
             formatted_values = {"min": "0", "q1": "0", "median": "0", "q3": "0", "max": "0"}
 
     elif chart_type in ("radar", "polarArea"):
+        canonical_x = canonicalize_series(df[x_col])
         if y_col and agg_type in ("sum", "mean"):
             num_y = robust_numeric_series(df[y_col])
-            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
-            grp = temp.groupby(x_col)["_y"].sum() if agg_type == "sum" else temp.groupby(x_col)["_y"].mean()
+            temp = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna()
+            grp = temp.groupby("_x")["_y"].sum() if agg_type == "sum" else temp.groupby("_x")["_y"].mean()
             grp = grp.sort_values(ascending=False).head(10)
         else:
-            grp = df.groupby(x_col).size().sort_values(ascending=False).head(10)
+            grp = canonical_x.dropna().value_counts().head(10)
         labels = [str(x) for x in grp.index]
         values = [round(float(v), 2) for v in grp.values]
 
@@ -460,24 +461,26 @@ def _compute_chart_data(df, config):
                 values = [[1.0, 0.0], [0.0, 1.0]]
 
     elif chart_type == "waterfall":
+        canonical_x = canonicalize_series(df[x_col])
         if y_col and agg_type in ("sum", "mean"):
             num_y = robust_numeric_series(df[y_col])
-            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
-            grp = temp.groupby(x_col)["_y"].sum().sort_values(ascending=False).head(8)
+            temp = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna()
+            grp = temp.groupby("_x")["_y"].sum().sort_values(ascending=False).head(8)
         else:
-            grp = df.groupby(x_col).size().sort_values(ascending=False).head(8)
+            grp = canonical_x.dropna().value_counts().head(8)
         labels = [str(x) for x in grp.index] + ["Net Total"]
         vals = [round(float(v), 2) for v in grp.values]
         net_val = round(float(sum(vals)), 2)
         values = vals + [net_val]
 
     elif chart_type == "funnel":
+        canonical_x = canonicalize_series(df[x_col])
         if y_col and agg_type in ("sum", "mean"):
             num_y = robust_numeric_series(df[y_col])
-            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
-            grp = temp.groupby(x_col)["_y"].sum().sort_values(ascending=False).head(6)
+            temp = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna()
+            grp = temp.groupby("_x")["_y"].sum().sort_values(ascending=False).head(6)
         else:
-            grp = df.groupby(x_col).size().sort_values(ascending=False).head(6)
+            grp = canonical_x.dropna().value_counts().head(6)
         labels = [str(x) for x in grp.index]
         counts = [round(float(v), 2) for v in grp.values]
         top_c = counts[0] if counts and counts[0] > 0 else 1.0
@@ -485,43 +488,47 @@ def _compute_chart_data(df, config):
         values = {"counts": counts, "pcts": pcts}
 
     elif chart_type == "combo":
-        grp_cnt = df.groupby(x_col).size().sort_values(ascending=False).head(10)
+        canonical_x = canonicalize_series(df[x_col])
+        grp_cnt = canonical_x.dropna().value_counts().head(10)
         labels = [str(x) for x in grp_cnt.index]
         bars = [round(float(v), 2) for v in grp_cnt.values]
         if y_col:
             num_y = robust_numeric_series(df[y_col])
-            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
-            line_grp = temp.groupby(x_col)["_y"].mean().reindex(grp_cnt.index).fillna(0.0)
+            temp = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna()
+            line_grp = temp.groupby("_x")["_y"].mean().reindex(grp_cnt.index).fillna(0.0)
             lines = [round(float(v), 2) for v in line_grp.values]
         else:
             lines = [round(b * 1.05, 2) for b in bars]
         values = {"bars": bars, "lines": lines}
 
     else:  # bar / line / area / pie / doughnut
+        canonical_x = canonicalize_series(df[x_col])
         if agg_type == "none":
-            sub_df = df.dropna(subset=[x_col])
+            sub_df = pd.DataFrame({"_x": canonical_x})
             if y_col:
-                sub_df = sub_df.dropna(subset=[y_col])
+                sub_df["_y"] = robust_numeric_series(df[y_col])
+                sub_df = sub_df.dropna(subset=["_x", "_y"])
+            else:
+                sub_df = sub_df.dropna(subset=["_x"])
             if len(sub_df) > 500:
                 sub_df = sub_df.head(500)
-            labels = [str(v) for v in sub_df[x_col]]
+            labels = [str(v) for v in sub_df["_x"]]
             if y_col:
-                y_nums = robust_numeric_series(sub_df[y_col]).fillna(0.0)
-                values = [round(float(v), 2) for v in y_nums]
+                values = [round(float(v), 2) for v in sub_df["_y"]]
             else:
                 values = [1.0] * len(sub_df)
         else:
             if not y_col or agg_type == "count":
-                grp = df.groupby(x_col).size()
+                grp = canonical_x.dropna().value_counts()
             else:
                 num_y = robust_numeric_series(df[y_col])
-                temp_df = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna(subset=["_y"])
+                temp_df = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna(subset=["_x", "_y"])
                 if agg_type == "sum":
-                    grp = temp_df.groupby(x_col)["_y"].sum()
+                    grp = temp_df.groupby("_x")["_y"].sum()
                 elif agg_type == "mean":
-                    grp = temp_df.groupby(x_col)["_y"].mean()
+                    grp = temp_df.groupby("_x")["_y"].mean()
                 else:
-                    grp = temp_df.groupby(x_col)["_y"].count()
+                    grp = temp_df.groupby("_x")["_y"].count()
 
             top_n = config.get("top_n", 10) or 10
             if chart_type in ("pie", "doughnut"):
@@ -667,7 +674,7 @@ async def api_dashboard_stats(
                         "type": "sum",
                     })
             else:
-                s_cat = df[metric_col].dropna()
+                s_cat = canonicalize_series(df[metric_col]).dropna()
                 u_cnt = s_cat.nunique()
                 top_v = str(s_cat.mode().iloc[0]) if not s_cat.mode().empty else "N/A"
                 if len(top_v) > 15:
@@ -681,7 +688,7 @@ async def api_dashboard_stats(
                 })
 
         if dim_col and dim_col in df.columns:
-            s = df[dim_col].dropna()
+            s = canonicalize_series(df[dim_col]).dropna()
             if len(s) > 0:
                 unique_cnt = s.nunique()
                 top_val = str(s.mode().iloc[0]) if not s.mode().empty else "N/A"
@@ -714,10 +721,11 @@ async def api_dashboard_stats(
         # Charts
         charts = []
         if dim_col and dim_col in df.columns:
+            s_dim = canonicalize_series(df[dim_col])
             if metric_col and metric_col in df.columns and metric_col in valid_numeric_cols:
                 s_m = robust_numeric_series(df[metric_col])
-                temp_df = pd.DataFrame({dim_col: df[dim_col], metric_col: s_m}).dropna()
-                grp = temp_df.groupby(dim_col)[metric_col].sum().sort_values(ascending=False).head(15)
+                temp_df = pd.DataFrame({"_dim": s_dim, "_metric": s_m}).dropna()
+                grp = temp_df.groupby("_dim")["_metric"].sum().sort_values(ascending=False).head(15)
                 charts.append({
                     "id": "bar", "type": "bar",
                     "title": f"{metric_col} by {dim_col}",
@@ -727,7 +735,7 @@ async def api_dashboard_stats(
                     "agg_type": "sum",
                 })
             else:
-                grp = df.groupby(dim_col).size().sort_values(ascending=False).head(15)
+                grp = s_dim.dropna().value_counts().head(15)
                 charts.append({
                     "id": "bar", "type": "bar",
                     "title": f"Distribution of {dim_col}",
@@ -907,7 +915,7 @@ async def api_agentic_auto_dashboard(
                         "type": "sum",
                     })
             else:
-                sc = df[primary_metric].dropna()
+                sc = canonicalize_series(df[primary_metric]).dropna()
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
                 if len(top_v) > 15:
                     top_v = top_v[:12] + "..."
@@ -919,7 +927,7 @@ async def api_agentic_auto_dashboard(
                     "color": "#3b82f6",
                 })
         elif primary_cat and len(df) > 0:
-            sc = df[primary_cat].dropna()
+            sc = canonicalize_series(df[primary_cat]).dropna()
             if len(sc) > 0:
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "dominant segment"
                 top_cnt = int(sc.value_counts().iloc[0]) if not sc.empty else 0
@@ -933,7 +941,7 @@ async def api_agentic_auto_dashboard(
                 })
 
         if primary_cat and primary_cat != primary_metric:
-            sc = df[primary_cat].dropna()
+            sc = canonicalize_series(df[primary_cat]).dropna()
             if len(sc) > 0:
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
                 if len(top_v) > 15:
@@ -945,7 +953,7 @@ async def api_agentic_auto_dashboard(
                     "type": "distinct",
                 })
         elif len(cat_cols) > 0 and cat_cols[0] != primary_metric:
-            sc = df[cat_cols[0]].dropna()
+            sc = canonicalize_series(df[cat_cols[0]]).dropna()
             if len(sc) > 0:
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
                 if len(top_v) > 15:
@@ -977,8 +985,9 @@ async def api_agentic_auto_dashboard(
         # Chart 1: Primary Cohort Breakdown
         if primary_cat and primary_metric and primary_metric in valid_numeric_cols:
             s_metric = robust_numeric_series(df[primary_metric])
-            temp_df = pd.DataFrame({primary_cat: df[primary_cat], primary_metric: s_metric}).dropna()
-            grp = temp_df.groupby(primary_cat)[primary_metric].sum().sort_values(ascending=False).head(12)
+            s_cat = canonicalize_series(df[primary_cat])
+            temp_df = pd.DataFrame({"_cat": s_cat, "_metric": s_metric}).dropna()
+            grp = temp_df.groupby("_cat")["_metric"].sum().sort_values(ascending=False).head(12)
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "bar",
@@ -993,7 +1002,8 @@ async def api_agentic_auto_dashboard(
             seen_charts.add((primary_cat, primary_metric))
             chart_id_counter += 1
         elif primary_cat:
-            grp = df.groupby(primary_cat).size().sort_values(ascending=False).head(12)
+            s_cat = canonicalize_series(df[primary_cat]).dropna()
+            grp = s_cat.value_counts().head(12)
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "bar",
@@ -1011,14 +1021,15 @@ async def api_agentic_auto_dashboard(
         # Chart 2: Category Share / Donut Chart
         target_donut_cat = None
         for c in cat_cols:
-            if c != primary_cat and 2 <= df[c].nunique() <= 12:
+            if c != primary_cat and 2 <= canonicalize_series(df[c]).nunique() <= 12:
                 target_donut_cat = c
                 break
         if not target_donut_cat and len(cat_cols) > 1 and cat_cols[1] != primary_cat:
             target_donut_cat = cat_cols[1]
 
         if target_donut_cat and (target_donut_cat, "count") not in seen_charts:
-            grp = df.groupby(target_donut_cat).size().sort_values(ascending=False).head(8)
+            s_donut = canonicalize_series(df[target_donut_cat]).dropna()
+            grp = s_donut.value_counts().head(8)
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "doughnut",
@@ -1096,7 +1107,8 @@ async def api_agentic_auto_dashboard(
         elif len(cat_cols) >= 3:
             third_cat = next((c for c in cat_cols if c not in (primary_cat, target_donut_cat)), None)
             if third_cat and (third_cat, "count") not in seen_charts:
-                grp = df.groupby(third_cat).size().sort_values(ascending=False).head(10)
+                s_third = canonicalize_series(df[third_cat]).dropna()
+                grp = s_third.value_counts().head(10)
                 charts.append({
                     "id": f"auto_{chart_id_counter}",
                     "type": "bar",
@@ -1132,7 +1144,8 @@ async def api_agentic_auto_dashboard(
         elif len(cat_cols) >= 4:
             fourth_cat = next((c for c in cat_cols if c not in (primary_cat, target_donut_cat, charts[-1]["x_col"])), None)
             if fourth_cat and (fourth_cat, "count") not in seen_charts:
-                grp = df.groupby(fourth_cat).size().sort_values(ascending=False).head(8)
+                s_fourth = canonicalize_series(df[fourth_cat]).dropna()
+                grp = s_fourth.value_counts().head(8)
                 charts.append({
                     "id": f"auto_{chart_id_counter}",
                     "type": "doughnut",
@@ -1322,9 +1335,9 @@ async def api_drilldown(
                     val = float(x_label)
                     filtered = df[df[col_name] == val]
                 except (ValueError, TypeError):
-                    filtered = df[df[col_name].astype(str) == str(x_label)]
+                    filtered = df[df[col_name].astype(str).str.strip().str.lower() == str(x_label).strip().lower()]
             else:
-                filtered = df[df[col_name].astype(str) == str(x_label)]
+                filtered = df[df[col_name].astype(str).str.strip().str.lower() == str(x_label).strip().lower()]
 
         rows = filtered.head(100).to_dict(orient="records")
         return JSONResponse(content=safe_jsonable({

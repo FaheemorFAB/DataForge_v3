@@ -81,6 +81,59 @@ def robust_numeric_series(series: Any) -> pd.Series:
     return pd.to_numeric(cleaned, errors="coerce")
 
 
+def canonicalize_series(series: Any) -> pd.Series:
+    """
+    Case-insensitive and whitespace-tolerant series normalizer for categorical columns.
+    Maps string variants with different casing/whitespace (e.g. 'Female', 'female', 'FEMALE', ' Srinagar ')
+    to a single canonical representation (the most frequent variant, preferring Title Case on ties).
+    Non-string dtypes (numeric, datetime, bool) are preserved as-is.
+    NaNs and nulls are preserved.
+    """
+    if series is None:
+        return pd.Series(dtype=object)
+    if not isinstance(series, pd.Series):
+        series = pd.Series(series)
+    if len(series) == 0:
+        return series
+    if pd.api.types.is_numeric_dtype(series) or pd.api.types.is_datetime64_any_dtype(series) or pd.api.types.is_bool_dtype(series):
+        return series
+
+    non_null_mask = series.notna()
+    if not non_null_mask.any():
+        return series
+
+    # Strip whitespace from non-null string values
+    str_series = series[non_null_mask].astype(str).str.strip()
+    counts = str_series.value_counts()
+    if counts.empty:
+        return series
+
+    # Group counts by lowercased representation
+    canonical_map: dict[str, str] = {}
+    for orig_str, cnt in counts.items():
+        key = orig_str.lower()
+        if key not in canonical_map:
+            canonical_map[key] = orig_str
+        else:
+            prev = canonical_map[key]
+            prev_cnt = counts.get(prev, 0)
+            if cnt > prev_cnt:
+                canonical_map[key] = orig_str
+            elif cnt == prev_cnt:
+                # Prefer Title Case or capitalized
+                if orig_str.istitle() and not prev.istitle():
+                    canonical_map[key] = orig_str
+                elif orig_str.isupper() and prev.islower():
+                    canonical_map[key] = orig_str
+
+    # Create mapping from each original stripped string to its canonical representative
+    str_to_canonical = {orig_str: canonical_map[orig_str.lower()] for orig_str in counts.index}
+
+    out = series.astype(object) if isinstance(series.dtype, pd.CategoricalDtype) else series.copy()
+    out.loc[non_null_mask] = str_series.map(str_to_canonical)
+    return out
+
+
 def safe_json_value(v: Any) -> Any:
     if isinstance(v, np.integer):   return int(v)
     if isinstance(v, np.floating):  return None if np.isnan(v) else float(v)

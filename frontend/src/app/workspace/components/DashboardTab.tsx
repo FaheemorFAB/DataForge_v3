@@ -265,8 +265,77 @@ function FunnelViz({ labels, values }: { labels: string[]; values: any }) {
   );
 }
 
+// -- Deduplicate categorical chart data case-insensitively & trim whitespace --
+function deduplicateChartSeries(labels: any[], values: any): { labels: string[]; values: any } {
+  if (!Array.isArray(labels) || labels.length <= 1) return { labels, values };
+
+  if (Array.isArray(values) && (values.length === 0 || typeof values[0] === "number")) {
+    const map = new Map<string, { label: string; value: number }>();
+    for (let i = 0; i < labels.length; i++) {
+      const orig = String(labels[i] ?? "").trim();
+      const key = orig.toLowerCase();
+      const val = Number(values[i]) || 0;
+      if (!map.has(key)) {
+        map.set(key, { label: orig, value: val });
+      } else {
+        const item = map.get(key)!;
+        item.value += val;
+        if (orig && orig[0] === orig[0].toUpperCase() && item.label[0] !== item.label[0].toUpperCase()) {
+          item.label = orig;
+        }
+      }
+    }
+    const cleanLabels: string[] = [];
+    const cleanValues: number[] = [];
+    map.forEach(item => {
+      cleanLabels.push(item.label);
+      cleanValues.push(Number(item.value.toFixed(2)));
+    });
+    return { labels: cleanLabels, values: cleanValues };
+  }
+
+  if (values && typeof values === "object" && Array.isArray(values.bars)) {
+    const map = new Map<string, { label: string; bar: number; line: number; count: number }>();
+    const bars = values.bars || [];
+    const lines = values.lines || [];
+    for (let i = 0; i < labels.length; i++) {
+      const orig = String(labels[i] ?? "").trim();
+      const key = orig.toLowerCase();
+      const b = Number(bars[i]) || 0;
+      const l = Number(lines[i]) || 0;
+      if (!map.has(key)) {
+        map.set(key, { label: orig, bar: b, line: l, count: 1 });
+      } else {
+        const item = map.get(key)!;
+        item.bar += b;
+        item.line += l;
+        item.count += 1;
+        if (orig && orig[0] === orig[0].toUpperCase() && item.label[0] !== item.label[0].toUpperCase()) {
+          item.label = orig;
+        }
+      }
+    }
+    const cleanLabels: string[] = [];
+    const cleanBars: number[] = [];
+    const cleanLines: number[] = [];
+    map.forEach(item => {
+      cleanLabels.push(item.label);
+      cleanBars.push(Number(item.bar.toFixed(2)));
+      cleanLines.push(Number((item.line / item.count).toFixed(2)));
+    });
+    return { labels: cleanLabels, values: { bars: cleanBars, lines: cleanLines } };
+  }
+
+  return { labels, values };
+}
+
 // -- Chart renderer --
-function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALETTE) {
+function renderChart(rawCh: any, idx: number, activePaletteColors: string[] = PALETTE) {
+  let ch = rawCh;
+  if (rawCh && rawCh.labels && rawCh.type !== "heatmap" && rawCh.type !== "scatter" && rawCh.type !== "boxplot") {
+    const { labels, values } = deduplicateChartSeries(rawCh.labels, rawCh.values);
+    ch = { ...rawCh, labels, values };
+  }
   const color = activePaletteColors[idx % activePaletteColors.length];
   const xLabel = toLabel(ch.x_col || "Category");
   const agg = ch.agg_type && ch.agg_type !== "none" ? ` (${ch.agg_type})` : "";
