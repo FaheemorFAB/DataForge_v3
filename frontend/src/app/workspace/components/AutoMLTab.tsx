@@ -36,8 +36,20 @@ const AVAILABLE_ALGORITHMS = [
 ];
 
 export function AutoMLTab() {
-  const { profile, cleanProfile, uploadId, setActiveTab, automlMeta, setAutomlMeta, refreshWorkspace } = useWorkspace();
-  const effectiveProfile = cleanProfile || profile;
+  const { profile, cleanProfile, uploadId, setActiveTab, automlMeta, setAutomlMeta, refreshWorkspace, cleanResult } = useWorkspace();
+
+  const effectiveProfile = useMemo(() => {
+    if (cleanProfile?.columns && Array.isArray(cleanProfile.columns) && cleanProfile.columns.length > 0) {
+      return cleanProfile;
+    }
+    if (cleanResult?.clean_profile?.columns && Array.isArray(cleanResult.clean_profile.columns) && cleanResult.clean_profile.columns.length > 0) {
+      return cleanResult.clean_profile;
+    }
+    if (profile?.columns && Array.isArray(profile.columns) && profile.columns.length > 0) {
+      return profile;
+    }
+    return cleanProfile || cleanResult?.clean_profile || profile || {};
+  }, [cleanProfile, cleanResult, profile]);
 
   // Configuration States
   const [customModelName, setCustomModelName] = useState("");
@@ -107,42 +119,136 @@ export function AutoMLTab() {
     }
   }, [automlMeta]);
 
-  // Available columns from profile
+  // Available columns from profile (with robust fallback)
   const allColumns: string[] = useMemo(() => {
-    if (effectiveProfile?.columns && Array.isArray(effectiveProfile.columns)) {
-      return effectiveProfile.columns.map((c: any) => c.name);
+    const cols = effectiveProfile?.columns || profile?.columns || cleanResult?.clean_profile?.columns || cleanProfile?.columns;
+    if (Array.isArray(cols) && cols.length > 0) {
+      return cols
+        .map((c: any) => (typeof c === "string" ? c : c?.name || c?.col || c?.column || ""))
+        .filter(Boolean);
+    }
+    if (Array.isArray(effectiveProfile?.headers) && effectiveProfile.headers.length > 0) {
+      return effectiveProfile.headers.filter(Boolean);
     }
     return [];
-  }, [effectiveProfile]);
+  }, [effectiveProfile, profile, cleanResult, cleanProfile]);
+
+  // Fast map of column metadata from profile
+  const profileColMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    const cols = effectiveProfile?.columns || profile?.columns || cleanResult?.clean_profile?.columns || [];
+    if (Array.isArray(cols)) {
+      cols.forEach((c: any) => {
+        const name = typeof c === "string" ? c : c?.name || c?.col || c?.column;
+        if (name) map[name] = c;
+      });
+    }
+    return map;
+  }, [effectiveProfile, profile, cleanResult]);
 
   // Auto-suggest a target if none selected yet and columns are available
+  const isTargetInitialized = React.useRef(false);
   useEffect(() => {
-    if (!automlTarget && allColumns.length > 0) {
+    if (allColumns.length === 0) return;
+
+    if (!isTargetInitialized.current) {
+      isTargetInitialized.current = true;
+      if (!automlTarget) {
+        const candidate = allColumns.find(c => {
+          const lower = c.toLowerCase().trim();
+          return ["target", "label", "class", "churn", "status", "outcome", "survived", "y", "is_churn", "fraud", "loan_status"].includes(lower);
+        });
+        const targetToSet = candidate || allColumns[allColumns.length - 1];
+        if (targetToSet) {
+          setAutomlTarget(targetToSet);
+          setCustomModelName(`${targetToSet.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
+        }
+      }
+    } else if (automlTarget && !allColumns.includes(automlTarget)) {
       const candidate = allColumns.find(c => {
         const lower = c.toLowerCase().trim();
         return ["target", "label", "class", "churn", "status", "outcome", "survived", "y", "is_churn", "fraud", "loan_status"].includes(lower);
       });
-      if (candidate) {
-        setAutomlTarget(candidate);
-        setCustomModelName(`${candidate.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
+      const targetToSet = candidate || allColumns[allColumns.length - 1];
+      if (targetToSet) {
+        setAutomlTarget(targetToSet);
+        setCustomModelName(`${targetToSet.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
       }
     }
   }, [allColumns, automlTarget]);
 
+  // Active features list: uses deep analysis if available, otherwise immediate local baseline from dataset profile
+  const activeFeaturesList: FeatureInfo[] = useMemo(() => {
+    if (featuresList && featuresList.length > 0) {
+      return featuresList;
+    }
+    if (allColumns.length === 0) return [];
+
+    return allColumns
+      .filter(col => !automlTarget || col !== automlTarget)
+      .map(col => {
+        const colMeta = profileColMap[col];
+        const isObj = typeof colMeta === "object" && colMeta !== null;
+        const dtype = isObj ? (colMeta.dtype || colMeta.type || "string") : "string";
+        const missingPct = isObj ? (colMeta.null_pct ?? 0) : 0;
+        const nUnique = isObj ? (colMeta.n_unique ?? colMeta.unique_count ?? 0) : 0;
+        const lower = col.toLowerCase();
+        const isId = lower.endsWith("_id") || lower === "id" || lower.endsWith("id") || lower.endsWith("_uuid");
+
+        return {
+          name: col,
+          dtype: dtype,
+          missing_count: isObj && colMeta.null_count ? colMeta.null_count : 0,
+          missing_pct: missingPct,
+          n_unique: nUnique,
+          is_id: isId,
+          correlation: null,
+          leakage_risk: "low" as const,
+          recommendation: isId ? "drop_id" as const : missingPct >= 60 ? "drop_missing" as const : "include" as const,
+        };
+      });
+  }, [featuresList, allColumns, automlTarget, profileColMap]);
+
+  // Keep selected features in sync if empty
+  useEffect(() => {
+    if (selectedFeatures.length === 0 && activeFeaturesList.length > 0) {
+      const safe = activeFeaturesList
+        .filter(f => f.name !== automlTarget && f.recommendation === "include" && !f.is_id)
+        .map(f => f.name);
+      setSelectedFeatures(safe.length > 0 ? safe : activeFeaturesList.filter(f => f.name !== automlTarget).map(f => f.name));
+    }
+  }, [activeFeaturesList, selectedFeatures.length, automlTarget]);
+
   // When target changes, analyze task & feature signals
   useEffect(() => {
     if (automlTarget) {
+      setSelectedFeatures(prev => prev.filter(c => c !== automlTarget));
       runFeatureAnalysis(automlTarget);
     } else {
       setFeaturesList([]);
-      setSelectedFeatures([]);
       setDetectedTask("");
       setDetectedNUnique(0);
     }
   }, [automlTarget, uploadId]);
 
   const runFeatureAnalysis = async (target: string) => {
-    if (!target || !uploadId) return;
+    if (!target) return;
+
+    // Fast local heuristic for task while backend analyzes
+    const targetMeta = profileColMap[target];
+    if (targetMeta && typeof targetMeta === "object") {
+      const dt = (targetMeta.dtype || targetMeta.type || "").toLowerCase();
+      const nUniq = targetMeta.n_unique ?? targetMeta.unique_count ?? 0;
+      if (dt.includes("object") || dt.includes("str") || dt.includes("cat") || dt.includes("bool") || (nUniq > 0 && nUniq <= 10)) {
+        setDetectedTask(nUniq === 2 ? "binary classification" : "multiclass classification");
+        if (nUniq > 0) setDetectedNUnique(nUniq);
+      } else if (dt.includes("int") || dt.includes("float")) {
+        setDetectedTask("regression");
+        if (nUniq > 0) setDetectedNUnique(nUniq);
+      }
+    }
+
+    if (!uploadId) return;
     setIsAnalyzingFeatures(true);
     try {
       // 1. Detect task
@@ -153,8 +259,8 @@ export function AutoMLTab() {
       });
       if (taskRes.ok) {
         const taskData = await taskRes.json();
-        setDetectedTask(taskData.task || "");
-        setDetectedNUnique(taskData.n_unique || 0);
+        if (taskData.task) setDetectedTask(taskData.task);
+        if (taskData.n_unique !== undefined) setDetectedNUnique(taskData.n_unique);
       }
 
       // 2. Comprehensive Feature Analysis & Leakage Audit
@@ -168,11 +274,11 @@ export function AutoMLTab() {
         const featData = await featRes.json();
         if (featData.features && Array.isArray(featData.features)) {
           setFeaturesList(featData.features);
-          // Auto-select features recommended as "include" (omit high leakage & ID columns by default)
+          // Auto-select features recommended as "include" (omit high leakage, ID columns, and target)
           const recommended = featData.features
-            .filter((f: FeatureInfo) => f.recommendation === "include")
+            .filter((f: FeatureInfo) => f.recommendation === "include" && f.name !== target)
             .map((f: FeatureInfo) => f.name);
-          setSelectedFeatures(recommended);
+          setSelectedFeatures(recommended.length > 0 ? recommended : featData.features.filter((f: FeatureInfo) => f.name !== target).map((f: FeatureInfo) => f.name));
         }
       }
     } catch (err) {
@@ -184,6 +290,7 @@ export function AutoMLTab() {
 
   // Toggle single feature
   const toggleFeature = (colName: string) => {
+    if (colName === automlTarget) return;
     setSelectedFeatures(prev =>
       prev.includes(colName) ? prev.filter(c => c !== colName) : [...prev, colName]
     );
@@ -191,12 +298,14 @@ export function AutoMLTab() {
 
   // Batch feature selection helpers
   const selectAllFeatures = () => {
-    setSelectedFeatures(featuresList.map(f => f.name));
+    setSelectedFeatures(activeFeaturesList.filter(f => f.name !== automlTarget).map(f => f.name));
   };
 
   const selectSafeFeaturesOnly = () => {
-    const safe = featuresList.filter(f => f.leakage_risk !== "high" && !f.is_id).map(f => f.name);
-    setSelectedFeatures(safe);
+    const safe = activeFeaturesList
+      .filter(f => f.name !== automlTarget && f.leakage_risk !== "high" && !f.is_id)
+      .map(f => f.name);
+    setSelectedFeatures(safe.length > 0 ? safe : activeFeaturesList.filter(f => f.name !== automlTarget).map(f => f.name));
   };
 
   const deselectAllFeatures = () => {
@@ -216,7 +325,30 @@ export function AutoMLTab() {
 
   // Filter features for display
   const displayedFeatures = useMemo(() => {
-    return featuresList.filter(f => {
+    const sourceList = activeFeaturesList.length > 0 ? activeFeaturesList : (
+      allColumns.map(col => {
+        const colMeta = profileColMap[col];
+        const isObj = typeof colMeta === "object" && colMeta !== null;
+        const dtype = isObj ? (colMeta.dtype || colMeta.type || "string") : "string";
+        const missingPct = isObj ? (colMeta.null_pct ?? 0) : 0;
+        const nUnique = isObj ? (colMeta.n_unique ?? colMeta.unique_count ?? 0) : 0;
+        const lower = col.toLowerCase();
+        const isId = lower.endsWith("_id") || lower === "id";
+        return {
+          name: col,
+          dtype: dtype,
+          missing_count: 0,
+          missing_pct: missingPct,
+          n_unique: nUnique,
+          is_id: isId,
+          correlation: null,
+          leakage_risk: "low" as const,
+          recommendation: isId ? "drop_id" as const : "include" as const,
+        };
+      })
+    );
+
+    return sourceList.filter(f => {
       if (featureSearch && !f.name.toLowerCase().includes(featureSearch.toLowerCase())) {
         return false;
       }
@@ -234,11 +366,11 @@ export function AutoMLTab() {
       }
       return true;
     });
-  }, [featuresList, featureSearch, featureFilter]);
+  }, [activeFeaturesList, allColumns, profileColMap, featureSearch, featureFilter]);
 
   const highRiskCount = useMemo(() => {
-    return featuresList.filter(f => f.leakage_risk === "high").length;
-  }, [featuresList]);
+    return activeFeaturesList.filter(f => f.leakage_risk === "high").length;
+  }, [activeFeaturesList]);
 
   // Execute Training
   const runAutoml = async () => {
@@ -493,62 +625,99 @@ export function AutoMLTab() {
 
       {/* -- SECTION 2: GRANULAR FEATURE SELECTION & LEAKAGE GUARD -- */}
       <div className="p-5 rounded-2xl space-y-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-        {!automlTarget ? (
-          <div className="py-7 px-4 text-center space-y-2">
+        {allColumns.length === 0 ? (
+          <div className="py-8 px-4 text-center space-y-3">
             <div className="inline-flex p-3 rounded-2xl mb-1 text-white shadow-md" style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
               <Sliders size={22} />
             </div>
             <h4 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
-              Select a Target Variable (Y) to Configure Predictor Features
+              No Dataset Attributes Available
             </h4>
             <p className="text-xs max-w-md mx-auto" style={{ color: "var(--txt-m)" }}>
-              Choose which variable you wish to predict in <strong>Target Variable (Y)</strong> above. DataForge will automatically audit data types, calculate signal correlations, and flag potential target leakage risks.
+              Please upload or select a dataset in the workspace to inspect attributes, audit correlations, and train AutoML models.
             </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab("preview")}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:opacity-90 transition-all cursor-pointer"
+              style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
+              Go to Data Preview / Ingestion
+            </button>
           </div>
         ) : (
           <>
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Sliders size={16} style={{ color: "var(--accent)" }} />
                   <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-                    Feature Whitelist &amp; Leakage Guard
+                    Dataset Attributes &amp; Predictor Whitelist
                   </h3>
                   <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1" }}>
-                    {selectedFeatures.length} of {featuresList.length} Selected
+                    {selectedFeatures.length} of {activeFeaturesList.length} Predictors Selected
                   </span>
+                  {automlTarget ? (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-mono font-bold" style={{ background: "rgba(99,102,241,0.15)", color: "#6366f1" }}>
+                      Target: {automlTarget} (Y)
+                    </span>
+                  ) : (
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-mono font-bold" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
+                      Target not selected
+                    </span>
+                  )}
+                  {isAnalyzingFeatures && (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 animate-pulse">
+                      <RefreshCw size={11} className="animate-spin" />
+                      <span>Auditing signal correlations...</span>
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs mt-0.5" style={{ color: "var(--txt-m)" }}>
-                  Explicitly whitelist predictors. Deselect high-correlation features to eliminate target leakage.
+                  Audit column data types, inspect missingness, eliminate target leakage, and whitelist predictor attributes for AutoML training.
                 </p>
               </div>
 
               {/* Batch Selection Action Buttons */}
               <div className="flex items-center gap-2 flex-wrap">
                 <button
+                  type="button"
                   onClick={selectSafeFeaturesOnly}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
                   style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
                   <ShieldCheck size={12} />
                   <span>Select Safe Only</span>
                 </button>
                 <button
+                  type="button"
                   onClick={selectAllFeatures}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
                   style={{ background: "var(--border)", color: "var(--txt)" }}>
                   Select All
                 </button>
                 <button
+                  type="button"
                   onClick={deselectAllFeatures}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
                   style={{ background: "var(--border)", color: "var(--txt)" }}>
                   Clear
                 </button>
               </div>
             </div>
 
+            {/* Informational Prompt when no target selected yet */}
+            {!automlTarget && (
+              <div className="p-3.5 rounded-xl flex items-center justify-between gap-3" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)" }}>
+                <div className="flex items-center gap-2.5">
+                  <AlertCircle size={16} className="text-indigo-500 shrink-0" />
+                  <p className="text-xs font-medium" style={{ color: "var(--txt)" }}>
+                    Choose a <strong>Target Variable (Y)</strong> to predict. You can select one from the dropdown above or click <strong>&quot;Set as Target&quot;</strong> on any attribute row below.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* High Risk Leakage Banner */}
-            {highRiskCount > 0 && (
+            {highRiskCount > 0 && automlTarget && (
               <div className="p-3.5 rounded-xl flex items-start gap-3" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
                 <ShieldAlert size={18} className="text-red-500 shrink-0 mt-0.5" />
                 <div>
@@ -568,7 +737,7 @@ export function AutoMLTab() {
                 <Search size={14} className="absolute left-3 top-2.5" style={{ color: "var(--txt-m)" }} />
                 <input
                   type="text"
-                  placeholder="Search feature names..."
+                  placeholder="Search attribute names..."
                   value={featureSearch}
                   onChange={e => setFeatureSearch(e.target.value)}
                   className="w-full text-xs pl-8 pr-3 py-2 rounded-xl outline-none"
@@ -580,8 +749,9 @@ export function AutoMLTab() {
                 {(["all", "numeric", "categorical", "safe", "leakage"] as const).map(tab => (
                   <button
                     key={tab}
+                    type="button"
                     onClick={() => setFeatureFilter(tab)}
-                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all ${featureFilter === tab ? 'text-white' : ''}`}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all cursor-pointer ${featureFilter === tab ? 'text-white' : ''}`}
                     style={{
                       background: featureFilter === tab ? "var(--accent)" : "transparent",
                       color: featureFilter === tab ? "white" : "var(--txt-m)",
@@ -593,19 +763,29 @@ export function AutoMLTab() {
               </div>
             </div>
 
-            {/* Features Table */}
-            {isAnalyzingFeatures ? (
-              <div className="p-8 text-center space-y-2">
-                <RefreshCw size={20} className="animate-spin mx-auto text-indigo-500" />
-                <p className="text-xs font-mono" style={{ color: "var(--txt-m)" }}>Auditing feature correlations &amp; target leakage...</p>
+            {/* Attributes & Features Table */}
+            {displayedFeatures.length === 0 ? (
+              <div className="p-8 text-center space-y-2 border rounded-xl" style={{ borderColor: "var(--border)" }}>
+                <p className="text-xs font-semibold" style={{ color: "var(--txt-m)" }}>
+                  No attributes match your filter criteria.
+                </p>
+                {(featureSearch || featureFilter !== "all") && (
+                  <button
+                    type="button"
+                    onClick={() => { setFeatureSearch(""); setFeatureFilter("all"); }}
+                    className="text-[11px] font-bold text-indigo-500 hover:underline cursor-pointer">
+                    Reset Search &amp; Filters
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="max-h-[300px] overflow-y-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
+              <div className="max-h-[340px] overflow-y-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 z-10 font-mono text-[10px] uppercase tracking-wider" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", color: "var(--txt-m)" }}>
                     <tr>
                       <th className="py-2.5 px-3 w-10 text-center">Inc.</th>
-                      <th className="py-2.5 px-3">Feature Name</th>
+                      <th className="py-2.5 px-3">Attribute Name</th>
+                      <th className="py-2.5 px-3">Role / Action</th>
                       <th className="py-2.5 px-3">Type</th>
                       <th className="py-2.5 px-3">Null %</th>
                       <th className="py-2.5 px-3">Unique</th>
@@ -615,24 +795,62 @@ export function AutoMLTab() {
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
                     {displayedFeatures.map(f => {
+                      const isTarget = automlTarget === f.name;
                       const isSelected = selectedFeatures.includes(f.name);
                       return (
                         <tr
                           key={f.name}
-                          onClick={() => toggleFeature(f.name)}
-                          className="cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                          style={{ background: isSelected ? "rgba(99,102,241,0.03)" : "transparent" }}>
+                          onClick={() => {
+                            if (!isTarget) toggleFeature(f.name);
+                          }}
+                          className={`transition-colors ${isTarget ? 'bg-indigo-500/5 dark:bg-indigo-500/10' : 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5'}`}
+                          style={{ background: isTarget ? "rgba(99,102,241,0.06)" : isSelected ? "rgba(99,102,241,0.02)" : "transparent" }}>
                           <td className="py-2 px-3 text-center" onClick={e => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleFeature(f.name)}
-                              className="rounded accent-[var(--accent)]"
-                            />
+                            {isTarget ? (
+                              <span className="inline-flex items-center justify-center w-4 h-4 rounded text-indigo-500 bg-indigo-500/15" title="Target variable">
+                                <Zap size={11} />
+                              </span>
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleFeature(f.name)}
+                                className="rounded accent-[var(--accent)] cursor-pointer"
+                              />
+                            )}
                           </td>
-                          <td className="py-2 px-3 font-semibold font-mono text-[11px]" style={{ color: isSelected ? "var(--txt)" : "var(--txt-m)" }}>
-                            {f.name}
-                            {f.is_id && <span className="ml-2 text-[9px] px-1 py-0.5 rounded font-sans font-bold bg-amber-500/10 text-amber-500">ID Candidate</span>}
+                          <td className="py-2 px-3 font-semibold font-mono text-[11px]" style={{ color: isTarget ? "var(--accent)" : isSelected ? "var(--txt)" : "var(--txt-m)" }}>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{f.name}</span>
+                              {isTarget && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-indigo-500 text-white">
+                                  TARGET (Y)
+                                </span>
+                              )}
+                              {f.is_id && (
+                                <span className="text-[9px] px-1 py-0.5 rounded font-sans font-bold bg-amber-500/10 text-amber-500">
+                                  ID Candidate
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                            {isTarget ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500">
+                                Target Variable
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAutomlTarget(f.name);
+                                  setCustomModelName(`${f.name.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
+                                }}
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all hover:bg-indigo-500/10 hover:border-indigo-500 text-indigo-500 cursor-pointer"
+                                style={{ borderColor: "var(--border)" }}>
+                                Set as Target
+                              </button>
+                            )}
                           </td>
                           <td className="py-2 px-3">
                             <span className="font-mono text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--border)", color: "var(--txt-m)" }}>
@@ -646,7 +864,9 @@ export function AutoMLTab() {
                             {f.n_unique}
                           </td>
                           <td className="py-2 px-3 font-mono text-[11px]">
-                            {f.correlation !== null ? (
+                            {isTarget ? (
+                              <span className="font-mono text-[10px] text-indigo-500 font-bold">1.000 (Target)</span>
+                            ) : f.correlation !== null ? (
                               <span style={{ color: Math.abs(f.correlation) >= 0.9 ? "#ef4444" : Math.abs(f.correlation) >= 0.4 ? "#10b981" : "var(--txt-m)" }}>
                                 {f.correlation > 0 ? `+${f.correlation.toFixed(3)}` : f.correlation.toFixed(3)}
                               </span>
@@ -655,7 +875,11 @@ export function AutoMLTab() {
                             )}
                           </td>
                           <td className="py-2 px-3">
-                            {f.leakage_risk === "high" ? (
+                            {isTarget ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500">
+                                <Zap size={10} /> Target
+                              </span>
+                            ) : f.leakage_risk === "high" ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-500">
                                 <AlertTriangle size={10} /> High Risk
                               </span>
