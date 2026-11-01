@@ -94,12 +94,38 @@ def safe_json_value(v: Any) -> Any:
     return v
 
 
-def df_profile(df: pd.DataFrame, filename: str = "") -> dict:
+def format_bytes(num_bytes: Optional[Union[int, float]]) -> str:
+    """Format byte counts into a readable string (e.g. 500 B, 45.2 KB, 1.4 MB, 2.1 GB)."""
+    if num_bytes is None or num_bytes < 0:
+        return "—"
+    if num_bytes < 1024:
+        return f"{int(num_bytes)} B"
+    elif num_bytes < 1024 * 1024:
+        return f"{num_bytes / 1024:.1f} KB"
+    elif num_bytes < 1024 * 1024 * 1024:
+        return f"{num_bytes / (1024 * 1024):.1f} MB"
+    else:
+        return f"{num_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+
+def df_profile(df: pd.DataFrame, filename: str = "", raw_bytes: Optional[int] = None) -> dict:
     """Compute a lightweight profile summary for a DataFrame."""
     missing     = int(df.isnull().sum().sum())
     numeric_cnt = int(len(df.select_dtypes(include=np.number).columns))
     total_cells = df.shape[0] * df.shape[1]
     miss_pct    = round(missing / max(total_cells, 1) * 100, 1)
+
+    if raw_bytes is not None and raw_bytes > 0:
+        size_bytes = int(raw_bytes)
+    else:
+        try:
+            size_bytes = int(df.memory_usage(deep=True).sum())
+        except Exception:
+            size_bytes = 0
+
+    size_human = format_bytes(size_bytes)
+    size_mb = round(size_bytes / (1024 * 1024), 2)
+
     columns = []
     for col, dtype in zip(df.columns, df.dtypes):
         null_pct = round(df[col].isnull().mean() * 100, 1)
@@ -111,6 +137,9 @@ def df_profile(df: pd.DataFrame, filename: str = "") -> dict:
         "filename": filename,
         "rows": df.shape[0], "cols": df.shape[1],
         "numeric": numeric_cnt, "missing": missing, "missing_pct": miss_pct,
+        "size_bytes": size_bytes,
+        "size_human": size_human,
+        "size_mb": size_mb,
         "columns": columns,
     }
 

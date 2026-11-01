@@ -22,12 +22,13 @@ class UploadService:
 
     def process_dataframe(self, df, filename: str, source_type: str,
                           user: User, source_config: Optional[dict] = None,
-                          org_id: Optional[str] = None) -> dict:
+                          org_id: Optional[str] = None,
+                          raw_bytes: Optional[int] = None) -> dict:
         """
         Profile a DataFrame, log it to DB, save to disk.
         Returns: {"upload_id": int, "profile": dict} or raises on error.
         """
-        profile = df_profile(df, filename)
+        profile = df_profile(df, filename, raw_bytes=raw_bytes)
         upload_id = self._log_upload(profile, source_type, user, source_config, org_id=org_id)
         if not upload_id:
             raise RuntimeError("Failed to create upload record in database")
@@ -41,6 +42,9 @@ class UploadService:
             "source_type": source_type,
             "rows": profile.get("rows", len(df)),
             "cols": profile.get("cols", len(df.columns)),
+            "size_bytes": profile.get("size_bytes", 0),
+            "size_human": profile.get("size_human", "—"),
+            "size_mb": profile.get("size_mb", 0.0),
             "storage_path": json.dumps(source_config) if source_config else None,
             "source_config": source_config,
             "org_id": org_id,

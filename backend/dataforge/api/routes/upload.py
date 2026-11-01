@@ -133,7 +133,7 @@ async def api_upload(
 
     target_org_id = workspace_id if (workspace_id and workspace_id != "personal") else None
     result = upload_service.process_dataframe(
-        df, filename, ext if ext in ("json", "parquet") else "csv", current_user, org_id=target_org_id
+        df, filename, ext if ext in ("json", "parquet") else "csv", current_user, org_id=target_org_id, raw_bytes=len(raw)
     )
     if ext in ("xls", "xlsx"):
         try:

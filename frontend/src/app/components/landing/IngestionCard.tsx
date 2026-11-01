@@ -24,6 +24,7 @@ import {
   Zap,
   Clock,
 } from "lucide-react";
+import { formatBytes } from "@/lib/format";
 import { GoogleSheetsLogo, MicrosoftExcelOnlineLogo } from "./DataLogos";
 
 interface IngestionCardProps {
@@ -176,7 +177,9 @@ export default function IngestionCard(props: IngestionCardProps) {
   const [wizardStep, setWizardStep] = useState<1 | 2>(1);
   const [loadingSampleId, setLoadingSampleId] = useState<string | null>(null);
   const [showPreviewDrawer, setShowPreviewDrawer] = useState(false);
-  const [recentDatasets, setRecentDatasets] = useState<Array<{ id: string; filename: string; rows?: number; cols?: number }>>([]);
+  const [recentDatasets, setRecentDatasets] = useState<
+    Array<{ id: string; filename: string; rows?: number; cols?: number; size_bytes?: number; size_human?: string }>
+  >([]);
 
   // Load Ingestion History scoped to active workspace (Only if user is logged in)
   useEffect(() => {
@@ -307,11 +310,23 @@ export default function IngestionCard(props: IngestionCardProps) {
                     {props.sourceTab === "sheets" ? "GS" : props.sourceTab === "excel" ? "XLS" : props.sourceTab === "database" ? "SQL" : "CSV"}
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 size={14} className="text-emerald-400" />
-                      <p className="font-bold text-sm truncate max-w-[200px]" style={{ color: "var(--txt)" }}>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                      <p className="font-bold text-sm truncate max-w-[180px]" style={{ color: "var(--txt)" }}>
                         {props.fileName}
                       </p>
+                      {(props.profile?.size_human || props.profile?.size_bytes) && (
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border shrink-0"
+                          style={{
+                            background: "rgba(16, 185, 129, 0.1)",
+                            borderColor: "rgba(16, 185, 129, 0.3)",
+                            color: "#10b981",
+                          }}
+                        >
+                          {props.profile.size_human || formatBytes(props.profile.size_bytes)}
+                        </span>
+                      )}
                     </div>
                     <p className="text-[10px] font-mono uppercase tracking-wider mt-0.5" style={{ color: "var(--txt-m)" }}>
                       Dataset Ingested & Profiled
@@ -330,7 +345,7 @@ export default function IngestionCard(props: IngestionCardProps) {
               </div>
 
               {props.profile && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   <div className="p-3 rounded-xl border text-center" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
                     <p className="text-[9px] font-mono font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Rows</p>
                     <p className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>{props.profile.rows?.toLocaleString()}</p>
@@ -340,10 +355,16 @@ export default function IngestionCard(props: IngestionCardProps) {
                     <p className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>{props.profile.cols}</p>
                   </div>
                   <div className="p-3 rounded-xl border text-center" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
+                    <p className="text-[9px] font-mono font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Size</p>
+                    <p className="text-lg font-black tracking-tight mt-0.5 font-mono" style={{ color: "#10b981" }}>
+                      {props.profile.size_human || (props.profile.size_bytes ? formatBytes(props.profile.size_bytes) : "—")}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl border text-center" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
                     <p className="text-[9px] font-mono font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Numeric</p>
                     <p className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>{props.profile.numeric}</p>
                   </div>
-                  <div className="p-3 rounded-xl border text-center" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
+                  <div className="p-3 rounded-xl border text-center col-span-2 sm:col-span-1" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
                     <p className="text-[9px] font-mono font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Null Rate</p>
                     <p className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>{props.profile.missing_pct}%</p>
                   </div>
@@ -465,15 +486,20 @@ export default function IngestionCard(props: IngestionCardProps) {
                             key={ds.id}
                             type="button"
                             onClick={() => props.goToWorkspace(ds.id)}
-                            className="px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all hover:border-[var(--accent)] hover:bg-white/5 active:scale-95 cursor-pointer max-w-[130px] truncate"
+                            className="px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all hover:border-[var(--accent)] hover:bg-white/5 active:scale-95 cursor-pointer max-w-[170px] flex items-center gap-1.5"
                             style={{
                               background: "rgba(255, 255, 255, 0.03)",
                               borderColor: "var(--border)",
                               color: "var(--txt)",
                             }}
-                            title={`Reopen ${ds.filename}`}
+                            title={`Reopen ${ds.filename} (${ds.size_human || (ds.size_bytes ? formatBytes(ds.size_bytes) : "")})`}
                           >
-                            <span className="truncate">{ds.filename}</span>
+                            <span className="truncate max-w-[95px]">{ds.filename}</span>
+                            {(ds.size_human || ds.size_bytes) && (
+                              <span className="text-[9px] font-mono opacity-70 shrink-0 text-emerald-400">
+                                {ds.size_human || formatBytes(ds.size_bytes)}
+                              </span>
+                            )}
                           </button>
                         ))}
                       </div>

@@ -30,6 +30,7 @@ import {
   FileSpreadsheet,
   Database,
 } from "lucide-react";
+import { formatBytes } from "@/lib/format";
 
 interface WorkspaceLaunchModalProps {
   isOpen: boolean;
@@ -1051,8 +1052,12 @@ export default function WorkspaceLaunchModal({
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2.5 text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
+                          <div className="flex items-center gap-2 text-[10px] font-mono flex-wrap" style={{ color: "var(--txt-m)" }}>
                             <span>{ds.rows?.toLocaleString() || 0} rows × {ds.cols || 0} cols</span>
+                            <span>•</span>
+                            <span className="font-semibold text-emerald-400">
+                              {ds.size_human || (ds.size_bytes ? formatBytes(ds.size_bytes) : "—")}
+                            </span>
                             <span>•</span>
                             <span>{ds.time_ago || "recently"}</span>
                           </div>
@@ -1215,8 +1220,8 @@ export default function WorkspaceLaunchModal({
                               <CheckCircle2 size={14} className="text-emerald-500" />
                               {selectedFile.name}
                             </p>
-                            <p className="text-[11px] text-[var(--txt-f)] font-mono">
-                              {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                            <p className="text-[11px] font-mono font-semibold text-emerald-400">
+                              {formatBytes(selectedFile.size)}
                             </p>
                             <button
                               type="button"
@@ -1256,7 +1261,7 @@ export default function WorkspaceLaunchModal({
                                 type="button"
                                 onClick={() => handleLaunchExistingDataset(ds.id)}
                                 className="text-[var(--txt)] hover:text-indigo-400 transition-colors cursor-pointer max-w-[130px] truncate underline"
-                                title={`Open ${ds.filename}`}
+                                title={`Open ${ds.filename} (${ds.size_human || (ds.size_bytes ? formatBytes(ds.size_bytes) : "")})`}
                               >
                                 {ds.filename}
                               </button>

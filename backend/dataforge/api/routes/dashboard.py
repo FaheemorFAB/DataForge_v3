@@ -69,6 +69,7 @@ async def api_dashboard_init(
     from dataforge.teams.manager import TeamManager
     from dataforge.models.registry import ModelRegistry
     from dataforge.api.storage.manager import STORE_DIR, load
+    from dataforge.api.utils.helpers import format_bytes
     
     user = current_user
     is_team_workspace = bool(workspace_id and workspace_id != "personal")
@@ -78,6 +79,28 @@ async def api_dashboard_init(
         role = TeamManager.get_user_role(workspace_id, user.id, user_email=user.email)
         if not role:
             raise HTTPException(status_code=403, detail="Access denied: You are not a member of this workspace")
+
+    def _resolve_size(item_id, meta_dict=None):
+        if meta_dict and isinstance(meta_dict, dict):
+            if meta_dict.get("size_human"):
+                return meta_dict.get("size_bytes", 0), meta_dict.get("size_human")
+            if meta_dict.get("size_bytes"):
+                return meta_dict["size_bytes"], format_bytes(meta_dict["size_bytes"])
+        try:
+            target_dir = STORE_DIR / str(item_id)
+            if target_dir.exists():
+                for candidate in ("raw_workbook.xlsx", "df_raw.parquet", "df_raw.csv"):
+                    f = target_dir / candidate
+                    if f.exists():
+                        sz = f.stat().st_size
+                        return sz, format_bytes(sz)
+                prof = load(str(item_id), "profile")
+                if prof and isinstance(prof, dict):
+                    if prof.get("size_bytes"):
+                        return prof["size_bytes"], format_bytes(prof["size_bytes"])
+        except Exception:
+            pass
+        return 0, "—"
 
     def _time_ago_local(dt_str):
         if not dt_str: return ""
@@ -104,10 +127,14 @@ async def api_dashboard_init(
             for u in db_uploads:
                 uid_str = str(u.get("id"))
                 seen_ids.add(uid_str)
+                m = load(uid_str, "meta")
+                sz_bytes, sz_human = _resolve_size(uid_str, m)
                 uploads_data.append({
                     "filename":    u.get("filename", ""),
                     "rows":        u.get("rows", 0) or 0,
                     "cols":        u.get("cols", 0) or 0,
+                    "size_bytes":  sz_bytes,
+                    "size_human":  sz_human,
                     "missing_pct": u.get("missing_pct", 0) or 0,
                     "time_ago":    _time_ago_local(u.get("uploaded_at")),
                     "id":          uid_str,
@@ -130,10 +157,13 @@ async def api_dashboard_init(
                         if (m_org and str(m_org) == str(workspace_id)) or (m_ws and str(m_ws) == str(workspace_id)):
                             seen_ids.add(item.name)
                             created_ts = m.get("created_at") or m.get("uploaded_at")
+                            sz_bytes, sz_human = _resolve_size(item.name, m)
                             uploads_data.append({
                                 "filename":    m.get("filename", item.name),
                                 "rows":        m.get("rows", 0) or 0,
                                 "cols":        m.get("cols", 0) or 0,
+                                "size_bytes":  sz_bytes,
+                                "size_human":  sz_human,
                                 "missing_pct": m.get("missing_pct", 0) or 0,
                                 "time_ago":    _time_ago_local(created_ts),
                                 "id":          m.get("id", item.name),
@@ -158,10 +188,13 @@ async def api_dashboard_init(
                 if m and (m.get("org_id") or (m.get("workspace_id") and m.get("workspace_id") != "personal")):
                     continue  # Belongs to an org workspace, skip in personal
                 seen_ids.add(uid_str)
+                sz_bytes, sz_human = _resolve_size(uid_str, m)
                 uploads_data.append({
                     "filename":    u.get("filename", ""),
                     "rows":        u.get("rows", 0) or 0,
                     "cols":        u.get("cols", 0) or 0,
+                    "size_bytes":  sz_bytes,
+                    "size_human":  sz_human,
                     "missing_pct": u.get("missing_pct", 0) or 0,
                     "time_ago":    _time_ago_local(u.get("uploaded_at")),
                     "id":          uid_str,
@@ -194,10 +227,13 @@ async def api_dashboard_init(
                         if is_owner:
                             seen_ids.add(item.name)
                             created_ts = m.get("created_at") or m.get("uploaded_at")
+                            sz_bytes, sz_human = _resolve_size(item.name, m)
                             uploads_data.append({
                                 "filename":    m.get("filename", item.name),
                                 "rows":        m.get("rows", 0) or 0,
                                 "cols":        m.get("cols", 0) or 0,
+                                "size_bytes":  sz_bytes,
+                                "size_human":  sz_human,
                                 "missing_pct": m.get("missing_pct", 0) or 0,
                                 "time_ago":    _time_ago_local(created_ts),
                                 "id":          item.name,

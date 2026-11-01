@@ -40,6 +40,7 @@ import {
   Crown,
   ChevronDown,
 } from "lucide-react";
+import { formatBytes } from "@/lib/format";
 
 interface DatasetItem {
   id: number | string;
@@ -50,6 +51,8 @@ interface DatasetItem {
   missing_pct: number;
   time_ago: string;
   has_clean?: boolean;
+  size_bytes?: number;
+  size_human?: string;
 }
 
 interface ModelItem {
@@ -1642,6 +1645,7 @@ export default function DashboardPage() {
                       <th className="px-5 py-3">Source</th>
                       <th className="px-5 py-3">Rows</th>
                       <th className="px-5 py-3">Columns</th>
+                      <th className="px-5 py-3">Size</th>
                       <th className="px-5 py-3">Quality</th>
                       <th className="px-5 py-3">Added</th>
                       <th className="px-5 py-3 text-right">Actions</th>
@@ -1651,7 +1655,7 @@ export default function DashboardPage() {
                     {datasets.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="px-5 py-8 text-center text-xs"
                           style={{ color: "var(--txt-m)" }}
                         >
@@ -1688,6 +1692,9 @@ export default function DashboardPage() {
                           </td>
                           <td className="px-5 py-3.5 font-mono font-medium" style={{ color: "var(--txt)" }}>
                             {d.cols}
+                          </td>
+                          <td className="px-5 py-3.5 font-mono font-semibold text-xs" style={{ color: "#10b981" }}>
+                            {d.size_human || (d.size_bytes ? formatBytes(d.size_bytes) : "—")}
                           </td>
                           <td className="px-5 py-3.5">
                             <span
