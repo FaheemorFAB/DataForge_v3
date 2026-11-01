@@ -249,7 +249,7 @@ async def api_workspace_state(
 async def api_preview(
     current_user: CurrentUser,
     upload_id: Optional[str] = Query(default=None),
-    limit: int = Query(default=500, ge=50, le=5000),
+    limit: int = Query(default=500, ge=10, le=100000),
     clean: bool = Query(default=False),
     columns: Optional[str] = Query(default=None),
 ):

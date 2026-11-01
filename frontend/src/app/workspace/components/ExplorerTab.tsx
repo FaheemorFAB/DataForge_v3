@@ -85,6 +85,14 @@ export function ExplorerTab() {
     [rowLimit, showClean, cleanProfile, uploadId, profile?.rows, profile?.cols]
   );
 
+  const handleLoadMore = useCallback(() => {
+    const currentCount = loadedRows || rowLimit;
+    const maxRows = totalRows || activeProfile?.rows || 100000;
+    const nextLimit = Math.min(maxRows, currentCount + 500);
+    setRowLimit(nextLimit);
+    reloadData(nextLimit);
+  }, [loadedRows, rowLimit, totalRows, activeProfile?.rows, reloadData]);
+
   useEffect(() => {
     reloadData();
   }, [reloadData]);
@@ -539,18 +547,8 @@ export function ExplorerTab() {
           <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-black tracking-tight" style={{ color: "var(--txt)" }}>
-              Live Memory Explorer
+              Live Explorer
             </h3>
-            <span
-              className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border"
-              style={{
-                background: "var(--glow)",
-                borderColor: "var(--accent)",
-                color: "var(--accent)",
-              }}
-            >
-              {filteredAndSortedRows.length.toLocaleString()} rows visible
-            </span>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -578,8 +576,12 @@ export function ExplorerTab() {
             {/* Row Limit Selector */}
             <select
               value={rowLimit}
-              onChange={(e) => setRowLimit(Number(e.target.value))}
-              className="rounded-xl px-3 py-1.5 text-xs focus:outline-none border font-semibold"
+              onChange={(e) => {
+                const newLim = Number(e.target.value);
+                setRowLimit(newLim);
+                reloadData(newLim);
+              }}
+              className="rounded-xl px-3 py-1.5 text-xs focus:outline-none border font-semibold cursor-pointer"
               style={{
                 background: "var(--inp-bg)",
                 borderColor: "var(--border)",
@@ -590,6 +592,10 @@ export function ExplorerTab() {
               <option value="500">500 rows</option>
               <option value="1000">1,000 rows</option>
               <option value="2000">2,000 rows</option>
+              <option value="5000">5,000 rows</option>
+              {![200, 500, 1000, 2000, 5000].includes(rowLimit) && (
+                <option value={rowLimit}>{rowLimit.toLocaleString()} rows</option>
+              )}
             </select>
 
             {/* Clean filter toggle */}
@@ -864,17 +870,28 @@ export function ExplorerTab() {
               </select>
             </div>
 
-            {loadedRows < totalRows && (
+            {loadedRows < totalRows ? (
               <button
-                onClick={() =>
-                  reloadData(rowLimit < 2000 ? rowLimit + 500 : rowLimit)
-                }
-                className="text-xs font-bold transition-colors cursor-pointer"
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loading}
+                className="text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 hover:underline"
                 style={{ color: "var(--accent)" }}
               >
-                Load Next 500 Records +
+                {loading ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" />
+                    <span>Loading rows...</span>
+                  </>
+                ) : (
+                  <span>Load Next 500 Records +</span>
+                )}
               </button>
-            )}
+            ) : totalRows > 0 ? (
+              <span className="text-xs font-mono font-medium" style={{ color: "var(--txt-m)" }}>
+                All {totalRows.toLocaleString()} rows loaded
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
