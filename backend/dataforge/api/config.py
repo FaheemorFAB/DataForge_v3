@@ -252,8 +252,8 @@ class Settings(BaseSettings):
     DODO_PAYMENTS_API_KEY: Optional[str] = None
     DODO_PAYMENTS_WEBHOOK_KEY: Optional[str] = None
     DODO_PAYMENTS_ENVIRONMENT: str = "test_mode"  # "test_mode" or "live_mode"
-    DODO_PRODUCT_PRO_MONTHLY: str = "pdt_pro_monthly_29"
-    DODO_PRODUCT_TEAM_MONTHLY: str = "pdt_team_monthly_79"
+    DODO_PRODUCT_PRO_MONTHLY: str = "pdt_0Nq982Kd8DHmCrFIX4XC2"
+    DODO_PRODUCT_TEAM_MONTHLY: str = "pdt_0Nq98DJ0O2SJ5pqxJeFHz"
 
     # ── Clerk Authentication ──────────────────────────────────────────────────
     CLERK_PUBLISHABLE_KEY: Optional[str] = None

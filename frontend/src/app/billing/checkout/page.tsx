@@ -6,18 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
   ShieldCheck,
-  Zap,
   ArrowRight,
   ArrowLeft,
-  CreditCard,
   Lock,
   Sparkles,
-  Layers,
-  Database,
-  Users,
-  Code,
-  HelpCircle,
-  ExternalLink,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -41,7 +33,7 @@ const PLANS: Record<string, PlanConfig> = {
     description: "For solo data analysts & practitioners requiring advanced exports, EDA slides & AutoML Docker containers.",
     dodoProductId: "pdt_0Nq982Kd8DHmCrFIX4XC2",
     features: [
-      "Unlimited Data Ingestion (no file count or monthly ingest caps)",
+      "Unlimited Data Ingestion (no file count caps)",
       "250,000 rows in-memory DuckDB processing (10x Free)",
       "Cloud Storage: 5 GB workspace storage (20x Free)",
       "Data Ingestion: Local CSV/Excel, Google Sheets & OneDrive/M365",
@@ -49,8 +41,8 @@ const PLANS: Record<string, PlanConfig> = {
       "Executive EDA presentation slides export (PPTX & PDF)",
       "AutoML production Docker containers & deployment files",
       "Pipeline Code Export: Standalone Python & dbt models",
-      "50 AutoML tournaments / month (10x Free)",
-      "250 AI natural-language queries / month (10x Free)",
+      "50 AutoML tournaments / month",
+      "250 AI natural-language queries / month",
       "Relational Join Studio & multi-table merge",
       "Priority email support",
     ],
@@ -60,19 +52,19 @@ const PLANS: Record<string, PlanConfig> = {
     name: "Team Collaboration",
     priceMonthly: 79,
     rowLimit: "Up to 1,000,000 Rows • 25 GB Storage",
-    description: "For analytics teams requiring shared datasets, collaboration with 3 roles and database connections.",
+    description: "For analytics teams requiring shared datasets, multi-role collaboration, and shared database vaults.",
     dodoProductId: "pdt_0Nq98DJ0O2SJ5pqxJeFHz",
     features: [
       "Multi-user team collaboration with 3 roles: Viewer, Analyst, Admin",
       "Up to 5 team member seats with role permissions",
       "Shared Database Connection Vault (PostgreSQL, MySQL, SQLite, DuckDB)",
-      "1,000,000 rows processing with out-of-core streaming (4x Pro, 40x Free)",
-      "25 GB shared organization storage (5x Pro)",
+      "1,000,000 rows processing with out-of-core streaming",
+      "25 GB shared organization storage",
       "Unlimited Team Data Ingestion & Pipeline Uploads",
       "Apache Airflow production DAG exports & pipeline code",
       "Direct Database Push & Cross-team exports",
-      "200 AutoML tournaments / month & Model Registry REST API (4x Pro)",
-      "1,000 AI natural-language queries / month (4x Pro)",
+      "200 AutoML tournaments / month & Model Registry REST API",
+      "1,000 AI natural-language queries / month",
       "Immutable governance audit logs & compliance trail",
     ],
   },
@@ -81,17 +73,15 @@ const PLANS: Record<string, PlanConfig> = {
 function BillingCheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialPlan = searchParams.get("plan")?.toLowerCase() || "pro";
-  const selectedPlanKey = initialPlan in PLANS ? initialPlan : "pro";
+  const rawPlan = searchParams.get("plan")?.toLowerCase();
+  const activePlanKey = rawPlan && rawPlan in PLANS ? rawPlan : "team";
 
-  const [activePlan, setActivePlan] = useState<string>(selectedPlanKey);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSandboxActivating, setIsSandboxActivating] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
   const { user } = useAuth();
-  const plan = PLANS[activePlan] || PLANS.pro;
+  const plan = PLANS[activePlanKey] || PLANS.team;
   const currentPrice = plan.priceMonthly;
 
   useEffect(() => {
@@ -103,7 +93,7 @@ function BillingCheckoutContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          plan: activePlan,
+          plan: activePlanKey,
           direct_apply: true,
         }),
       }).catch(() => {});
@@ -114,7 +104,7 @@ function BillingCheckoutContent() {
     } else if (status === "failed") {
       setErrorMsg("Payment was unsuccessful or cancelled. Please try again.");
     }
-  }, [searchParams, activePlan, plan.name, router]);
+  }, [searchParams, activePlanKey, plan.name, router]);
 
   const handleActivatePlan = async () => {
     setIsLoading(true);
@@ -126,7 +116,7 @@ function BillingCheckoutContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          plan: activePlan,
+          plan: activePlanKey,
           direct_apply: false,
         }),
       });
@@ -154,258 +144,127 @@ function BillingCheckoutContent() {
     }
   };
 
-  const handleDevDirectUpgrade = async () => {
-    setIsSandboxActivating(true);
-    setErrorMsg("");
-    try {
-      const res = await apiFetch("/subscription/upgrade", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan: activePlan,
-          direct_apply: true,
-        }),
-      });
-      if (res.ok) {
-        setSuccessMsg(`✓ Successfully upgraded to ${plan.name}! Redirecting to workspace...`);
-        setTimeout(() => {
-          router.push("/workspace");
-        }, 1200);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setErrorMsg(data.detail || "Direct upgrade failed.");
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || "Network error");
-    } finally {
-      setIsSandboxActivating(false);
-    }
-  };
-
   return (
     <div
-      className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 flex flex-col justify-between"
+      className="min-h-screen py-10 px-4 sm:px-6 lg:px-8 flex flex-col justify-between"
       style={{ background: "var(--bg)", color: "var(--txt)" }}
     >
-      <div className="max-w-4xl mx-auto w-full">
+      <div className="max-w-xl mx-auto w-full">
         {/* Navigation / Back */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <Link
-            href="/workspace"
+            href="/pricing"
             className="flex items-center gap-1.5 text-xs font-bold transition-opacity hover:opacity-80"
             style={{ color: "var(--txt-m)" }}
           >
             <ArrowLeft size={14} />
-            <span>Back to Workspace</span>
+            <span>Change Plan / Back to Pricing</span>
           </Link>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <span
-              className="px-2.5 py-1 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider"
+        {/* Minimalist Order Summary Card */}
+        <div
+          className="p-6 sm:p-8 rounded-2xl border shadow-2xl space-y-6"
+          style={{ background: "var(--card)", borderColor: "var(--border)" }}
+        >
+          {/* Header & Pricing */}
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b pb-5" style={{ borderColor: "var(--border)" }}>
+            <div>
+              <span className="text-[11px] font-mono uppercase font-bold text-indigo-400 tracking-wider">
+                Subscription Checkout
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black mt-1" style={{ color: "var(--txt)" }}>
+                {plan.name}
+              </h2>
+              <p className="text-xs mt-1 max-w-sm" style={{ color: "var(--txt-m)" }}>
+                {plan.description}
+              </p>
+            </div>
+
+            <div className="sm:text-right">
+              <div className="text-3xl font-black font-mono" style={{ color: "var(--txt)" }}>
+                ${currentPrice}
+                <span className="text-sm font-bold text-indigo-400 ml-1">
+                  /month
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-emerald-400 font-bold block mt-0.5">
+                Billed Monthly · Cancel Anytime
+              </span>
+            </div>
+          </div>
+
+          {/* Capacity Pill */}
+          <div
+            className="flex items-center justify-between px-3.5 py-2 rounded-xl border text-xs"
+            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+          >
+            <span className="font-mono text-[11px] text-[var(--txt-m)] uppercase font-semibold">Capacity</span>
+            <span className="font-bold text-indigo-300 font-mono text-xs">{plan.rowLimit}</span>
+          </div>
+
+          {/* Included Capabilities */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-400">
+              <Sparkles size={13} className="shrink-0" />
+              <span>Included Capabilities & Entitlements:</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {plan.features.map((feat, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <div className="w-4 h-4 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <Check size={11} strokeWidth={3} />
+                  </div>
+                  <span style={{ color: "var(--txt)" }}>{feat}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Feedback Alerts */}
+          {errorMsg && (
+            <div className="p-3.5 rounded-xl border bg-rose-500/10 border-rose-500/20 text-rose-400 text-xs font-mono">
+              ⚠ {errorMsg}
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="p-3.5 rounded-xl border bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-xs font-mono">
+              {successMsg}
+            </div>
+          )}
+
+          {/* Checkout Action Button */}
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={handleActivatePlan}
+              disabled={isLoading}
+              className="w-full py-3.5 px-6 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xl"
               style={{
-                background: "var(--glow)",
-                color: "var(--accent)",
-                border: "1px solid var(--accent)",
+                background: "var(--accent)",
+                color: "#ffffff",
+                boxShadow: "0 4px 16px var(--glow)",
               }}
             >
-              Dodo Payments Merchant of Record
-            </span>
-          </div>
-        </div>
+              <Lock size={15} />
+              <span>{isLoading ? "Connecting to Dodo Payments..." : `Proceed to Checkout ($${currentPrice}/month)`}</span>
+              <ArrowRight size={15} />
+            </button>
 
-        {/* Title & Plan Switcher */}
-        <div className="text-center mb-10">
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight" style={{ color: "var(--txt)" }}>
-            Upgrade Your DataForge Workspace
-          </h1>
-          <p className="text-sm mt-2 max-w-lg mx-auto" style={{ color: "var(--txt-m)" }}>
-            Unlock out-of-core DuckDB relational queries, Stored Procedure automation, and leak-free AutoML.
-          </p>
-        </div>
-
-        {/* Main Checkout Card Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          {/* Plan Selector Sidebar */}
-          <div className="space-y-3">
-            <label className="text-xs font-mono uppercase tracking-wider font-bold" style={{ color: "var(--txt-m)" }}>
-              Select Tier
-            </label>
-
-            {Object.values(PLANS).map((p) => {
-              const isSelected = activePlan === p.id;
-              const price = p.priceMonthly;
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => setActivePlan(p.id)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-                    isSelected
-                      ? "border-[var(--accent)] shadow-lg shadow-[var(--accent)]/10"
-                      : "hover:border-[var(--txt-m)]/40"
-                  }`}
-                  style={{
-                    background: isSelected ? "var(--surface)" : "var(--card)",
-                    borderColor: isSelected ? "var(--accent)" : "var(--border)",
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm" style={{ color: "var(--txt)" }}>
-                      {p.name}
-                    </span>
-                    <span className="text-sm font-black font-mono" style={{ color: "var(--accent)" }}>
-                      ${price}/mo
-                    </span>
-                  </div>
-                  <p className="text-[11px] mt-1 line-clamp-2" style={{ color: "var(--txt-m)" }}>
-                    {p.rowLimit}
-                  </p>
-                </div>
-              );
-            })}
-
-            {/* Merchant Trust Badge */}
-            <div
-              className="p-4 rounded-2xl border mt-6 space-y-2.5 text-xs"
-              style={{ background: "var(--card)", borderColor: "var(--border)" }}
-            >
-              <div className="flex items-center gap-2 font-bold text-emerald-500">
-                <ShieldCheck size={16} />
-                <span>Dodo Payments Certified Checkout</span>
-              </div>
-              <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
-                Payments, sales tax, VAT, and invoices are handled securely by Dodo Payments (Merchant of Record). Cancel anytime with 1-click.
-              </p>
-              <div className="flex items-center gap-2 pt-1 font-mono text-[10px]" style={{ color: "var(--txt-m)" }}>
-                <Lock size={11} />
-                <span>256-bit TLS · PCI-DSS Level 1</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Plan Details & Order Summary */}
-          <div
-            className="md:col-span-2 p-6 sm:p-8 rounded-2xl border shadow-2xl space-y-6"
-            style={{ background: "var(--card)", borderColor: "var(--border)" }}
-          >
-            <div className="flex items-center justify-between border-b pb-5" style={{ borderColor: "var(--border)" }}>
-              <div>
-                <span className="text-xs font-mono uppercase font-bold text-indigo-400">
-                  Order Summary
-                </span>
-                <h3 className="text-2xl font-black mt-1" style={{ color: "var(--txt)" }}>
-                  {plan.name}
-                </h3>
-                <p className="text-xs mt-0.5" style={{ color: "var(--txt-m)" }}>
-                  {plan.description}
-                </p>
-              </div>
-
-              <div className="text-right">
-                <div className="text-3xl font-black font-mono" style={{ color: "var(--txt)" }}>
-                  ${currentPrice}
-                  <span className="text-xs font-normal ml-1" style={{ color: "var(--txt-m)" }}>
-                    one-time
-                  </span>
-                </div>
-                <span className="text-[10px] font-mono text-emerald-500 font-bold">
-                  One-Time Payment • Lifetime Access
-                </span>
-              </div>
-            </div>
-
-            {/* Included Features */}
-            <div>
-              {plan.id === "pro" && (
-                <div
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3.5 shadow-sm"
-                  style={{
-                    background: "var(--surface)",
-                    borderColor: "var(--accent)",
-                    color: "var(--accent)",
-                  }}
-                >
-                  <Sparkles size={13} className="shrink-0" />
-                  <span>Everything in Free Starter, plus:</span>
-                </div>
-              )}
-              {plan.id === "team" && (
-                <div
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold mb-3.5 shadow-sm"
-                  style={{
-                    background: "var(--surface)",
-                    borderColor: "var(--accent)",
-                    color: "var(--accent)",
-                  }}
-                >
-                  <Sparkles size={13} className="shrink-0" />
-                  <span>Everything in Pro Analyst, plus:</span>
-                </div>
-              )}
-              <h4 className="text-xs font-mono uppercase font-bold mb-3" style={{ color: "var(--txt-m)" }}>
-                Exclusive Capabilities & Entitlements:
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {plan.features.map((feat, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
-                      <Check size={11} strokeWidth={3} />
-                    </div>
-                    <span style={{ color: "var(--txt)" }}>{feat}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {errorMsg && (
-              <div className="p-3.5 rounded-xl border bg-rose-500/10 border-rose-500/20 text-rose-400 text-xs font-mono">
-                ⚠ {errorMsg}
-              </div>
-            )}
-
-            {successMsg && (
-              <div className="p-3.5 rounded-xl border bg-emerald-500/10 border-emerald-500/20 text-emerald-400 text-xs font-mono">
-                {successMsg}
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="space-y-3 pt-2">
-              <button
-                onClick={handleActivatePlan}
-                disabled={isLoading}
-                className="w-full py-3.5 px-6 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xl"
-                style={{
-                  background: "var(--accent)",
-                  color: "#ffffff",
-                  boxShadow: "0 4px 16px var(--glow)",
-                }}
-              >
-                <Lock size={16} />
-                <span>{isLoading ? "Connecting to Dodo Payments..." : `Pay $${currentPrice} via Dodo Payments (One-Time)`}</span>
-                <ArrowRight size={16} />
-              </button>
-
-              <div className="flex items-center justify-between pt-1 px-1">
-                <span className="text-[11px] font-mono text-emerald-400">
-                  ✓ 100% Certified Checkout via Dodo Payments
-                </span>
-                <button
-                  type="button"
-                  onClick={handleDevDirectUpgrade}
-                  disabled={isSandboxActivating}
-                  className="text-[11px] font-mono text-[var(--txt-m)] hover:text-indigo-400 underline cursor-pointer"
-                >
-                  {isSandboxActivating ? "Activating..." : "Developer Bypass"}
-                </button>
-              </div>
+            <div className="flex items-center justify-center gap-1.5 pt-1 text-center">
+              <ShieldCheck size={13} className="text-emerald-400" />
+              <span className="text-[11px] font-mono text-[var(--txt-m)]">
+                Secure 256-bit encrypted checkout via Dodo Payments
+              </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="mt-16 text-center text-xs border-t pt-6" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
-        <p>DataForge Inc. · Powered by Dodo Payments (Merchant of Record)</p>
+      {/* Minimal Footer */}
+      <footer className="mt-12 text-center text-xs" style={{ color: "var(--txt-m)" }}>
+        <p>DataForge Inc. · Powered by Dodo Payments</p>
       </footer>
     </div>
   );
