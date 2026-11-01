@@ -28,7 +28,7 @@ class UploadService:
         Returns: {"upload_id": int, "profile": dict} or raises on error.
         """
         profile = df_profile(df, filename)
-        upload_id = self._log_upload(profile, source_type, user, source_config)
+        upload_id = self._log_upload(profile, source_type, user, source_config, org_id=org_id)
         if not upload_id:
             raise RuntimeError("Failed to create upload record in database")
 
@@ -61,7 +61,8 @@ class UploadService:
         return {"upload_id": upload_id, "profile": profile}
 
     def _log_upload(self, profile: dict, source_type: str, user: User,
-                    source_config: Optional[dict] = None) -> Optional[str]:
+                    source_config: Optional[dict] = None,
+                    org_id: Optional[str] = None) -> Optional[str]:
         import uuid
         local_id = f"df_{uuid.uuid4().hex[:10]}"
         user_id = getattr(user, "id", None)
@@ -79,6 +80,8 @@ class UploadService:
             "missing_pct": profile.get("missing_pct", 0.0),
             "source_type": source_type,
             "storage_path": json.dumps(source_config) if source_config and source_type != "csv" else None,
+            "org_id": org_id,
+            "workspace_id": org_id if org_id else "personal",
         }
         res = upload_repo.create(data)
         if res and res.get("id"):

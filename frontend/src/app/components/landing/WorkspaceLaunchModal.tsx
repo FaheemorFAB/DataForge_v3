@@ -364,8 +364,10 @@ export default function WorkspaceLaunchModal({
 
   const loadHistory = async (wsId: string) => {
     setHistoryLoading(true);
+    setHistoryDatasets([]); // Clear immediately to avoid displaying another workspace's datasets
     try {
-      const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(wsId)}`);
+      const targetWs = wsId || "personal";
+      const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(targetWs)}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.recent_uploads)) {
@@ -373,9 +375,11 @@ export default function WorkspaceLaunchModal({
         } else {
           setHistoryDatasets([]);
         }
+      } else {
+        setHistoryDatasets([]);
       }
     } catch {
-      // non-blocking
+      setHistoryDatasets([]);
     } finally {
       setHistoryLoading(false);
     }

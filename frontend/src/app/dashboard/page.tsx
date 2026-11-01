@@ -154,6 +154,23 @@ export default function DashboardPage() {
   const [createWorkspaceError, setCreateWorkspaceError] = useState<string>("");
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
 
+  // Workspace Shift Transition Modal State
+  const [workspaceShiftModal, setWorkspaceShiftModal] = useState<{
+    isOpen: boolean;
+    fromName: string;
+    fromId: string;
+    toName: string;
+    toId: string;
+    toRole?: string;
+  }>({
+    isOpen: false,
+    fromName: "",
+    fromId: "",
+    toName: "",
+    toId: "",
+    toRole: "",
+  });
+
   // System Stats
   const [stats, setStats] = useState({
     uploads: 0,
@@ -389,17 +406,53 @@ export default function DashboardPage() {
     initAllDashboard();
   }, []);
 
-  const handleSwitchWorkspace = (workspaceId: string) => {
-    setActiveWorkspace(workspaceId);
+  const handleSwitchWorkspace = (workspaceId: string, skipModal: boolean = false) => {
     setWorkspaceDropdownOpen(false);
+    if (workspaceId === activeWorkspace) return;
+
+    const fromId = activeWorkspace;
+    const toId = workspaceId;
+
+    const getWsName = (id: string) => {
+      if (id === "personal") return "Personal Space";
+      const t = teams.find((item) => item.id === id);
+      return t ? t.name : "Analysis Workspace";
+    };
+
+    const getWsRole = (id: string) => {
+      if (id === "personal") return "Owner";
+      const t = teams.find((item) => item.id === id);
+      return t ? t.myRole : "Member";
+    };
+
+    const fromName = getWsName(fromId);
+    const toName = getWsName(toId);
+    const toRole = getWsRole(toId);
+
+    setActiveWorkspace(workspaceId);
     try {
       localStorage.setItem("df_active_workspace", workspaceId);
     } catch {}
+
+    // Immediately clear stale datasets to prevent flickering old workspace items
+    setDatasets([]);
     loadDashboardData(workspaceId);
+
+    if (!skipModal) {
+      setWorkspaceShiftModal({
+        isOpen: true,
+        fromName,
+        fromId,
+        toName,
+        toId,
+        toRole,
+      });
+    }
   };
 
   const loadDashboardData = async (wsId: string) => {
     setLoadingDatasets(true);
+    setDatasets([]);
     try {
       const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(wsId)}`);
       if (res.ok) {
@@ -775,7 +828,7 @@ export default function DashboardPage() {
         } catch {}
 
         // Switch to newly created workspace
-        handleSwitchWorkspace(createdOrg.id);
+        handleSwitchWorkspace(createdOrg.id, true);
 
         setCreateWorkspaceModalOpen(false);
         setNewWorkspaceName("");
@@ -2251,6 +2304,174 @@ export default function DashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── WORKSPACE SHIFT POPUP MODAL ── */}
+      {workspaceShiftModal.isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200"
+          style={{ background: "rgba(0, 0, 0, 0.75)" }}
+          onClick={() => setWorkspaceShiftModal((prev) => ({ ...prev, isOpen: false }))}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border)",
+              color: "var(--txt)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center border"
+                  style={{
+                    background: "var(--surface)",
+                    borderColor: "var(--border)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  <Sparkles size={16} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm" style={{ color: "var(--txt)" }}>
+                    Workspace Shift
+                  </h3>
+                  <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
+                    Data scope &amp; environment transitioned
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWorkspaceShiftModal((prev) => ({ ...prev, isOpen: false }))}
+                className="opacity-70 hover:opacity-100 cursor-pointer p-1 rounded-lg hover:bg-[var(--surface)] transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Shift Visualizer: Origin -> Destination */}
+            <div
+              className="p-3.5 rounded-xl border flex items-center justify-between gap-3"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--border)",
+              }}
+            >
+              {/* Origin Workspace */}
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider opacity-60 mb-1">
+                  From
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border"
+                    style={{
+                      background: workspaceShiftModal.fromId === "personal" ? "rgba(59,130,246,0.12)" : "rgba(16,185,129,0.12)",
+                      borderColor: workspaceShiftModal.fromId === "personal" ? "rgba(59,130,246,0.3)" : "rgba(16,185,129,0.3)",
+                      color: workspaceShiftModal.fromId === "personal" ? "var(--accent)" : "#10b981",
+                    }}
+                  >
+                    {workspaceShiftModal.fromId === "personal" ? <User size={13} /> : <Users size={13} />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold truncate" style={{ color: "var(--txt)" }}>
+                      {workspaceShiftModal.fromName}
+                    </div>
+                    <div className="text-[10px] truncate" style={{ color: "var(--txt-m)" }}>
+                      {workspaceShiftModal.fromId === "personal" ? "Private Space" : "Team Space"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Arrow Indicator */}
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border shadow-sm"
+                style={{
+                  background: "var(--card)",
+                  borderColor: "var(--border)",
+                  color: "var(--accent)",
+                }}
+              >
+                <ArrowRight size={15} />
+              </div>
+
+              {/* Destination Workspace */}
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--accent)" }}>
+                  Switched To
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border"
+                    style={{
+                      background: workspaceShiftModal.toId === "personal" ? "rgba(59,130,246,0.15)" : "rgba(16,185,129,0.15)",
+                      borderColor: workspaceShiftModal.toId === "personal" ? "rgba(59,130,246,0.4)" : "rgba(16,185,129,0.4)",
+                      color: workspaceShiftModal.toId === "personal" ? "var(--accent)" : "#10b981",
+                    }}
+                  >
+                    {workspaceShiftModal.toId === "personal" ? <User size={13} /> : <Users size={13} />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold truncate" style={{ color: "var(--txt)" }}>
+                      {workspaceShiftModal.toName}
+                    </div>
+                    <div className="text-[10px] font-semibold truncate" style={{ color: workspaceShiftModal.toId === "personal" ? "var(--accent)" : "#10b981" }}>
+                      {workspaceShiftModal.toRole || "Active"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Explanation / Scope Isolation Details */}
+            <div
+              className="p-3.5 rounded-xl border text-xs space-y-2 leading-relaxed"
+              style={{
+                background: "rgba(59, 130, 246, 0.05)",
+                borderColor: "rgba(59, 130, 246, 0.2)",
+                color: "var(--txt)",
+              }}
+            >
+              <div className="flex items-center gap-1.5 font-bold text-xs" style={{ color: "var(--accent)" }}>
+                <Shield size={13} />
+                <span>Isolated Workspace Environment</span>
+              </div>
+              <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
+                {workspaceShiftModal.toId === "personal" ? (
+                  <>
+                    You are now in your <strong>Personal Space</strong>. Uploaded Google Sheets, Excel workbooks, analyses, models, and ingestion history are completely private to your individual account.
+                  </>
+                ) : (
+                  <>
+                    You are now collaborating in <strong>{workspaceShiftModal.toName}</strong>. Uploaded Google Sheets, files, analyses, and models are partitioned strictly to this team workspace and accessible only to verified members with <strong>{workspaceShiftModal.toRole || "assigned"}</strong> permissions.
+                  </>
+                )}
+              </p>
+              <div className="pt-1 border-t text-[11px] flex items-center gap-1.5" style={{ borderColor: "rgba(59, 130, 246, 0.15)", color: "var(--txt-m)" }}>
+                <Check size={12} style={{ color: "#10b981" }} />
+                <span>Personal and team sheets are fetched independently.</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setWorkspaceShiftModal((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full py-2 px-4 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 flex items-center justify-center gap-2"
+                style={{ background: "var(--accent)" }}
+              >
+                <span>Continue to {workspaceShiftModal.toName}</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
           </div>
         </div>
       )}

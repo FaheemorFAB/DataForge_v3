@@ -384,12 +384,16 @@ def create_password_reset_token(email: str) -> str:
     }
     with _RESET_LOCK:
         tokens = _load_reset_tokens()
-        # Clean up tokens older than 48 hours
+        # Clean up tokens older than 48 hours and supersede older unused tokens for this email
         cutoff = (now - timedelta(hours=48)).isoformat()
-        pruned = {
-            t: d for t, d in tokens.items()
-            if d.get("created_at", "") > cutoff
-        }
+        pruned = {}
+        for t, d in tokens.items():
+            if d.get("created_at", "") <= cutoff:
+                continue
+            if d.get("email") == clean_email and not d.get("used"):
+                d["used"] = True
+                d["superseded"] = True
+            pruned[t] = d
         pruned[token] = record
         _save_reset_tokens(pruned)
     return token

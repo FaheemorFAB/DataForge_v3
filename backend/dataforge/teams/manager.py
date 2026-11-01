@@ -496,5 +496,13 @@ class TeamManager:
                         if needs_save:
                             cls._write_data(data)
                         return m.get("role")
+
+            # Check if user is organization owner
+            org = data.get("organizations", {}).get(org_id)
+            if org:
+                if str(org.get("owner_id")) == str(user_id):
+                    return "Admin"
+                if clean_email and (org.get("owner_email") or "").strip().lower() == clean_email:
+                    return "Admin"
             return None
 

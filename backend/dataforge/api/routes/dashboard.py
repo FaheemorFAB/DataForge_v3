@@ -95,13 +95,40 @@ async def api_dashboard_init(
     # Fetch uploads according to active workspace scope
     uploads_data = []
     if is_team_workspace:
-        # Team workspace: show uploads tagged with this org_id
+        seen_ids = set()
+        # 1. Query Supabase database uploads table for team
+        try:
+            db_uploads = db_all("uploads", {"org_id": workspace_id}, order_by="uploaded_at", limit=50)
+            if not db_uploads:
+                db_uploads = db_all("uploads", {"workspace_id": workspace_id}, order_by="uploaded_at", limit=50)
+            for u in db_uploads:
+                uid_str = str(u.get("id"))
+                seen_ids.add(uid_str)
+                uploads_data.append({
+                    "filename":    u.get("filename", ""),
+                    "rows":        u.get("rows", 0) or 0,
+                    "cols":        u.get("cols", 0) or 0,
+                    "missing_pct": u.get("missing_pct", 0) or 0,
+                    "time_ago":    _time_ago_local(u.get("uploaded_at")),
+                    "id":          uid_str,
+                    "source_type": u.get("source_type", "csv") or "csv",
+                    "timestamp":   u.get("uploaded_at"),
+                })
+        except Exception as e:
+            log.warning("db_all team uploads error: %s", e)
+
+        # 2. Scan local STORE_DIR for team uploads matching workspace_id
         try:
             if STORE_DIR.exists():
                 for item in STORE_DIR.iterdir():
-                    if item.is_dir() and (item / "meta.json").exists():
+                    if item.is_dir() and item.name not in seen_ids and (item / "meta.json").exists():
                         m = load(item.name, "meta")
-                        if m and (m.get("org_id") == workspace_id or m.get("workspace_id") == workspace_id):
+                        if not m or not isinstance(m, dict):
+                            continue
+                        m_org = m.get("org_id")
+                        m_ws = m.get("workspace_id")
+                        if (m_org and str(m_org) == str(workspace_id)) or (m_ws and str(m_ws) == str(workspace_id)):
+                            seen_ids.add(item.name)
                             created_ts = m.get("created_at") or m.get("uploaded_at")
                             uploads_data.append({
                                 "filename":    m.get("filename", item.name),
@@ -116,7 +143,7 @@ async def api_dashboard_init(
         except Exception as e:
             log.warning("Failed scanning team uploads: %s", e)
     else:
-        # Personal workspace: show user's personal uploads (not tagged with an org_id)
+        # Personal workspace: STRICTLY show user's personal uploads (not tagged with an org_id)
         c_email = (getattr(user, "email", None) or "").strip().lower()
         seen_ids = set()
 
@@ -124,9 +151,11 @@ async def api_dashboard_init(
         try:
             db_uploads = db_all("uploads", {"user_id": user.id}, order_by="uploaded_at", limit=50)
             for u in db_uploads:
+                if u.get("org_id") or (u.get("workspace_id") and u.get("workspace_id") != "personal"):
+                    continue  # Belongs to an org workspace, skip in personal
                 uid_str = str(u.get("id"))
                 m = load(uid_str, "meta")
-                if m and (m.get("org_id") or m.get("workspace_id", "personal") != "personal"):
+                if m and (m.get("org_id") or (m.get("workspace_id") and m.get("workspace_id") != "personal")):
                     continue  # Belongs to an org workspace, skip in personal
                 seen_ids.add(uid_str)
                 uploads_data.append({
@@ -150,7 +179,7 @@ async def api_dashboard_init(
                         m = load(item.name, "meta")
                         if not m or not isinstance(m, dict):
                             continue
-                        if m.get("org_id") or m.get("workspace_id", "personal") != "personal":
+                        if m.get("org_id") or (m.get("workspace_id") and m.get("workspace_id") != "personal"):
                             continue
 
                         m_uid = str(m.get("user_id") or "")

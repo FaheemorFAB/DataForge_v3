@@ -188,7 +188,10 @@ async def api_upload_sheets(
             allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
             if not allowed_rows:
                 raise HTTPException(status_code=402, detail=rows_reason)
-            result = upload_service.process_dataframe(df, filename, "excel_online", current_user, meta)
+            target_org_id = req.workspace_id if (req.workspace_id and req.workspace_id != "personal") else None
+            result = upload_service.process_dataframe(
+                df, filename, "excel_online", current_user, meta, org_id=target_org_id
+            )
             return JSONResponse(content=safe_jsonable({
                 "ok": True,
                 "upload_id": result["upload_id"],
@@ -221,7 +224,10 @@ async def api_upload_sheets(
     clean_tab = f"_{sheet_name[:16]}" if sheet_name else ""
     filename = f"sheet_{clean_id}{clean_tab}.csv"
     source_config = {"sheet_id": sheet_id, "gid": gid, "sheet_name": sheet_name, "url": url}
-    result = upload_service.process_dataframe(df, filename, "sheets", current_user, source_config)
+    target_org_id = req.workspace_id if (req.workspace_id and req.workspace_id != "personal") else None
+    result = upload_service.process_dataframe(
+        df, filename, "sheets", current_user, source_config, org_id=target_org_id
+    )
 
     return JSONResponse(content=safe_jsonable({
         "ok": True,

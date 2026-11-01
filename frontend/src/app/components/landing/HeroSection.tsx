@@ -110,6 +110,10 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
     if (!file.name.endsWith('.csv')) { setErrorMsg('Only CSV files are supported.'); return; }
     setErrorMsg(''); setIsUploading(true); setFileName(file.name);
     const fd = new FormData(); fd.append('file', file);
+    const activeWs = typeof window !== 'undefined' ? localStorage.getItem('df_active_workspace') : null;
+    if (activeWs && activeWs !== 'personal') {
+      fd.append('workspace_id', activeWs);
+    }
     try {
       const res = await apiFetch('/upload', { method: 'POST', body: fd });
       const data = await res.json();
@@ -158,11 +162,13 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
     if (!isLoggedIn) { onLoginRequired(); return; }
     setSheetsError('');
     setIsSheetsLoading(true);
+    const activeWs = typeof window !== 'undefined' ? localStorage.getItem('df_active_workspace') : null;
+    const targetWs = (activeWs && activeWs !== 'personal') ? activeWs : undefined;
     try {
       const res = await apiFetch('/upload/sheets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: sheetsUrl.trim() }),
+        body: JSON.stringify({ url: sheetsUrl.trim(), workspace_id: targetWs }),
       });
       const data = await res.json();
       if (res.status === 401 || data.error === 'login_required') {
@@ -188,11 +194,13 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
     if (!isLoggedIn) { onLoginRequired(); return; }
     setExcelOnlineError('');
     setIsExcelOnlineLoading(true);
+    const activeWs = typeof window !== 'undefined' ? localStorage.getItem('df_active_workspace') : null;
+    const targetWs = (activeWs && activeWs !== 'personal') ? activeWs : undefined;
     try {
       const res = await apiFetch('/upload/excel-online', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: excelOnlineUrl.trim() }),
+        body: JSON.stringify({ url: excelOnlineUrl.trim(), workspace_id: targetWs }),
       });
       const data = await res.json();
       if (res.status === 401 || data.error === 'login_required') {
@@ -329,6 +337,8 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
     if (!isLoggedIn) { onLoginRequired(); return; }
     setIsDbIngesting(true);
     setDbError("");
+    const activeWs = typeof window !== 'undefined' ? localStorage.getItem('df_active_workspace') : null;
+    const targetWs = (activeWs && activeWs !== 'personal') ? activeWs : undefined;
     try {
       const res = await apiFetch('/upload/database/ingest', {
         method: 'POST',
@@ -339,6 +349,7 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
           query: dbQueryMode === 'sql' ? dbCustomSql.trim() : undefined,
           limit: parseInt(dbLimit, 10),
           dataset_name: dbQueryMode === 'table' ? `${selectedDbTable}.csv` : "sql_query.csv",
+          workspace_id: targetWs,
         }),
       });
       const data = await res.json();

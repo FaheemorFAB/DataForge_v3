@@ -62,13 +62,14 @@ def test_forgot_and_reset_flow(client: TestClient):
     data = resp.json()
     assert data["ok"] is True
 
-    # 2. Extract token from storage
+    # 2. Extract newest token from storage
     tokens = _load_reset_tokens()
-    token = None
-    for t, d in tokens.items():
-        if d.get("email") == test_email and not d.get("used"):
-            token = t
-            break
+    matching = [
+        (t, d) for t, d in tokens.items()
+        if d.get("email") == test_email and not d.get("used")
+    ]
+    matching.sort(key=lambda x: x[1].get("created_at", ""), reverse=True)
+    token = matching[0][0] if matching else None
     assert token is not None
 
     # 3. Verify token via API
