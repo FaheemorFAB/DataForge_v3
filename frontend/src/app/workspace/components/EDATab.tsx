@@ -808,7 +808,7 @@ export function EDATab() {
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                          <span className="px-2 py-0.5 rounded-[4px] text-[9px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
                             {ins.type?.replace("_", " ") || "Insight"}
                           </span>
                           <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 font-bold">Impact {imp}%</span>
@@ -1164,7 +1164,7 @@ export function EDATab() {
             <h1 className="text-xl font-black uppercase tracking-tight" style={{ color: "var(--txt)" }}>
               Executive Briefings &amp; Reports
             </h1>
-            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+            <span className="px-2 py-0.5 rounded-[4px] text-[10px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
               3 Formats
             </span>
           </div>

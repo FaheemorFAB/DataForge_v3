@@ -16,6 +16,7 @@ FIX E  (NEW) Guard ProfileReport import — handle both 'ydata_profiling'
        and legacy 'pandas_profiling' package names gracefully.
 """
 
+import html
 import io
 import logging
 import re
@@ -61,15 +62,21 @@ _THEME_CSS = """
   --text:        #ffffff;
   --border:      #1A1A1C;
   --navbar-bg:   #0A0A0B;
+  --track-bg:    #27272A;
+  --text-muted:  #94A3B8;
+  --count-text:  #F8FAFC;
 }
 
 /* Light Theme */
 [data-theme="light"], [data-bs-theme="light"] {
-  --bg:          #c8c8cd;
-  --card-bg:     #dbd2d2;
-  --text:        #0a0a0b;
-  --border:      #e2e2e6;
-  --navbar-bg:   #d1caca;
+  --bg:          #F8FAFC;
+  --card-bg:     #FFFFFF;
+  --text:        #0F172A;
+  --border:      #E2E8F0;
+  --navbar-bg:   #FFFFFF;
+  --track-bg:    #E2E8F0;
+  --text-muted:  #64748B;
+  --count-text:  #0F172A;
 }
 
 /* Dracula */
@@ -79,6 +86,9 @@ _THEME_CSS = """
   --text:        #f8f8f2;
   --border:      #44475a;
   --navbar-bg:   #282a36;
+  --track-bg:    #44475a;
+  --text-muted:  #6272a4;
+  --count-text:  #f8f8f2;
 }
 
 /* Slate Blue */
@@ -88,6 +98,9 @@ _THEME_CSS = """
   --text:        #f1f5f9;
   --border:      #303643;
   --navbar-bg:   #1e222b;
+  --track-bg:    #303643;
+  --text-muted:  #94a3b8;
+  --count-text:  #f1f5f9;
 }
 
 /* Emerald Sage */
@@ -97,6 +110,9 @@ _THEME_CSS = """
   --text:        #e6f4f1;
   --border:      #273a34;
   --navbar-bg:   #141e1b;
+  --track-bg:    #273a34;
+  --text-muted:  #a7f3d0;
+  --count-text:  #e6f4f1;
 }
 
 /* Nord */
@@ -106,6 +122,9 @@ _THEME_CSS = """
   --text:        #eceff4;
   --border:      #4c566a;
   --navbar-bg:   #2e3440;
+  --track-bg:    #4c566a;
+  --text-muted:  #d8dee9;
+  --count-text:  #eceff4;
 }
 
 /* Luxury */
@@ -115,6 +134,9 @@ _THEME_CSS = """
   --text:        #f4f4f5;
   --border:      #27272a;
   --navbar-bg:   #09090b;
+  --track-bg:    #27272a;
+  --text-muted:  #a1a1aa;
+  --count-text:  #f4f4f5;
 }
 
 /* Cupcake */
@@ -124,6 +146,9 @@ _THEME_CSS = """
   --text:        #291334;
   --border:      #d3c5ba;
   --navbar-bg:   #faf7f5;
+  --track-bg:    #d3c5ba;
+  --text-muted:  #78536a;
+  --count-text:  #291334;
 }
 
 /* Font Families */
@@ -156,6 +181,11 @@ body{background:var(--bg)!important;color:var(--text)!important}
 .navbar .navbar-brand,.navbar .nav-link,.navbar-nav .nav-link{color:var(--text)!important}
 .table{color:var(--text)!important}
 .table>:not(caption)>*>*{background-color:var(--card-bg)!important;color:var(--text)!important}
+.text-muted{color:var(--text-muted, #64748B)!important}
+.badge{border-radius:4px!important}
+.df-bar-track{fill:var(--track-bg, #E2E8F0)!important}
+[data-theme="dark"] .df-bar-track, [data-bs-theme="dark"] .df-bar-track { fill: #27272A !important; }
+[data-theme="light"] .df-bar-track, [data-bs-theme="light"] .df-bar-track { fill: #E2E8F0 !important; }
 </style>
 """
 
@@ -213,7 +243,7 @@ def _fix_navbar(html: str) -> str:
 
 # ── Pandas fallback report ────────────────────────────────────────────────────
 
-def _svg_bar(value: float, max_val: float, color: str = "#4f46e5", height: int = 14) -> str:
+def _svg_bar(value: float, max_val: float, color: str = "#6366F1", height: int = 14) -> str:
     """
     Render a horizontal SVG bar for use inside a table cell.
     value / max_val determines the fill fraction.
@@ -221,8 +251,8 @@ def _svg_bar(value: float, max_val: float, color: str = "#4f46e5", height: int =
     width = 120
     fill  = max(2, int(width * min(value / max_val, 1.0))) if max_val > 0 else 0
     return (
-        f'<svg width="{width}" height="{height}" style="vertical-align:middle">'
-        f'<rect width="{width}" height="{height}" rx="3" fill="#2d3748"/>'
+        f'<svg width="{width}" height="{height}" style="vertical-align:middle;border-radius:3px;overflow:hidden">'
+        f'<rect width="{width}" height="{height}" rx="3" class="df-bar-track"/>'
         f'<rect width="{fill}" height="{height}" rx="3" fill="{color}"/>'
         f'</svg>'
     )
@@ -266,12 +296,12 @@ def _correlation_heatmap_html(df: pd.DataFrame) -> str:
         rows_html += f'<tr><td style="font-size:.78em;padding:4px 8px"><code>{row_col}</code></td>{cells}</tr>'
 
     return f"""
-<div class="card p-3 mt-3">
-  <h5 class="mb-2">&#x1F9EE; Correlation Heatmap</h5>
-  <p style="font-size:.8em;color:#718096" class="mb-2">
+<div class="card p-3 mt-3" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px">
+  <h5 class="mb-2" style="font-weight:700;color:var(--text)">&#x1F9EE; Correlation Heatmap</h5>
+  <p style="font-size:.8em;color:var(--text-muted, #64748B)" class="mb-2">
     Pearson r &mdash; <span style="color:#48bb78">&#9632; positive</span>
     &nbsp;<span style="color:#f56565">&#9632; negative</span>
-    &nbsp;<span style="color:#718096">&#9632; weak (&lt;0.3)</span>
+    &nbsp;<span style="color:var(--text-muted, #718096)">&#9632; weak (&lt;0.3)</span>
   </p>
   <div class="table-responsive" style="max-height:320px;overflow:auto">
     <table class="table table-sm" style="font-size:.85em;border-collapse:collapse">
@@ -296,19 +326,19 @@ def _category_dist_html(df: pd.DataFrame, max_cats: int = 15) -> str:
         bar_rows = ""
         for label, count in vc.items():
             pct   = round(count / len(df) * 100, 1)
-            color = "#4f46e5"
+            color = "#6366F1"
             bar_rows += (
                 f'<tr>'
-                f'<td style="font-size:.78em;white-space:nowrap;max-width:40%;'
-                f'overflow:hidden;text-overflow:ellipsis;padding:2px 6px">{str(label)[:30]}</td>'
-                f'<td style="padding:2px 6px">{_svg_bar(count, max_count, color, 12)}</td>'
-                f'<td style="font-size:.75em;color:#a0aec0;padding:2px 4px">{count:,} ({pct}%)</td>'
+                f'<td style="font-size:.82em;font-weight:500;color:var(--text);white-space:nowrap;max-width:40%;'
+                f'overflow:hidden;text-overflow:ellipsis;padding:4px 6px">{html.escape(str(label)[:30])}</td>'
+                f'<td style="padding:4px 6px">{_svg_bar(count, max_count, color, 12)}</td>'
+                f'<td style="font-size:.82em;font-weight:700;color:var(--count-text, var(--text));white-space:nowrap;text-align:right;padding:4px 8px">{count:,} <span style="font-weight:600;color:var(--text-muted, #64748B);font-size:.92em">({pct}%)</span></td>'
                 f'</tr>'
             )
         sections.append(f"""
         <div class="col-md-6 mb-3">
-          <div class="card p-3">
-            <h6 style="font-size:.85em" class="mb-2"><code>{col}</code></h6>
+          <div class="card p-3" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px">
+            <h6 style="font-size:.88em;font-weight:700;color:#6366F1;font-family:monospace" class="mb-2.5">{html.escape(str(col))}</h6>
             <div class="table-responsive">
               <table style="width:100%; min-width:280px">{bar_rows}</table>
             </div>
@@ -318,8 +348,8 @@ def _category_dist_html(df: pd.DataFrame, max_cats: int = 15) -> str:
     if not sections:
         return ""
     return (
-        '<div class="card p-3 mt-3">'
-        '<h5 class="mb-3">&#x1F4CA; Categorical Distributions</h5>'
+        '<div class="card p-3 mt-3" style="background:var(--card-bg);border:1px solid var(--border);border-radius:8px">'
+        '<h5 class="mb-3" style="font-weight:700;color:var(--text)">&#x1F4CA; Categorical Distributions</h5>'
         '<div class="row g-2">' + "".join(sections) + "</div></div>"
     )
 
