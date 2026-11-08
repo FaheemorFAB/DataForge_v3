@@ -1333,7 +1333,7 @@ export function EDATab() {
                 <div className="print-slide-body">{s.content}</div>
 
                 <div className="print-slide-footer">
-                  <span>Confidential &middot; DataForge Automated Intelligence Engine</span>
+                  <span>{filename} &middot; Nov 2026 &middot; Executive BI Presentation Deck</span>
                   <span>
                     Dataset: {filename} ({rows.toLocaleString()} rows &middot; {cols} columns)
                   </span>

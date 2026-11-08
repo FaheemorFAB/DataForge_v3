@@ -109,7 +109,8 @@ def _is_rate_or_intensity(metric_name: str) -> bool:
         kw in name for kw in [
             "income", "salary", "wage", "price", "rate", "cost", "avg", "average",
             "score", "ratio", "pct", "percent", "margin", "age", "balance",
-            "temp", "temperature", "humidity", "inr", "usd", "eur", "gbp"
+            "temp", "temperature", "humidity", "inr", "usd", "eur", "gbp",
+            "marks", "grade", "gpa", "attendance", "rating"
         ]
     )
 
@@ -814,6 +815,13 @@ def run_forecast(
         future_labels = [d.strftime(date_fmt) for d in future_index]
 
         # ── 7. Populate result ────────────────────────────────────────────
+        if is_rate and any(k in metric_col.lower() for k in ["marks", "pct", "percent", "score", "attendance", "rate", "ratio"]):
+            point = np.clip(point, 0.0, 100.0)
+            upper_95 = np.clip(upper_95, 0.0, 100.0)
+            lower_95 = np.clip(lower_95, 0.0, 100.0)
+            upper_80 = np.clip(upper_80, 0.0, 100.0)
+            lower_80 = np.clip(lower_80, 0.0, 100.0)
+
         result["historical_labels"] = hist_labels[-60:]   # cap for chart performance
         result["historical_values"] = [_safe(v) for v in train[-60:]]
         result["forecast_labels"]   = future_labels

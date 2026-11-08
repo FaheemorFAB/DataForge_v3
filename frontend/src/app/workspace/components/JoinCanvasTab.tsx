@@ -1606,7 +1606,7 @@ export function JoinCanvasTab() {
 
           {previewData && (
                   <span
-                    className="px-1.5 py-0.5 rounded-full text-[9px] font-mono border"
+                    className="px-1.5 py-0.5 rounded-[4px] text-[9px] font-mono border"
                     style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
                   >
                     {previewData.preview_count} rows
@@ -1755,7 +1755,7 @@ export function JoinCanvasTab() {
           >
             <button
               onClick={() => setShowUploadModal(false)}
-              className="absolute top-5 right-5 p-1 rounded-full text-zinc-400 hover:text-zinc-200"
+              className="absolute top-5 right-5 p-1 rounded-[4px] text-zinc-400 hover:text-zinc-200"
             >
               <X size={18} />
             </button>

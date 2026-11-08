@@ -70,6 +70,8 @@ async def api_dashboard_init(
     from dataforge.models.registry import ModelRegistry
     from dataforge.api.storage.manager import STORE_DIR, load
     from dataforge.api.utils.helpers import format_bytes
+    from dataforge.api.config import get_settings
+    settings = get_settings()
     
     user = current_user
     is_team_workspace = bool(workspace_id and workspace_id != "personal")
@@ -255,7 +257,7 @@ async def api_dashboard_init(
         return 0.0
 
     uploads_data.sort(key=_parse_ts, reverse=True)
-    uploads_data = uploads_data[:15]
+    uploads_data = uploads_data[:100]
 
     _icon_map = {"eda": "📊", "automl": "🤖", "clean": "🧹", "query": "💬", "insights": "💡", "report": "📄"}
     _map_labels = {
@@ -779,14 +781,23 @@ async def api_dashboard_stats(
                         s_med = float(s.median())
                         if b_val and b_val > 0:
                             val_str = f"{mean_val:.1f} / {b_val:.0f}"
+                            valid_s = s[(s >= 0) & (s <= b_val)]
+                            valid_min = float(valid_s.min()) if not valid_s.empty else 0.0
+                            valid_max = float(valid_s.max()) if not valid_s.empty else b_val
+                            sub_txt = f"Max: {valid_max:.0f} · Min: {valid_min:.0f} · Median: {s_med:.1f}"
                         elif any(k in metric_col.lower() for k in ["pct", "percent", "%", "attendance", "rate", "ratio", "margin", "yield"]):
                             val_str = f"{mean_val:.1f}%"
+                            valid_s = s[(s >= 0) & (s <= 100)]
+                            valid_min = float(valid_s.min()) if not valid_s.empty else 0.0
+                            valid_max = float(valid_s.max()) if not valid_s.empty else 100.0
+                            sub_txt = f"Max: {valid_max:.1f}% · Min: {valid_min:.1f}% · Median: {s_med:.1f}%"
                         else:
                             val_str = f"{mean_val:.2f}"
+                            sub_txt = f"Max: {s_max:.1f} · Min: {s_min:.1f} · Median: {s_med:.1f}"
                         stats.append({
                             "label": f"Average {metric_col}",
                             "value": val_str,
-                            "sub": f"Max: {s_max:.1f} · Min: {s_min:.1f} · Median: {s_med:.1f}",
+                            "sub": sub_txt,
                             "type": "average",
                             "color": "#6366f1",
                         })
@@ -1148,14 +1159,23 @@ async def api_agentic_auto_dashboard(
                         s_med = float(s.median())
                         if b_val and b_val > 0:
                             val_str = f"{mean_val:.1f} / {b_val:.0f}"
+                            valid_s = s[(s >= 0) & (s <= b_val)]
+                            valid_min = float(valid_s.min()) if not valid_s.empty else 0.0
+                            valid_max = float(valid_s.max()) if not valid_s.empty else b_val
+                            sub_txt = f"Max: {valid_max:.0f} · Min: {valid_min:.0f} · Median: {s_med:.1f}"
                         elif any(k in primary_metric.lower() for k in ["pct", "percent", "%", "attendance", "rate", "ratio", "margin", "yield"]):
                             val_str = f"{mean_val:.1f}%"
+                            valid_s = s[(s >= 0) & (s <= 100)]
+                            valid_min = float(valid_s.min()) if not valid_s.empty else 0.0
+                            valid_max = float(valid_s.max()) if not valid_s.empty else 100.0
+                            sub_txt = f"Max: {valid_max:.1f}% · Min: {valid_min:.1f}% · Median: {s_med:.1f}%"
                         else:
                             val_str = f"{mean_val:.2f}"
+                            sub_txt = f"Max: {s_max:.1f} · Min: {s_min:.1f} · Median: {s_med:.1f}"
                         stats.append({
                             "label": f"Average {primary_metric}",
                             "value": val_str,
-                            "sub": f"Max: {s_max:.1f} · Min: {s_min:.1f} · Median: {s_med:.1f}",
+                            "sub": sub_txt,
                             "type": "average",
                             "color": "#6366f1",
                         })

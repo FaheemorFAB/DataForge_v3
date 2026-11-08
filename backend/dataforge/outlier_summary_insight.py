@@ -74,8 +74,13 @@ class OutlierSummaryInsight(BaseInsight):
             row_pct  = round(n_rows / len(df) * 100, 1)
 
             worst_col = worst['column']
-            worst_lo_fmt = self._format_precise(worst_col, worst['lo'])
-            worst_hi_fmt = self._format_precise(worst_col, worst['hi'])
+            from dataforge.api.routes.dashboard import get_benchmark_col_and_val
+            _, b_val = get_benchmark_col_and_val(worst_col, df)
+            lo_val = max(0.0, worst['lo']) if (b_val and b_val > 0) else worst['lo']
+            hi_val = min(b_val, worst['hi']) if (b_val and b_val > 0) else worst['hi']
+
+            worst_lo_fmt = self._format_precise(worst_col, lo_val)
+            worst_hi_fmt = self._format_precise(worst_col, hi_val)
             description = (
                 f"{n_rows:,} records ({row_pct}%) contain values falling outside normal expected operational bounds "
                 f"across {n_cols} analyzed column(s). The most significant variance is in '{worst_col}', which contains {worst['n_outliers']:,} "

@@ -47,6 +47,8 @@ log = logging.getLogger(__name__)
 
 # ── Dataset-type keyword map ───────────────────────────────────────────────────
 DATASET_PATTERNS: dict[str, list[str]] = {
+    "education":  ["student", "marks", "grade", "academic", "exam", "subject", "term", "school",
+                   "class", "result", "gpa", "attendance", "degree", "teacher", "enrollment", "course"],
     "sales":      ["revenue", "sales", "product", "order", "units", "price", "sku",
                    "quantity", "invoice", "discount", "coupon"],
     "marketing":  ["campaign", "impression", "click", "ctr", "spend", "ad",
@@ -57,6 +59,8 @@ DATASET_PATTERNS: dict[str, list[str]] = {
                    "ltv", "nps", "support", "ticket", "user", "account"],
     "hr":         ["employee", "salary", "department", "hire", "attrition",
                    "headcount", "performance", "leave", "tenure"],
+    "healthcare": ["patient", "diagnosis", "hospital", "doctor", "clinic",
+                   "treatment", "medicine", "symptom", "dosage", "admission", "vital"],
     "product":    ["feature", "usage", "session", "event", "dau", "mau",
                    "retention", "cohort", "funnel", "page", "view"],
     "logistics":  ["shipment", "delivery", "carrier", "warehouse", "inventory",
@@ -262,12 +266,14 @@ class InsightEngine:
 
     # ── Dataset type detection ────────────────────────────────────────────────
     def _detect_type(self, columns: list[str]) -> str:
+        import re
         scores: dict[str, int] = {k: 0 for k in DATASET_PATTERNS}
         for col in columns:
             col_lower = col.lower()
+            tokens = set(re.findall(r"[a-z0-9]+", col_lower))
             for ds_type, keywords in DATASET_PATTERNS.items():
                 for kw in keywords:
-                    if kw in col_lower:
+                    if kw in tokens or (len(kw) >= 4 and kw in col_lower):
                         scores[ds_type] += 1
         best       = max(scores, key=scores.get)
         best_score = scores[best]

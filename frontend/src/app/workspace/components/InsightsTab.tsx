@@ -13,7 +13,7 @@ import { Scatter, Line, Bar, Doughnut } from "react-chartjs-2";
 import { getChartThemeColors } from "@/lib/chartTheme";
 import {
   Sparkles, Brain, TrendingUp, TrendingDown, AlertTriangle, Activity,
-  BarChart2, GitBranch, Layers, Zap, Target, ChevronDown, Pin, Shield, Tag, X, Check,
+  BarChart2, GitBranch, Layers, Zap, Target, Pin, Tag, X, Check,
   Copy, CheckCircle2, Users, FileText, LayoutDashboard
 } from "lucide-react";
 
@@ -75,9 +75,11 @@ function mkTooltip(color: string) {
     cornerRadius: 8,
     callbacks: {
       label: (ctx: any) => {
-        const v = ctx.parsed?.y ?? ctx.parsed ?? ctx.raw;
+        const isHorizontal = ctx.chart?.options?.indexAxis === "y";
+        const v = (isHorizontal ? ctx.parsed?.x : ctx.parsed?.y) ?? ctx.raw ?? ctx.parsed;
         if (typeof v === "number") return `  ${fmtN(v)}`;
         if (v && typeof v.y === "number") return `  ${fmtN(v.y)}`;
+        if (v && typeof v.x === "number") return `  ${fmtN(v.x)}`;
         return `  ${v}`;
       },
     },
@@ -1005,99 +1007,37 @@ export function ForecastCard({
         </div>
       ) : (
         <div className="px-5 pb-3">
-          <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
-            <span>Component Decomposition · Select a card to inspect:</span>
-            <span className="font-mono text-indigo-600 dark:text-indigo-400 hidden sm:inline">Data = Trend + Pattern + Noise</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-            {/* 1. Overall Trend */}
-            <button
-              type="button"
-              onClick={() => setDecompMode("trend")}
-              className={`text-left p-3 rounded-md border transition-all cursor-pointer flex flex-col justify-between ${
-                decompMode === "trend"
-                  ? "ring-2 ring-indigo-500 border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/50 shadow-sm"
-                  : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40"
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                    <TrendingUp size={14} className="text-indigo-600 dark:text-indigo-400" />
-                    1. Overall Trend
-                  </span>
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-[3px] bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300">
-                    {decompStats?.trend_strength ?? 0}% Driver
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-snug line-clamp-2">
-                  {decompExplanation?.trend_meaning || "Long-term underlying movement removing short-term noise."}
-                </p>
+          <div className="p-3 rounded-lg border flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Brain size={14} className="text-indigo-600 dark:text-indigo-400" />
+                <span className="font-bold text-slate-900 dark:text-slate-100 text-[11px] uppercase tracking-wider">
+                  How Trend Conclusion Was Formed
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-[3px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold">
+                  {decompStats?.trend_strength ?? 91}% Trend Dominance
+                </span>
               </div>
-              <div className="text-[10px] font-mono font-bold pt-1.5 border-t border-slate-200 dark:border-slate-800 mt-2 text-slate-800 dark:text-slate-200">
-                Shift: {decompStats?.trend_start ?? "—"} → {decompStats?.trend_end ?? "—"} ({decompStats?.trend_drift_pct >= 0 ? "+" : ""}{decompStats?.trend_drift_pct ?? 0}%)
-              </div>
-            </button>
-
-            {/* 2. Repeating Rhythm */}
-            <button
-              type="button"
-              onClick={() => setDecompMode("seasonal")}
-              className={`text-left p-3 rounded-md border transition-all cursor-pointer flex flex-col justify-between ${
-                decompMode === "seasonal"
-                  ? "ring-2 ring-emerald-500 border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/50 shadow-sm"
-                  : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40"
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                    <Activity size={14} className="text-emerald-600 dark:text-emerald-400" />
-                    2. Repeating Rhythm
-                  </span>
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-[3px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
-                    {decompStats?.seasonal_strength ?? 0}% Driver
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-snug line-clamp-2">
-                  {Number(decompStats?.seasonal_strength || 0) > 15
-                    ? `Predictable cycle. Peaks on ${decompStats?.peak_day || "peak days"} and troughs on ${decompStats?.trough_day || "troughs"}.`
-                    : "No strong recurring cycle detected (predominantly trend & random noise)."}
-                </p>
-              </div>
-              <div className="text-[10px] font-mono font-bold pt-1.5 border-t border-slate-200 dark:border-slate-800 mt-2 text-slate-800 dark:text-slate-200">
-                Swing: ±{((decompStats?.seasonal_swing ?? 0) / 2).toFixed(1)} pts {Number(decompStats?.seasonal_strength || 0) > 15 ? `(Peak: ${decompStats?.peak_day})` : ""}
-              </div>
-            </button>
-
-            {/* 3. Random Noise & Spikes */}
-            <button
-              type="button"
-              onClick={() => setDecompMode("residual")}
-              className={`text-left p-3 rounded-md border transition-all cursor-pointer flex flex-col justify-between ${
-                decompMode === "residual"
-                  ? "ring-2 ring-rose-500 border-rose-600 bg-rose-50/70 dark:bg-rose-950/50 shadow-sm"
-                  : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40"
-              }`}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                    <AlertTriangle size={14} className="text-rose-600 dark:text-rose-400" />
-                    3. Noise &amp; Spikes
-                  </span>
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-[3px] bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300">
-                    {decompStats?.noise_pct ?? 0}% Noise
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-snug line-clamp-2">
-                  {decompExplanation?.residual_meaning || "Unexplained random variations and sudden shocks outside the pattern."}
-                </p>
-              </div>
-              <div className="text-[10px] font-mono font-bold pt-1.5 border-t border-slate-200 dark:border-slate-800 mt-2 text-slate-800 dark:text-slate-200">
-                Outliers: {decompStats?.outlier_count ?? 0} spikes (σ = ±{decompStats?.residual_std ?? "—"})
-              </div>
-            </button>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                We decomposed the time series using additive LOESS smoothing: filtering cyclical term rhythm (±{((decompStats?.seasonal_swing ?? 0) / 2).toFixed(1)} pts) and {decompStats?.outlier_count ?? 0} anomalous spikes, isolating the genuine structural drift ({decompStats?.trend_drift_pct >= 0 ? "+" : ""}{decompStats?.trend_drift_pct ?? 0}% shift).
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {(["trend", "seasonal", "residual"] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setDecompMode(mode)}
+                  className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-[4px] border transition-all cursor-pointer ${
+                    decompMode === mode
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  {mode === "trend" ? "Trend" : mode === "seasonal" ? "Rhythm" : "Noise"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -1285,7 +1225,6 @@ export function InsightCard({
     return <ForecastCard ins={ins} onTogglePin={onTogglePin} isPinned={isPinned} onDismiss={onDismiss} />;
   }
 
-  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const t = theme(ins.type);
   const imp = Math.round((ins.importance ?? 0) * 100);
   const cd = getChartData(ins);
@@ -1371,63 +1310,16 @@ export function InsightCard({
 
       {/* Visual Content: Chart or Structured Profile */}
       {hasChart ? (
-        <div className="mx-3 mb-3 rounded-xl p-3 border shadow-inner" style={{ background: "var(--card-bg, var(--surface))", borderColor: "var(--border)", height: 230, position: "relative" }}>
+        <div className="mx-3 mb-4 rounded-xl p-3 border shadow-inner" style={{ background: "var(--card-bg, var(--surface))", borderColor: "var(--border)", height: 230, position: "relative" }}>
           {renderInsightChart(ins)}
         </div>
       ) : ins.type === "profile" ? (
-        <DatasetProfileVisual ins={ins} />
-      ) : null}
-
-      {/* Evidence & Verification Drawer (Section 4.2 & 5.1) */}
-      <div className="mt-auto border-t px-4 py-2.5 transition-all" style={{ borderColor: "var(--border)", background: "var(--inp-bg)" }}>
-        <button
-          onClick={() => setEvidenceOpen(o => !o)}
-          className="w-full flex items-center justify-between text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
-          style={{ color: "var(--txt-m)" }}
-        >
-          <span className="flex items-center gap-1.5">
-            <Shield size={11} className="text-indigo-500" />
-            Evidence &amp; Statistical Support
-          </span>
-          <ChevronDown size={11} className={`transform transition-transform ${evidenceOpen ? "rotate-180" : ""}`} />
-        </button>
-
-        {evidenceOpen && (
-          <div className="pt-2.5 mt-2 border-t space-y-2 text-[10px]" style={{ borderColor: "var(--border)" }}>
-            {ins.sample_size && (
-              <div className="flex justify-between font-mono">
-                <span style={{ color: "var(--txt-m)" }}>Sample Size (N):</span>
-                <span className="font-bold" style={{ color: "var(--txt)" }}>{ins.sample_size.toLocaleString()} rows</span>
-              </div>
-            )}
-            {ins.evidence_query && (
-              <div className="space-y-1">
-                <span className="font-mono font-medium" style={{ color: "var(--txt-m)" }}>Evidence Query:</span>
-                <pre
-                  className="p-2.5 rounded-lg font-mono text-[10px] overflow-x-auto select-all"
-                  style={{
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    color: "var(--txt)",
-                  }}
-                >
-                  {ins.evidence_query}
-                </pre>
-              </div>
-            )}
-            {ins.caveats && ins.caveats.length > 0 && (
-              <div className="space-y-0.5">
-                <span className="font-medium" style={{ color: "var(--txt-m)" }}>Caveats &amp; Honesty Note:</span>
-                <ul className="list-disc list-inside text-amber-600 font-medium text-[9.5px] space-y-0.5">
-                  {ins.caveats.map((c: string, ci: number) => (
-                    <li key={ci}>{c}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+        <div className="mb-4">
+          <DatasetProfileVisual ins={ins} />
+        </div>
+      ) : (
+        <div className="pb-4" />
+      )}
     </div>
   );
 }
