@@ -17,7 +17,7 @@ import {
   Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders,
   Cpu, Check, Download, Play, RefreshCw, Search, Filter,
   Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag, X,
-  Trophy, Settings2, Sparkles, SlidersHorizontal, Clock, Eye
+  Trophy, Settings2, Sparkles, SlidersHorizontal, Clock
 } from "lucide-react";
 
 interface FeatureInfo {
@@ -81,7 +81,6 @@ function renderConfigBadges(cfgStr: string) {
 
 export function AutoMLTab() {
   const { profile, cleanProfile, uploadId, setActiveTab, automlMeta, setAutomlMeta, refreshWorkspace, cleanResult } = useWorkspace();
-  const [inspectedLeaderboardModel, setInspectedLeaderboardModel] = useState<any>(null);
 
   const effectiveProfile = useMemo(() => {
     if (cleanProfile?.columns && Array.isArray(cleanProfile.columns) && cleanProfile.columns.length > 0) {
@@ -1708,6 +1707,19 @@ export function AutoMLTab() {
             </div>
           )}
 
+          {/* Target Predictive Signal Quality Warning */}
+          {automlResult.target_quality_warning && (
+            <div className="p-3.5 rounded-xl border flex items-start gap-3" style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.3)" }}>
+              <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-amber-500">Low Predictive Signal Target Detected</p>
+                <p className="text-[11px] text-amber-400/90 mt-0.5 leading-relaxed">
+                  {automlResult.target_quality_warning}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Top KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
             <div className="p-4 rounded-2xl" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
@@ -1797,7 +1809,6 @@ export function AutoMLTab() {
                       </th>
                       <th className="py-2.5 px-3">Latency</th>
                       <th className="py-2.5 px-3">Configuration</th>
-                      <th className="py-2.5 px-2 text-center">Inspect</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -1814,8 +1825,7 @@ export function AutoMLTab() {
                       return (
                         <tr
                           key={i}
-                          onClick={() => setInspectedLeaderboardModel(row)}
-                          className="hover:bg-indigo-500/5 transition-colors cursor-pointer group"
+                          className="hover:bg-indigo-500/5 transition-colors"
                           style={{ background: isChampion ? "rgba(99,102,241,0.08)" : "transparent" }}
                         >
                           <td className="py-2.5 px-3 font-mono font-bold">
@@ -1855,20 +1865,6 @@ export function AutoMLTab() {
                           </td>
                           <td className="py-2.5 px-3">
                             {renderConfigBadges(row.best_config)}
-                          </td>
-                          <td className="py-2.5 px-2 text-center">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setInspectedLeaderboardModel(row);
-                              }}
-                              className="p-1 rounded-md border text-zinc-400 hover:text-white hover:border-indigo-400/50 transition-all cursor-pointer opacity-70 group-hover:opacity-100"
-                              style={{ borderColor: "var(--border)", background: "var(--card)" }}
-                              title="Inspect model parameters"
-                            >
-                              <Eye size={12} />
-                            </button>
                           </td>
                         </tr>
                       );
@@ -1958,102 +1954,6 @@ export function AutoMLTab() {
           </div>
         </div>
 
-      )}
-
-      {/* Model Parameters Inspection Modal */}
-      {inspectedLeaderboardModel && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div
-            className="w-full max-w-lg rounded-2xl p-6 border shadow-2xl relative space-y-4 text-xs"
-            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
-          >
-            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--border)" }}>
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  <Cpu size={16} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
-                    {inspectedLeaderboardModel.display_name || inspectedLeaderboardModel.model}
-                  </h3>
-                  <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
-                    Rank #{inspectedLeaderboardModel.rank || 1} &middot; {inspectedLeaderboardModel.best ? "Tournament Champion" : "Evaluated Candidate"}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInspectedLeaderboardModel(null)}
-                className="w-7 h-7 rounded-lg flex items-center justify-center border hover:opacity-100 opacity-60 transition cursor-pointer"
-                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2.5">
-              <div className="p-3 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                <span className="text-[9px] uppercase tracking-wider block font-bold" style={{ color: "var(--txt-m)" }}>
-                  {inspectedLeaderboardModel.metric_name || "Validation Score"}
-                </span>
-                <span className="text-base font-black font-mono text-indigo-400 mt-0.5 block">
-                  {typeof inspectedLeaderboardModel.metric === "number" ? inspectedLeaderboardModel.metric.toFixed(4) : "-"}
-                </span>
-              </div>
-              <div className="p-3 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                <span className="text-[9px] uppercase tracking-wider block font-bold" style={{ color: "var(--txt-m)" }}>
-                  Training Loss
-                </span>
-                <span className="text-base font-black font-mono text-rose-400 mt-0.5 block">
-                  {typeof inspectedLeaderboardModel.loss === "number" ? inspectedLeaderboardModel.loss.toFixed(4) : "-"}
-                </span>
-              </div>
-              <div className="p-3 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                <span className="text-[9px] uppercase tracking-wider block font-bold" style={{ color: "var(--txt-m)" }}>
-                  Latency
-                </span>
-                <span className="text-base font-black font-mono text-emerald-400 mt-0.5 block">
-                  {inspectedLeaderboardModel.elapsed_s ? `${Number(inspectedLeaderboardModel.elapsed_s).toFixed(2)}s` : "<0.05s"}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-                  Fitted Hyperparameters
-                </span>
-                <span className="text-[9px] font-mono text-zinc-500">JSON Configuration</span>
-              </div>
-              <pre
-                className="p-3 rounded-xl border font-mono text-[11px] overflow-auto max-h-48 whitespace-pre-wrap break-all leading-relaxed"
-                style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}
-              >
-                {(() => {
-                  try {
-                    const str = inspectedLeaderboardModel.best_config;
-                    if (!str) return "Default parameters used.";
-                    const cleaned = str.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false').replace(/None/g, 'null');
-                    return JSON.stringify(JSON.parse(cleaned), null, 2);
-                  } catch {
-                    return inspectedLeaderboardModel.best_config || "Default parameters used.";
-                  }
-                })()}
-              </pre>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setInspectedLeaderboardModel(null)}
-                className="px-4 py-2 rounded-[4px] text-xs font-bold transition cursor-pointer"
-                style={{ background: "var(--accent)", color: "#fff" }}
-              >
-                Close Inspector
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

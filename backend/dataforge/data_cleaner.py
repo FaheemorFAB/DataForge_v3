@@ -245,6 +245,55 @@ def structural_clean(df: pd.DataFrame) -> tuple:
         except Exception:
             pass
 
+    # Domain Rule: Academic Grade & Result Consistency Calibration
+    grade_cols = [c for c in df.columns if any(k == c.lower() or c.lower().endswith(f"_{k}") for k in ["grade", "letter_grade"])]
+    def _is_marks_metric(c: str) -> bool:
+        cl = c.lower()
+        if cl.endswith("_id") or cl.startswith("id_") or "_id" in cl or "id_" in cl or cl == "id" or "sheet" in cl:
+            return False
+        return any(k in cl for k in ["marks_obtained", "marks", "score", "final_score", "exam_score"])
+
+    marks_cols = [c for c in df.columns if _is_marks_metric(c)]
+    marks_cols.sort(key=lambda c: 0 if "marks_obtained" in c.lower() else (1 if c.lower() == "marks" else 2))
+
+    if grade_cols and marks_cols:
+        g_col = grade_cols[0]
+        m_col = marks_cols[0]
+        s_m = pd.to_numeric(df[m_col], errors="coerce")
+        s_g = df[g_col].astype(str).str.strip().str.upper()
+        if s_m.notna().sum() > 30 and s_g.isin(["A", "A+", "B", "C", "D", "F", "B+", "C+"]).mean() > 0.6:
+            f_mask = s_g == "F"
+            # If Grade F has mean marks >= 50, the grade labels are corrupted / unaligned mock data
+            if f_mask.sum() >= 5 and s_m[f_mask].mean() >= 50:
+                def _calc_academic_grade(val):
+                    if pd.isna(val):
+                        return np.nan
+                    v = float(val)
+                    if v >= 90: return "A+"
+                    if v >= 80: return "A"
+                    if v >= 70: return "B"
+                    if v >= 60: return "C"
+                    if v >= 50: return "D"
+                    return "F"
+                df[g_col] = s_m.apply(_calc_academic_grade)
+                actions.append(f"Calibrated and harmonized academic '{g_col}' scale with '{m_col}'")
+
+                res_cols = [c for c in df.columns if ("result" in c.lower() or "outcome" in c.lower()) and not (c.lower().endswith("_id") or c.lower().startswith("id_") or c.lower() == "id")]
+                if res_cols:
+                    r_col = res_cols[0]
+                    s_r = df[r_col].astype(str).str.strip().str.title()
+                    if s_r.isin(["Pass", "Fail", "Absent", "Incomplete"]).mean() > 0.6:
+                        def _calc_academic_result(row):
+                            cur = str(row[r_col]).strip().title()
+                            if cur in ["Absent", "Incomplete"]:
+                                return cur
+                            m = row[m_col]
+                            if pd.isna(m):
+                                return cur
+                            return "Pass" if float(m) >= 40 else "Fail"
+                        df[r_col] = df.apply(_calc_academic_result, axis=1)
+                        actions.append(f"Aligned examination '{r_col}' outcomes with '{m_col}'")
+
     if not actions:
         actions.append("No structural issues found — data looks clean!")
 

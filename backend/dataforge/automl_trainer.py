@@ -149,9 +149,14 @@ def _encode_features(df: pd.DataFrame) -> pd.DataFrame:
         df.drop(columns=[col], inplace=True)
 
     for col in df.select_dtypes(include=["object", "category", "string"]).columns:
-        codes = df[col].astype("category").cat.codes.astype(float)
-        codes[codes == -1] = np.nan
-        df[col] = codes
+        # Coerce numeric strings (e.g. '56.0', '87.9') to float so continuous numbers aren't scrambled
+        s_num = pd.to_numeric(df[col], errors="coerce")
+        if s_num.notna().sum() >= max(5, int(len(df) * 0.7)):
+            df[col] = s_num
+        else:
+            codes = df[col].astype("category").cat.codes.astype(float)
+            codes[codes == -1] = np.nan
+            df[col] = codes
 
     return df
 
@@ -917,8 +922,9 @@ def run_automl(
     if not selected_features:
         return {"error": "No feature columns selected for AutoML training.", "model_pkl": None}
 
-    # Pre-training Target Leakage check on selected features
+    # Pre-training Target Leakage and Signal Strength check on selected features
     leakage_warnings = []
+    target_quality_warning = None
     try:
         t_series = df[target_col]
         if task == "classification":
@@ -927,17 +933,29 @@ def run_automl(
         else:
             t_num = pd.to_numeric(t_series, errors="coerce")
 
+        max_target_corr = 0.0
         for c in selected_features:
             c_s = pd.to_numeric(df[c], errors="coerce") if pd.api.types.is_numeric_dtype(df[c]) else df[c].astype("category").cat.codes.astype(float)
             vld = c_s.notna() & t_num.notna()
             if vld.sum() >= 5 and c_s[vld].std() > 1e-9 and t_num[vld].std() > 1e-9:
                 c_val = float(c_s[vld].corr(t_num[vld]))
-                if math.isfinite(c_val) and abs(c_val) >= 0.90:
-                    leakage_warnings.append({
-                        "feature": c,
-                        "correlation": round(c_val, 4),
-                        "warning": f"Feature '{c}' has {round(c_val * 100, 1)}% correlation with target '{target_col}'. High risk of target leakage.",
-                    })
+                if math.isfinite(c_val):
+                    if abs(c_val) > max_target_corr:
+                        max_target_corr = abs(c_val)
+                    if abs(c_val) >= 0.90:
+                        leakage_warnings.append({
+                            "feature": c,
+                            "correlation": round(c_val, 4),
+                            "warning": f"Feature '{c}' has {round(c_val * 100, 1)}% correlation with target '{target_col}'. High risk of target leakage.",
+                        })
+
+        if max_target_corr < 0.08 and len(df) >= 40 and n_unique_y >= 2:
+            base_p = round(1.0 / n_unique_y * 100, 1) if task == "classification" else 0.0
+            target_quality_warning = (
+                f"Low Predictive Signal: Target '{target_col}' has near-zero correlation with all input features (max |r| = {max_target_corr:.3f}). "
+                f"If labels are randomly distributed or unaligned with metric features (e.g. uncalibrated grades), "
+                f"validation accuracy is mathematically bounded near the random baseline (~{base_p}%). Clean and calibrate dataset to align target labels."
+            )
     except Exception as exc:
         log.warning("[automl_trainer] Leakage pre-check failed: %s", exc)
 
@@ -1159,6 +1177,7 @@ def run_automl(
         "shap_summary": shap_summary,
         "imbalance_report": imbalance_report,
         "leakage_warnings": leakage_warnings,
+        "target_quality_warning": target_quality_warning,
         "selected_features": selected_features,
         "feature_columns": list(df_model.columns),
         "algorithm_whitelist": algorithm_whitelist or ["all"],
