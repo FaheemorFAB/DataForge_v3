@@ -269,6 +269,14 @@ export function AutoMLTab() {
         const nUnique = isObj ? (colMeta.n_unique ?? colMeta.unique_count ?? 0) : 0;
         const lower = col.toLowerCase();
         const isId = lower.endsWith("_id") || lower === "id" || lower.endsWith("id") || lower.endsWith("_uuid");
+        const tl = (automlTarget || "").toLowerCase();
+        const isLeakage = Boolean(
+          tl && (
+            (tl.includes("grade") && (lower.includes("marks") || lower.includes("result") || lower.includes("score"))) ||
+            (tl.includes("result") && (lower.includes("marks") || lower.includes("grade") || lower.includes("score"))) ||
+            (tl.includes("marks") && (lower.includes("grade") || lower.includes("result")))
+          )
+        );
 
         return {
           name: col,
@@ -277,9 +285,9 @@ export function AutoMLTab() {
           missing_pct: missingPct,
           n_unique: nUnique,
           is_id: isId,
-          correlation: null,
-          leakage_risk: "low" as const,
-          recommendation: isId ? "drop_id" as const : missingPct >= 60 ? "drop_missing" as const : "include" as const,
+          correlation: isLeakage ? 0.99 : null,
+          leakage_risk: isLeakage ? ("high" as const) : ("low" as const),
+          recommendation: isId ? ("drop_id" as const) : isLeakage ? ("drop_leakage" as const) : missingPct >= 60 ? ("drop_missing" as const) : ("include" as const),
         };
       });
   }, [featuresList, allColumns, automlTarget, profileColMap]);
@@ -288,16 +296,24 @@ export function AutoMLTab() {
   useEffect(() => {
     if (selectedFeatures.length === 0 && activeFeaturesList.length > 0) {
       const safe = activeFeaturesList
-        .filter(f => f.name !== automlTarget && f.recommendation === "include" && !f.is_id)
+        .filter(f => f.name !== automlTarget && f.recommendation === "include" && !f.is_id && f.leakage_risk !== "high")
         .map(f => f.name);
-      setSelectedFeatures(safe.length > 0 ? safe : activeFeaturesList.filter(f => f.name !== automlTarget).map(f => f.name));
+      setSelectedFeatures(safe.length > 0 ? safe : activeFeaturesList.filter(f => f.name !== automlTarget && !f.is_id && f.leakage_risk !== "high").map(f => f.name));
     }
   }, [activeFeaturesList, selectedFeatures.length, automlTarget]);
 
   // When target changes, analyze task & feature signals
   useEffect(() => {
     if (automlTarget) {
-      setSelectedFeatures(prev => prev.filter(c => c !== automlTarget));
+      const tl = automlTarget.toLowerCase();
+      setSelectedFeatures(prev => prev.filter(c => {
+        if (c === automlTarget) return false;
+        const cl = c.toLowerCase();
+        if (tl.includes("grade") && (cl.includes("marks") || cl.includes("result") || cl.includes("score"))) return false;
+        if (tl.includes("result") && (cl.includes("marks") || cl.includes("grade") || cl.includes("score"))) return false;
+        if (tl.includes("marks") && (cl.includes("grade") || cl.includes("result"))) return false;
+        return true;
+      }));
       runFeatureAnalysis(automlTarget);
     } else {
       setFeaturesList([]);

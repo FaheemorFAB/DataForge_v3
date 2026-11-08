@@ -919,6 +919,14 @@ def run_automl(
     if excluded_features:
         selected_features = [c for c in selected_features if c not in excluded_features]
 
+    dropped_cols: list[str] = []
+    # Automatically exclude pure ID columns if not explicitly whitelisted
+    if feature_whitelist is None:
+        id_cols = [c for c in selected_features if c.lower().endswith(('_id', 'uuid', 'guid', 'identifier', 'pk')) or c.lower() == 'id']
+        if id_cols:
+            selected_features = [c for c in selected_features if c not in id_cols]
+            dropped_cols.extend(id_cols)
+
     if not selected_features:
         return {"error": "No feature columns selected for AutoML training.", "model_pkl": None}
 
@@ -934,20 +942,38 @@ def run_automl(
             t_num = pd.to_numeric(t_series, errors="coerce")
 
         max_target_corr = 0.0
+        leaking_features = set()
+        tl = target_col.lower()
         for c in selected_features:
+            cl = c.lower()
+            is_explicit_leak = (
+                (any(k in tl for k in ["grade", "letter_grade"]) and any(k in cl for k in ["marks_obtained", "marks", "score", "final_score", "result", "outcome"])) or
+                (any(k in tl for k in ["marks_obtained", "marks", "score"]) and any(k in cl for k in ["grade", "letter_grade", "result", "outcome"])) or
+                (any(k in tl for k in ["result", "outcome"]) and any(k in cl for k in ["marks_obtained", "marks", "score", "grade", "letter_grade"]))
+            )
+
             c_s = pd.to_numeric(df[c], errors="coerce") if pd.api.types.is_numeric_dtype(df[c]) else df[c].astype("category").cat.codes.astype(float)
             vld = c_s.notna() & t_num.notna()
+            c_val = 0.0
             if vld.sum() >= 5 and c_s[vld].std() > 1e-9 and t_num[vld].std() > 1e-9:
                 c_val = float(c_s[vld].corr(t_num[vld]))
                 if math.isfinite(c_val):
                     if abs(c_val) > max_target_corr:
                         max_target_corr = abs(c_val)
-                    if abs(c_val) >= 0.90:
-                        leakage_warnings.append({
-                            "feature": c,
-                            "correlation": round(c_val, 4),
-                            "warning": f"Feature '{c}' has {round(c_val * 100, 1)}% correlation with target '{target_col}'. High risk of target leakage.",
-                        })
+
+            if is_explicit_leak or (math.isfinite(c_val) and abs(c_val) >= 0.85):
+                leaking_features.add(c)
+                leakage_warnings.append({
+                    "feature": c,
+                    "correlation": round(c_val, 4) if math.isfinite(c_val) else 1.0,
+                    "warning": f"Feature '{c}' is a direct target leakage source for '{target_col}' ({round(abs(c_val) * 100, 1) if math.isfinite(c_val) else 100}% signal). Excluded from training to eliminate artificial 100% overfitting.",
+                })
+
+        # Automatically exclude leaking features if other predictive features remain
+        if leaking_features and len([f for f in selected_features if f not in leaking_features]) > 0:
+            selected_features = [f for f in selected_features if f not in leaking_features]
+            dropped_cols.extend(list(leaking_features))
+            log.info("[automl_trainer] Excluded %d target leakage features: %s", len(leaking_features), list(leaking_features))
 
         if max_target_corr < 0.08 and len(df) >= 40 and n_unique_y >= 2:
             base_p = round(1.0 / n_unique_y * 100, 1) if task == "classification" else 0.0
@@ -1017,7 +1043,8 @@ def run_automl(
 
     # Strict fit-on-train only preprocessing (Zero Data Leakage)
     X_train, X_test = _leak_free_preprocess(X_train, X_test)
-    X_train, dropped_cols = _remove_low_variance(X_train)
+    X_train, low_var_dropped = _remove_low_variance(X_train)
+    dropped_cols.extend(low_var_dropped)
     if X_test is not None:
         kept_cols = [c for c in X_train.columns if c in X_test.columns]
         X_test = X_test[kept_cols]
