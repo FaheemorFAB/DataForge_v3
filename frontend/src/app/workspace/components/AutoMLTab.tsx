@@ -1767,6 +1767,36 @@ export function AutoMLTab() {
             </div>
           )}
 
+          {/* Diagnostic Insight Banner */}
+          {automlResult.metrics && (() => {
+            const acc = automlResult.metrics["Accuracy"];
+            const f1 = automlResult.metrics["F1 (weighted)"];
+            const nClasses = automlResult.leaderboard?.length > 0
+              ? (automlResult.imbalance_report?.class_counts ? Object.keys(automlResult.imbalance_report.class_counts).length : null)
+              : null;
+            const isMulticlass = nClasses !== null && nClasses > 2;
+            const scoreIsLow = (f1 !== undefined && f1 < 0.5) || (acc !== undefined && acc < 0.5);
+            if (!scoreIsLow) return null;
+            return (
+              <div className="p-4 rounded-xl flex items-start gap-3" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)" }}>
+                <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-amber-400">Why are scores low? — Root Cause Diagnosis</p>
+                  <ul className="text-[11px] space-y-1" style={{ color: "var(--txt-m)" }}>
+                    {isMulticlass && (
+                      <li>• <strong style={{ color: "var(--txt)" }}>Multiclass target ({nClasses} classes)</strong> — F1 scores are naturally lower when predicting many classes. Random-chance baseline is ~{(1 / nClasses * 100).toFixed(0)}%. Current F1 of {f1?.toFixed(4)} is {f1 !== undefined && nClasses !== null && f1 > (1 / nClasses) * 1.5 ? "above" : "near"} random baseline.</li>
+                    )}
+                    {!isMulticlass && nClasses === 2 && (
+                      <li>• <strong style={{ color: "var(--txt)" }}>Binary classification</strong> — Low accuracy may indicate the target has weak signal from selected features, or requires feature engineering.</li>
+                    )}
+                    <li>• <strong style={{ color: "var(--txt)" }}>Try:</strong> Select fewer, more informative features · Remove ID/noise columns · Increase time budget · Use "Select Safe Only" to remove leakage risks.</li>
+                    <li>• <strong style={{ color: "var(--txt)" }}>Check target:</strong> Ensure the selected target column represents what you actually want to predict (not a derived or ID-like column).</li>
+                  </ul>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Leaderboard & Feature Importance Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Leaderboard Table (6 cols) */}
@@ -1797,7 +1827,6 @@ export function AutoMLTab() {
                       </th>
                       <th className="py-2.5 px-3">Latency</th>
                       <th className="py-2.5 px-3">Configuration</th>
-                      <th className="py-2.5 px-2 text-center">Inspect</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -1814,8 +1843,7 @@ export function AutoMLTab() {
                       return (
                         <tr
                           key={i}
-                          onClick={() => setInspectedLeaderboardModel(row)}
-                          className="hover:bg-indigo-500/5 transition-colors cursor-pointer group"
+                          className="hover:bg-indigo-500/5 transition-colors"
                           style={{ background: isChampion ? "rgba(99,102,241,0.08)" : "transparent" }}
                         >
                           <td className="py-2.5 px-3 font-mono font-bold">
@@ -1855,20 +1883,6 @@ export function AutoMLTab() {
                           </td>
                           <td className="py-2.5 px-3">
                             {renderConfigBadges(row.best_config)}
-                          </td>
-                          <td className="py-2.5 px-2 text-center">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setInspectedLeaderboardModel(row);
-                              }}
-                              className="p-1 rounded-md border text-zinc-400 hover:text-white hover:border-indigo-400/50 transition-all cursor-pointer opacity-70 group-hover:opacity-100"
-                              style={{ borderColor: "var(--border)", background: "var(--card)" }}
-                              title="Inspect model parameters"
-                            >
-                              <Eye size={12} />
-                            </button>
                           </td>
                         </tr>
                       );
