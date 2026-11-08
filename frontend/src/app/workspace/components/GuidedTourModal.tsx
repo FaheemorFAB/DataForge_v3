@@ -294,7 +294,7 @@ export function GuidedTourModal({
             </div>
             <div>
               <span
-                className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border"
+                className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border"
                 style={{
                   background: "var(--glow)",
                   borderColor: "var(--accent)",
@@ -421,8 +421,8 @@ export function GuidedTourModal({
                   key={idx}
                   type="button"
                   onClick={() => handleJumpToStep(idx)}
-                  className={`h-2 rounded-full transition-all cursor-pointer ${
-                    currentStepIndex === idx ? "w-6" : "w-2 hover:opacity-100 opacity-40"
+                  className={`h-2 rounded-xs transition-all cursor-pointer ${
+                    currentStepIndex === idx ? "w-6" : "w-3 hover:opacity-100 opacity-40"
                   }`}
                   style={{
                     background: currentStepIndex === idx ? "var(--accent)" : "var(--txt-m)",

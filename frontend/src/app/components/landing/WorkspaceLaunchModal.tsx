@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import {
   PostgresLogo,
   MySQLLogo,
@@ -14,7 +15,7 @@ import {
   GoogleSheetsLogo,
   MicrosoftExcelOnlineLogo,
 } from "./DataLogos";
-import { SAMPLE_DATASETS, SampleDataset } from "./sampleDatasets";
+import Logo from "../Logo";
 import {
   Search,
   X,
@@ -22,7 +23,16 @@ import {
   AlertCircle,
   Loader2,
   UploadCloud,
+  Sparkles,
+  Play,
+  Clock,
+  Lock,
+  User,
+  Users,
+  FileSpreadsheet,
+  Database,
 } from "lucide-react";
+import { formatBytes } from "@/lib/format";
 
 interface WorkspaceLaunchModalProps {
   isOpen: boolean;
@@ -33,7 +43,7 @@ interface WorkspaceLaunchModalProps {
   activeDatasetName?: string;
 }
 
-export type ConnectorCategory = "files" | "spreadsheets" | "relational" | "samples";
+export type ConnectorCategory = "files" | "spreadsheets" | "relational" | "history";
 
 interface ConnectorDef {
   id: string;
@@ -234,13 +244,6 @@ function validateConnectorInput(
     return { valid: true };
   }
 
-  if (category === "samples") {
-    if (!file) {
-      return { valid: false, error: "Please select one of the demo benchmark datasets." };
-    }
-    return { valid: true };
-  }
-
   const clean = sanitizeInput(uri);
   if (!clean) {
     return { valid: false, error: "Connection link or URI is required." };
@@ -298,6 +301,8 @@ export default function WorkspaceLaunchModal({
   activeDatasetName = "",
 }: WorkspaceLaunchModalProps) {
   const router = useRouter();
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
 
   // Selected Connector (defaults to initialConnectorId, csv or postgresql)
   const [selectedConnector, setSelectedConnector] = useState<ConnectorDef>(() => {
@@ -312,6 +317,96 @@ export default function WorkspaceLaunchModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<"all" | ConnectorCategory>("all");
 
+  // Ingestion History & Workspace Scoping
+  const [historyDatasets, setHistoryDatasets] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeHistoryWorkspace, setActiveHistoryWorkspace] = useState<string>("personal");
+  const [availableTeams, setAvailableTeams] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (!isLoggedIn) {
+      setAvailableTeams([]);
+      setHistoryDatasets([]);
+      if (selectedCategory === "history") {
+        setSelectedCategory("all");
+      }
+      return;
+    }
+
+    const currentWs = (typeof window !== "undefined" && localStorage.getItem("df_active_workspace")) || "personal";
+    setActiveHistoryWorkspace(currentWs);
+
+    try {
+      const cached = localStorage.getItem("df_teams_data");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setAvailableTeams(parsed.map((t: any) => ({ id: t.id, name: t.name })));
+        }
+      }
+    } catch {}
+
+    // Live sync teams to surface newly invited/created workspaces
+    apiFetch("/teams")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.organizations)) {
+          const list = data.organizations.map((t: any) => ({ id: t.id, name: t.name }));
+          setAvailableTeams(list);
+          try {
+            localStorage.setItem("df_teams_data", JSON.stringify(list));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+
+    loadHistory(currentWs);
+  }, [isOpen, isLoggedIn, selectedCategory]);
+
+  const loadHistory = async (wsId: string) => {
+    setHistoryLoading(true);
+    setHistoryDatasets([]); // Clear immediately to avoid displaying another workspace's datasets
+    try {
+      const targetWs = wsId || "personal";
+      const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(targetWs)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.recent_uploads)) {
+          setHistoryDatasets(data.recent_uploads);
+        } else {
+          setHistoryDatasets([]);
+        }
+      } else {
+        setHistoryDatasets([]);
+      }
+    } catch {
+      setHistoryDatasets([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleSwitchHistoryWorkspace = (wsId: string) => {
+    setActiveHistoryWorkspace(wsId);
+    try {
+      localStorage.setItem("df_active_workspace", wsId);
+    } catch {}
+    loadHistory(wsId);
+  };
+
+  const handleLaunchExistingDataset = (uploadId: string) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("df_last_upload_id", uploadId);
+      try {
+        sessionStorage.removeItem("df_share_token_" + uploadId);
+      } catch {}
+    }
+    onClose();
+    router.push(`/workspace?upload_id=${encodeURIComponent(uploadId)}`);
+  };
+
   // Connection inputs
   const [connUri, setConnUri] = useState("");
   const [targetTable, setTargetTable] = useState("");
@@ -325,6 +420,8 @@ export default function WorkspaceLaunchModal({
 
   // File Upload State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+  const [newProjectName, setNewProjectName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -335,6 +432,13 @@ export default function WorkspaceLaunchModal({
   const [generationStage, setGenerationStage] = useState(1);
   const [generationProgress, setGenerationProgress] = useState(15);
   const [generationStatus, setGenerationStatus] = useState("Ingesting dataset and authenticating data connection...");
+
+  // Auto-dismiss error notifications after 6 seconds
+  useEffect(() => {
+    if (!errorMsg) return;
+    const timer = setTimeout(() => setErrorMsg(""), 6000);
+    return () => clearTimeout(timer);
+  }, [errorMsg]);
 
   const handleDetectSheetTabs = async (urlToTest?: string) => {
     const rawUrl = urlToTest !== undefined ? urlToTest : connUri;
@@ -432,13 +536,7 @@ export default function WorkspaceLaunchModal({
   };
 
   const filteredConnectors = ALL_CONNECTORS.filter((c) => {
-    const matchesSearch =
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.tag.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "all" || c.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    return selectedCategory === "all" || c.category === selectedCategory;
   });
 
   const localFiles = ALL_CONNECTORS.filter((c) => c.category === "files");
@@ -504,22 +602,13 @@ export default function WorkspaceLaunchModal({
       const cleanUri = sanitizeInput(connUri);
       const cleanTable = sanitizeInput(targetTable);
 
-      if (selectedCategory === "samples" && selectedFile) {
-        setGenerationStatus(`Ingesting demo dataset: ${selectedFile.name}...`);
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-        formData.append("expected_format", "csv");
-        const res = await apiFetch("/upload", {
-          method: "POST",
-          body: formData,
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-          throw new Error(err.detail || "Demo dataset upload failed.");
-        }
-        const data = await res.json();
-        uploadId = data.upload_id;
-      } else if (selectedConnector.category === "spreadsheets") {
+      const effectiveWs =
+        activeHistoryWorkspace && activeHistoryWorkspace !== "personal"
+          ? activeHistoryWorkspace
+          : (typeof window !== "undefined" ? localStorage.getItem("df_active_workspace") : null);
+      const targetWorkspaceId = (effectiveWs && effectiveWs !== "personal") ? effectiveWs : undefined;
+
+      if (selectedConnector.category === "spreadsheets") {
         if (selectedConnector.id === "google_sheets") {
           setGenerationStatus("Streaming Google Sheets workbook tabs...");
           const res = await apiFetch("/upload/sheets", {
@@ -527,6 +616,7 @@ export default function WorkspaceLaunchModal({
             body: JSON.stringify({
               url: cleanUri,
               sheet_name: cleanTable || undefined,
+              workspace_id: targetWorkspaceId,
             }),
           });
           if (!res.ok) {
@@ -543,6 +633,7 @@ export default function WorkspaceLaunchModal({
             body: JSON.stringify({
               url: cleanUri,
               sheet_name: cleanTable || undefined,
+              workspace_id: targetWorkspaceId,
             }),
           });
           if (!res.ok) {
@@ -561,6 +652,12 @@ export default function WorkspaceLaunchModal({
         const formData = new FormData();
         formData.append("file", selectedFile);
         formData.append("expected_format", selectedConnector.id);
+        if (newProjectName && newProjectName.trim()) {
+          formData.append("dataset_name", newProjectName.trim());
+        }
+        if (targetWorkspaceId) {
+          formData.append("workspace_id", targetWorkspaceId);
+        }
         const res = await apiFetch("/upload", {
           method: "POST",
           body: formData,
@@ -580,6 +677,7 @@ export default function WorkspaceLaunchModal({
           limit: 5000,
           dataset_name: `${selectedConnector.name.toLowerCase()}_${cleanTable || "dataset"}.csv`,
           table_name: cleanTable || "public.users",
+          workspace_id: targetWorkspaceId,
         };
 
         const res = await apiFetch("/upload/database/ingest", {
@@ -603,12 +701,15 @@ export default function WorkspaceLaunchModal({
       if (typeof window !== "undefined") {
         localStorage.setItem("df_user_role", "Admin");
         localStorage.setItem("df_last_upload_id", uploadId);
+        try {
+          sessionStorage.removeItem("df_share_token_" + uploadId);
+        } catch {}
       }
 
       setTimeout(() => {
         onClose();
-        router.push(`/workspace?upload_id=${uploadId}`);
-      }, 1200);
+        window.location.href = `/workspace?upload_id=${uploadId}`;
+      }, 1000);
     } catch (err: any) {
       setIsGeneratingWorkspace(false);
       setIsConnecting(false);
@@ -624,7 +725,7 @@ export default function WorkspaceLaunchModal({
 
     const val = validateConnectorInput(
       selectedConnector.id,
-      selectedCategory === "samples" ? "samples" : selectedConnector.category,
+      selectedConnector.category,
       connUri,
       selectedFile
     );
@@ -636,7 +737,7 @@ export default function WorkspaceLaunchModal({
     await executeIngestion();
   };
 
-  const handleIncomingFile = (file: File) => {
+  const handleIncomingFile = async (file: File) => {
     if (hasActiveDataset) {
       setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
       return;
@@ -660,6 +761,7 @@ export default function WorkspaceLaunchModal({
         `File extension mismatch: '${file.name}' is a .${ext || "unknown"} file, but '${selectedConnector.name}' is selected.${suggestionText}`
       );
       setSelectedFile(null);
+      setDuplicateInfo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -667,11 +769,33 @@ export default function WorkspaceLaunchModal({
     if (file.size > 100 * 1024 * 1024) {
       setErrorMsg("File exceeds 100MB limit. For large tables, connect directly via a SQL Database.");
       setSelectedFile(null);
+      setDuplicateInfo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
+    // Check duplicate
+    try {
+      const checkRes = await apiFetch("/upload/check-duplicate", {
+        method: "POST",
+        body: JSON.stringify({ filename: file.name }),
+      });
+      if (checkRes.ok) {
+        const dup = await checkRes.json();
+        if (dup.duplicate && dup.upload_id) {
+          setDuplicateInfo(dup);
+          setSelectedFile(file);
+          const baseName = file.name.replace(/\.[^/.]+$/, "");
+          setNewProjectName(`${baseName}_v2.${ext}`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Duplicate check error:", e);
+    }
+
     setSelectedFile(file);
+    setDuplicateInfo(null);
     setErrorMsg("");
   };
 
@@ -695,83 +819,39 @@ export default function WorkspaceLaunchModal({
     }
   };
 
-  const handleQuickSample = (sample: SampleDataset) => {
-    if (hasActiveDataset) {
-      setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
-      return;
-    }
-    const csvConnector = ALL_CONNECTORS.find((c) => c.id === "csv") || selectedConnector;
-    setSelectedConnector(csvConnector);
-    const blob = new Blob([sample.csvContent], { type: "text/csv" });
-    const file = new File([blob], sample.filename, { type: "text/csv" });
-    setSelectedFile(file);
-    setErrorMsg("");
-  };
-
-  const handleLaunchSampleDirect = async (sample: SampleDataset) => {
-    if (hasActiveDataset) {
-      setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
-      return;
-    }
-    const csvConnector = ALL_CONNECTORS.find((c) => c.id === "csv") || selectedConnector;
-    setSelectedConnector(csvConnector);
-    const blob = new Blob([sample.csvContent], { type: "text/csv" });
-    const file = new File([blob], sample.filename, { type: "text/csv" });
-    setSelectedFile(file);
-    setErrorMsg("");
-
-    setIsConnecting(true);
-    setIsGeneratingWorkspace(true);
-    setGenerationStage(1);
-    setGenerationProgress(25);
-    setGenerationStatus(`Loading demo benchmark: ${sample.name}...`);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("expected_format", "csv");
-      const res = await apiFetch("/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-        throw new Error(err.detail || "Demo dataset upload failed.");
-      }
-      const data = await res.json();
-      const uploadId = data.upload_id;
-
-      setGenerationStage(4);
-      setGenerationProgress(100);
-      setGenerationStatus("Dataset ready! Launching workspace...");
-
-      if (typeof window !== "undefined") {
-        localStorage.setItem("df_user_role", "Admin");
-        localStorage.setItem("df_last_upload_id", uploadId);
-      }
-
-      setTimeout(() => {
-        onClose();
-        router.push(`/workspace?upload_id=${uploadId}`);
-      }, 1000);
-    } catch (err: any) {
-      setIsGeneratingWorkspace(false);
-      setIsConnecting(false);
-      setErrorMsg(err.message || "Failed to launch demo dataset.");
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-2.5 sm:p-4 backdrop-blur-sm animate-fadeIn"
       style={{ background: "rgba(0, 0, 0, 0.7)" }}
       onClick={isGeneratingWorkspace ? undefined : onClose}
     >
+      {/* Floating Top-Center Notification Banner */}
+      {errorMsg && (
+        <div
+          role="alert"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-xl border shadow-2xl flex items-center justify-between gap-3 bg-red-950/95 border-red-500/50 text-red-200 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200"
+        >
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <AlertCircle size={18} className="shrink-0 text-red-400" />
+            <span className="text-xs font-semibold leading-snug break-words">
+              {errorMsg}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMsg("")}
+            className="shrink-0 text-red-400 hover:text-red-200 p-1 rounded-md transition-colors cursor-pointer"
+            aria-label="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
       <div
-        className="w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-slideUp text-[var(--txt)]"
+        className="w-[90vw] sm:w-full max-w-3xl max-h-[68vh] sm:max-h-[85vh] rounded-xl shadow-2xl overflow-hidden flex flex-col relative animate-slideUp text-[var(--txt)]"
         style={{
           background: "var(--surface)",
           border: "1px solid var(--border)",
@@ -780,24 +860,35 @@ export default function WorkspaceLaunchModal({
       >
         {/* Header */}
         <div
-          className="px-6 py-4 border-b flex items-center justify-between shrink-0"
+          className="px-4 sm:px-6 py-3 sm:py-4 border-b flex items-center justify-between shrink-0"
           style={{ borderColor: "var(--border)" }}
         >
-          <div>
-            <h3 className="text-sm font-semibold tracking-tight">
-              {isGeneratingWorkspace ? "Opening Workspace" : "Import Data"}
-            </h3>
-            <p className="text-xs text-[var(--txt-m)] mt-0.5">
-              {isGeneratingWorkspace
-                ? "Setting up your data session..."
-                : "Select a source to load into your workspace"}
-            </p>
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border-2 border-dotted flex items-center justify-center shrink-0"
+              style={{
+                borderColor: "var(--accent)",
+                background: "var(--glow)",
+              }}
+            >
+              <Logo size={18} showText={false} />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold tracking-tight" style={{ color: "var(--txt)" }}>
+                {isGeneratingWorkspace ? "Opening Workspace" : "Import Data"}
+              </h3>
+              <p className="text-[10px] sm:text-xs text-[var(--txt-m)] mt-0.5 line-clamp-1">
+                {isGeneratingWorkspace
+                  ? "Setting up your data session..."
+                  : "Select a source to load into your workspace"}
+              </p>
+            </div>
           </div>
 
           {!isGeneratingWorkspace && (
             <button
               onClick={onClose}
-              className="text-[var(--txt-m)] hover:text-[var(--txt)] p-1 rounded-md transition-colors cursor-pointer"
+              className="text-[var(--txt-m)] hover:text-[var(--txt)] p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
               aria-label="Close"
             >
               <X size={16} />
@@ -838,15 +929,15 @@ export default function WorkspaceLaunchModal({
 
             {/* Category Navigation (Minimal text tabs - no pills) */}
             <div
-              className="px-6 border-b flex items-center gap-6 text-xs"
+              className="px-4 sm:px-6 border-b flex items-center gap-4 sm:gap-6 text-xs overflow-x-auto no-scrollbar whitespace-nowrap shrink-0"
               style={{ borderColor: "var(--border)" }}
             >
               {[
-                { id: "all", label: "All" },
+                { id: "all", label: "All Connectors" },
                 { id: "files", label: "Files" },
                 { id: "spreadsheets", label: "Cloud Sheets" },
                 { id: "relational", label: "Databases" },
-                { id: "samples", label: "Sample Data" },
+                ...(isLoggedIn ? [{ id: "history", label: "Ingestion History" }] : []),
               ].map((cat) => {
                 const isActive = selectedCategory === cat.id;
                 return (
@@ -854,63 +945,173 @@ export default function WorkspaceLaunchModal({
                     key={cat.id}
                     type="button"
                     onClick={() => setSelectedCategory(cat.id as any)}
-                    className={`py-3 font-medium transition-colors border-b-2 -mb-px cursor-pointer ${
+                    className={`py-3 font-medium transition-colors border-b-2 -mb-px cursor-pointer flex items-center gap-1.5 ${
                       isActive
                         ? "border-indigo-500 text-[var(--txt)]"
                         : "border-transparent text-[var(--txt-m)] hover:text-[var(--txt)]"
                     }`}
                   >
-                    {cat.label}
+                    {cat.id === "history" && <Clock size={12} className={isActive ? "text-indigo-400" : "opacity-60"} />}
+                    <span>{cat.label}</span>
                   </button>
                 );
               })}
             </div>
 
             {/* Main Content Area */}
-            <div className="grid grid-cols-1 md:grid-cols-12 min-h-[380px]">
-              {/* Left Column: Source Selection (5 cols) */}
-              <div
-                className="md:col-span-5 border-b md:border-b-0 md:border-r p-4 flex flex-col gap-3"
-                style={{ borderColor: "var(--border)" }}
-              >
-                {/* Search */}
-                <div className="relative">
-                  <Search
-                    size={13}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--txt-f)] pointer-events-none"
-                  />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search sources..."
-                    className="w-full rounded-md py-1.5 pl-8 pr-2.5 text-xs bg-[var(--bg)] border border-[var(--border)] text-[var(--txt)] focus:outline-none focus:border-indigo-500"
-                  />
+            {isLoggedIn && selectedCategory === "history" ? (
+              <div className="p-4 sm:p-6 flex flex-col min-h-0 sm:min-h-[380px] overflow-y-auto minimal-scrollbar flex-1 space-y-4">
+                {/* Header & Dynamic Workspace Switcher */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b" style={{ borderColor: "var(--border)" }}>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold flex items-center gap-2" style={{ color: "var(--txt)" }}>
+                      <Clock size={15} style={{ color: "var(--accent)" }} />
+                      <span>Ingested Datasets History</span>
+                    </h4>
+                    <p className="text-[11px] text-[var(--txt-m)] mt-0.5">
+                      {activeHistoryWorkspace === "personal"
+                        ? "Your private datasets in Personal Space. Click any dataset to immediately open your workspace session."
+                        : `Datasets ingested within ${availableTeams.find((t) => t.id === activeHistoryWorkspace)?.name || "this workspace"}.`}
+                    </p>
+                  </div>
+
+                  {/* Dynamic Workspace Switcher Pills */}
+                  {availableTeams.length > 0 && (
+                    <div className="flex items-center gap-1.5 p-1 rounded-xl border self-start sm:self-auto shrink-0" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchHistoryWorkspace("personal")}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                        style={{
+                          background: activeHistoryWorkspace === "personal" ? "var(--accent)" : "transparent",
+                          color: activeHistoryWorkspace === "personal" ? "#fff" : "var(--txt-m)",
+                        }}
+                      >
+                        <User size={12} />
+                        <span>Personal Space</span>
+                      </button>
+                      {availableTeams.map((team) => {
+                        const isTeamSel = activeHistoryWorkspace === team.id;
+                        return (
+                          <button
+                            key={team.id}
+                            type="button"
+                            onClick={() => handleSwitchHistoryWorkspace(team.id)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+                            style={{
+                              background: isTeamSel ? "#10b981" : "transparent",
+                              color: isTeamSel ? "#fff" : "var(--txt-m)",
+                            }}
+                          >
+                            <Users size={12} />
+                            <span className="truncate max-w-[110px]">{team.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                {/* List */}
-                <div className="flex-1 overflow-y-auto space-y-1 pr-1 max-h-[320px]">
-                  {selectedCategory === "samples" ? (
-                    SAMPLE_DATASETS.map((sample) => (
-                      <button
-                        key={sample.id}
-                        type="button"
-                        onClick={() => handleLaunchSampleDirect(sample)}
-                        className="w-full text-left p-2.5 rounded-lg border border-[var(--border)] hover:border-indigo-500/50 bg-[var(--card)] hover:bg-[var(--surface)] transition-all cursor-pointer"
+                {/* History Content */}
+                {!isLoggedIn ? (
+                  <div className="p-8 rounded-xl border border-dashed flex flex-col items-center justify-center text-center space-y-3 my-auto" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center border" style={{ background: "rgba(99,102,241,0.1)", borderColor: "rgba(99,102,241,0.25)", color: "var(--accent)" }}>
+                      <Lock size={20} />
+                    </div>
+                    <div className="space-y-1">
+                      <h5 className="text-xs font-bold" style={{ color: "var(--txt)" }}>Sign In to View Ingestion History</h5>
+                      <p className="text-xs max-w-sm" style={{ color: "var(--txt-m)" }}>
+                        Your uploaded datasets and past analyses are securely stored in your account. Sign in to view and resume them instantly.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        router.push("/login");
+                      }}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90 cursor-pointer shadow-md"
+                      style={{ background: "var(--accent)" }}
+                    >
+                      Sign In to Account →
+                    </button>
+                  </div>
+                ) : historyLoading ? (
+                  <div className="p-12 flex flex-col items-center justify-center text-center space-y-2 my-auto">
+                    <Loader2 size={24} className="animate-spin text-indigo-500" />
+                    <span className="text-xs text-[var(--txt-m)] font-medium">Loading workspace history...</span>
+                  </div>
+                ) : historyDatasets.length === 0 ? (
+                  <div className="p-8 rounded-xl border border-dashed flex flex-col items-center justify-center text-center space-y-2 my-auto" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                    <Database size={24} className="opacity-40" />
+                    <h5 className="text-xs font-bold" style={{ color: "var(--txt)" }}>No Datasets Ingested Yet</h5>
+                    <p className="text-xs text-[var(--txt-m)] max-w-xs">
+                      No datasets have been ingested in this workspace yet. Select a file or connector to upload your first dataset.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategory("files")}
+                      className="text-xs font-bold underline mt-1 cursor-pointer"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      Upload a file now →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto minimal-scrollbar pr-1">
+                    {historyDatasets.map((ds) => (
+                      <div
+                        key={ds.id}
+                        onClick={() => handleLaunchExistingDataset(ds.id)}
+                        className="p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-2.5 hover:border-[var(--accent)] hover:shadow-md cursor-pointer group"
+                        style={{
+                          background: "var(--card)",
+                          borderColor: "var(--border)",
+                        }}
                       >
-                        <div className="flex items-center justify-between text-xs font-medium">
-                          <span>{sample.name}</span>
-                          <span className="text-[10px] text-[var(--txt-f)] font-mono">
-                            {sample.rows} × {sample.cols}
-                          </span>
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 truncate">
+                              <FileSpreadsheet size={15} style={{ color: "var(--accent)" }} className="shrink-0" />
+                              <span className="text-xs font-bold truncate group-hover:text-indigo-400 transition-colors" style={{ color: "var(--txt)" }}>
+                                {ds.filename || `Dataset ${ds.id.slice(0, 8)}`}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
+                              {ds.source_type?.toUpperCase() || "CSV"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[10px] font-mono flex-wrap" style={{ color: "var(--txt-m)" }}>
+                            <span>{ds.rows?.toLocaleString() || 0} rows × {ds.cols || 0} cols</span>
+                            <span>•</span>
+                            <span className="font-semibold text-emerald-400">
+                              {ds.size_human || (ds.size_bytes ? formatBytes(ds.size_bytes) : "—")}
+                            </span>
+                            <span>•</span>
+                            <span>{ds.time_ago || "recently"}</span>
+                          </div>
                         </div>
-                        <p className="text-[11px] text-[var(--txt-m)] line-clamp-1 mt-0.5">
-                          {sample.description}
-                        </p>
-                      </button>
-                    ))
-                  ) : (
-                    filteredConnectors.map((c) => {
+
+                        <div className="flex items-center justify-between pt-2 border-t text-[11px] font-bold" style={{ borderColor: "var(--border)", color: "var(--accent)" }}>
+                          <span>Open in Workspace</span>
+                          <span className="transition-transform group-hover:translate-x-1">→</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-12 min-h-0 sm:min-h-[360px] overflow-y-auto minimal-scrollbar flex-1">
+                {/* Left Column: Source Selection (5 cols) */}
+                <div
+                  className="md:col-span-5 border-b md:border-b-0 md:border-r p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3"
+                  style={{ borderColor: "var(--border)" }}
+                >
+                  {/* List */}
+                  <div className="flex-1 overflow-y-auto minimal-scrollbar space-y-1.5 pr-1.5 max-h-[220px] sm:max-h-[440px]">
+                    {filteredConnectors.map((c) => {
                       const isSelected = selectedConnector.id === c.id;
                       const Logo = c.Logo;
                       return (
@@ -933,13 +1134,20 @@ export default function WorkspaceLaunchModal({
                           </div>
                         </button>
                       );
-                    })
-                  )}
+                    })}
+                  </div>
+
+                  {/* Mobile Scroll Indicator */}
+                  <div className="md:hidden pt-1 flex items-center justify-between text-[10px] text-[var(--txt-m)] border-t border-[var(--border)]/40 shrink-0">
+                    <span className="flex items-center gap-1 font-medium">
+                      <span>Scroll for more sources</span>
+                    </span>
+                    <span className="text-[9px] font-mono text-[var(--accent)] font-bold animate-bounce">↓</span>
+                  </div>
                 </div>
-              </div>
 
               {/* Right Column: Configuration & Actions (7 cols) */}
-              <div className="md:col-span-7 p-6 flex flex-col justify-between">
+              <div className="md:col-span-7 p-3.5 sm:p-6 flex flex-col justify-between overflow-y-auto">
                 <div>
                   {/* Selected Source Header */}
                   <div className="flex items-center gap-2.5 pb-4 border-b mb-5" style={{ borderColor: "var(--border)" }}>
@@ -1014,78 +1222,180 @@ export default function WorkspaceLaunchModal({
                     </div>
                   ) : selectedConnector.category === "files" ? (
                     <div className="space-y-4">
-                      {/* Dropzone */}
-                      <div
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`border border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                          isDragging
-                            ? "border-indigo-500 bg-indigo-500/5"
-                            : "border-[var(--border)] hover:border-slate-400 bg-[var(--bg)]/50"
-                        }`}
-                      >
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleIncomingFile(e.target.files[0]);
+                      {/* Duplicate Dataset Resolution Card */}
+                      {duplicateInfo ? (
+                        <div
+                          className="rounded-lg border p-4 sm:p-5 space-y-3.5 text-left animate-in fade-in zoom-in-95 duration-200"
+                          style={{
+                            background: "rgba(99, 102, 241, 0.08)",
+                            borderColor: "rgba(99, 102, 241, 0.35)",
                           }}
-                          accept={getExpectedExtensions(selectedConnector.id).accept}
-                          className="hidden"
-                        />
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div
+                              className="w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0 border"
+                              style={{
+                                background: "rgba(99, 102, 241, 0.15)",
+                                borderColor: "rgba(99, 102, 241, 0.35)",
+                                color: "#818cf8",
+                              }}
+                            >
+                              <Sparkles size={16} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                                Dataset Already Uploaded
+                              </h4>
+                              <p className="text-[11px] leading-relaxed mt-0.5 text-slate-600 dark:text-slate-300">
+                                <strong className="font-mono text-indigo-500">{duplicateInfo.filename}</strong> ({duplicateInfo.rows?.toLocaleString()} rows) already exists in your workspace.
+                              </p>
+                            </div>
+                          </div>
 
-                        {selectedFile ? (
-                          <div className="space-y-1">
-                            <p className="text-xs font-medium text-[var(--txt)] flex items-center justify-center gap-1.5">
-                              <CheckCircle2 size={14} className="text-emerald-500" />
-                              {selectedFile.name}
-                            </p>
-                            <p className="text-[11px] text-[var(--txt-f)] font-mono">
-                              {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
-                            </p>
+                          <div className="space-y-2.5 pt-1">
+                            {/* Option 1: Continue Existing */}
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              onClick={() => {
+                                onClose();
+                                window.location.href = `/workspace?upload_id=${duplicateInfo.upload_id}`;
+                              }}
+                              className="w-full py-2.5 px-3 rounded-[4px] font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all active:scale-[0.99]"
+                            >
+                              <Play size={13} />
+                              <span>Continue Existing Project</span>
+                            </button>
+
+                            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-slate-400 my-0.5 justify-center">
+                              <span className="h-px bg-slate-200 dark:bg-slate-700 flex-1" />
+                              <span>OR NAME NEW PROJECT</span>
+                              <span className="h-px bg-slate-200 dark:bg-slate-700 flex-1" />
+                            </div>
+
+                            {/* Option 2: Name New Project */}
+                            <div className="flex items-center gap-1.5 w-full">
+                              <input
+                                type="text"
+                                value={newProjectName}
+                                onChange={(e) => setNewProjectName(e.target.value)}
+                                placeholder="New project name (e.g. marksheet_v2.csv)"
+                                className="flex-1 text-xs px-3 py-2 rounded-[4px] border font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
+                                style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => executeIngestion()}
+                                className="py-2 px-3 rounded-[4px] font-bold text-xs border transition-all cursor-pointer whitespace-nowrap bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-100 shrink-0"
+                              >
+                                Create New
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center pt-2 border-t text-[11px]" style={{ borderColor: "rgba(99, 102, 241, 0.2)" }}>
+                            <span className="font-mono text-slate-500 text-[10px]">
+                              Existing ID: {duplicateInfo.upload_id}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDuplicateInfo(null);
                                 setSelectedFile(null);
                                 if (fileInputRef.current) fileInputRef.current.value = "";
                               }}
-                              className="text-[11px] text-red-400 hover:underline mt-1 cursor-pointer"
+                              className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline cursor-pointer"
                             >
-                              Remove
+                              Cancel &amp; choose another file
                             </button>
                           </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <UploadCloud size={20} className="mx-auto text-[var(--txt-m)] mb-2" />
-                            <p className="text-xs font-medium text-[var(--txt)]">
-                              Drop {getExpectedExtensions(selectedConnector.id).label} file or browse
-                            </p>
-                            <p className="text-[11px] text-[var(--txt-f)]">
-                              Up to 100MB ({getExpectedExtensions(selectedConnector.id).extensions.map((e) => `.${e}`).join(", ")})
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        /* Dropzone */
+                        <div
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`border border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                            isDragging
+                              ? "border-indigo-500 bg-indigo-500/5"
+                              : "border-[var(--border)] hover:border-slate-400 bg-[var(--bg)]/50"
+                          }`}
+                        >
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) handleIncomingFile(e.target.files[0]);
+                            }}
+                            accept={getExpectedExtensions(selectedConnector.id).accept}
+                            className="hidden"
+                          />
 
-                      {/* Demo samples shortcuts (Minimal text list, NO PILLS) */}
-                      <div className="flex items-center gap-2 text-xs text-[var(--txt-m)] pt-1">
-                        <span className="text-[var(--txt-f)]">Sample data:</span>
-                        {SAMPLE_DATASETS.slice(0, 3).map((sample, idx) => (
-                          <React.Fragment key={sample.id}>
-                            <button
-                              type="button"
-                              onClick={() => handleQuickSample(sample)}
-                              className="text-[var(--txt)] hover:text-indigo-400 transition-colors cursor-pointer"
-                            >
-                              {sample.name}
-                            </button>
-                            {idx < 2 && <span className="text-[var(--txt-f)]">·</span>}
-                          </React.Fragment>
-                        ))}
-                      </div>
+                          {selectedFile ? (
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-[var(--txt)] flex items-center justify-center gap-1.5">
+                                <CheckCircle2 size={14} className="text-emerald-500" />
+                                {selectedFile.name}
+                              </p>
+                              <p className="text-[11px] font-mono font-semibold text-emerald-400">
+                                {formatBytes(selectedFile.size)}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedFile(null);
+                                  if (fileInputRef.current) fileInputRef.current.value = "";
+                                }}
+                                className="text-[11px] text-red-400 hover:underline mt-1 cursor-pointer"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <UploadCloud size={20} className="mx-auto text-[var(--txt-m)] mb-2" />
+                              <p className="text-xs font-medium text-[var(--txt)]">
+                                Drop {getExpectedExtensions(selectedConnector.id).label} file or browse
+                              </p>
+                              <p className="text-[11px] text-[var(--txt-f)]">
+                                Up to 100MB ({getExpectedExtensions(selectedConnector.id).extensions.map((e) => `.${e}`).join(", ")})
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Recent Ingestion Shortcuts (Hidden completely if user is not logged in) */}
+                      {isLoggedIn && historyDatasets.length > 0 && (
+                        <div className="flex items-center gap-2 text-xs text-[var(--txt-m)] pt-1 flex-wrap">
+                          <span className="text-[var(--txt-f)] flex items-center gap-1">
+                            <Clock size={11} style={{ color: "var(--accent)" }} />
+                            <span>Recent history:</span>
+                          </span>
+                          {historyDatasets.slice(0, 3).map((ds, idx) => (
+                            <React.Fragment key={ds.id}>
+                              <button
+                                type="button"
+                                onClick={() => handleLaunchExistingDataset(ds.id)}
+                                className="text-[var(--txt)] hover:text-indigo-400 transition-colors cursor-pointer max-w-[130px] truncate underline"
+                                title={`Open ${ds.filename} (${ds.size_human || (ds.size_bytes ? formatBytes(ds.size_bytes) : "")})`}
+                              >
+                                {ds.filename}
+                              </button>
+                              {idx < Math.min(historyDatasets.length - 1, 2) && <span className="text-[var(--txt-f)]">·</span>}
+                            </React.Fragment>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCategory("history")}
+                            className="text-indigo-400 hover:underline text-[11px] cursor-pointer ml-1 font-semibold"
+                          >
+                            All history →
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     /* Databases */
@@ -1164,15 +1474,16 @@ export default function WorkspaceLaunchModal({
                   <button
                     type="button"
                     onClick={handleConnect}
-                    disabled={isConnecting || hasActiveDataset}
-                    className="px-4 py-2 rounded-md font-medium text-xs bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-40 flex items-center gap-2 cursor-pointer"
+                    disabled={isConnecting || hasActiveDataset || !!duplicateInfo}
+                    className="px-4 py-2 rounded-[4px] font-medium text-xs bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-40 flex items-center gap-2 cursor-pointer"
                   >
                     {isConnecting && <Loader2 size={13} className="animate-spin" />}
-                    <span>Launch Workspace</span>
+                    <span>{duplicateInfo ? "Resolve Duplicate Above" : "Launch Workspace"}</span>
                   </button>
                 </div>
               </div>
             </div>
+          )}
           </>
         )}
       </div>

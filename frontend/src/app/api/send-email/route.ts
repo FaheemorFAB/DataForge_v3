@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 export async function GET() {
@@ -13,11 +13,11 @@ export async function POST(req: Request) {
       to = "faheembaiza@gmail.com",
       subject = "Hello World",
       html = "<p>Congrats on sending your <strong>first email</strong>!</p>",
-      from = "onboarding@resend.dev",
+      from = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
     } = body;
 
     // NOTE: Replace 're_xxxxxxxxx' with your real API key from https://resend.com/api-keys
-    const apiKey = process.env.RESEND_API_KEY || "re_xxxxxxxxx";
+    const apiKey = process.env.RESEND_API_KEY;
     const resend = new Resend(apiKey);
 
     const result = await resend.emails.send({

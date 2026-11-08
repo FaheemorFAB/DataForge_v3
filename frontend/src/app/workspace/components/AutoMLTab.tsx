@@ -2,12 +2,22 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
+function getShareToken(uid?: string | null): string {
+  if (typeof window === "undefined" || !uid) return "";
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("share_token") || sessionStorage.getItem("df_share_token_" + uid) || sessionStorage.getItem(`df_share_${uid}`) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
 import { apiFetch } from "@/lib/api";
 import {
   Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders,
   Cpu, Check, Download, Play, RefreshCw, Search, Filter,
-  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag,
-  Trophy, Settings2, Sparkles, SlidersHorizontal
+  Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag, X,
+  Trophy, Settings2, Sparkles, SlidersHorizontal, Clock, Eye
 } from "lucide-react";
 
 interface FeatureInfo {
@@ -35,9 +45,56 @@ const AVAILABLE_ALGORITHMS = [
   { id: "svm", name: "Support Vector Machine", tag: "Margin-based", desc: "Maximal-margin hyperplane classifier/regressor with regularized boundary.", category: "svm" },
 ];
 
+function renderConfigBadges(cfgStr: string) {
+  if (!cfgStr || cfgStr === "{}" || cfgStr === "-") return <span className="opacity-40 font-mono text-[10px]">—</span>;
+  try {
+    const cleaned = cfgStr
+      .replace(/'/g, '"')
+      .replace(/True/g, 'true')
+      .replace(/False/g, 'false')
+      .replace(/None/g, 'null');
+    const parsed = JSON.parse(cleaned);
+    const keys = Object.keys(parsed)
+      .filter((k) => !k.startsWith("_") && typeof parsed[k] !== "object")
+      .slice(0, 3);
+    if (keys.length === 0) return <span className="font-mono text-[10px] opacity-50">Standard Parameters</span>;
+    return (
+      <div className="flex flex-wrap gap-1 items-center max-w-[200px]" title={cfgStr}>
+        {keys.map((k) => {
+          const shortK = k.replace("n_estimators", "trees").replace("learning_rate", "lr").replace("max_depth", "depth");
+          return (
+            <span
+              key={k}
+              className="px-1.5 py-0.5 rounded text-[9px] font-mono border"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
+            >
+              {shortK}: {String(parsed[k])}
+            </span>
+          );
+        })}
+      </div>
+    );
+  } catch {
+    return <span className="font-mono text-[10px] truncate max-w-[150px] block opacity-70" title={cfgStr}>{cfgStr}</span>;
+  }
+}
+
 export function AutoMLTab() {
-  const { profile, cleanProfile, uploadId, setActiveTab, automlMeta, setAutomlMeta, refreshWorkspace } = useWorkspace();
-  const effectiveProfile = cleanProfile || profile;
+  const { profile, cleanProfile, uploadId, setActiveTab, automlMeta, setAutomlMeta, refreshWorkspace, cleanResult } = useWorkspace();
+  const [inspectedLeaderboardModel, setInspectedLeaderboardModel] = useState<any>(null);
+
+  const effectiveProfile = useMemo(() => {
+    if (cleanProfile?.columns && Array.isArray(cleanProfile.columns) && cleanProfile.columns.length > 0) {
+      return cleanProfile;
+    }
+    if (cleanResult?.clean_profile?.columns && Array.isArray(cleanResult.clean_profile.columns) && cleanResult.clean_profile.columns.length > 0) {
+      return cleanResult.clean_profile;
+    }
+    if (profile?.columns && Array.isArray(profile.columns) && profile.columns.length > 0) {
+      return profile;
+    }
+    return cleanProfile || cleanResult?.clean_profile || profile || {};
+  }, [cleanProfile, cleanResult, profile]);
 
   // Configuration States
   const [customModelName, setCustomModelName] = useState("");
@@ -84,6 +141,13 @@ export function AutoMLTab() {
   const [detectedNUnique, setDetectedNUnique] = useState(0);
   const [isTraining, setIsTraining] = useState(false);
   const [automlError, setAutomlError] = useState("");
+
+  // Auto-dismiss error notifications after 6 seconds
+  useEffect(() => {
+    if (!automlError) return;
+    const timer = setTimeout(() => setAutomlError(""), 6000);
+    return () => clearTimeout(timer);
+  }, [automlError]);
   const [automlResult, setAutomlResult] = useState<any>(null);
   // Restore previous AutoML result on refresh
   useEffect(() => {
@@ -100,72 +164,198 @@ export function AutoMLTab() {
     }
   }, [automlMeta]);
 
-  // Available columns from profile
+  // Available columns from profile (with robust fallback)
   const allColumns: string[] = useMemo(() => {
-    if (effectiveProfile?.columns && Array.isArray(effectiveProfile.columns)) {
-      return effectiveProfile.columns.map((c: any) => c.name);
+    const cols = effectiveProfile?.columns || profile?.columns || cleanResult?.clean_profile?.columns || cleanProfile?.columns;
+    if (Array.isArray(cols) && cols.length > 0) {
+      return cols
+        .map((c: any) => (typeof c === "string" ? c : c?.name || c?.col || c?.column || ""))
+        .filter(Boolean);
+    }
+    if (Array.isArray(effectiveProfile?.headers) && effectiveProfile.headers.length > 0) {
+      return effectiveProfile.headers.filter(Boolean);
     }
     return [];
-  }, [effectiveProfile]);
+  }, [effectiveProfile, profile, cleanResult, cleanProfile]);
+
+  // Fast map of column metadata from profile
+  const profileColMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    const cols = effectiveProfile?.columns || profile?.columns || cleanResult?.clean_profile?.columns || [];
+    if (Array.isArray(cols)) {
+      cols.forEach((c: any) => {
+        const name = typeof c === "string" ? c : c?.name || c?.col || c?.column;
+        if (name) map[name] = c;
+      });
+    }
+    return map;
+  }, [effectiveProfile, profile, cleanResult]);
 
   // Auto-suggest a target if none selected yet and columns are available
+  const isTargetInitialized = React.useRef(false);
   useEffect(() => {
-    if (!automlTarget && allColumns.length > 0) {
-      const candidate = allColumns.find(c => {
-        const lower = c.toLowerCase().trim();
-        return ["target", "label", "class", "churn", "status", "outcome", "survived", "y", "is_churn", "fraud", "loan_status"].includes(lower);
+    if (allColumns.length === 0) return;
+
+    const findSmartTarget = (): string => {
+      const isIdOrDate = (col: string): boolean => {
+        const l = col.toLowerCase().trim();
+        if (l === "id" || l.endsWith("_id") || l.startsWith("id_") || l.includes("uuid") || l.includes("guid") || l.includes("index")) return true;
+        if (l.includes("date") || l.includes("time") || l.includes("dob") || l.includes("timestamp") || l.includes("created") || l.includes("updated")) return true;
+        return false;
+      };
+
+      // 1. Direct standard target keywords (excluding ID/date columns)
+      const explicitTarget = allColumns.find(c => {
+        if (isIdOrDate(c)) return false;
+        const l = c.toLowerCase().trim();
+        return ["target", "label", "class", "churn", "status", "outcome", "survived", "y", "is_churn", "fraud", "loan_status", "income", "salary", "price", "revenue", "sales", "score", "grade", "rating"].includes(l);
       });
-      if (candidate) {
-        setAutomlTarget(candidate);
-        setCustomModelName(`${candidate.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
+      if (explicitTarget) return explicitTarget;
+
+      // 2. Categorical columns with 2 to 20 unique values (from profile)
+      const validCategorical = allColumns.find(c => {
+        if (isIdOrDate(c)) return false;
+        const meta = profileColMap[c];
+        const nUniq = meta?.n_unique ?? meta?.unique_count;
+        return typeof nUniq === "number" && nUniq >= 2 && nUniq <= 20;
+      });
+      if (validCategorical) return validCategorical;
+
+      // 3. Numeric columns that are not ID or date
+      const validNumeric = allColumns.find(c => {
+        if (isIdOrDate(c)) return false;
+        const meta = profileColMap[c];
+        const dtype = (meta?.dtype || meta?.type || "").toLowerCase();
+        return dtype.includes("int") || dtype.includes("float") || dtype.includes("num");
+      });
+      if (validNumeric) return validNumeric;
+
+      // 4. Any non-ID, non-date column
+      const fallback = allColumns.find(c => !isIdOrDate(c));
+      return fallback || allColumns[0];
+    };
+
+    if (!isTargetInitialized.current) {
+      isTargetInitialized.current = true;
+      if (!automlTarget) {
+        const targetToSet = findSmartTarget();
+        if (targetToSet) {
+          setAutomlTarget(targetToSet);
+          setCustomModelName(`${targetToSet.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
+        }
+      }
+    } else if (automlTarget && !allColumns.includes(automlTarget)) {
+      const targetToSet = findSmartTarget();
+      if (targetToSet) {
+        setAutomlTarget(targetToSet);
+        setCustomModelName(`${targetToSet.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
       }
     }
-  }, [allColumns, automlTarget]);
+  }, [allColumns, automlTarget, profileColMap]);
+
+  // Active features list: uses deep analysis if available, otherwise immediate local baseline from dataset profile
+  const activeFeaturesList: FeatureInfo[] = useMemo(() => {
+    if (featuresList && featuresList.length > 0) {
+      return featuresList;
+    }
+    if (allColumns.length === 0) return [];
+
+    return allColumns
+      .filter(col => !automlTarget || col !== automlTarget)
+      .map(col => {
+        const colMeta = profileColMap[col];
+        const isObj = typeof colMeta === "object" && colMeta !== null;
+        const dtype = isObj ? (colMeta.dtype || colMeta.type || "string") : "string";
+        const missingPct = isObj ? (colMeta.null_pct ?? 0) : 0;
+        const nUnique = isObj ? (colMeta.n_unique ?? colMeta.unique_count ?? 0) : 0;
+        const lower = col.toLowerCase();
+        const isId = lower.endsWith("_id") || lower === "id" || lower.endsWith("id") || lower.endsWith("_uuid");
+
+        return {
+          name: col,
+          dtype: dtype,
+          missing_count: isObj && colMeta.null_count ? colMeta.null_count : 0,
+          missing_pct: missingPct,
+          n_unique: nUnique,
+          is_id: isId,
+          correlation: null,
+          leakage_risk: "low" as const,
+          recommendation: isId ? "drop_id" as const : missingPct >= 60 ? "drop_missing" as const : "include" as const,
+        };
+      });
+  }, [featuresList, allColumns, automlTarget, profileColMap]);
+
+  // Keep selected features in sync if empty
+  useEffect(() => {
+    if (selectedFeatures.length === 0 && activeFeaturesList.length > 0) {
+      const safe = activeFeaturesList
+        .filter(f => f.name !== automlTarget && f.recommendation === "include" && !f.is_id)
+        .map(f => f.name);
+      setSelectedFeatures(safe.length > 0 ? safe : activeFeaturesList.filter(f => f.name !== automlTarget).map(f => f.name));
+    }
+  }, [activeFeaturesList, selectedFeatures.length, automlTarget]);
 
   // When target changes, analyze task & feature signals
   useEffect(() => {
     if (automlTarget) {
+      setSelectedFeatures(prev => prev.filter(c => c !== automlTarget));
       runFeatureAnalysis(automlTarget);
     } else {
       setFeaturesList([]);
-      setSelectedFeatures([]);
       setDetectedTask("");
       setDetectedNUnique(0);
     }
   }, [automlTarget, uploadId]);
 
   const runFeatureAnalysis = async (target: string) => {
-    if (!target || !uploadId) return;
+    if (!target) return;
+
+    // Fast local heuristic for task while backend analyzes
+    const targetMeta = profileColMap[target];
+    if (targetMeta && typeof targetMeta === "object") {
+      const dt = (targetMeta.dtype || targetMeta.type || "").toLowerCase();
+      const nUniq = targetMeta.n_unique ?? targetMeta.unique_count ?? 0;
+      if (dt.includes("object") || dt.includes("str") || dt.includes("cat") || dt.includes("bool") || (nUniq > 0 && nUniq <= 10)) {
+        setDetectedTask(nUniq === 2 ? "binary classification" : "multiclass classification");
+        if (nUniq > 0) setDetectedNUnique(nUniq);
+      } else if (dt.includes("int") || dt.includes("float")) {
+        setDetectedTask("regression");
+        if (nUniq > 0) setDetectedNUnique(nUniq);
+      }
+    }
+
+    if (!uploadId) return;
     setIsAnalyzingFeatures(true);
     try {
+      const shareToken = getShareToken(uploadId);
       // 1. Detect task
-      const taskRes = await apiFetch("/automl/detect-task", {
+      const taskRes = await apiFetch(`/automl/detect-task?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_col: target, upload_id: uploadId }),
+        body: JSON.stringify({ target_col: target, upload_id: uploadId, share_token: shareToken }),
       });
       if (taskRes.ok) {
         const taskData = await taskRes.json();
-        setDetectedTask(taskData.task || "");
-        setDetectedNUnique(taskData.n_unique || 0);
+        if (taskData.task) setDetectedTask(taskData.task);
+        if (taskData.n_unique !== undefined) setDetectedNUnique(taskData.n_unique);
       }
 
       // 2. Comprehensive Feature Analysis & Leakage Audit
-      const featRes = await apiFetch("/automl/feature-analysis", {
+      const featRes = await apiFetch(`/automl/feature-analysis?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_col: target, upload_id: uploadId }),
+        body: JSON.stringify({ target_col: target, upload_id: uploadId, share_token: shareToken }),
       });
 
       if (featRes.ok) {
         const featData = await featRes.json();
         if (featData.features && Array.isArray(featData.features)) {
           setFeaturesList(featData.features);
-          // Auto-select features recommended as "include" (omit high leakage & ID columns by default)
+          // Auto-select features recommended as "include" (omit high leakage, ID columns, and target)
           const recommended = featData.features
-            .filter((f: FeatureInfo) => f.recommendation === "include")
+            .filter((f: FeatureInfo) => f.recommendation === "include" && f.name !== target)
             .map((f: FeatureInfo) => f.name);
-          setSelectedFeatures(recommended);
+          setSelectedFeatures(recommended.length > 0 ? recommended : featData.features.filter((f: FeatureInfo) => f.name !== target).map((f: FeatureInfo) => f.name));
         }
       }
     } catch (err) {
@@ -177,6 +367,7 @@ export function AutoMLTab() {
 
   // Toggle single feature
   const toggleFeature = (colName: string) => {
+    if (colName === automlTarget) return;
     setSelectedFeatures(prev =>
       prev.includes(colName) ? prev.filter(c => c !== colName) : [...prev, colName]
     );
@@ -184,12 +375,14 @@ export function AutoMLTab() {
 
   // Batch feature selection helpers
   const selectAllFeatures = () => {
-    setSelectedFeatures(featuresList.map(f => f.name));
+    setSelectedFeatures(activeFeaturesList.filter(f => f.name !== automlTarget).map(f => f.name));
   };
 
   const selectSafeFeaturesOnly = () => {
-    const safe = featuresList.filter(f => f.leakage_risk !== "high" && !f.is_id).map(f => f.name);
-    setSelectedFeatures(safe);
+    const safe = activeFeaturesList
+      .filter(f => f.name !== automlTarget && f.leakage_risk !== "high" && !f.is_id)
+      .map(f => f.name);
+    setSelectedFeatures(safe.length > 0 ? safe : activeFeaturesList.filter(f => f.name !== automlTarget).map(f => f.name));
   };
 
   const deselectAllFeatures = () => {
@@ -209,7 +402,30 @@ export function AutoMLTab() {
 
   // Filter features for display
   const displayedFeatures = useMemo(() => {
-    return featuresList.filter(f => {
+    const sourceList = activeFeaturesList.length > 0 ? activeFeaturesList : (
+      allColumns.map(col => {
+        const colMeta = profileColMap[col];
+        const isObj = typeof colMeta === "object" && colMeta !== null;
+        const dtype = isObj ? (colMeta.dtype || colMeta.type || "string") : "string";
+        const missingPct = isObj ? (colMeta.null_pct ?? 0) : 0;
+        const nUnique = isObj ? (colMeta.n_unique ?? colMeta.unique_count ?? 0) : 0;
+        const lower = col.toLowerCase();
+        const isId = lower.endsWith("_id") || lower === "id";
+        return {
+          name: col,
+          dtype: dtype,
+          missing_count: 0,
+          missing_pct: missingPct,
+          n_unique: nUnique,
+          is_id: isId,
+          correlation: null,
+          leakage_risk: "low" as const,
+          recommendation: isId ? "drop_id" as const : "include" as const,
+        };
+      })
+    );
+
+    return sourceList.filter(f => {
       if (featureSearch && !f.name.toLowerCase().includes(featureSearch.toLowerCase())) {
         return false;
       }
@@ -227,11 +443,11 @@ export function AutoMLTab() {
       }
       return true;
     });
-  }, [featuresList, featureSearch, featureFilter]);
+  }, [activeFeaturesList, allColumns, profileColMap, featureSearch, featureFilter]);
 
   const highRiskCount = useMemo(() => {
-    return featuresList.filter(f => f.leakage_risk === "high").length;
-  }, [featuresList]);
+    return activeFeaturesList.filter(f => f.leakage_risk === "high").length;
+  }, [activeFeaturesList]);
 
   // Execute Training
   const runAutoml = async () => {
@@ -250,7 +466,9 @@ export function AutoMLTab() {
     setAutomlResult(null);
 
     try {
-      const res = await apiFetch("/automl/train", {
+      const shareToken = getShareToken(uploadId);
+      const trainUrl = `/automl/train?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`;
+      const res = await apiFetch(trainUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -264,6 +482,7 @@ export function AutoMLTab() {
           cv_folds: cvFolds,
           metric_override: metricOverride,
           upload_id: uploadId,
+          share_token: shareToken,
           model_name: customModelName.trim() || undefined,
           mode: trainingMode,
           selected_model: trainingMode === "manual" ? manualModel : undefined,
@@ -300,11 +519,18 @@ export function AutoMLTab() {
           if (!pRes.ok) throw new Error("AutoML job status polling failed.");
           const pData = await pRes.json();
           if (pData.status === "completed" || pData.status === "success") {
-            if (pData.result?.key === "automl_meta" && uploadId) {
-              const metaRes = await apiFetch(`/workspace/state?upload_id=${uploadId}`);
-              if (metaRes.ok) {
-                const state = await metaRes.json();
-                if (state.automl_meta) return state.automl_meta;
+            if (pData.result?.automl_meta && pData.result.automl_meta.leaderboard) {
+              return pData.result.automl_meta;
+            }
+            if (uploadId) {
+              const shareToken = getShareToken(uploadId);
+              for (let retry = 0; retry < 5; retry++) {
+                const metaRes = await apiFetch(`/workspace/state?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`);
+                if (metaRes.ok) {
+                  const state = await metaRes.json();
+                  if (state.automl_meta && state.automl_meta.leaderboard) return state.automl_meta;
+                }
+                await new Promise(r => setTimeout(r, 1000));
               }
             }
             return pData.result;
@@ -319,6 +545,9 @@ export function AutoMLTab() {
       const result = await pollTask(data.task_id);
       setAutomlResult(result);
       if (setAutomlMeta) setAutomlMeta(result);
+      if (refreshWorkspace && uploadId) {
+        refreshWorkspace(uploadId);
+      }
     } catch (e: any) {
       setAutomlError(String(e.message || e));
     } finally {
@@ -336,7 +565,7 @@ export function AutoMLTab() {
               <Bot size={20} />
             </span>
             <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
-              Enterprise AutoML Studio
+              AutoML Studio
             </h2>
           </div>
 
@@ -347,7 +576,7 @@ export function AutoMLTab() {
             <>
               <button
                 onClick={() => setActiveTab("models")}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-[4px] text-xs font-bold transition-all cursor-pointer"
                 style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>
                 <Boxes size={14} />
                 <span>Models Catalog</span>
@@ -356,7 +585,7 @@ export function AutoMLTab() {
               <a
                 href={`/api/automl/download?upload_id=${uploadId}`}
                 download
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all hover:opacity-90"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-[4px] text-xs font-bold text-white shadow-md transition-all hover:opacity-90"
                 style={{ background: "linear-gradient(135deg, #10b981, #059669)", textDecoration: "none" }}>
                 <Download size={14} />
                 <span>DOWNLOAD MODEL (.joblib)</span>
@@ -483,62 +712,99 @@ export function AutoMLTab() {
 
       {/* -- SECTION 2: GRANULAR FEATURE SELECTION & LEAKAGE GUARD -- */}
       <div className="p-5 rounded-2xl space-y-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-        {!automlTarget ? (
-          <div className="py-7 px-4 text-center space-y-2">
+        {allColumns.length === 0 ? (
+          <div className="py-8 px-4 text-center space-y-3">
             <div className="inline-flex p-3 rounded-2xl mb-1 text-white shadow-md" style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
               <Sliders size={22} />
             </div>
             <h4 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
-              Select a Target Variable (Y) to Configure Predictor Features
+              No Dataset Attributes Available
             </h4>
             <p className="text-xs max-w-md mx-auto" style={{ color: "var(--txt-m)" }}>
-              Choose which variable you wish to predict in <strong>Target Variable (Y)</strong> above. DataForge will automatically audit data types, calculate signal correlations, and flag potential target leakage risks.
+              Please upload or select a dataset in the workspace to inspect attributes, audit correlations, and train AutoML models.
             </p>
+            <button
+              type="button"
+              onClick={() => setActiveTab("preview")}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[4px] text-xs font-bold text-white shadow-sm hover:opacity-90 transition-all cursor-pointer"
+              style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
+              Go to Data Preview / Ingestion
+            </button>
           </div>
         ) : (
           <>
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Sliders size={16} style={{ color: "var(--accent)" }} />
                   <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-                    Feature Whitelist &amp; Leakage Guard
+                    Dataset Attributes &amp; Predictor Whitelist
                   </h3>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1" }}>
-                    {selectedFeatures.length} of {featuresList.length} Selected
+                  <span className="text-xs px-2 py-0.5 rounded-md font-mono font-bold" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1" }}>
+                    {selectedFeatures.length} of {activeFeaturesList.length} Predictors Selected
                   </span>
+                  {automlTarget ? (
+                    <span className="text-xs px-2.5 py-0.5 rounded-md font-mono font-bold" style={{ background: "rgba(99,102,241,0.15)", color: "#6366f1" }}>
+                      Target: {automlTarget} (Y)
+                    </span>
+                  ) : (
+                    <span className="text-xs px-2.5 py-0.5 rounded-md font-mono font-bold" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
+                      Target not selected
+                    </span>
+                  )}
+                  {isAnalyzingFeatures && (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-500 animate-pulse">
+                      <RefreshCw size={11} className="animate-spin" />
+                      <span>Auditing signal correlations...</span>
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs mt-0.5" style={{ color: "var(--txt-m)" }}>
-                  Explicitly whitelist predictors. Deselect high-correlation features to eliminate target leakage.
+                  Audit column data types, inspect missingness, eliminate target leakage, and whitelist predictor attributes for AutoML training.
                 </p>
               </div>
 
               {/* Batch Selection Action Buttons */}
               <div className="flex items-center gap-2 flex-wrap">
                 <button
+                  type="button"
                   onClick={selectSafeFeaturesOnly}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
                   style={{ background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
                   <ShieldCheck size={12} />
                   <span>Select Safe Only</span>
                 </button>
                 <button
+                  type="button"
                   onClick={selectAllFeatures}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
                   style={{ background: "var(--border)", color: "var(--txt)" }}>
                   Select All
                 </button>
                 <button
+                  type="button"
                   onClick={deselectAllFeatures}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold"
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
                   style={{ background: "var(--border)", color: "var(--txt)" }}>
                   Clear
                 </button>
               </div>
             </div>
 
+            {/* Informational Prompt when no target selected yet */}
+            {!automlTarget && (
+              <div className="p-3.5 rounded-xl flex items-center justify-between gap-3" style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)" }}>
+                <div className="flex items-center gap-2.5">
+                  <AlertCircle size={16} className="text-indigo-500 shrink-0" />
+                  <p className="text-xs font-medium" style={{ color: "var(--txt)" }}>
+                    Choose a <strong>Target Variable (Y)</strong> to predict. You can select one from the dropdown above or click <strong>&quot;Set as Target&quot;</strong> on any attribute row below.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* High Risk Leakage Banner */}
-            {highRiskCount > 0 && (
+            {highRiskCount > 0 && automlTarget && (
               <div className="p-3.5 rounded-xl flex items-start gap-3" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)" }}>
                 <ShieldAlert size={18} className="text-red-500 shrink-0 mt-0.5" />
                 <div>
@@ -558,7 +824,7 @@ export function AutoMLTab() {
                 <Search size={14} className="absolute left-3 top-2.5" style={{ color: "var(--txt-m)" }} />
                 <input
                   type="text"
-                  placeholder="Search feature names..."
+                  placeholder="Search attribute names..."
                   value={featureSearch}
                   onChange={e => setFeatureSearch(e.target.value)}
                   className="w-full text-xs pl-8 pr-3 py-2 rounded-xl outline-none"
@@ -570,8 +836,9 @@ export function AutoMLTab() {
                 {(["all", "numeric", "categorical", "safe", "leakage"] as const).map(tab => (
                   <button
                     key={tab}
+                    type="button"
                     onClick={() => setFeatureFilter(tab)}
-                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all ${featureFilter === tab ? 'text-white' : ''}`}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold capitalize transition-all cursor-pointer ${featureFilter === tab ? 'text-white' : ''}`}
                     style={{
                       background: featureFilter === tab ? "var(--accent)" : "transparent",
                       color: featureFilter === tab ? "white" : "var(--txt-m)",
@@ -583,19 +850,29 @@ export function AutoMLTab() {
               </div>
             </div>
 
-            {/* Features Table */}
-            {isAnalyzingFeatures ? (
-              <div className="p-8 text-center space-y-2">
-                <RefreshCw size={20} className="animate-spin mx-auto text-indigo-500" />
-                <p className="text-xs font-mono" style={{ color: "var(--txt-m)" }}>Auditing feature correlations &amp; target leakage...</p>
+            {/* Attributes & Features Table */}
+            {displayedFeatures.length === 0 ? (
+              <div className="p-8 text-center space-y-2 border rounded-xl" style={{ borderColor: "var(--border)" }}>
+                <p className="text-xs font-semibold" style={{ color: "var(--txt-m)" }}>
+                  No attributes match your filter criteria.
+                </p>
+                {(featureSearch || featureFilter !== "all") && (
+                  <button
+                    type="button"
+                    onClick={() => { setFeatureSearch(""); setFeatureFilter("all"); }}
+                    className="text-[11px] font-bold text-indigo-500 hover:underline cursor-pointer">
+                    Reset Search &amp; Filters
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="max-h-[300px] overflow-y-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
+              <div className="max-h-[340px] overflow-y-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 z-10 font-mono text-[10px] uppercase tracking-wider" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", color: "var(--txt-m)" }}>
                     <tr>
                       <th className="py-2.5 px-3 w-10 text-center">Inc.</th>
-                      <th className="py-2.5 px-3">Feature Name</th>
+                      <th className="py-2.5 px-3">Attribute Name</th>
+                      <th className="py-2.5 px-3">Role / Action</th>
                       <th className="py-2.5 px-3">Type</th>
                       <th className="py-2.5 px-3">Null %</th>
                       <th className="py-2.5 px-3">Unique</th>
@@ -605,24 +882,62 @@ export function AutoMLTab() {
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
                     {displayedFeatures.map(f => {
+                      const isTarget = automlTarget === f.name;
                       const isSelected = selectedFeatures.includes(f.name);
                       return (
                         <tr
                           key={f.name}
-                          onClick={() => toggleFeature(f.name)}
-                          className="cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
-                          style={{ background: isSelected ? "rgba(99,102,241,0.03)" : "transparent" }}>
+                          onClick={() => {
+                            if (!isTarget) toggleFeature(f.name);
+                          }}
+                          className={`transition-colors ${isTarget ? 'bg-indigo-500/5 dark:bg-indigo-500/10' : 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/5'}`}
+                          style={{ background: isTarget ? "rgba(99,102,241,0.06)" : isSelected ? "rgba(99,102,241,0.02)" : "transparent" }}>
                           <td className="py-2 px-3 text-center" onClick={e => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleFeature(f.name)}
-                              className="rounded accent-[var(--accent)]"
-                            />
+                            {isTarget ? (
+                              <span className="inline-flex items-center justify-center w-4 h-4 rounded text-indigo-500 bg-indigo-500/15" title="Target variable">
+                                <Zap size={11} />
+                              </span>
+                            ) : (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleFeature(f.name)}
+                                className="rounded accent-[var(--accent)] cursor-pointer"
+                              />
+                            )}
                           </td>
-                          <td className="py-2 px-3 font-semibold font-mono text-[11px]" style={{ color: isSelected ? "var(--txt)" : "var(--txt-m)" }}>
-                            {f.name}
-                            {f.is_id && <span className="ml-2 text-[9px] px-1 py-0.5 rounded font-sans font-bold bg-amber-500/10 text-amber-500">ID Candidate</span>}
+                          <td className="py-2 px-3 font-semibold font-mono text-[11px]" style={{ color: isTarget ? "var(--accent)" : isSelected ? "var(--txt)" : "var(--txt-m)" }}>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{f.name}</span>
+                              {isTarget && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-indigo-500 text-white">
+                                  TARGET (Y)
+                                </span>
+                              )}
+                              {f.is_id && (
+                                <span className="text-[9px] px-1 py-0.5 rounded font-sans font-bold bg-amber-500/10 text-amber-500">
+                                  ID Candidate
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                            {isTarget ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-500">
+                                Target Variable
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAutomlTarget(f.name);
+                                  setCustomModelName(`${f.name.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
+                                }}
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all hover:bg-indigo-500/10 hover:border-indigo-500 text-indigo-500 cursor-pointer"
+                                style={{ borderColor: "var(--border)" }}>
+                                Set as Target
+                              </button>
+                            )}
                           </td>
                           <td className="py-2 px-3">
                             <span className="font-mono text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--border)", color: "var(--txt-m)" }}>
@@ -636,7 +951,9 @@ export function AutoMLTab() {
                             {f.n_unique}
                           </td>
                           <td className="py-2 px-3 font-mono text-[11px]">
-                            {f.correlation !== null ? (
+                            {isTarget ? (
+                              <span className="font-mono text-[10px] text-indigo-500 font-bold">1.000 (Target)</span>
+                            ) : f.correlation !== null ? (
                               <span style={{ color: Math.abs(f.correlation) >= 0.9 ? "#ef4444" : Math.abs(f.correlation) >= 0.4 ? "#10b981" : "var(--txt-m)" }}>
                                 {f.correlation > 0 ? `+${f.correlation.toFixed(3)}` : f.correlation.toFixed(3)}
                               </span>
@@ -645,16 +962,20 @@ export function AutoMLTab() {
                             )}
                           </td>
                           <td className="py-2 px-3">
-                            {f.leakage_risk === "high" ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-500">
+                            {isTarget ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-500">
+                                <Zap size={10} /> Target
+                              </span>
+                            ) : f.leakage_risk === "high" ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-red-500/15 text-red-500">
                                 <AlertTriangle size={10} /> High Risk
                               </span>
                             ) : f.leakage_risk === "medium" ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-500">
                                 Medium Signal
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500">
                                 <CheckCircle2 size={10} /> Safe
                               </span>
                             )}
@@ -1241,13 +1562,7 @@ export function AutoMLTab() {
                 )}
               </div>
 
-              {/* JSON preview */}
-              <div className="pt-2 border-t flex items-center justify-between flex-wrap gap-2 text-[10px] font-mono" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
-                <span>Parameters payload:</span>
-                <span className="px-2 py-0.5 rounded border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                  {JSON.stringify(hyperparams)}
-                </span>
-              </div>
+
             </div>
           </div>
         )}
@@ -1283,7 +1598,7 @@ export function AutoMLTab() {
         <button
           onClick={runAutoml}
           disabled={isTraining || !automlTarget || selectedFeatures.length === 0 || (trainingMode === "tournament" && selectedAlgos.length === 0)}
-          className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          className="flex items-center gap-2 px-6 py-3 rounded-[4px] text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
           {isTraining ? (
             <>
@@ -1298,6 +1613,29 @@ export function AutoMLTab() {
           )}
         </button>
       </div>
+
+      {/* Floating Top-Center Notification */}
+      {automlError && (
+        <div
+          role="alert"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-xl border shadow-2xl flex items-center justify-between gap-3 bg-red-950/95 border-red-500/50 text-red-200 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200"
+        >
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <AlertCircle size={18} className="shrink-0 text-red-400" />
+            <span className="text-xs font-semibold leading-snug break-words">
+              {automlError}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAutomlError("")}
+            className="shrink-0 text-red-400 hover:text-red-200 p-1 rounded-md transition-colors cursor-pointer"
+            aria-label="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {/* -- ERROR DISPLAY -- */}
       {automlError && (
@@ -1336,14 +1674,14 @@ export function AutoMLTab() {
         <div className="space-y-5">
           {/* Mode Banner */}
           {automlResult.mode === "tournament" ? (
-            <div className="p-3.5 rounded-xl border flex items-center justify-between flex-wrap gap-2" style={{ background: "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(99,102,241,0.06))", borderColor: "rgba(245,158,11,0.25)" }}>
+            <div className="p-3.5 rounded-xl border flex items-center justify-between flex-wrap gap-2" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.06), rgba(59,130,246,0.04))", borderColor: "var(--border)" }}>
               <div className="flex items-center gap-2">
-                <Trophy size={16} className="text-amber-400" />
+                <BarChart3 size={16} style={{ color: "var(--accent)" }} />
                 <span className="text-xs font-bold" style={{ color: "var(--txt)" }}>
                   AutoML Tournament Completed: 10 Common Models Evaluated Side-by-Side
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  Champion: {automlResult.best_estimator_name || automlResult.best_estimator}
+                <span className="text-[11px] font-mono font-medium" style={{ color: "var(--txt-m)" }}>
+                  &middot; Best Model: {automlResult.best_estimator_name || automlResult.best_estimator}
                 </span>
               </div>
               <span className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
@@ -1432,65 +1770,105 @@ export function AutoMLTab() {
           {/* Leaderboard & Feature Importance Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Leaderboard Table (6 cols) */}
-            <div className="lg:col-span-6 p-5 rounded-2xl space-y-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between">
+            <div className="lg:col-span-6 p-5 rounded-2xl space-y-3.5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <Trophy size={14} className="text-amber-400" />
-                  <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-                    {automlResult.mode === "manual" ? "Tuned Model Performance" : "Tournament Leaderboard"}
-                  </h3>
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center border" style={{ background: "rgba(99,102,241,0.1)", color: "var(--accent)", borderColor: "rgba(99,102,241,0.2)" }}>
+                    <BarChart3 size={15} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                      {automlResult.mode === "manual" ? "Tuned Model Performance" : "Tournament Leaderboard"}
+                    </h3>
+                    <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
+                      Ranked by {automlResult.leaderboard?.[0]?.metric_name || (automlResult.task === "regression" ? "R² Score" : "Accuracy")} &middot; 5-fold CV
+                    </p>
+                  </div>
                 </div>
-                <span className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
-                  {automlResult.mode === "manual" ? "1 Model Tuned" : `${(automlResult.leaderboard || []).length} Models Evaluated`}
-                </span>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
+              <div className="overflow-x-auto rounded-xl border flex-1" style={{ borderColor: "var(--border)" }}>
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="font-mono text-[10px] uppercase tracking-wider" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", color: "var(--txt-m)" }}>
+                  <thead className="font-mono text-[10px] uppercase tracking-wider" style={{ background: "var(--card)", borderBottom: "1px solid var(--border)", color: "var(--txt-m)" }}>
                     <tr>
-                      <th className="py-2.5 px-3">Rank & Model</th>
-                      <th className="py-2.5 px-3">Score</th>
+                      <th className="py-2.5 px-3">Rank &amp; Model</th>
+                      <th className="py-2.5 px-3">
+                        Score ({automlResult.leaderboard?.[0]?.metric_name || (automlResult.task === "regression" ? "R²" : "Accuracy")})
+                      </th>
                       <th className="py-2.5 px-3">Latency</th>
                       <th className="py-2.5 px-3">Configuration</th>
+                      <th className="py-2.5 px-2 text-center">Inspect</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
                     {(automlResult.leaderboard || []).map((row: any, i: number) => {
-                      const isFirst = i === 0 || row.best;
-                      const isSecond = i === 1 && !row.best;
-                      const isThird = i === 2 && !row.best;
-                      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+                      const isChampion = row.best || (row.rank === 1 && !automlResult.leaderboard.some((r: any) => r.best));
+                      const rankNum = row.rank || (i + 1);
+                      const rankDisplay = `#${rankNum}`;
+                      const metricVal = typeof row.metric === "number" ? row.metric : null;
+                      const bestMetric = automlResult.leaderboard[0]?.metric || 1;
+                      const scorePct = metricVal !== null && bestMetric > 0 
+                        ? Math.max(8, Math.min(100, Math.round((metricVal / Math.max(bestMetric, 0.001)) * 100))) 
+                        : 8;
 
                       return (
                         <tr
                           key={i}
-                          style={{ background: isFirst ? "rgba(99,102,241,0.08)" : "transparent" }}>
+                          onClick={() => setInspectedLeaderboardModel(row)}
+                          className="hover:bg-indigo-500/5 transition-colors cursor-pointer group"
+                          style={{ background: isChampion ? "rgba(99,102,241,0.08)" : "transparent" }}
+                        >
                           <td className="py-2.5 px-3 font-mono font-bold">
-                            <div className="flex items-center gap-2">
-                              <span className="w-5 h-5 flex items-center justify-center rounded-md text-[11px] font-mono">
-                                {medal}
+                            <div className="flex items-center gap-2.5">
+                              <span 
+                                className="w-6 text-[11px] font-mono font-bold"
+                                style={{ color: isChampion ? "var(--accent)" : "var(--txt-m)" }}
+                              >
+                                {rankDisplay}
                               </span>
-                              <div>
-                                <span style={{ color: isFirst ? "var(--accent)" : "var(--txt)" }}>
-                                  {row.display_name || row.model}
-                                </span>
-                                {isFirst && (
-                                  <span className="ml-1.5 text-[8px] font-sans font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                    Champion
-                                  </span>
-                                )}
+                              <span className="font-semibold" style={{ color: isChampion ? "var(--accent)" : "var(--txt)" }}>
+                                {row.display_name || row.model}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono">
+                            <div className="space-y-1">
+                              <span className="font-bold text-xs" style={{ color: isChampion ? "var(--accent)" : "var(--txt)" }}>
+                                {metricVal !== null ? metricVal.toFixed(4) : "-"}
+                              </span>
+                              <div className="w-20 h-1 rounded-xs bg-zinc-800 overflow-hidden">
+                                <div
+                                  className="h-full rounded-xs transition-all"
+                                  style={{
+                                    width: `${scorePct}%`,
+                                    background: isChampion ? "var(--accent)" : "#6366f1",
+                                  }}
+                                />
                               </div>
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 font-mono font-bold" style={{ color: isFirst ? "var(--accent)" : "var(--txt)" }}>
-                            {typeof row.metric === 'number' ? row.metric.toFixed(4) : (row.metric !== null ? row.metric : "-")}
-                          </td>
                           <td className="py-2.5 px-3 font-mono text-[10px]" style={{ color: "var(--txt-m)" }}>
-                            {row.elapsed_s ? `${Number(row.elapsed_s).toFixed(2)}s` : "-"}
+                            <span className="inline-flex items-center gap-1">
+                              <Clock size={10} className="text-zinc-500" />
+                              {row.elapsed_s ? `${Number(row.elapsed_s).toFixed(2)}s` : "<0.05s"}
+                            </span>
                           </td>
-                          <td className="py-2.5 px-3 font-mono text-[10px] max-w-[160px] truncate" style={{ color: "var(--txt-f)" }} title={row.best_config}>
-                            {row.best_config || "-"}
+                          <td className="py-2.5 px-3">
+                            {renderConfigBadges(row.best_config)}
+                          </td>
+                          <td className="py-2.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInspectedLeaderboardModel(row);
+                              }}
+                              className="p-1 rounded-md border text-zinc-400 hover:text-white hover:border-indigo-400/50 transition-all cursor-pointer opacity-70 group-hover:opacity-100"
+                              style={{ borderColor: "var(--border)", background: "var(--card)" }}
+                              title="Inspect model parameters"
+                            >
+                              <Eye size={12} />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1521,9 +1899,9 @@ export function AutoMLTab() {
                         <span className="w-28 font-mono text-[11px] truncate text-right font-medium" style={{ color: "var(--txt)" }}>
                           {fi.feature}
                         </span>
-                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                        <div className="flex-1 h-2 rounded-xs overflow-hidden" style={{ background: "var(--border)" }}>
                           <div
-                            className="h-full rounded-full transition-all duration-500"
+                            className="h-full rounded-xs transition-all duration-500"
                             style={{
                               background: "linear-gradient(90deg, #6366f1, #3b82f6)",
                               width: `${pct}%`
@@ -1570,7 +1948,7 @@ export function AutoMLTab() {
 
               <button
                 onClick={() => setActiveTab("models")}
-                className="px-5 py-2.5 rounded-xl font-black uppercase tracking-wider text-xs text-white flex items-center gap-2 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
+                className="px-5 py-2.5 rounded-[4px] font-black uppercase tracking-wider text-xs text-white flex items-center gap-2 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
                 style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}
               >
                 <span>Open in Models Section</span>
@@ -1580,6 +1958,102 @@ export function AutoMLTab() {
           </div>
         </div>
 
+      )}
+
+      {/* Model Parameters Inspection Modal */}
+      {inspectedLeaderboardModel && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div
+            className="w-full max-w-lg rounded-2xl p-6 border shadow-2xl relative space-y-4 text-xs"
+            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+          >
+            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <Cpu size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
+                    {inspectedLeaderboardModel.display_name || inspectedLeaderboardModel.model}
+                  </h3>
+                  <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
+                    Rank #{inspectedLeaderboardModel.rank || 1} &middot; {inspectedLeaderboardModel.best ? "Tournament Champion" : "Evaluated Candidate"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectedLeaderboardModel(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center border hover:opacity-100 opacity-60 transition cursor-pointer"
+                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="p-3 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <span className="text-[9px] uppercase tracking-wider block font-bold" style={{ color: "var(--txt-m)" }}>
+                  {inspectedLeaderboardModel.metric_name || "Validation Score"}
+                </span>
+                <span className="text-base font-black font-mono text-indigo-400 mt-0.5 block">
+                  {typeof inspectedLeaderboardModel.metric === "number" ? inspectedLeaderboardModel.metric.toFixed(4) : "-"}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <span className="text-[9px] uppercase tracking-wider block font-bold" style={{ color: "var(--txt-m)" }}>
+                  Training Loss
+                </span>
+                <span className="text-base font-black font-mono text-rose-400 mt-0.5 block">
+                  {typeof inspectedLeaderboardModel.loss === "number" ? inspectedLeaderboardModel.loss.toFixed(4) : "-"}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <span className="text-[9px] uppercase tracking-wider block font-bold" style={{ color: "var(--txt-m)" }}>
+                  Latency
+                </span>
+                <span className="text-base font-black font-mono text-emerald-400 mt-0.5 block">
+                  {inspectedLeaderboardModel.elapsed_s ? `${Number(inspectedLeaderboardModel.elapsed_s).toFixed(2)}s` : "<0.05s"}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+                  Fitted Hyperparameters
+                </span>
+                <span className="text-[9px] font-mono text-zinc-500">JSON Configuration</span>
+              </div>
+              <pre
+                className="p-3 rounded-xl border font-mono text-[11px] overflow-auto max-h-48 whitespace-pre-wrap break-all leading-relaxed"
+                style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}
+              >
+                {(() => {
+                  try {
+                    const str = inspectedLeaderboardModel.best_config;
+                    if (!str) return "Default parameters used.";
+                    const cleaned = str.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false').replace(/None/g, 'null');
+                    return JSON.stringify(JSON.parse(cleaned), null, 2);
+                  } catch {
+                    return inspectedLeaderboardModel.best_config || "Default parameters used.";
+                  }
+                })()}
+              </pre>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setInspectedLeaderboardModel(null)}
+                className="px-4 py-2 rounded-[4px] text-xs font-bold transition cursor-pointer"
+                style={{ background: "var(--accent)", color: "#fff" }}
+              >
+                Close Inspector
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -14,6 +14,7 @@ class SheetsUploadRequest(BaseModel):
     sheet_name: Optional[str] = Field(default=None, description="Optional worksheet/tab name")
     gid: Optional[str] = Field(default=None, description="Optional worksheet gid")
     current_upload_id: Optional[str] = Field(default=None, description="Active workspace upload ID to prevent secondary dataset overwrite")
+    workspace_id: Optional[str] = Field(default=None, description="Target workspace ID or personal")
 
 
 class ExcelOnlineUploadRequest(BaseModel):
@@ -21,6 +22,7 @@ class ExcelOnlineUploadRequest(BaseModel):
     sheet_name: Optional[str] = Field(default=None, description="Optional sheet/worksheet name or index")
     dataset_name: Optional[str] = Field(default=None, description="Optional custom dataset title")
     current_upload_id: Optional[str] = Field(default=None, description="Active workspace upload ID to prevent secondary dataset overwrite")
+    workspace_id: Optional[str] = Field(default=None, description="Target workspace ID or personal")
 
 
 class JSONUrlUploadRequest(BaseModel):
@@ -29,6 +31,7 @@ class JSONUrlUploadRequest(BaseModel):
     root_key: Optional[str] = None
     dataset_name: Optional[str] = None
     current_upload_id: Optional[str] = Field(default=None, description="Active workspace upload ID to prevent secondary dataset overwrite")
+    workspace_id: Optional[str] = Field(default=None, description="Target workspace ID or personal")
 
 
 class DBTestConnectionRequest(BaseModel):
@@ -56,6 +59,7 @@ class DBIngestRequest(BaseModel):
     limit: Optional[int] = Field(default=None, ge=1, le=2000000)
     dataset_name: Optional[str] = None
     current_upload_id: Optional[str] = Field(default=None, description="Active workspace upload ID to prevent secondary dataset overwrite")
+    workspace_id: Optional[str] = Field(default=None, description="Target workspace ID or personal")
 
 
 class DuplicateCheckRequest(BaseModel):

@@ -73,8 +73,25 @@ class TeamManager:
         try:
             with open(p, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            # Remove any legacy hardcoded demo members
+            # Remove legacy hardcoded demo members and auto-provisioned solo placeholder teams
             memberships = data.get("memberships", [])
+            organizations = data.get("organizations", {})
+            auto_org_ids = {
+                oid for oid, org in organizations.items()
+                if org.get("slug", "").startswith("team-") and (
+                    org.get("name", "").endswith(" Enterprise Team") or org.get("name", "").endswith("'s Team")
+                )
+            }
+            if auto_org_ids:
+                data["organizations"] = {
+                    oid: org for oid, org in organizations.items()
+                    if oid not in auto_org_ids
+                }
+                memberships = [
+                    m for m in memberships
+                    if m.get("org_id") not in auto_org_ids
+                ]
+
             data["memberships"] = [
                 m for m in memberships
                 if not str(m.get("id", "")).startswith("mem_seed_")
@@ -115,14 +132,14 @@ class TeamManager:
             # Provision default organization
             org_id = f"org_{user_id}_{int(time.time())}"
             display_name = user_name or user_email.split("@")[0].title()
-            org_name = f"{display_name}'s Enterprise Team"
+            org_name = f"{display_name}'s Team"
 
             now_iso = datetime.now(timezone.utc).isoformat()
             org_record = {
                 "id": org_id,
                 "name": org_name,
                 "slug": f"team-{user_id}",
-                "plan": "Enterprise",
+                "plan": "Team Collaboration",
                 "owner_id": user_id,
                 "created_at": now_iso,
             }
@@ -150,7 +167,7 @@ class TeamManager:
                 "action": "CREATE_ORGANIZATION",
                 "target": org_name,
                 "timestamp": now_iso,
-                "metadata": {"plan": "Enterprise", "initial_members": 1},
+                "metadata": {"plan": "Team Collaboration", "initial_members": 1},
             }
             data.setdefault("audit_logs", []).append(audit_entry)
 
@@ -158,21 +175,41 @@ class TeamManager:
             return org_record
 
     @classmethod
+    def get_organization(cls, org_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves organization details by ID."""
+        with _LOCK:
+            data = cls._read_data()
+            return data.get("organizations", {}).get(org_id)
+
+    @classmethod
     def get_user_organizations(
         cls, user_id: int, user_email: str, user_name: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Returns all organizations the user belongs to, with their role."""
-        cls.ensure_default_team_for_user(user_id, user_email, user_name)
         with _LOCK:
             data = cls._read_data()
             memberships = data.get("memberships", [])
             orgs_dict = data.get("organizations", {})
 
+            clean_email = (user_email or "").strip().lower()
+            needs_save = False
             result = []
+            seen_org_ids = set()
+
             for m in memberships:
-                if m.get("user_id") == user_id:
+                m_email = (m.get("user_email") or "").strip().lower()
+                m_uid = m.get("user_id")
+
+                is_member = (str(m_uid) == str(user_id)) or (bool(clean_email) and m_email == clean_email)
+                if is_member:
+                    # Link/sync actual user_id if membership was created via email invitation
+                    if str(m_uid) != str(user_id):
+                        m["user_id"] = user_id
+                        needs_save = True
+
                     o_id = m.get("org_id")
-                    if o_id in orgs_dict:
+                    if o_id in orgs_dict and o_id not in seen_org_ids:
+                        seen_org_ids.add(o_id)
                         o_copy = dict(orgs_dict[o_id])
                         o_copy["my_role"] = m.get("role", "Viewer")
                         o_copy["my_joined_at"] = m.get("joined_at")
@@ -181,6 +218,10 @@ class TeamManager:
                             1 for mem in memberships if mem.get("org_id") == o_id
                         )
                         result.append(o_copy)
+
+            if needs_save:
+                cls._write_data(data)
+
             return result
 
     @classmethod
@@ -190,9 +231,10 @@ class TeamManager:
         user_email: str,
         user_name: Optional[str],
         name: str,
-        plan: str = "Enterprise",
+        plan: str = "Team Collaboration",
     ) -> Dict[str, Any]:
         """Creates a new organization and assigns creator as Admin."""
+        norm_plan = "Team Collaboration" if (plan or "").lower() in ("enterprise", "team") else (plan or "Team Collaboration")
         with _LOCK:
             data = cls._read_data()
             org_id = f"org_{int(time.time() * 1000)}"
@@ -202,7 +244,7 @@ class TeamManager:
                 "id": org_id,
                 "name": name.strip(),
                 "slug": name.lower().replace(" ", "-"),
-                "plan": plan,
+                "plan": norm_plan,
                 "owner_id": user_id,
                 "created_at": now_iso,
             }
@@ -261,23 +303,37 @@ class TeamManager:
         if role not in ROLE_HIERARCHY:
             raise ValueError(f"Invalid role '{role}'. Allowed: {list(ROLE_HIERARCHY.keys())}")
 
+        clean_email = email.strip().lower()
         with _LOCK:
             data = cls._read_data()
             memberships = data.get("memberships", [])
 
             # Check if user already in team
             for m in memberships:
-                if m.get("org_id") == org_id and m.get("user_email") == email:
-                    raise ValueError(f"User with email '{email}' is already in this team.")
+                m_email = (m.get("user_email") or "").strip().lower()
+                if m.get("org_id") == org_id and m_email == clean_email:
+                    raise ValueError(f"User with email '{clean_email}' is already in this team.")
 
             now_iso = datetime.now(timezone.utc).isoformat()
-            new_user_id = int(time.time() * 1000) % 1_000_000
+            
+            # Attempt to resolve registered user id
+            new_user_id = None
+            try:
+                from dataforge.api.repositories.user import user_repo
+                user_rec = user_repo.get_by_email(clean_email)
+                if user_rec and user_rec.get("id"):
+                    new_user_id = user_rec["id"]
+            except Exception:
+                pass
+            if not new_user_id:
+                new_user_id = int(time.time() * 1000) % 1_000_000
+
             new_member = {
                 "id": f"mem_{new_user_id}_{org_id}",
                 "org_id": org_id,
                 "user_id": new_user_id,
-                "user_email": email.strip(),
-                "user_name": name or email.split("@")[0].title(),
+                "user_email": clean_email,
+                "user_name": name or clean_email.split("@")[0].title(),
                 "role": role,
                 "joined_at": now_iso,
             }
@@ -426,12 +482,30 @@ class TeamManager:
             return logs[:limit]
 
     @classmethod
-    def get_user_role(cls, org_id: str, user_id: int) -> Optional[str]:
+    def get_user_role(cls, org_id: str, user_id: int, user_email: Optional[str] = None) -> Optional[str]:
         """Returns the user's role in the organization, or None if not a member."""
         with _LOCK:
             data = cls._read_data()
+            clean_email = (user_email or "").strip().lower() if user_email else None
+            needs_save = False
             for m in data.get("memberships", []):
-                if m.get("org_id") == org_id and m.get("user_id") == user_id:
-                    return m.get("role")
+                if m.get("org_id") == org_id:
+                    m_email = (m.get("user_email") or "").strip().lower()
+                    m_uid = m.get("user_id")
+                    if (str(m_uid) == str(user_id)) or (clean_email and m_email == clean_email):
+                        if str(m_uid) != str(user_id):
+                            m["user_id"] = user_id
+                            needs_save = True
+                        if needs_save:
+                            cls._write_data(data)
+                        return m.get("role")
+
+            # Check if user is organization owner
+            org = data.get("organizations", {}).get(org_id)
+            if org:
+                if str(org.get("owner_id")) == str(user_id):
+                    return "Admin"
+                if clean_email and (org.get("owner_email") or "").strip().lower() == clean_email:
+                    return "Admin"
             return None
 

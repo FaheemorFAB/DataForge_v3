@@ -16,7 +16,7 @@ export default function SplashLoader({ isLoading, onComplete }: SplashLoaderProp
   useEffect(() => {
     if (!isLoading) {
       const elapsed = Date.now() - mountTime.current;
-      const delay = Math.max(0, 2000 - elapsed); // Ensure at least 2 seconds
+      const delay = Math.max(0, 1800 - elapsed);
 
       const startFadeOut = setTimeout(() => {
         setIsFadingOut(true);
@@ -26,7 +26,7 @@ export default function SplashLoader({ isLoading, onComplete }: SplashLoaderProp
           if (onComplete) {
             onComplete();
           }
-        }, 500); // 500ms fade-out transition
+        }, 450);
       }, delay);
       
       return () => clearTimeout(startFadeOut);
@@ -37,14 +37,15 @@ export default function SplashLoader({ isLoading, onComplete }: SplashLoaderProp
 
   return (
     <div 
-      className={`fixed inset-0 z-[99999] flex flex-col items-center justify-center transition-opacity duration-500 ease-in-out ${isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+      className={`fixed inset-0 z-[99999] w-screen h-[100dvh] flex flex-col items-center justify-center p-4 transition-opacity duration-500 ease-in-out select-none overscroll-none touch-none ${
+        isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
+      }`}
       style={{ background: "var(--bg)" }}
     >
-      <div 
-        className="flex items-center justify-center opacity-80"
-        style={{ animation: "twinkle 2.5s ease-in-out infinite" }}
-      >
-        <Logo size={42} textSize={24} />
+      <div className="flex flex-col items-center justify-center max-w-xs sm:max-w-sm w-full text-center">
+        <div style={{ animation: "twinkle 2.5s ease-in-out infinite" }}>
+          <Logo size={42} textSize={24} />
+        </div>
       </div>
     </div>
   );

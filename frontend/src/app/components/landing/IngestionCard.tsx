@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -21,8 +22,9 @@ import {
   X,
   Server,
   Zap,
+  Clock,
 } from "lucide-react";
-import { SAMPLE_DATASETS, SampleDataset } from "./sampleDatasets";
+import { formatBytes } from "@/lib/format";
 import { GoogleSheetsLogo, MicrosoftExcelOnlineLogo } from "./DataLogos";
 
 interface IngestionCardProps {
@@ -49,6 +51,13 @@ interface IngestionCardProps {
   uploadFile: (file: File) => Promise<void>;
   reset: () => void;
   goToWorkspace: (uploadId?: string | null) => void;
+
+  // Duplicate resolution props
+  duplicateInfo?: any;
+  newProjectName?: string;
+  setNewProjectName?: (name: string) => void;
+  onConfirmNewProject?: () => void;
+  onCancelDuplicate?: () => void;
 
   // Database props
   dbDialect: "postgresql" | "mysql" | "sqlite" | "clickhouse";
@@ -175,19 +184,32 @@ export default function IngestionCard(props: IngestionCardProps) {
   const [wizardStep, setWizardStep] = useState<1 | 2>(1);
   const [loadingSampleId, setLoadingSampleId] = useState<string | null>(null);
   const [showPreviewDrawer, setShowPreviewDrawer] = useState(false);
+  const [recentDatasets, setRecentDatasets] = useState<
+    Array<{ id: string; filename: string; rows?: number; cols?: number; size_bytes?: number; size_human?: string }>
+  >([]);
 
-  // 1-Click Sample Dataset Handler
-  const handleSampleClick = async (dataset: SampleDataset) => {
+  // Load Ingestion History scoped to active workspace (Only if user is logged in)
+  useEffect(() => {
     if (!props.isLoggedIn) {
-      props.onLoginRequired();
+      setRecentDatasets([]);
       return;
     }
-    setLoadingSampleId(dataset.id);
-    const blob = new Blob([dataset.csvContent], { type: "text/csv" });
-    const file = new File([blob], dataset.filename, { type: "text/csv" });
-    await props.uploadFile(file);
-    setLoadingSampleId(null);
-  };
+    const fetchRecent = async () => {
+      try {
+        const wsId = (typeof window !== "undefined" && localStorage.getItem("df_active_workspace")) || "personal";
+        const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(wsId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.recent_uploads)) {
+            setRecentDatasets(data.recent_uploads);
+          }
+        }
+      } catch {
+        // silent
+      }
+    };
+    fetchRecent();
+  }, [props.isLoggedIn]);
 
   return (
     <div className="w-full relative">
@@ -295,11 +317,23 @@ export default function IngestionCard(props: IngestionCardProps) {
                     {props.sourceTab === "sheets" ? "GS" : props.sourceTab === "excel" ? "XLS" : props.sourceTab === "database" ? "SQL" : "CSV"}
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 size={14} className="text-emerald-400" />
-                      <p className="font-bold text-sm truncate max-w-[200px]" style={{ color: "var(--txt)" }}>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                      <p className="font-bold text-sm truncate max-w-[180px]" style={{ color: "var(--txt)" }}>
                         {props.fileName}
                       </p>
+                      {(props.profile?.size_human || props.profile?.size_bytes) && (
+                        <span
+                          className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border shrink-0"
+                          style={{
+                            background: "rgba(16, 185, 129, 0.1)",
+                            borderColor: "rgba(16, 185, 129, 0.3)",
+                            color: "#10b981",
+                          }}
+                        >
+                          {props.profile.size_human || formatBytes(props.profile.size_bytes)}
+                        </span>
+                      )}
                     </div>
                     <p className="text-[10px] font-mono uppercase tracking-wider mt-0.5" style={{ color: "var(--txt-m)" }}>
                       Dataset Ingested & Profiled
@@ -318,7 +352,7 @@ export default function IngestionCard(props: IngestionCardProps) {
               </div>
 
               {props.profile && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   <div className="p-3 rounded-xl border text-center" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
                     <p className="text-[9px] font-mono font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Rows</p>
                     <p className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>{props.profile.rows?.toLocaleString()}</p>
@@ -328,10 +362,16 @@ export default function IngestionCard(props: IngestionCardProps) {
                     <p className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>{props.profile.cols}</p>
                   </div>
                   <div className="p-3 rounded-xl border text-center" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
+                    <p className="text-[9px] font-mono font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Size</p>
+                    <p className="text-lg font-black tracking-tight mt-0.5 font-mono" style={{ color: "#10b981" }}>
+                      {props.profile.size_human || (props.profile.size_bytes ? formatBytes(props.profile.size_bytes) : "—")}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-xl border text-center" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
                     <p className="text-[9px] font-mono font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Numeric</p>
                     <p className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>{props.profile.numeric}</p>
                   </div>
-                  <div className="p-3 rounded-xl border text-center" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
+                  <div className="p-3 rounded-xl border text-center col-span-2 sm:col-span-1" style={{ background: "rgba(255, 255, 255, 0.03)", borderColor: "var(--border)" }}>
                     <p className="text-[9px] font-mono font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Null Rate</p>
                     <p className="text-lg font-black tracking-tight mt-0.5" style={{ color: "var(--txt)" }}>{props.profile.missing_pct}%</p>
                   </div>
@@ -408,66 +448,145 @@ export default function IngestionCard(props: IngestionCardProps) {
               {/* ── SOURCE 1: CSV FILE VIEW (Unified Across Variations) ─────── */}
               {props.sourceTab === "csv" && (
                 <div className="space-y-4">
-                  <div
-                    onClick={() => props.fileInputRef.current?.click()}
-                    className="cursor-pointer group relative border border-dashed rounded-xl p-8 sm:p-10 flex flex-col items-center justify-center text-center transition-all duration-300 hover:border-orange-500/50 hover:bg-white/[0.015]"
-                    style={{
-                      borderColor: props.isDragging ? "var(--accent)" : "rgba(255, 255, 255, 0.12)",
-                      background: "rgba(255, 255, 255, 0.02)",
-                    }}
-                  >
+                  {props.duplicateInfo ? (
                     <div
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3.5 transition-transform duration-300 group-hover:scale-110 shadow-lg border"
+                      className="rounded-[6px] border p-5 space-y-4 text-left animate-in fade-in zoom-in-95 duration-200"
                       style={{
-                        background: "rgba(255, 67, 16, 0.08)",
-                        borderColor: "rgba(255, 67, 16, 0.25)",
+                        background: "rgba(99, 102, 241, 0.08)",
+                        borderColor: "rgba(99, 102, 241, 0.35)",
                       }}
                     >
-                      <UploadCloud size={24} style={{ color: "var(--accent)" }} />
-                    </div>
-
-                    <h3 className="text-sm sm:text-base font-bold tracking-tight mb-1" style={{ color: "var(--txt)" }}>
-                      Drop your CSV file here
-                    </h3>
-                    <p className="text-xs max-w-xs mb-3" style={{ color: "var(--txt-m)" }}>
-                      Drag & drop or <span className="underline font-semibold" style={{ color: "var(--accent)" }}>browse from computer</span>
-                    </p>
-
-                    <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider opacity-60">
-                      <span>Max 200 MB</span>
-                      <span>•</span>
-                      <span>Auto-cleaning & profiling included</span>
-                    </div>
-                  </div>
-
-                  {/* 1-Click Quick Samples */}
-                  <div className="pt-2 flex items-center justify-between text-xs">
-                    <span className="text-[10px] font-mono uppercase tracking-wider opacity-60" style={{ color: "var(--txt-m)" }}>
-                      Or load demo:
-                    </span>
-                    <div className="flex gap-1.5">
-                      {SAMPLE_DATASETS.map((ds) => (
-                        <button
-                          key={ds.id}
-                          onClick={() => handleSampleClick(ds)}
-                          disabled={props.isUploading || !!loadingSampleId}
-                          className="px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all hover:bg-white/5 active:scale-95"
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="w-10 h-10 rounded-[4px] flex items-center justify-center shrink-0 border"
                           style={{
-                            background: "rgba(255, 255, 255, 0.03)",
-                            borderColor: loadingSampleId === ds.id ? "var(--accent)" : "var(--border)",
-                            color: "var(--txt)",
+                            background: "rgba(99, 102, 241, 0.15)",
+                            borderColor: "rgba(99, 102, 241, 0.35)",
+                            color: "#818cf8",
                           }}
                         >
-                          {loadingSampleId === ds.id ? (
-                            <RefreshCw size={10} className="animate-spin inline mr-1" />
-                          ) : (
-                            <span className="opacity-60 mr-1">✦</span>
-                          )}
-                          <span>{ds.name.split(" ")[0]}</span>
+                          <Sparkles size={20} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-black text-sm" style={{ color: "var(--txt)" }}>
+                            Dataset Already Uploaded
+                          </h4>
+                          <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                            A project with filename <strong className="font-mono" style={{ color: "var(--txt)" }}>{props.duplicateInfo.filename}</strong> ({props.duplicateInfo.rows?.toLocaleString()} rows, {props.duplicateInfo.cols} cols) already exists in your workspace.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        {/* Option 1: Continue Existing */}
+                        <button
+                          type="button"
+                          onClick={() => props.goToWorkspace(props.duplicateInfo.upload_id)}
+                          className="w-full py-2.5 px-3 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:scale-[1.01]"
+                        >
+                          <Play size={13} />
+                          <span>Continue Existing Project</span>
                         </button>
-                      ))}
+
+                        {/* Option 2: Name New Project */}
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={props.newProjectName || ""}
+                            onChange={(e) => props.setNewProjectName?.(e.target.value)}
+                            placeholder="New project name..."
+                            className="flex-1 text-xs px-2.5 py-2 rounded-[4px] border font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
+                            style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => props.onConfirmNewProject?.()}
+                            className="py-2 px-3 rounded-[4px] font-bold text-xs border transition-all cursor-pointer whitespace-nowrap bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-700 hover:border-indigo-400"
+                          >
+                            Create New
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-1 border-t" style={{ borderColor: "rgba(99, 102, 241, 0.2)" }}>
+                        <span className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
+                          Upload ID: <span className="font-bold text-indigo-400">{props.duplicateInfo.upload_id}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => props.onCancelDuplicate?.()}
+                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div
+                      onClick={() => props.fileInputRef.current?.click()}
+                      className="cursor-pointer group relative border border-dashed rounded-xl p-8 sm:p-10 flex flex-col items-center justify-center text-center transition-all duration-300 hover:border-orange-500/50 hover:bg-white/[0.015]"
+                      style={{
+                        borderColor: props.isDragging ? "var(--accent)" : "rgba(255, 255, 255, 0.12)",
+                        background: "rgba(255, 255, 255, 0.02)",
+                      }}
+                    >
+                      <div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3.5 transition-transform duration-300 group-hover:scale-110 shadow-lg border"
+                        style={{
+                          background: "rgba(255, 67, 16, 0.08)",
+                          borderColor: "rgba(255, 67, 16, 0.25)",
+                        }}
+                      >
+                        <UploadCloud size={24} style={{ color: "var(--accent)" }} />
+                      </div>
+
+                      <h3 className="text-sm sm:text-base font-bold tracking-tight mb-1" style={{ color: "var(--txt)" }}>
+                        Drop your CSV file here
+                      </h3>
+                      <p className="text-xs max-w-xs mb-3" style={{ color: "var(--txt-m)" }}>
+                        Drag & drop or <span className="underline font-semibold" style={{ color: "var(--accent)" }}>browse from computer</span>
+                      </p>
+
+                      <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider opacity-60">
+                        <span>Max 200 MB</span>
+                        <span>•</span>
+                        <span>Auto-cleaning & profiling included</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dynamic Ingestion History (Hidden completely if user is not logged in) */}
+                  {props.isLoggedIn && recentDatasets.length > 0 && (
+                    <div className="pt-2 flex items-center justify-between text-xs animate-in fade-in">
+                      <span className="text-[10px] font-mono uppercase tracking-wider opacity-60 flex items-center gap-1" style={{ color: "var(--txt-m)" }}>
+                        <Clock size={11} style={{ color: "var(--accent)" }} />
+                        <span>Recent:</span>
+                      </span>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {recentDatasets.slice(0, 3).map((ds) => (
+                          <button
+                            key={ds.id}
+                            type="button"
+                            onClick={() => props.goToWorkspace(ds.id)}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all hover:border-[var(--accent)] hover:bg-white/5 active:scale-95 cursor-pointer max-w-[170px] flex items-center gap-1.5"
+                            style={{
+                              background: "rgba(255, 255, 255, 0.03)",
+                              borderColor: "var(--border)",
+                              color: "var(--txt)",
+                            }}
+                            title={`Reopen ${ds.filename} (${ds.size_human || (ds.size_bytes ? formatBytes(ds.size_bytes) : "")})`}
+                          >
+                            <span className="truncate max-w-[95px]">{ds.filename}</span>
+                            {(ds.size_human || ds.size_bytes) && (
+                              <span className="text-[9px] font-mono opacity-70 shrink-0 text-emerald-400">
+                                {ds.size_human || formatBytes(ds.size_bytes)}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

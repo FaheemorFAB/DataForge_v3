@@ -13,22 +13,22 @@ ROYAL_CYAN = "#0891B2"
 ROYAL_VIOLET = "#7C3AED"
 
 TYPE_BADGES = {
-    "trend":              ("#4F46E5", "Trend 📈"),
-    "ranking":            ("#059669", "Ranking 🏆"),
-    "top_performer":      ("#059669", "Top Performer 🏆"),
-    "correlation":        ("#D97706", "Correlation 🔗"),
-    "anomaly":            ("#E11D48", "Anomaly Alert 🚨"),
-    "distribution":       ("#2563EB", "Distribution 📊"),
-    "contribution":       ("#0D9488", "Contribution 🍩"),
-    "segment":            ("#7C3AED", "Segment 🎯"),
-    "change":             ("#DB2777", "Period Change ⚡"),
-    "data_quality":       ("#16A34A", "Data Quality 🛡️"),
-    "feature_importance": ("#EA580C", "Feature Impact ⚡"),
-    "outlier_summary":    ("#DC2626", "Outlier Sweep ⚠️"),
-    "numeric_summary":    ("#9333EA", "Numeric Metric 📐"),
-    "categorical":        ("#0D9488", "Category Share 🏷️"),
-    "ask_ai":             ("#10B981", "Ask AI Strategic Finding ⚡"),
-    "profile":            ("#475569", "Dataset Profile 📋"),
+    "trend":              ("#4F46E5", "Trend"),
+    "ranking":            ("#059669", "Ranking"),
+    "top_performer":      ("#059669", "Top Performer"),
+    "correlation":        ("#D97706", "Correlation"),
+    "anomaly":            ("#E11D48", "Anomaly Alert"),
+    "distribution":       ("#2563EB", "Distribution"),
+    "contribution":       ("#0D9488", "Contribution"),
+    "segment":            ("#7C3AED", "Segment"),
+    "change":             ("#DB2777", "Period Change"),
+    "data_quality":       ("#16A34A", "Data Quality"),
+    "feature_importance": ("#EA580C", "Feature Impact"),
+    "outlier_summary":    ("#DC2626", "Outlier Sweep"),
+    "numeric_summary":    ("#9333EA", "Numeric Metric"),
+    "categorical":        ("#0D9488", "Category Share"),
+    "ask_ai":             ("#10B981", "Ask AI Strategic Finding"),
+    "profile":            ("#475569", "Dataset Profile"),
 }
 
 CHART_PALETTE = [
@@ -501,54 +501,123 @@ def generate_html_report(
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(255, 255, 255, 0.96);
-      backdrop-filter: blur(8px);
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(12px);
       border-bottom: 1px solid #CBD5E1;
-      padding: 10px 24px;
+      padding: 0 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+      gap: 10px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
       width: 100%;
+      height: 46px;
+      box-sizing: border-box;
+      white-space: nowrap !important;
+      flex-wrap: nowrap !important;
+      overflow: hidden;
     }}
-    .nav-left {{ display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; color: #0F172A; }}
+    .nav-left {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #0F172A;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }}
+    .nav-logo {{
+      display: inline-flex;
+      align-items: center;
+      letter-spacing: 0.5px;
+      font-weight: 800;
+    }}
     .nav-divider {{ color: #CBD5E1; }}
-    .nav-dataset {{ color: #64748B; font-weight: 600; font-family: monospace; font-size: 11px; }}
-    .nav-center {{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }}
+    .nav-dataset {{
+      color: #64748B;
+      font-weight: 600;
+      font-family: monospace;
+      font-size: 11px;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .nav-center {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      flex-wrap: nowrap !important;
+      white-space: nowrap !important;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      flex: 1 1 auto;
+      min-width: 0;
+    }}
+    .nav-center::-webkit-scrollbar {{ display: none; }}
     .nav-link {{
       font-size: 11px;
       font-weight: 700;
       color: #475569;
       text-decoration: none;
-      padding: 4px 10px;
-      border-radius: 8px;
+      padding: 4px 8px;
+      border-radius: 6px;
       border: 1px solid transparent;
       transition: all 0.15s ease;
+      white-space: nowrap !important;
+      flex-shrink: 0;
     }}
     .nav-link:hover {{
       color: #4F46E5;
       background: #EEF2FF;
       border-color: #C7D2FE;
     }}
+    .nav-right {{
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }}
     .btn-print-deck {{
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
+      background: #4F46E5;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(79, 70, 229, 0.25);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }}
       background: #4F46E5;
       color: #FFFFFF;
       border: none;
-      border-radius: 10px;
-      padding: 7px 16px;
-      font-size: 12px;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 11px;
       font-weight: 700;
       cursor: pointer;
       box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
       transition: transform 0.15s ease, background 0.15s ease;
+      white-space: nowrap;
     }}
     .btn-print-deck:hover {{
       background: #4338CA;
       transform: translateY(-1px);
+    }}
+    @media (max-width: 980px) {{
+      .nav-dataset, .nav-divider {{ display: none; }}
+    }}
+    @media (max-width: 680px) {{
+      .btn-print-deck span {{ display: none; }}
     }}
 
     .deck-wrapper {{
@@ -846,9 +915,9 @@ def generate_html_report(
   <!-- ── FLOATING EXECUTIVE NAVIGATION ──────────────────────────────── -->
   <div class="report-nav-bar no-print">
     <div class="nav-left">
-      <span class="nav-logo">👑 DATAFORGE EXECUTIVE SUITE</span>
+      <span class="nav-logo">DATAFORGE EXECUTIVE SUITE</span>
       <span class="nav-divider">|</span>
-      <span class="nav-dataset">{html.escape(dataset_name)}</span>
+      <span class="nav-dataset" title="{html.escape(dataset_name)}">{html.escape(dataset_name)}</span>
     </div>
     <div class="nav-center">
       <a href="#slide-1" class="nav-link">Cover</a>
@@ -859,8 +928,8 @@ def generate_html_report(
     </div>
     <div class="nav-right">
       <button onclick="window.print()" class="btn-print-deck">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-        Print / Save PDF (5 Slides)
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        <span>Print PDF</span>
       </button>
     </div>
   </div>
@@ -870,7 +939,7 @@ def generate_html_report(
     <!-- ── SLIDE 1: COVER ────────────────────────────────────────────── -->
     <div class="slide" id="slide-1">
       <div>
-        <span class="seal-badge">👑 DATAFORGE EXECUTIVE ADVISORY · CONFIDENTIAL</span>
+        <span class="seal-badge">DATAFORGE EXECUTIVE ADVISORY · CONFIDENTIAL</span>
       </div>
 
       <div style="margin: 35px 0;">

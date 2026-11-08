@@ -7,6 +7,7 @@ Surfaces the biggest gap between best and worst segment.
 
 import pandas as pd
 from .base_insight import BaseInsight
+from dataforge.api.utils.helpers import canonicalize_series
 
 
 class SegmentInsight(BaseInsight):
@@ -18,7 +19,7 @@ class SegmentInsight(BaseInsight):
         if not dims or not schema.get("metrics"):
             return False
         dim = dims[0]
-        n = df[dim].nunique()
+        n = canonicalize_series(df[dim]).nunique()
         return 2 <= n <= 20
 
     def analyze(self, df: pd.DataFrame, schema: dict) -> dict | None:
@@ -26,7 +27,9 @@ class SegmentInsight(BaseInsight):
         metric = schema["metrics"][0]
 
         try:
-            seg_means = df.groupby(dim)[metric].mean().dropna().sort_values(ascending=False)
+            s_dim = canonicalize_series(df[dim])
+            temp_df = pd.DataFrame({"_dim": s_dim, "_metric": df[metric]}).dropna()
+            seg_means = temp_df.groupby("_dim")["_metric"].mean().sort_values(ascending=False)
             if len(seg_means) < 2:
                 return None
 

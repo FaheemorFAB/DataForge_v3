@@ -2,16 +2,14 @@
 dataforge/api/services/mailer.py
 ────────────────────────────────
 Production Outbound Email & Notification Dispatch Service.
-Supports Resend API (HTTP) and standard SMTP (STARTTLS / SSL) transports
-with graceful dev fallback and templated dataset invitation messages.
+Exclusively uses Resend API (HTTP) for transactional and collaboration emails,
+with graceful simulated fallback for local development when credentials are absent.
 """
 
 from __future__ import annotations
 
-import email.message
 import json
 import logging
-import smtplib
 import urllib.request
 from typing import Any, Dict, Optional
 
@@ -21,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 class EmailDeliveryService:
-    """Dispatches transactional emails for collaboration invites, notifications, and alerts."""
+    """Dispatches transactional emails for collaboration invites, notifications, and alerts via Resend."""
 
     @classmethod
     def send_collaborator_invite(
@@ -34,67 +32,429 @@ class EmailDeliveryService:
         share_token: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Sends an official email invitation to access a dataset in DataForge.
+        Sends an official email invitation to access a dataset in DataForge via Resend.
         """
         settings = get_settings()
         subject = f"Invitation: {inviter_name_or_email} shared dataset '{dataset_name}' with you on DataForge"
         
-        # Build access link
+        # Build access link (uses public production URL for live recipient access)
         base_url = settings.FRONTEND_URL.rstrip("/")
+        if "localhost" in base_url or "127.0.0.1" in base_url:
+            base_url = "https://numan-10.site"
+
         access_url = f"{base_url}/workspace?upload_id={upload_id}"
         if share_token:
             access_url += f"&share_token={share_token}"
 
         text_body = (
             f"Hello,\n\n"
-            f"{inviter_name_or_email} has invited you to collaborate on the dataset '{dataset_name}' "
-            f"with role: {role}.\n\n"
-            f"Click the link below to open the dataset in DataForge:\n"
+            f"{inviter_name_or_email} has invited you to collaborate on dataset '{dataset_name}' "
+            f"with {role} access on DataForge.\n\n"
+            f"Open Dataset in Workspace:\n"
             f"{access_url}\n\n"
-            f"Role capabilities:\n"
-            f"- {role}: Full access in accordance with workspace governance.\n\n"
+            f"Dataset: {dataset_name}\n"
+            f"Role: {role}\n"
+            f"Invited by: {inviter_name_or_email}\n\n"
             f"— The DataForge Team\n"
         )
 
-        html_body = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #0b0f19; color: #f3f4f6; margin: 0; padding: 24px; }}
-            .container {{ max-width: 580px; margin: 0 auto; background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 32px; }}
-            .header {{ display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }}
-            .badge {{ display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 700; background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); }}
-            h2 {{ color: #ffffff; margin-top: 0; font-size: 20px; }}
-            p {{ color: #9ca3af; line-height: 1.6; font-size: 14px; }}
-            .cta-btn {{ display: inline-block; background: #6366f1; color: #ffffff !important; text-decoration: none; font-weight: 700; padding: 12px 24px; border-radius: 10px; margin: 20px 0; font-size: 14px; }}
-            .footer {{ border-top: 1px solid #1f2937; margin-top: 24px; padding-top: 16px; font-size: 12px; color: #6b7280; }}
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="badge">DataForge Collaboration</div>
-            <h2>You've been invited to collaborate</h2>
-            <p><strong style="color:#ffffff;">{inviter_name_or_email}</strong> has granted you <strong style="color:#818cf8;">{role}</strong> access to dataset <strong style="color:#ffffff;">'{dataset_name}'</strong>.</p>
-            <p>You can now inspect distributions, run SQL queries, review audit logs, and trigger AutoML pipelines.</p>
-            <div>
-              <a href="{access_url}" class="cta-btn" target="_blank">Open Dataset in Workspace →</a>
-            </div>
-            <p style="font-size:12px; color:#6b7280;">Direct URL: <a href="{access_url}" style="color:#818cf8;">{access_url}</a></p>
-            <div class="footer">
-              DataForge Secure Engine · Enterprise Lakehouse & Analytics
-            </div>
-          </div>
-        </body>
-        </html>
-        """
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invitation to Collaborate</title>
+</head>
+<body style="margin: 0; padding: 32px 16px; background-color: #090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f1f5f9; -webkit-font-smoothing: antialiased;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; margin: 0 auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <!-- Brand Header -->
+    <tr>
+      <td style="padding: 28px 32px 20px 32px; border-bottom: 1px solid #1e293b;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="vertical-align: middle;">
+              <span style="font-size: 21px; font-weight: 800; letter-spacing: -0.03em; color: #ffffff;">
+                Data<span style="color: #6366f1;">Forge</span>
+              </span>
+            </td>
+            <td style="vertical-align: middle; text-align: right;">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b;">
+                Workspace Invite
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
 
-        # 1. Try Resend HTTP API
+    <!-- Main Content -->
+    <tr>
+      <td style="padding: 32px;">
+        <h1 style="color: #ffffff; font-size: 22px; font-weight: 700; margin: 0 0 12px 0; letter-spacing: -0.02em; line-height: 1.3;">
+          You've been invited to collaborate
+        </h1>
+        <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          <strong style="color: #f1f5f9;">{inviter_name_or_email}</strong> has invited you to inspect and analyze a dataset on DataForge with <strong style="color: #818cf8;">{role}</strong> permissions.
+        </p>
+
+        <!-- Metadata Spec Box -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background: #162032; border: 1px solid #24324a; border-radius: 12px; margin-bottom: 28px;">
+          <tr>
+            <td style="padding: 14px 18px; border-bottom: 1px solid #1f2c42;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Dataset</td>
+                  <td style="color: #f8fafc; font-size: 13px; font-weight: 700; text-align: right;">{dataset_name}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 14px 18px; border-bottom: 1px solid #1f2c42;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Assigned Role</td>
+                  <td style="text-align: right;">
+                    <span style="display: inline-block; padding: 2px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.35);">{role}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 14px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Invited by</td>
+                  <td style="color: #cbd5e1; font-size: 13px; font-weight: 600; text-align: right;">{inviter_name_or_email}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Primary CTA Button -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 28px 0 20px 0;">
+          <tr>
+            <td align="center">
+              <a href="{access_url}" target="_blank" style="display: inline-block; background: #6366f1; color: #ffffff !important; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); letter-spacing: -0.01em;">
+                Open Dataset in Workspace &rarr;
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Direct URL Fallback -->
+        <p style="font-size: 12px; color: #64748b; line-height: 1.6; margin: 20px 0 0 0; text-align: center;">
+          Or copy and paste this link in your browser:<br>
+          <a href="{access_url}" style="color: #818cf8; text-decoration: underline; word-break: break-all;">{access_url}</a>
+        </p>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="padding: 20px 32px 28px 32px; border-top: 1px solid #1e293b; text-align: center;">
+        <p style="font-size: 11px; color: #475569; line-height: 1.6; margin: 0;">
+          This invitation was sent by DataForge Secure Analytics to <strong style="color: #64748b;">{recipient_email}</strong>.<br>
+          If you were not expecting this invitation, you can safely ignore this email.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+        return cls._dispatch_via_resend(
+            recipient_email=recipient_email,
+            subject=subject,
+            text_body=text_body,
+            html_body=html_body,
+            context_url=access_url,
+        )
+
+    @classmethod
+    def send_team_workspace_invite(
+        cls,
+        recipient_email: str,
+        role: str,
+        org_name: str,
+        inviter_name_or_email: str,
+        org_id: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Sends an official email notification when a user is added to an Organization/Team Workspace via Resend.
+        """
+        settings = get_settings()
+        subject = f"Invitation: {inviter_name_or_email} added you to {org_name} on DataForge"
+
+        base_url = settings.FRONTEND_URL.rstrip("/")
+        if "localhost" in base_url or "127.0.0.1" in base_url:
+            base_url = "https://numan-10.site"
+
+        workspace_url = f"{base_url}/dashboard?workspace={org_id}" if org_id else f"{base_url}/dashboard"
+
+        text_body = (
+            f"Hello,\n\n"
+            f"{inviter_name_or_email} has added you to the '{org_name}' Team Workspace "
+            f"with {role} permissions on DataForge.\n\n"
+            f"Open Team Workspace:\n"
+            f"{workspace_url}\n\n"
+            f"Workspace: {org_name}\n"
+            f"Assigned Role: {role}\n"
+            f"Added by: {inviter_name_or_email}\n\n"
+            f"— The DataForge Team\n"
+        )
+
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Team Workspace Invitation</title>
+</head>
+<body style="margin: 0; padding: 32px 16px; background-color: #090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f1f5f9; -webkit-font-smoothing: antialiased;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; margin: 0 auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <!-- Brand Header -->
+    <tr>
+      <td style="padding: 28px 32px 20px 32px; border-bottom: 1px solid #1e293b;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="vertical-align: middle;">
+              <span style="font-size: 21px; font-weight: 800; letter-spacing: -0.03em; color: #ffffff;">
+                Data<span style="color: #6366f1;">Forge</span>
+              </span>
+            </td>
+            <td style="vertical-align: middle; text-align: right;">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #10b981; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 8px; border-radius: 6px;">
+                Team Workspace
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Main Content -->
+    <tr>
+      <td style="padding: 32px;">
+        <h1 style="color: #ffffff; font-size: 22px; font-weight: 700; margin: 0 0 12px 0; letter-spacing: -0.02em; line-height: 1.3;">
+          You've been added to a Team Workspace
+        </h1>
+        <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          <strong style="color: #f1f5f9;">{inviter_name_or_email}</strong> has added you to the <strong style="color: #f1f5f9;">{org_name}</strong> workspace on DataForge with <strong style="color: #818cf8;">{role}</strong> privileges.
+        </p>
+
+        <!-- Metadata Spec Box -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background: #162032; border: 1px solid #24324a; border-radius: 12px; margin-bottom: 28px;">
+          <tr>
+            <td style="padding: 14px 18px; border-bottom: 1px solid #1f2c42;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Workspace</td>
+                  <td style="color: #f8fafc; font-size: 13px; font-weight: 700; text-align: right;">{org_name}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 14px 18px; border-bottom: 1px solid #1f2c42;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Assigned Role</td>
+                  <td style="text-align: right;">
+                    <span style="display: inline-block; padding: 2px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.35);">{role}</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 14px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="color: #64748b; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Added by</td>
+                  <td style="color: #cbd5e1; font-size: 13px; font-weight: 600; text-align: right;">{inviter_name_or_email}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Primary CTA Button -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 28px 0 20px 0;">
+          <tr>
+            <td align="center">
+              <a href="{workspace_url}" target="_blank" style="display: inline-block; background: #6366f1; color: #ffffff !important; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); letter-spacing: -0.01em;">
+                Open Team Workspace &rarr;
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Direct URL Fallback -->
+        <p style="font-size: 12px; color: #64748b; line-height: 1.6; margin: 20px 0 0 0; text-align: center;">
+          Or copy and paste this link in your browser:<br>
+          <a href="{workspace_url}" style="color: #818cf8; text-decoration: underline; word-break: break-all;">{workspace_url}</a>
+        </p>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="padding: 20px 32px 28px 32px; border-top: 1px solid #1e293b; text-align: center;">
+        <p style="font-size: 11px; color: #475569; line-height: 1.6; margin: 0;">
+          This invitation was sent by DataForge Secure Analytics to <strong style="color: #64748b;">{recipient_email}</strong>.<br>
+          Sign in to access your organization's datasets, shared analysis sessions, and trained models.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+        return cls._dispatch_via_resend(
+            recipient_email=recipient_email,
+            subject=subject,
+            text_body=text_body,
+            html_body=html_body,
+            context_url=workspace_url,
+        )
+
+    @classmethod
+    def send_password_reset_email(
+        cls,
+        recipient_email: str,
+        reset_url: str,
+    ) -> Dict[str, Any]:
+        """
+        Sends an official, branded password reset email via Resend.
+        """
+        settings = get_settings()
+        subject = "Reset your DataForge password"
+
+        text_body = (
+            f"Hello,\n\n"
+            f"We received a request to reset the password for your DataForge account ({recipient_email}).\n\n"
+            f"To choose a new password, click the link below (valid for 1 hour):\n"
+            f"{reset_url}\n\n"
+            f"If you did not make this request, you can safely ignore this email. Your account remains secure.\n\n"
+            f"— The DataForge Team\n"
+        )
+
+        html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password</title>
+</head>
+<body style="margin: 0; padding: 32px 16px; background-color: #090d16; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f1f5f9; -webkit-font-smoothing: antialiased;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; margin: 0 auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <!-- Brand Header -->
+    <tr>
+      <td style="padding: 28px 32px 20px 32px; border-bottom: 1px solid #1e293b;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+          <tr>
+            <td style="vertical-align: middle;">
+              <span style="font-size: 21px; font-weight: 800; letter-spacing: -0.03em; color: #ffffff;">
+                Data<span style="color: #6366f1;">Forge</span>
+              </span>
+            </td>
+            <td style="vertical-align: middle; text-align: right;">
+              <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #f59e0b; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 4px 8px; border-radius: 6px;">
+                Security
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Main Content -->
+    <tr>
+      <td style="padding: 32px;">
+        <h1 style="color: #ffffff; font-size: 22px; font-weight: 700; margin: 0 0 12px 0; letter-spacing: -0.02em; line-height: 1.3;">
+          Reset your password
+        </h1>
+        <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
+          We received a request to reset the password for your DataForge account associated with <strong style="color: #f1f5f9;">{recipient_email}</strong>.
+        </p>
+
+        <!-- Security Note Box -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background: #162032; border: 1px solid #24324a; border-radius: 12px; margin-bottom: 28px;">
+          <tr>
+            <td style="padding: 14px 18px;">
+              <p style="margin: 0; font-size: 13px; color: #94a3b8; line-height: 1.5;">
+                ⏱️ <strong style="color: #f1f5f9;">This link will expire in 1 hour</strong> and can only be used once. If you did not request this change, please ignore this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Primary CTA Button -->
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 28px 0 20px 0;">
+          <tr>
+            <td align="center">
+              <a href="{reset_url}" target="_blank" style="display: inline-block; background: #6366f1; color: #ffffff !important; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); letter-spacing: -0.01em;">
+                Reset My Password &rarr;
+              </a>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Direct URL Fallback -->
+        <p style="font-size: 12px; color: #64748b; line-height: 1.6; margin: 20px 0 0 0; text-align: center;">
+          Or copy and paste this link in your browser:<br>
+          <a href="{reset_url}" style="color: #818cf8; text-decoration: underline; word-break: break-all;">{reset_url}</a>
+        </p>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="padding: 20px 32px 28px 32px; border-top: 1px solid #1e293b; text-align: center;">
+        <p style="font-size: 11px; color: #475569; line-height: 1.6; margin: 0;">
+          DataForge Secure Analytics &bull; Sent to <strong style="color: #64748b;">{recipient_email}</strong>.<br>
+          If you have questions, please contact our support team.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+        return cls._dispatch_via_resend(
+            recipient_email=recipient_email,
+            subject=subject,
+            text_body=text_body,
+            html_body=html_body,
+            context_url=reset_url,
+        )
+
+    @classmethod
+    def _dispatch_via_resend(
+        cls,
+        recipient_email: str,
+        subject: str,
+        text_body: str,
+        html_body: str,
+        context_url: str,
+    ) -> Dict[str, Any]:
+        """Helper to dispatch email via Resend HTTP API or simulate locally."""
+        settings = get_settings()
         if settings.RESEND_API_KEY:
             try:
+                sender = (
+                    getattr(settings, "RESEND_FROM_EMAIL", None)
+                    or getattr(settings, "MAIL_FROM", None)
+                    or "notifications@numan-10.site"
+                )
+                from_field = sender if "<" in sender else f"DataForge <{sender}>"
+
                 resend_payload = json.dumps({
-                    "from": settings.MAIL_FROM,
+                    "from": from_field,
                     "to": [recipient_email],
                     "subject": subject,
                     "text": text_body,
@@ -113,59 +473,33 @@ class EmailDeliveryService:
                 )
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     resp_data = json.loads(resp.read().decode("utf-8"))
-                    log.info("[mailer/resend] Successfully sent invite email to %s (id=%s)", recipient_email, resp_data.get("id"))
+                    log.info("[mailer/resend] Successfully sent email to %s (id=%s)", recipient_email, resp_data.get("id"))
                     return {
                         "sent": True,
                         "transport": "resend",
                         "recipient": recipient_email,
                         "email_id": resp_data.get("id"),
-                        "access_url": access_url,
+                        "access_url": context_url,
                     }
             except Exception as e:
-                log.warning("[mailer/resend] Failed to send via Resend: %s. Falling back to SMTP/simulated.", e)
-
-        # 2. Try Standard SMTP (if host provided)
-        if settings.SMTP_HOST:
-            try:
-                msg = email.message.EmailMessage()
-                msg["Subject"] = subject
-                msg["From"] = settings.MAIL_FROM
-                msg["To"] = recipient_email
-                msg.set_content(text_body)
-                msg.add_alternative(html_body, subtype="html")
-
-                if settings.SMTP_PORT == 465:
-                    with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
-                        if settings.SMTP_USER and settings.SMTP_PASS:
-                            server.login(settings.SMTP_USER, settings.SMTP_PASS)
-                        server.send_message(msg)
-                else:
-                    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
-                        if settings.SMTP_USE_TLS:
-                            server.starttls()
-                        if settings.SMTP_USER and settings.SMTP_PASS:
-                            server.login(settings.SMTP_USER, settings.SMTP_PASS)
-                        server.send_message(msg)
-
-                log.info("[mailer/smtp] Successfully sent invite email to %s via %s", recipient_email, settings.SMTP_HOST)
+                log.error("[mailer/resend] Failed to send email via Resend: %s", e)
                 return {
-                    "sent": True,
-                    "transport": "smtp",
+                    "sent": False,
+                    "transport": "resend",
+                    "error": str(e),
                     "recipient": recipient_email,
-                    "access_url": access_url,
+                    "access_url": context_url,
                 }
-            except Exception as e:
-                log.warning("[mailer/smtp] Failed to send via SMTP (%s): %s", settings.SMTP_HOST, e)
 
-        # 3. Development / Sandbox fallback: Log simulated delivery
+        # Simulated fallback for local dev when RESEND_API_KEY is omitted
         log.info(
-            "[mailer/simulated] Email to %s for dataset %s with access link: %s",
-            recipient_email, upload_id, access_url
+            "[mailer/simulated] (No RESEND_API_KEY configured) Simulated email to %s with context link: %s",
+            recipient_email, context_url
         )
         return {
             "sent": False,
             "transport": "simulated",
-            "reason": "Missing RESEND_API_KEY or SMTP credentials in .env",
+            "reason": "Missing RESEND_API_KEY in .env (configure RESEND_API_KEY to send real emails)",
             "recipient": recipient_email,
-            "access_url": access_url,
+            "access_url": context_url,
         }

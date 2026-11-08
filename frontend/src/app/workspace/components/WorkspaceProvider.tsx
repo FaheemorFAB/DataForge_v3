@@ -147,9 +147,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
           const data = await res.json();
           setProfile(data.profile);
           setGeminiOk(data.gemini_ok);
-          if (data.share_meta) {
-            setShareMeta(data.share_meta);
-          }
+          setShareMeta(data.share_meta || null);
           if (data.source_type) {
             setSourceType(data.source_type);
           }
@@ -257,6 +255,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
         if (data.active_session_id) {
           setActiveSessionId(data.active_session_id);
         }
+        setShareMeta(data.share_meta || null);
         return data;
       }
     } catch (err) {

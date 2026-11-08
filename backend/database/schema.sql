@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) UNIQUE NOT NULL,
     creator_user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    plan VARCHAR(64) DEFAULT 'Enterprise',
+    plan VARCHAR(64) DEFAULT 'Team Collaboration',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -229,7 +229,7 @@ CREATE INDEX IF NOT EXISTS ix_projects_user ON projects(user_id);
 CREATE TABLE IF NOT EXISTS subscriptions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id INT UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-    plan VARCHAR(64) NOT NULL DEFAULT 'free', -- 'free', 'pro', 'team', 'enterprise'
+    plan VARCHAR(64) NOT NULL DEFAULT 'free', -- 'free', 'pro', 'team'
     status VARCHAR(64) NOT NULL DEFAULT 'active', -- 'active', 'trialing', 'past_due', 'canceled'
     max_storage_mb INT NOT NULL DEFAULT 250,
     max_rows_per_dataset INT NOT NULL DEFAULT 25000,

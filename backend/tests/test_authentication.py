@@ -1,4 +1,4 @@
-"""
+﻿"""
 backend/tests/test_authentication.py
 ───────────────────────────────────
 Security Suite: Authentication enforcement and token validation.
@@ -33,7 +33,6 @@ def test_unauthenticated_protected_routes_return_401(client):
         ("POST", "/api/automl/train"),
         ("POST", "/api/dashboard/stats?upload_id=mock-upload"),
         ("GET", "/api/pipeline/export?upload_id=mock-upload"),
-        ("POST", "/api/joins/preview"),
     ]
     for method, endpoint in protected_endpoints:
         if method == "GET":

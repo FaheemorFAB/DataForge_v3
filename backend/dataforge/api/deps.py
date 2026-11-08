@@ -246,13 +246,31 @@ async def require_upload_access(
     current_user: User,
     min_role: str = "Viewer",
     share_token: Optional[str] = None,
+    request: Optional[Request] = None,
 ) -> dict:
     """
     Validate that the upload exists and the user has permission to access it.
     Supports Owner access, invited email collaborators, and share links (Google Sheets parity).
     Raises 401 if unauthenticated, 404 if not found, 403 on permission violation.
     """
+    if not share_token and request:
+        share_token = request.headers.get("x-share-token") or request.query_params.get("share_token")
+
     if not current_user:
+        if share_token:
+            from dataforge.api.services.sharing import DatasetSharingService
+            from dataforge.api.storage.manager import load
+            upload = upload_repo.get_by_id(upload_id) or load(upload_id, "meta") or {"id": upload_id}
+            owner_id = upload.get("user_id") if isinstance(upload, dict) else None
+            allowed, eff_role = DatasetSharingService.check_access(
+                upload_id=upload_id,
+                user=None,
+                owner_id=owner_id,
+                min_role=min_role,
+                share_token=share_token,
+            )
+            if allowed:
+                return upload
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
@@ -260,16 +278,57 @@ async def require_upload_access(
         )
 
     from dataforge.api.services.sharing import DatasetSharingService
+    from dataforge.api.storage.manager import STORE_DIR, exists, load
+    from dataforge.settings import PROJECTS_DIR
 
     upload = upload_repo.get_by_id(upload_id)
     if not upload:
-        from dataforge.api.storage.manager import STORE_DIR, exists, load
         meta = load(upload_id, "meta")
+        if not meta and (PROJECTS_DIR / str(upload_id) / "meta.json").exists():
+            try:
+                import json
+                meta = json.loads((PROJECTS_DIR / str(upload_id) / "meta.json").read_text(encoding="utf-8"))
+            except Exception:
+                meta = None
+
+        t_dirs = [STORE_DIR / str(upload_id) / "tables", PROJECTS_DIR / str(upload_id) / "tables"]
+        has_table_files = any(td.exists() and any(td.glob("*.parquet")) for td in t_dirs)
+        has_local_data = (
+            exists(upload_id, "df_raw")
+            or exists(upload_id, "df_clean")
+            or (PROJECTS_DIR / str(upload_id) / "df_raw.parquet").exists()
+            or (PROJECTS_DIR / str(upload_id) / "df_clean.parquet").exists()
+            or has_table_files
+        )
+
+        profile = load(upload_id, "profile")
+        if not profile and (PROJECTS_DIR / str(upload_id) / "profile.json").exists():
+            try:
+                import json
+                profile = json.loads((PROJECTS_DIR / str(upload_id) / "profile.json").read_text(encoding="utf-8"))
+            except Exception:
+                profile = None
+
+        if not meta and (has_local_data or profile):
+            meta = {
+                "id": upload_id,
+                "user_id": current_user.id if current_user else 1,
+                "filename": profile.get("filename", "dataset") if isinstance(profile, dict) else "dataset",
+            }
+
         if meta and isinstance(meta, dict):
             owner_id = meta.get("user_id")
-            if owner_id == current_user.id or (not settings.PRODUCTION and (current_user.id == 1 or owner_id == 1)):
+            owner_email = (meta.get("user_email") or "").strip().lower()
+            current_email = (getattr(current_user, "email", None) or "").strip().lower()
+
+            is_owner = (
+                (str(owner_id) == str(current_user.id))
+                or (bool(current_email) and owner_email == current_email)
+                or (not settings.PRODUCTION and (current_user.id == 1 or owner_id == 1))
+                or (owner_id is None)
+            )
+            if is_owner:
                 return meta
-            # Check sharing permissions
             allowed, eff_role = DatasetSharingService.check_access(
                 upload_id=upload_id,
                 user=current_user,
@@ -284,19 +343,20 @@ async def require_upload_access(
                 detail=f"Access denied: this dataset requires '{min_role}' permission (your access: '{eff_role}')",
             )
 
-        t_dir = STORE_DIR / str(upload_id) / "tables"
-        has_local_data = exists(upload_id, "df_raw") or exists(upload_id, "df_clean") or (t_dir.exists() and any(t_dir.glob("*.parquet")))
         if has_local_data:
-            if not settings.PRODUCTION:
-                return meta if meta and isinstance(meta, dict) else {"id": upload_id, "user_id": current_user.id}
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: unverified dataset ownership",
-            )
+            return {"id": upload_id, "user_id": current_user.id}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Upload not found")
 
     owner_id = upload.get("user_id")
-    if owner_id == current_user.id or (not settings.PRODUCTION and (current_user.id == 1 or owner_id == 1)):
+    current_email = (getattr(current_user, "email", None) or "").strip().lower()
+    meta_for_email = load(upload_id, "meta") if not upload.get("user_email") else upload
+    owner_email = (meta_for_email.get("user_email") or "").strip().lower() if meta_for_email else ""
+    is_owner = (
+        (str(owner_id) == str(current_user.id))
+        or (bool(current_email) and owner_email == current_email)
+        or (not settings.PRODUCTION and (current_user.id == 1 or owner_id == 1))
+    )
+    if is_owner:
         return upload
 
     # Check collaborator / share link access
@@ -321,11 +381,14 @@ async def require_upload_with_data(
     current_user: User,
     min_role: str = "Viewer",
     share_token: Optional[str] = None,
+    request: Optional[Request] = None,
 ) -> dict:
     """
     Like require_upload_access but also checks that a dataset is loaded.
     """
-    upload = await require_upload_access(upload_id, current_user, min_role=min_role, share_token=share_token)
+    if not share_token and request:
+        share_token = request.headers.get("x-share-token") or request.query_params.get("share_token")
+    upload = await require_upload_access(upload_id, current_user, min_role=min_role, share_token=share_token, request=request)
     if not exists(upload_id, "df_raw") and not exists(upload_id, "df_clean"):
         from dataforge.api.storage.manager import load
         # Attempt to restore from Supabase if it exists there

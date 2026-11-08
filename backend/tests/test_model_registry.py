@@ -13,6 +13,17 @@ import pytest
 from dataforge.models.registry import ModelRegistry
 
 
+@pytest.fixture(autouse=True)
+def setup_seed_models_for_tests():
+    ModelRegistry.ensure_seed_models()
+    yield
+    try:
+        ModelRegistry.delete_model("model_churn_lgbm_v1")
+        ModelRegistry.delete_model("model_revenue_xgb_v1")
+    except Exception:
+        pass
+
+
 def test_ensure_seed_models_and_list():
     models = ModelRegistry.list_models()
     assert len(models) >= 2

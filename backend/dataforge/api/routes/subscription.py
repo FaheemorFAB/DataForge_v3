@@ -21,7 +21,7 @@ router = APIRouter(prefix="/subscription", tags=["subscription"])
 
 
 class UpdatePlanRequest(BaseModel):
-    plan: str = Field(..., description="Plan tier key: free, pro, team, enterprise")
+    plan: str = Field(..., description="Plan tier key: free, pro, team")
 
 
 @router.get("", summary="Get current user subscription and monthly usage meters")
@@ -74,7 +74,7 @@ async def list_plans():
 
 
 class UpdatePlanRequest(BaseModel):
-    plan: str = Field(..., description="Plan tier key: free, pro, team, enterprise")
+    plan: str = Field(..., description="Plan tier key: free, pro, team")
     direct_apply: bool = Field(default=False, description="Apply immediately (dev/admin testing only)")
 
 
@@ -82,11 +82,12 @@ class UpdatePlanRequest(BaseModel):
 @router.post("/checkout", summary="Initiate checkout session for subscription plan")
 async def update_plan(req: UpdatePlanRequest, current_user: CurrentUser):
     """
-    Initiates payment checkout session for paid tiers (Pro, Team, Enterprise),
+    Initiates payment checkout session for paid tiers (Pro, Team Collaboration),
     or switches directly to Free tier.
     """
     from dataforge.api.services.payments import get_payment_provider
-    plan_key = req.plan.lower()
+    raw_key = req.plan.lower()
+    plan_key = "team" if raw_key == "enterprise" else raw_key
     if plan_key not in PLAN_TIERS:
         raise HTTPException(status_code=400, detail=f"Unknown plan tier '{req.plan}'.")
 

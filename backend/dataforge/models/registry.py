@@ -130,7 +130,6 @@ class ModelRegistry:
     @classmethod
     def list_models(cls, org_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Returns all registered models for an organization."""
-        cls.ensure_seed_models(org_id or "default")
         with _LOCK:
             data = cls._read_data()
             models = data.get("models", [])
@@ -144,7 +143,6 @@ class ModelRegistry:
     @classmethod
     def get_model(cls, model_id: str) -> Optional[Dict[str, Any]]:
         """Retrieves a registered model by ID."""
-        cls.ensure_seed_models()
         with _LOCK:
             data = cls._read_data()
             for m in data.get("models", []):

@@ -324,9 +324,10 @@ def generate_supply_chain_iot(n_rows: int = 2500) -> pd.DataFrame:
         rpm = int(np.random.normal(rpm_base, 80))
         power_kwh = round(temp * 0.42 + vibration * 3.5 + np.random.uniform(5, 12), 2)
 
-        # Defect flag
+        # Defect flag (stochastic degradation based on mechanical stress)
         defect = 1 if (temp > 85.0 or vibration > 3.2 or random.random() < 0.02) else 0
-        oee_efficiency = round(np.clip(100.0 - (vibration * 6.5) - (defect * 22.0) - np.random.uniform(0, 5), 45.0, 99.5), 1)
+        # Realistic OEE degradation reflecting machine physics without direct target leakage
+        oee_efficiency = round(np.clip(96.0 - (vibration * 4.5) - (max(0.0, temp - 68.0) * 0.35) - np.random.uniform(0, 7), 50.0, 99.5), 1)
 
         records.append({
             "telemetry_id": f"IOT-{i:06d}",

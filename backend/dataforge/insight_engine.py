@@ -81,11 +81,8 @@ class InsightEngine:
         SegmentInsight(),         # requires dimension + metric
         DistributionInsight(),    # requires ≥1 metric
         FeatureImportanceInsight(),  # requires prior AutoML run
-        # --- Always-applicable plugins (fire on any dataset) ---
-        DataQualityInsight(),     # always: missing value landscape
-        OutlierSummaryInsight(),  # always: IQR sweep across all numerics
-        NumericSummaryInsight(),  # always: CV / range analysis
-        CategoricalInsight(),     # always: category concentration
+        # --- Deep Statistical Exploration Plugins ---
+        OutlierSummaryInsight(),  # IQR anomaly sweep across quantitative measures
     ]
 
     # ── Schema detection ──────────────────────────────────────────────────────
@@ -98,6 +95,13 @@ class InsightEngine:
         Infer date column, numeric metrics, categorical dimensions, and
         dataset type from column names and dtypes.
         """
+        # Ensure numerical columns stored as strings are typed properly before schema sniffing
+        from dataforge.api.utils.helpers import sniff_and_cast_df
+        try:
+            df = sniff_and_cast_df(df.copy())
+        except Exception:
+            pass
+
         schema: dict = {
             "date":               None,
             "metrics":            [],
@@ -433,41 +437,13 @@ class InsightEngine:
 
     def _pad_insights(self, df: pd.DataFrame, schema: dict,
                       existing: list, target_n: int) -> list:
-        """Generate honest descriptive insights to fill any gap below target_n."""
+        """Generate honest descriptive metric insights to fill any gap below target_n."""
         pads: list[dict] = []
         seen_titles = {i["title"] for i in existing}
 
-        # Pad 1: Dataset dimensions
-        if len(existing) + len(pads) < target_n:
-            title = "Dataset Overview"
-            if title not in seen_titles:
-                num_cols = len(schema.get("metrics", []))
-                cat_cols = len(schema.get("dimensions", []))
-                date_col = schema.get("date")
-                pads.append({
-                    "id":          f"fnd_pad_overview_{len(pads)}",
-                    "title":       title,
-                    "description": (
-                        f"This dataset contains {df.shape[0]:,} rows and {df.shape[1]} columns "
-                        f"({num_cols} numeric metric(s), {cat_cols} categorical dimension(s)"
-                        + (f", date column: '{date_col}'" if date_col else ", no date column detected")
-                        + f"). Dataset type classified as: {schema.get('dataset_type', 'general')}."
-                    ),
-                    "importance":  0.2,
-                    "type":        "profile",
-                    "chart":       None,
-                    "chart_data":  None,
-                    "metric":      "",
-                    "caveats":     ["Descriptive profile only; no inferential test."],
-                    "evidence_query": "SELECT COUNT(*) FROM dataset;",
-                    "columns_involved": [],
-                    "sample_size": len(df),
-                })
-                seen_titles.add(title)
-
-        # Pad 2: Top numeric column stats
+        # Top numeric column stats & quantile dispersion
         if len(existing) + len(pads) < target_n and schema.get("metrics"):
-            for metric in schema["metrics"][:3]:
+            for metric in schema["metrics"][:5]:
                 if metric not in df.columns:
                     continue
                 title = f"Summary Statistics: {metric}"

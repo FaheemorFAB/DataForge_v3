@@ -216,70 +216,71 @@ async def run_automl_task(
             with FileLock(str(lock_path)):
                 (d / "model_pkl.joblib").write_bytes(model_pkl)
 
-            # Auto-register into ModelRegistry so it appears in the Models catalog immediately
-            try:
-                from dataforge.models.registry import ModelRegistry
-                algo_raw = result.get("best_estimator", "AutoML")
-                algo_map = {
-                    "lgbm": "LightGBM",
-                    "lightgbm": "LightGBM",
-                    "xgboost": "XGBoost",
-                    "xgb": "XGBoost",
-                    "catboost": "CatBoost",
-                    "rf": "Random Forest",
-                    "random_forest": "Random Forest",
-                    "extra_tree": "Extra Trees",
-                    "extra_trees": "Extra Trees",
-                    "gradient_boosting": "Hist Gradient Boosting",
-                    "hist_gradient_boosting": "Hist Gradient Boosting",
-                    "linear": "Linear / Ridge",
-                    "logistic_regression": "Logistic Regression",
-                    "ridge": "Ridge",
-                    "decision_tree": "Decision Tree",
-                    "knn": "K-Nearest Neighbors",
-                    "kneighbors": "K-Nearest Neighbors",
-                    "svm": "Support Vector Machine",
-                    "linearsvc": "Support Vector Machine",
-                    "linearsvr": "Support Vector Machine",
-                }
-                algo_label = algo_map.get(str(algo_raw).lower(), str(algo_raw).replace("_", " ").title())
-                eff_name = (model_name or "").strip()
-                if not eff_name:
-                    eff_name = f"{target_col.title()} {algo_label} Predictor"
+        # Auto-register into ModelRegistry so it appears in the Models catalog immediately
+        try:
+            from dataforge.models.registry import ModelRegistry
+            algo_raw = result.get("best_estimator", "AutoML")
+            algo_map = {
+                "lgbm": "LightGBM",
+                "lightgbm": "LightGBM",
+                "xgboost": "XGBoost",
+                "xgb": "XGBoost",
+                "catboost": "CatBoost",
+                "rf": "Random Forest",
+                "random_forest": "Random Forest",
+                "extra_tree": "Extra Trees",
+                "extra_trees": "Extra Trees",
+                "gradient_boosting": "Hist Gradient Boosting",
+                "hist_gradient_boosting": "Hist Gradient Boosting",
+                "linear": "Linear / Ridge",
+                "logistic_regression": "Logistic Regression",
+                "ridge": "Ridge",
+                "decision_tree": "Decision Tree",
+                "knn": "K-Nearest Neighbors",
+                "kneighbors": "K-Nearest Neighbors",
+                "svm": "Support Vector Machine",
+                "linearsvc": "Support Vector Machine",
+                "linearsvr": "Support Vector Machine",
+            }
+            algo_label = algo_map.get(str(algo_raw).lower(), str(algo_raw).replace("_", " ").title())
+            eff_name = (model_name or "").strip()
+            if not eff_name:
+                eff_name = f"{target_col.title()} {algo_label} Predictor"
 
-                m_metrics = result.get("metrics") or {}
-                if not m_metrics and result.get("best_loss") is not None:
-                    m_metrics = {"loss": float(result.get("best_loss"))}
+            m_metrics = result.get("metrics") or {}
+            if not m_metrics and result.get("best_loss") is not None:
+                m_metrics = {"loss": float(result.get("best_loss"))}
 
-                user_rec = db_get("users", user_id)
-                user_email = user_rec.get("email") if user_rec else f"user_{user_id}@dataforge.app"
+            user_rec = db_get("users", user_id)
+            user_email = user_rec.get("email") if user_rec else f"user_{user_id}@dataforge.app"
 
-                features_list = result.get("feature_columns") or result.get("selected_features") or feature_whitelist or []
+            features_list = result.get("feature_columns") or result.get("selected_features") or feature_whitelist or []
 
-                reg_model = ModelRegistry.register_model(
-                    org_id="default",
-                    model_name=eff_name,
-                    task_type=result.get("task", "classification"),
-                    algorithm=algo_label,
-                    target_column=target_col,
-                    features=features_list,
-                    metrics=m_metrics,
-                    created_by=user_email,
-                    upload_id=str(upload_id),
-                    version="v1.0.0",
-                    summary=f"Champion {algo_label} model trained via AutoML on dataset {upload_id}."
-                )
+            reg_model = ModelRegistry.register_model(
+                org_id="default",
+                model_name=eff_name,
+                task_type=result.get("task", "classification"),
+                algorithm=algo_label,
+                target_column=target_col,
+                features=features_list,
+                metrics=m_metrics,
+                created_by=user_email,
+                upload_id=str(upload_id),
+                version="v1.0.0",
+                summary=f"Champion {algo_label} model trained via AutoML on dataset {upload_id}."
+            )
 
-                reg_id = reg_model["id"]
+            reg_id = reg_model["id"]
+            if model_pkl:
                 models_dir = STORE_DIR / "models"
                 models_dir.mkdir(parents=True, exist_ok=True)
                 (models_dir / f"{reg_id}.joblib").write_bytes(model_pkl)
 
-                result["registered_model_id"] = reg_id
-                result["model_name"] = eff_name
-                log.info("AutoML model successfully registered in ModelRegistry as '%s' (id=%s)", eff_name, reg_id)
-            except Exception as reg_exc:
-                log.warning("Failed to auto-register AutoML model in ModelRegistry: %s", reg_exc)
+            result["registered_model_id"] = reg_id
+            result["model_name"] = eff_name
+            log.info("AutoML model successfully registered in ModelRegistry as '%s' (id=%s)", eff_name, reg_id)
+        except Exception as reg_exc:
+            log.warning("Failed to auto-register AutoML model in ModelRegistry: %s", reg_exc)
 
         save(upload_id, "automl_meta", result)
 
@@ -291,7 +292,7 @@ async def run_automl_task(
             log.warning("Failed to save automl_meta_json to DB: %s", exc)
 
         invalidate_upload(upload_id)
-        await registry.mark_success(job_id, {"key": "automl_meta"})
+        await registry.mark_success(job_id, {"key": "automl_meta", "automl_meta": result})
 
         up = db_get("uploads", upload_id)
         await get_ws_manager().send_to_user(user_id, "automl_ready", {
@@ -340,7 +341,10 @@ async def run_eda_task(
 
         def _generate():
             from dataforge.eda_report import generate_eda_report
-            return generate_eda_report(df, minimal=minimal, sample_n=sample_n)
+            eff_sample = sample_n if (sample_n and int(sample_n) > 0 and int(sample_n) <= 10000) else 5000
+            if len(df) <= 5000:
+                eff_sample = len(df)
+            return generate_eda_report(df, minimal=minimal, sample_n=eff_sample)
 
         report_res = await run_in_executor(_generate)
         html = report_res.get("html")
@@ -602,14 +606,26 @@ async def check_alerts_task(
 def _load_df(upload_id: str):
     """
     Synchronous helper to load the best available DataFrame for an upload.
-    Tries df_clean first, then df_raw, then attempts Supabase restore.
+    Tries df_clean first, then df_raw, tables/*.parquet, then attempts Supabase restore.
     """
-    from dataforge.api.storage.manager import load
+    from dataforge.api.storage.manager import load, STORE_DIR
+    from dataforge.settings import PROJECTS_DIR
 
     for key in ("df_clean", "df_raw"):
         df = load(upload_id, key)
         if df is not None:
             return df
+
+    # Check tables/*.parquet for multi-table or Excel workbooks
+    for td in [STORE_DIR / str(upload_id) / "tables", PROJECTS_DIR / str(upload_id) / "tables"]:
+        if td.exists():
+            pqs = list(td.glob("*.parquet"))
+            if pqs:
+                try:
+                    import pandas as pd
+                    return pd.read_parquet(pqs[0])
+                except Exception:
+                    pass
 
     # Try remote restore
     from dataforge.api.storage.manager import load_persisted

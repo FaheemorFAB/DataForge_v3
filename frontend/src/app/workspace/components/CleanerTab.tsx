@@ -1,19 +1,35 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useWorkspace } from "./WorkspaceProvider";
+function getShareToken(uid?: string | null): string {
+  if (typeof window === "undefined" || !uid) return "";
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("share_token") || sessionStorage.getItem("df_share_token_" + uid) || sessionStorage.getItem(`df_share_${uid}`) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
 import { apiFetch } from "@/lib/api";
 import {
-  Download, AlertTriangle, Sparkles, Sliders, Plus, Trash2, CheckCircle2,
-  FileCode, Eye, Check, X, Shield, Filter, Search, Copy, Terminal, RefreshCw
+  Download, AlertTriangle, AlertCircle, Sparkles, Sliders, Plus, Trash2, CheckCircle2,
+  FileCode, Eye, Check, X, Shield, Filter, Search, Copy, Terminal, RefreshCw, Lock, ShieldAlert, Info
 } from 'lucide-react';
 
 export function CleanerTab() {
-  const { uploadId, profile, setCleanProfile, cleanResult, setCleanResult } = useWorkspace();
+  const { uploadId, profile, setCleanProfile, cleanResult, setCleanResult, shareMeta } = useWorkspace();
   const [mode, setMode] = useState<"auto" | "dynamic">("dynamic");
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanError, setCleanError] = useState("");
-  const [alreadyCleanModal, setAlreadyCleanModal] = useState(false);
+
+  // Auto-dismiss cleanError after 6 seconds
+  useEffect(() => {
+    if (!cleanError) return;
+    const timer = setTimeout(() => setCleanError(""), 6000);
+    return () => clearTimeout(timer);
+  }, [cleanError]);
 
   // -- Multi-Column Attribute Selection State --
   const [selectedCols, setSelectedCols] = useState<string[]>([]);
@@ -120,14 +136,6 @@ export function CleanerTab() {
     );
   };
 
-  const selectAllFiltered = () => {
-    const names = filteredColumns.map((c: any) => typeof c === "string" ? c : c.name);
-    setSelectedCols(Array.from(new Set([...selectedCols, ...names])));
-  };
-
-  const clearSelection = () => {
-    setSelectedCols([]);
-  };
 
   // -- Construct Current Rule Object --
   const buildCurrentRule = () => {
@@ -218,6 +226,7 @@ export function CleanerTab() {
     if (!newRule) return;
     setRules(prev => [...prev, newRule]);
     setDiffResult(null);
+    setDiffError("");
   };
 
   const removeRule = (idx: number) => {
@@ -232,14 +241,17 @@ export function CleanerTab() {
     setDiffError("");
     setDiffResult(null);
     try {
-      const res = await apiFetch("/clean/diff", {
+      const shareToken = getShareToken(uploadId);
+      const diffUrl = `/clean/diff?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`;
+      const res = await apiFetch(diffUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upload_id: uploadId, rule: candidateRule }),
+        body: JSON.stringify({ upload_id: uploadId, rule: candidateRule, share_token: shareToken }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || data.error) {
-        setDiffError(data.error || "Failed to generate preview diff");
+        const errMsg = data.detail || data.error || data.message || "Failed to generate preview diff";
+        setDiffError(typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg));
         return;
       }
       setDiffResult(data.diff);
@@ -258,6 +270,10 @@ export function CleanerTab() {
 
   // -- 1-Click Auto Clean --
   const runAutoCleaning = async () => {
+    if (shareMeta?.is_shared && shareMeta?.effective_role === "Viewer") {
+      setCleanError("Read-Only Permission: You have 'Viewer' access to this shared dataset. To run data cleaning, ask the owner (" + (shareMeta.owner_name || "Owner") + ") for 'Analyst' or 'Admin' permissions.");
+      return;
+    }
     setIsCleaning(true);
     setCleanError("");
     try {
@@ -266,19 +282,31 @@ export function CleanerTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ upload_id: uploadId }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setCleanError(data.error || "Cleaning failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403) {
+          const detail = typeof data.detail === "string" ? data.detail : "";
+          if (detail.includes("Analyst") || detail.includes("Viewer") || shareMeta?.effective_role === "Viewer") {
+            setCleanError("Read-Only Permission: You have 'Viewer' access to this shared dataset. Ask the owner (" + (shareMeta?.owner_name || "Owner") + ") for 'Analyst' or 'Admin' permissions to run data cleaning.");
+          } else {
+            setCleanError(detail || "Access Denied: You do not have permission to clean this dataset.");
+          }
+        } else {
+          const msg = data.detail || data.error || data.message || "Data cleaning failed. Please verify your dataset and try again.";
+          setCleanError(typeof msg === "string" ? msg : JSON.stringify(msg));
+        }
+        return;
+      }
+      if (data.error) {
+        setCleanError(data.error);
         return;
       }
       setCleanResult(data);
       setCleanProfile(data.clean_profile);
 
-      const missingLog = data.missing_log || [];
-      const structActions = data.struct_actions || [];
-      const isClean = missingLog.length === 0 && structActions.length === 0;
-      if (isClean || (profile && profile.missing_pct === 0)) {
-        setAlreadyCleanModal(true);
+      // Trigger workspace refresh event so all tabs (Explorer, Dashboard, etc.) immediately reflect cleaned data
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("df_workspace_refresh", { detail: { uploadId } }));
       }
     } catch (e: any) {
       setCleanError("Network error: " + e.message);
@@ -290,6 +318,10 @@ export function CleanerTab() {
   // -- Run Granular Custom Rules Clean --
   const runDynamicCleaning = async () => {
     if (rules.length === 0) return;
+    if (shareMeta?.is_shared && shareMeta?.effective_role === "Viewer") {
+      setCleanError("Read-Only Permission: You have 'Viewer' access to this shared dataset. To run custom cleaning rules, ask the owner (" + (shareMeta.owner_name || "Owner") + ") for 'Analyst' or 'Admin' permissions.");
+      return;
+    }
     setIsCleaning(true);
     setCleanError("");
     try {
@@ -298,9 +330,23 @@ export function CleanerTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ upload_id: uploadId, rules }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        setCleanError(data.error || "Dynamic cleaning failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403) {
+          const detail = typeof data.detail === "string" ? data.detail : "";
+          if (detail.includes("Analyst") || detail.includes("Viewer") || shareMeta?.effective_role === "Viewer") {
+            setCleanError("Read-Only Permission: You have 'Viewer' access to this shared dataset. Ask the owner (" + (shareMeta?.owner_name || "Owner") + ") for 'Analyst' or 'Admin' permissions to run custom cleaning rules.");
+          } else {
+            setCleanError(detail || "Access Denied: You do not have permission to clean this dataset.");
+          }
+        } else {
+          const msg = data.detail || data.error || data.message || "Dynamic cleaning pipeline failed. Please check your rules and try again.";
+          setCleanError(typeof msg === "string" ? msg : JSON.stringify(msg));
+        }
+        return;
+      }
+      if (data.error) {
+        setCleanError(data.error);
         return;
       }
       setCleanResult(data);
@@ -326,8 +372,8 @@ export function CleanerTab() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
-              Enterprise Data Cleaning Studio
+            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
+              Data Cleaning Studio
             </h2>
 
           </div>
@@ -336,12 +382,12 @@ export function CleanerTab() {
 
         <div className="flex items-center gap-2">
           {/* Mode Switcher */}
-          <div className="flex p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <button onClick={() => setMode("dynamic")} className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+          <div className="flex p-1 rounded-[4px]" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <button onClick={() => setMode("dynamic")} className="px-3 py-1.5 rounded-[3px] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               style={mode === "dynamic" ? { background: "#6366f1", color: "#fff", boxShadow: "0 0 12px rgba(99,102,241,0.3)" } : { color: "var(--txt-m)" }}>
               <Sliders size={13} /> Granular Studio
             </button>
-            <button onClick={() => setMode("auto")} className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+            <button onClick={() => setMode("auto")} className="px-3 py-1.5 rounded-[3px] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               style={mode === "auto" ? { background: "#6366f1", color: "#fff", boxShadow: "0 0 12px rgba(99,102,241,0.3)" } : { color: "var(--txt-m)" }}>
               <Sparkles size={13} /> 1-Click Auto
             </button>
@@ -349,21 +395,76 @@ export function CleanerTab() {
 
           {cleanResult && (
             <div className="flex gap-2">
-              <button onClick={() => setShowCodeModal(true)} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all"
-                style={{ background: "rgba(99,102,241,0.1)", borderColor: "rgba(99,102,241,0.3)", color: "#818cf8" }}>
-                <Terminal size={13} /> Export Script
+              <button onClick={() => setShowCodeModal(true)} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-[4px] border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400">
+                <Terminal size={13} className="text-indigo-600 dark:text-indigo-400" /> Export Script
               </button>
-              <a href={`/api/clean/download?upload_id=${uploadId}`} className="bg flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ textDecoration: "none" }}><Download size={13} /> CSV</a>
-              <a href={`/api/clean/download?format=xlsx&upload_id=${uploadId}`} className="bg flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ textDecoration: "none" }}><Download size={13} /> Excel</a>
+              <a href={`/api/clean/download?upload_id=${uploadId}`} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-[4px] border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400" style={{ textDecoration: "none" }}><Download size={13} /> CSV</a>
+              <a href={`/api/clean/download?format=xlsx&upload_id=${uploadId}`} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-[4px] border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400" style={{ textDecoration: "none" }}><Download size={13} /> Excel</a>
             </div>
           )}
         </div>
       </div>
 
+      {/* Informational Read-Only Banner for Viewers */}
+      {shareMeta?.is_shared && shareMeta?.effective_role === "Viewer" && (
+        <div
+          className="p-4 rounded-xl border flex items-center gap-3.5 mb-2 shadow-sm transition-all"
+          style={{
+            background: "rgba(59, 130, 246, 0.08)",
+            borderColor: "rgba(59, 130, 246, 0.25)",
+          }}
+        >
+          <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+            <Lock size={16} />
+          </div>
+          <div className="text-left flex-1 min-w-0">
+            <p className="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+              <span>Read-Only Shared Dataset</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-300 uppercase font-mono">Viewer Role</span>
+            </p>
+            <p className="text-[11px] text-blue-200/80 leading-relaxed mt-0.5">
+              You have read-only permissions for this dataset. To execute data cleaning pipelines or custom imputations, request <strong>Analyst</strong> or <strong>Admin</strong> access from the owner ({shareMeta.owner_name || "Dataset Owner"}).
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Top-Center Notification */}
       {cleanError && (
-        <div className="p-4 rounded-xl space-y-1" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)" }}>
-          <p className="font-bold text-sm text-red-400 flex items-center gap-1.5"><AlertTriangle size={16} /> Cleaning Error</p>
-          <p className="font-mono text-xs text-red-400">{cleanError}</p>
+        <div
+          role="alert"
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[94vw] max-w-lg px-4 py-3.5 rounded-2xl border shadow-2xl flex items-center justify-between gap-3 bg-zinc-950/95 border-amber-500/40 text-zinc-100 backdrop-blur-2xl animate-in fade-in slide-in-from-top-4 duration-200"
+        >
+          <div className="flex items-center gap-3 min-w-0 flex-1 text-left">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/15 border border-amber-500/30 text-amber-400">
+              <ShieldAlert size={18} />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <p className="text-xs font-bold text-amber-400">
+                {cleanError.includes("Permission") || cleanError.includes("Access") ? "Permission Notice" : "Cleaning Notice"}
+              </p>
+              <p className="text-[12px] text-zinc-300 leading-snug break-words mt-0.5">
+                {cleanError}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCleanError("")}
+            className="shrink-0 text-zinc-400 hover:text-white p-1.5 rounded-lg transition-colors cursor-pointer"
+            aria-label="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
+      {cleanError && (
+        <div className="p-3.5 rounded-xl space-y-1 text-left" style={{ background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.25)" }}>
+          <p className="font-bold text-xs text-amber-400 flex items-center gap-1.5">
+            <AlertCircle size={14} /> Notice
+          </p>
+          <p className="text-xs text-amber-200/90 leading-relaxed">{cleanError}</p>
         </div>
       )}
 
@@ -376,7 +477,7 @@ export function CleanerTab() {
               Automatically normalizes column names to snake_case, drops &gt;60% missing columns, imputes missing values using distribution heuristics (Mean/Median/Mode), and strips extra whitespace.
             </p>
           </div>
-          <button onClick={runAutoCleaning} disabled={isCleaning} className="px-6 py-3 rounded-xl font-bold text-sm text-white flex items-center gap-2"
+          <button onClick={runAutoCleaning} disabled={isCleaning} className="px-6 py-3 rounded-[4px] font-bold text-sm text-white flex items-center gap-2 cursor-pointer"
             style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>
             {isCleaning ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
             {isCleaning ? "Cleaning Dataset…" : "Run Automated Clean"}
@@ -398,32 +499,35 @@ export function CleanerTab() {
                   <span className="text-[11px] font-mono" style={{ color: "var(--txt-m)" }}>({selectedCols.length} of {rawColumns.length} chosen)</span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {/* Type Filter Tabs */}
-                  <div className="flex p-0.5 rounded-lg border text-[10px]" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
-                    {[
-                      { id: "all", label: "All" },
-                      { id: "numeric", label: "Numeric" },
-                      { id: "text", label: "Text" },
-                      { id: "datetime", label: "Dates" },
-                      { id: "missing", label: "Missing >5%" },
-                    ].map((f) => (
+                {/* Type Filter Tabs */}
+                <div
+                  className="flex items-center p-0.5 sm:p-1 rounded-xl border text-[11px] sm:text-xs overflow-x-auto no-scrollbar w-full sm:w-auto gap-0.5 sm:gap-1"
+                  style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}
+                >
+                  {[
+                    { id: "all", label: "All" },
+                    { id: "numeric", label: "Numeric" },
+                    { id: "text", label: "Text" },
+                    { id: "datetime", label: "Dates" },
+                    { id: "missing", label: "Missing >5%" },
+                  ].map((f) => {
+                    const active = typeFilter === f.id;
+                    return (
                       <button
                         key={f.id}
+                        type="button"
                         onClick={() => setTypeFilter(f.id as any)}
-                        className="px-2 py-1 rounded-md font-bold transition-all cursor-pointer"
+                        className="flex-1 sm:flex-initial px-2.5 sm:px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer whitespace-nowrap text-center"
                         style={{
-                          background: typeFilter === f.id ? "var(--accent)" : "transparent",
-                          color: typeFilter === f.id ? "#ffffff" : "var(--txt-m)",
+                          background: active ? "var(--accent)" : "transparent",
+                          color: active ? "#ffffff" : "var(--txt-m)",
+                          boxShadow: active ? "0 2px 6px var(--glow)" : "none",
                         }}
                       >
                         {f.label}
                       </button>
-                    ))}
-                  </div>
-
-                  <button onClick={selectAllFiltered} className="text-[10px] font-bold px-2 py-1 rounded-md border hover:opacity-80 transition-opacity" style={{ borderColor: "var(--border)", color: "var(--txt-m)", background: "var(--card)" }}>Select Filtered</button>
-                  <button onClick={clearSelection} className="text-[10px] font-bold px-2 py-1 rounded-md border text-red-400 hover:bg-red-500/10" style={{ borderColor: "rgba(239,68,68,0.3)" }}>Clear</button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -441,7 +545,7 @@ export function CleanerTab() {
               </div>
 
               {/* Column Selectors - Rectangular with checkmark and focus states */}
-              <div className="max-h-40 overflow-y-auto p-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 no-scrollbar">
+              <div className="max-h-48 overflow-y-auto p-1 grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 no-scrollbar">
                 {filteredColumns.map((c: any) => {
                   const name = typeof c === "string" ? c : c.name;
                   const isSelected = selectedCols.includes(name);
@@ -477,7 +581,7 @@ export function CleanerTab() {
               </div>
 
               {/* Category Navigation Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-1.5 p-1 rounded-xl mb-4 border" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+              <div className="flex sm:grid sm:grid-cols-7 gap-1.5 p-1 rounded-xl mb-4 border overflow-x-auto no-scrollbar" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
                 {[
                   { id: "impute", label: "Imputation" },
                   { id: "outlier", label: "Outliers" },
@@ -490,7 +594,7 @@ export function CleanerTab() {
                   <button
                     key={cat.id}
                     onClick={() => setActionCategory(cat.id as any)}
-                    className="py-2 px-1 text-[11px] font-bold rounded-lg transition-all text-center cursor-pointer"
+                    className="py-2 px-3 sm:px-1 text-[11px] font-bold rounded-lg transition-all text-center cursor-pointer shrink-0 min-w-[85px] sm:min-w-0"
                     style={{
                       background: actionCategory === cat.id ? "var(--accent)" : "transparent",
                       color: actionCategory === cat.id ? "#ffffff" : "var(--txt-m)",
@@ -790,7 +894,7 @@ export function CleanerTab() {
                   <button
                     onClick={runPreviewDiff}
                     disabled={selectedCols.length === 0 || diffLoading}
-                    className="px-4 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-[4px] text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer"
                     style={{ borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", color: "var(--txt)" }}
                   >
                     {diffLoading ? <RefreshCw size={13} className="animate-spin text-indigo-400" /> : <Eye size={13} className="text-indigo-400" />}
@@ -800,7 +904,7 @@ export function CleanerTab() {
                   <button
                     onClick={addRule}
                     disabled={selectedCols.length === 0}
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all shadow-md"
+                    className="px-5 py-2 rounded-[4px] text-xs font-bold text-white flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
                     style={selectedCols.length === 0 ? { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)", cursor: "not-allowed" } : { background: "#6366f1", boxShadow: "0 0 14px rgba(99,102,241,0.3)" }}
                   >
                     <Plus size={14} /> Clean
@@ -910,13 +1014,13 @@ export function CleanerTab() {
                             </span>
 
                             {changedCount > 0 && (
-                              <div className="flex items-center gap-1 p-0.5 rounded-lg border text-[10px]" style={{ background: "var(--surface-2, var(--card))", borderColor: "var(--border)" }}>
+                              <div className="flex items-center gap-1 p-0.5 rounded-[4px] border text-[10px]" style={{ background: "var(--surface-2, var(--card))", borderColor: "var(--border)" }}>
                                 <button
                                   type="button"
                                   onClick={() => setDiffFilter("all")}
-                                  className={`px-2.5 py-0.5 rounded font-bold transition-all cursor-pointer ${diffFilter === "all"
-                                    ? "bg-indigo-600 text-white shadow-sm"
-                                    : ""
+                                  className={`px-2.5 py-1 rounded-[3px] font-bold text-xs transition-all cursor-pointer ${diffFilter === "all"
+                                    ? "bg-indigo-600 text-white shadow-xs"
+                                    : "hover:bg-slate-200 dark:hover:bg-slate-800"
                                     }`}
                                   style={diffFilter !== "all" ? { color: "var(--txt-m)" } : undefined}
                                 >
@@ -925,9 +1029,9 @@ export function CleanerTab() {
                                 <button
                                   type="button"
                                   onClick={() => setDiffFilter("modified")}
-                                  className={`px-2.5 py-0.5 rounded font-bold transition-all cursor-pointer ${diffFilter === "modified"
-                                    ? "bg-emerald-600 text-white shadow-sm"
-                                    : ""
+                                  className={`px-2.5 py-1 rounded-[3px] font-bold text-xs transition-all cursor-pointer ${diffFilter === "modified"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "hover:bg-slate-200 dark:hover:bg-slate-800"
                                     }`}
                                   style={diffFilter !== "modified" ? { color: "var(--txt-m)" } : undefined}
                                 >
@@ -961,11 +1065,11 @@ export function CleanerTab() {
                                     <td className="p-2.5 font-semibold" style={{ color: "var(--txt-m)" }}>#{row.row}</td>
                                     <td className="p-2.5">
                                       {isNullBefore ? (
-                                        <span className="px-1.5 py-0.5 rounded bg-red-500/15 text-red-500 font-bold text-[10px] border border-red-500/30">
+                                        <span className="px-2 py-0.5 rounded-[3px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 font-bold text-[10px] border border-rose-300 dark:border-rose-800">
                                           NaN
                                         </span>
                                       ) : row.changed ? (
-                                        <span className="line-through text-red-500/80 mr-1.5 font-medium">
+                                        <span className="line-through text-rose-600/80 mr-1.5 font-medium">
                                           {row.before}
                                         </span>
                                       ) : (
@@ -974,11 +1078,11 @@ export function CleanerTab() {
                                     </td>
                                     <td className="p-2.5">
                                       {isRemoved ? (
-                                        <span className="px-1.5 py-0.5 rounded bg-red-500/15 text-red-500 font-bold text-[10px] border border-red-500/30">
+                                        <span className="px-2 py-0.5 rounded-[3px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 font-bold text-[10px] border border-rose-300 dark:border-rose-800">
                                           DROPPED
                                         </span>
                                       ) : row.changed ? (
-                                        <span className="font-bold text-emerald-500 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30">
+                                        <span className="font-bold text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-[3px] bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800">
                                           {row.after}
                                         </span>
                                       ) : (
@@ -987,11 +1091,11 @@ export function CleanerTab() {
                                     </td>
                                     <td className="p-2.5 text-right">
                                       {isRemoved ? (
-                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-red-500/15 text-red-500 border border-red-500/30">
+                                        <span className="text-[9px] px-2 py-0.5 rounded-[3px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-300 dark:border-rose-800">
                                           Removed
                                         </span>
                                       ) : row.changed ? (
-                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                                        <span className="text-[9px] px-2 py-0.5 rounded-[3px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                                           Modified
                                         </span>
                                       ) : (
@@ -1052,7 +1156,7 @@ export function CleanerTab() {
                 })}
               </div>
 
-              <button onClick={runDynamicCleaning} disabled={isCleaning} className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all shadow-xl"
+              <button onClick={runDynamicCleaning} disabled={isCleaning} className="w-full py-3.5 rounded-[4px] font-bold text-sm text-white flex items-center justify-center gap-2 transition-all shadow-xl cursor-pointer"
                 style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 24px rgba(99,102,241,0.3)" }}>
                 {isCleaning ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                 {isCleaning ? "Executing Full Pipeline…" : "Execute Full Cleaning Pipeline"}
@@ -1138,7 +1242,24 @@ export function CleanerTab() {
               }
             });
 
-            if (combinedLog.length === 0) return null;
+            if (combinedLog.length === 0) {
+              return (
+                <div className="p-4 rounded-[4px] border flex items-center justify-between gap-4" style={{ background: "rgba(16,185,129,0.06)", borderColor: "rgba(16,185,129,0.25)" }}>
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+                    <div>
+                      <p className="font-bold text-xs" style={{ color: "var(--txt)" }}>Cleaned Dataset Verified</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
+                        Dataset is fully normalized, types coerced, and 100% complete across all columns.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-400">
+                    Production Ready
+                  </span>
+                </div>
+              );
+            }
 
             return (
               <div>
@@ -1224,11 +1345,11 @@ export function CleanerTab() {
                               </td>
                               <td>
                                 <span
-                                  className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full inline-block"
+                                  className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[3px] inline-block font-mono"
                                   style={{
                                     background: `${borderCol}18`,
                                     color: borderCol,
-                                    border: `1px solid ${borderCol}33`,
+                                    border: `1px solid ${borderCol}40`,
                                   }}
                                 >
                                   {type}
@@ -1239,15 +1360,15 @@ export function CleanerTab() {
                               </td>
                               <td className="font-mono text-xs">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-500/10 text-rose-400 border border-rose-500/25">
+                                  <span className="px-1.5 py-0.5 rounded-[3px] text-[10px] font-mono bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800/60 font-semibold">
                                     {diffBefore}
                                   </span>
                                   <span className="text-[10px]" style={{ color: "var(--txt-m)" }}>→</span>
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                                  <span className="px-1.5 py-0.5 rounded-[3px] text-[10px] font-mono bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/60 font-semibold">
                                     {diffAfter}
                                   </span>
                                   {delta && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-[3px] font-mono bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800/60">
                                       {delta}
                                     </span>
                                   )}
@@ -1281,15 +1402,15 @@ export function CleanerTab() {
                 </h3>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={copyPythonCode} className="px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all"
+                <button onClick={copyPythonCode} className="px-3 py-1.5 rounded-[4px] text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer"
                   style={{ background: "rgba(99,102,241,0.1)", borderColor: "rgba(99,102,241,0.3)", color: "#818cf8" }}>
                   {copiedCode ? <Check size={13} /> : <Copy size={13} />}
                   {copiedCode ? "Copied!" : "Copy Code"}
                 </button>
-                <a href={`/api/clean/export-script?upload_id=${uploadId}`} className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white flex items-center gap-1.5 shadow-md no-underline">
+                <a href={`/api/clean/export-script?upload_id=${uploadId}`} className="px-3 py-1.5 rounded-[4px] text-xs font-bold bg-indigo-600 text-white flex items-center gap-1.5 shadow-md no-underline">
                   <Download size={13} /> Download .py
                 </a>
-                <button onClick={() => setShowCodeModal(false)} className="p-1 rounded-lg text-gray-500 hover:text-white"><X size={16} /></button>
+                <button onClick={() => setShowCodeModal(false)} className="p-1 rounded-[4px] text-gray-500 hover:text-white cursor-pointer"><X size={16} /></button>
               </div>
             </div>
 
@@ -1300,39 +1421,6 @@ export function CleanerTab() {
             <div className="flex-1 overflow-auto rounded-xl border bg-black/40 p-4 font-mono text-xs text-gray-300 leading-relaxed no-scrollbar select-all">
               <pre>{cleanResult.pipeline_script}</pre>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* -- Dataset Already Clean Modal ---- */}
-      {alreadyCleanModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-fadeIn" onClick={() => setAlreadyCleanModal(false)}>
-          <div className="w-full max-w-md rounded-3xl p-6 md:p-8 flex flex-col items-center text-center shadow-2xl relative overflow-hidden border"
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}>
-
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 border shadow-lg"
-              style={{ background: "rgba(16,185,129,0.12)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
-              <CheckCircle2 size={34} />
-            </div>
-
-            <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-3" style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
-              100% Analysis Ready
-            </span>
-
-            <h3 className="text-xl font-black tracking-tight mb-2" style={{ color: "var(--txt)" }}>
-              Dataset is Already Clean! 🎉
-            </h3>
-
-            <p className="text-xs leading-relaxed mb-6" style={{ color: "var(--txt-m)" }}>
-              No missing values, duplicate records, or formatting errors were detected in your dataset. Your dataset is already in pristine condition and ready for analysis!
-            </p>
-
-            <button onClick={() => setAlreadyCleanModal(false)}
-              className="w-full py-3 rounded-xl font-bold text-xs text-white shadow-xl transition-all hover:scale-[1.02]"
-              style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>
-              Great, Continue Analysis!
-            </button>
           </div>
         </div>
       )}

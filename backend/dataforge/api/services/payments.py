@@ -262,6 +262,11 @@ class DodoPaymentProvider(PaymentProvider):
             if self.environment == "live_mode"
             else "https://test.dodopayments.com"
         )
+        self.checkout_base_url = (
+            "https://checkout.dodopayments.com"
+            if self.environment == "live_mode"
+            else "https://test.checkout.dodopayments.com"
+        )
 
     def create_checkout_session(
         self,
@@ -277,9 +282,9 @@ class DodoPaymentProvider(PaymentProvider):
             raise ValueError(f"Unknown plan: '{plan_key}'")
 
         if plan_norm == "team":
-            product_id = getattr(settings, "DODO_PRODUCT_TEAM_MONTHLY", "pdt_team_monthly_79")
+            product_id = getattr(settings, "DODO_PRODUCT_TEAM_MONTHLY", "pdt_0Nq98DJ0O2SJ5pqxJeFHz")
         elif plan_norm == "pro":
-            product_id = getattr(settings, "DODO_PRODUCT_PRO_MONTHLY", "pdt_pro_monthly_29")
+            product_id = getattr(settings, "DODO_PRODUCT_PRO_MONTHLY", "pdt_0Nq982Kd8DHmCrFIX4XC2")
         else:
             product_id = f"pdt_{plan_norm}_monthly"
 
@@ -330,7 +335,7 @@ class DodoPaymentProvider(PaymentProvider):
         # Fallback for unit tests and offline environments
         if not checkout_url:
             checkout_url = (
-                f"{self.base_url}/buy/{product_id}?"
+                f"{self.checkout_base_url}/buy/{product_id}?"
                 f"quantity=1&email={user_email}&redirect_url={return_target}&"
                 f"metadata[user_id]={user_id}&metadata[plan]={plan_norm}&metadata[billing_cycle]=monthly"
             )

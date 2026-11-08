@@ -47,6 +47,22 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     defaultHeaders["Authorization"] = `Bearer ${token}`;
   }
 
+  // Include X-Share-Token header if available for the active workspace dataset
+  if (typeof window !== "undefined") {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlToken = urlParams.get("share_token");
+      const currentUrlUid = urlParams.get("upload_id");
+      let shareToken = urlToken;
+      if (!shareToken && currentUrlUid && typeof sessionStorage !== "undefined") {
+        shareToken = sessionStorage.getItem("df_share_token_" + currentUrlUid);
+      }
+      if (shareToken && !existingHeaders?.["X-Share-Token"] && !existingHeaders?.["x-share-token"]) {
+        defaultHeaders["X-Share-Token"] = shareToken;
+      }
+    } catch {}
+  }
+
   return fetch(url, {
     credentials: options.credentials ?? "include",
     ...options,

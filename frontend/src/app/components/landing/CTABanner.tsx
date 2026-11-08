@@ -143,13 +143,13 @@ export default function CTABanner({
   };
 
   /* ─────────────────────────────────────────────────────────────
-     VARIANT: COMPACT (Slim inline callout bar)
+     VARIANT: COMPACT (Slim inline callout bar - Fully Responsive)
   ───────────────────────────────────────────────────────────── */
   if (variant === "compact") {
     return (
       <div className={`w-full ${containerClassName}`}>
         <div
-          className={`relative rounded-2xl p-4 sm:p-5 border overflow-hidden backdrop-blur-xl transition-all ${className}`}
+          className={`relative rounded-2xl p-4 sm:p-6 border overflow-hidden backdrop-blur-xl transition-all ${className}`}
           style={{
             background: defaultBackground,
             borderColor: "rgba(255, 67, 16, 0.25)",
@@ -161,33 +161,33 @@ export default function CTABanner({
             style={{ background: "var(--accent)" }}
           />
 
-          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3 text-left">
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
+            <div className="flex items-start sm:items-center gap-3 text-left min-w-0 flex-1 w-full md:w-auto">
               <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-inner"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-inner mt-0.5 sm:mt-0"
                 style={{
                   background: "var(--card-bg)",
                   borderColor: "var(--border)",
                   color: "var(--accent)",
                 }}
               >
-                <ActionIcon size={17} />
+                <ActionIcon size={18} />
               </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-bold tracking-tight" style={{ color: "var(--txt)" }}>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm sm:text-base md:text-lg font-bold tracking-tight leading-snug break-words" style={{ color: "var(--txt)" }}>
                   {title || "Ready to experience DataForge?"}
                 </h3>
                 {subtitle && (
-                  <p className="text-xs font-normal" style={{ color: "var(--txt-m)" }}>
+                  <p className="text-xs sm:text-sm font-normal text-[var(--txt-m)] mt-1 leading-relaxed break-words">
                     {subtitle}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-              {renderSecondaryButton("px-3.5 py-2 text-xs")}
-              {renderPrimaryButton("px-4 py-2 text-xs")}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto shrink-0 pt-1 md:pt-0">
+              {renderSecondaryButton("w-full sm:w-auto px-4 py-2.5 sm:py-2 text-xs text-center justify-center")}
+              {renderPrimaryButton("w-full sm:w-auto px-5 py-2.5 sm:py-2 text-xs text-center justify-center")}
             </div>
           </div>
         </div>

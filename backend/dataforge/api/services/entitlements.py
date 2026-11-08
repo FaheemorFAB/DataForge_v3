@@ -68,7 +68,7 @@ PLAN_TIERS: Dict[str, Dict[str, Any]] = {
         "monthly_automl_jobs": 200,
         "monthly_ai_queries": 1_000,
         "max_projects": -1,
-        "max_team_members": 5,
+        "max_team_members": 25,
         "team_roles": ["Viewer", "Analyst", "Admin"],
         "export_formats": ["csv", "json", "parquet", "excel", "dbt", "airflow", "slides", "docker", "database_push", "audit_logs", "all"],
         "can_export": True,
@@ -80,19 +80,10 @@ PLAN_TIERS: Dict[str, Dict[str, Any]] = {
         "has_team_collaboration": True,
         "support_level": "priority_team",
     },
-    "enterprise": {
-        "name": "Enterprise Scale",
-        "price_monthly": 249,
-        "max_storage_mb": 100_000,
-        "max_rows_per_dataset": 5_000_000,
-        "monthly_automl_jobs": 1_000,
-        "monthly_ai_queries": 10_000,
-        "max_projects": 1_000,
-        "max_team_members": 1000,
-        "export_formats": ["all"],
-        "support_level": "dedicated_sla",
-    },
 }
+
+# Consolidate Enterprise into Team Collaboration (strictly 3 tiers: free, pro, team)
+PLAN_TIERS["enterprise"] = PLAN_TIERS["team"]
 
 _LOCK = threading.Lock()
 _SUBS_DIR = STORE_DIR / "subscriptions"
@@ -170,9 +161,10 @@ class EntitlementService:
             try:
                 row = db_first("subscriptions", {"user_id": user_id})
                 if row:
-                    plan_key = row.get("plan", "free").lower()
+                    raw_plan = row.get("plan", "free").lower()
+                    plan_key = "team" if raw_plan == "enterprise" else raw_plan
                     limits = PLAN_TIERS.get(plan_key, PLAN_TIERS["free"])
-                    res = {**limits, **row}
+                    res = {**limits, **row, "plan": plan_key}
                     _SUBSCRIPTION_CACHE[cache_key] = (now, res)
                     return res
             except Exception as e:
@@ -183,9 +175,10 @@ class EntitlementService:
         if sub_file.exists():
             try:
                 data = json.loads(sub_file.read_text(encoding="utf-8"))
-                plan_key = data.get("plan", "free").lower()
+                raw_plan = data.get("plan", "free").lower()
+                plan_key = "team" if raw_plan == "enterprise" else raw_plan
                 limits = PLAN_TIERS.get(plan_key, PLAN_TIERS["free"])
-                res = {**limits, **data}
+                res = {**limits, **data, "plan": plan_key}
                 _SUBSCRIPTION_CACHE[cache_key] = (now, res)
                 return res
             except Exception:
@@ -209,9 +202,10 @@ class EntitlementService:
     @classmethod
     def set_user_plan(cls, user_id: int, plan: str) -> Dict[str, Any]:
         """Upgrades or modifies a user's subscription tier."""
-        plan_key = plan.lower()
+        raw_key = plan.lower()
+        plan_key = "team" if raw_key == "enterprise" else raw_key
         if plan_key not in PLAN_TIERS:
-            raise ValueError(f"Unknown plan tier '{plan}'. Allowed: {list(PLAN_TIERS.keys())}")
+            raise ValueError(f"Unknown plan tier '{plan}'. Allowed: free, pro, team")
 
         limits = PLAN_TIERS[plan_key]
         now_iso = datetime.now(timezone.utc).isoformat()
@@ -433,7 +427,7 @@ class EntitlementService:
             return (
                 False,
                 f"'{export_type}' export is exclusive to Team Collaboration. "
-                "Upgrade to Team Collaboration to unlock orchestration DAGs and enterprise database push.",
+                "Upgrade to Team Collaboration to unlock orchestration DAGs and database push.",
             )
 
         return (True, "")

@@ -12,6 +12,7 @@ import { HUMAN_AVATARS, getAvatarById, resolveAvatarUrl } from "@/lib/avatars";
 import {
   Shield,
   Database,
+  History,
   Cpu,
   Layers,
   Settings,
@@ -36,7 +37,11 @@ import {
   Sparkles,
   Trash2,
   Loader2,
+  Award,
+  Crown,
+  ChevronDown,
 } from "lucide-react";
+import { formatBytes } from "@/lib/format";
 
 interface DatasetItem {
   id: number | string;
@@ -47,6 +52,8 @@ interface DatasetItem {
   missing_pct: number;
   time_ago: string;
   has_clean?: boolean;
+  size_bytes?: number;
+  size_human?: string;
 }
 
 interface ModelItem {
@@ -85,11 +92,11 @@ const ROLE_BADGES: Record<TeamRole, { label: string; color: string; glow: string
   Viewer: { label: "Viewer", color: "#f59e0b", glow: "rgba(245,158,11,0.15)" },
 };
 
-const TIER_LIMITS: Record<string, { name: string; maxMembers: number; badgeColor: string }> = {
-  free: { name: "Free Starter", maxMembers: 1, badgeColor: "#64748b" },
-  pro: { name: "Pro Analyst", maxMembers: 1, badgeColor: "#3b82f6" },
-  team: { name: "Team Collaboration", maxMembers: 25, badgeColor: "#10b981" },
-  enterprise: { name: "Enterprise Scale", maxMembers: 1000, badgeColor: "#8b5cf6" },
+const TIER_LIMITS: Record<string, { name: string; maxMembers: number; badgeColor: string; icon: React.ComponentType<{ size?: number; className?: string }> }> = {
+  free: { name: "Free Starter", maxMembers: 1, badgeColor: "#94a3b8", icon: Award },
+  pro: { name: "Pro Analyst", maxMembers: 1, badgeColor: "#6366f1", icon: Crown },
+  team: { name: "Team Collaboration", maxMembers: 25, badgeColor: "#10b981", icon: Users },
+  enterprise: { name: "Team Collaboration", maxMembers: 25, badgeColor: "#10b981", icon: Users },
 };
 
 const THEMES = [
@@ -113,11 +120,12 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<string>("overview");
 
   // User & Identity State
-  const [userName, setUserName] = useState<string>("Alex Morgan");
-  const [userEmail, setUserEmail] = useState<string>("alex.morgan@dataforge.internal");
+  const [userName, setUserName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
   const [userRole, setUserRole] = useState<TeamRole>("Admin");
   const [userAvatarId, setUserAvatarId] = useState<string>("avatar-1");
-  const [userTier, setUserTier] = useState<string>("pro");
+  const [userTier, setUserTier] = useState<string>("free");
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState<boolean>(true);
 
   // Profile Edit Modal State
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
@@ -125,25 +133,14 @@ export default function DashboardPage() {
   const [editEmailInput, setEditEmailInput] = useState<string>("");
   const [editAvatarId, setEditAvatarId] = useState<string>("avatar-1");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>("");
+  const [editProfileError, setEditProfileError] = useState<string>("");
+
+  // Active Workspace Context: "personal" | org_id
+  const [activeWorkspace, setActiveWorkspace] = useState<string>("personal");
+  const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState<boolean>(false);
 
   // Teams State (Members are ingested via email invite only)
-  const [teams, setTeams] = useState<TeamItem[]>([
-    {
-      id: "team-1",
-      name: "Enterprise Workspace",
-      myRole: "Admin",
-      members: [
-        {
-          id: "m-owner",
-          name: "Enterprise Lead",
-          email: "analyst@dataforge.app",
-          role: "Admin",
-          avatarId: "avatar-6",
-          avatarUrl: "/avatars/avatar-6.svg",
-        },
-      ],
-    },
-  ]);
+  const [teams, setTeams] = useState<TeamItem[]>([]);
 
   // Invite Member Modal State
   const [inviteModalOpen, setInviteModalOpen] = useState<boolean>(false);
@@ -152,13 +149,38 @@ export default function DashboardPage() {
   const [inviteEmail, setInviteEmail] = useState<string>("");
   const [inviteRole, setInviteRole] = useState<TeamRole>("Analyst");
   const [inviteError, setInviteError] = useState<string>("");
+  const [isSubmittingInvite, setIsSubmittingInvite] = useState<boolean>(false);
+
+  // Create Workspace Modal State
+  const [createWorkspaceModalOpen, setCreateWorkspaceModalOpen] = useState<boolean>(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState<string>("");
+  const [newWorkspacePlan, setNewWorkspacePlan] = useState<string>("Team");
+  const [createWorkspaceError, setCreateWorkspaceError] = useState<string>("");
+  const [isCreatingWorkspace, setIsCreatingWorkspace] = useState<boolean>(false);
+
+  // Workspace Shift Transition Modal State
+  const [workspaceShiftModal, setWorkspaceShiftModal] = useState<{
+    isOpen: boolean;
+    fromName: string;
+    fromId: string;
+    toName: string;
+    toId: string;
+    toRole?: string;
+  }>({
+    isOpen: false,
+    fromName: "",
+    fromId: "",
+    toName: "",
+    toId: "",
+    toRole: "",
+  });
 
   // System Stats
   const [stats, setStats] = useState({
-    uploads: 1,
-    analyses: 6,
-    models: 3,
-    reports: 2
+    uploads: 0,
+    analyses: 0,
+    models: 0,
+    reports: 0
   });
 
   // Datasets
@@ -169,46 +191,12 @@ export default function DashboardPage() {
   const [deleteMessage, setDeleteMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Models
-  const [models, setModels] = useState<ModelItem[]>([
-    {
-      id: "mdl-01",
-      name: "Customer Retention Predictor",
-      algorithm: "LightGBM Classifier",
-      target: "churn_flag",
-      metric: "ROC-AUC",
-      score: "0.942",
-      status: "Ready",
-      created_at: "2 hours ago"
-    },
-    {
-      id: "mdl-02",
-      name: "Quarterly Revenue Forecast",
-      algorithm: "XGBoost Regressor",
-      target: "monthly_revenue",
-      metric: "R² / RMSE",
-      score: "0.918",
-      status: "Ready",
-      created_at: "1 day ago"
-    },
-    {
-      id: "mdl-03",
-      name: "Transaction Risk Scoring",
-      algorithm: "Random Forest Classifier",
-      target: "is_fraudulent",
-      metric: "F1 Score",
-      score: "0.895",
-      status: "Trained",
-      created_at: "3 days ago"
-    }
-  ]);
+  const [models, setModels] = useState<ModelItem[]>([]);
   const [deletingModelId, setDeletingModelId] = useState<string | null>(null);
   const [deleteModelConfirmId, setDeleteModelConfirmId] = useState<string | null>(null);
 
   // Reports
-  const [reports, setReports] = useState<any[]>([
-    { id: 101, filename: "customer_churn_q3.csv", triggered_by: "Executive Briefing", created_at: "Today, 08:30 AM" },
-    { id: 102, filename: "sales_pipeline_2026.csv", triggered_by: "Weekly Automated EDA", created_at: "Yesterday" }
-  ]);
+  const [reports, setReports] = useState<any[]>([]);
   const [deletingReportId, setDeletingReportId] = useState<number | string | null>(null);
   const [deleteReportConfirmId, setDeleteReportConfirmId] = useState<number | string | null>(null);
 
@@ -255,56 +243,24 @@ export default function DashboardPage() {
       }
     } catch (e) {}
 
-    // Fetch live user info from backend
-    apiFetch("/v1/auth/me")
-      .then((res) => {
-        if (res.status === 401) {
-          if (typeof window !== "undefined") {
-            window.location.href = "/?login=1";
-          }
-          return null;
-        }
-        return res.ok ? res.json() : null;
-      })
-      .then((data) => {
-        if (data) {
-          if (data.name) setUserName(data.name);
-          if (data.email) setUserEmail(data.email);
-          const savedAvatar = localStorage.getItem("df_user_avatar");
-          if (savedAvatar) {
-            setUserAvatarId(savedAvatar);
-          } else if (data.avatar) {
-            setUserAvatarId(data.avatar);
-          }
-        }
-      })
-      .catch(() => {});
 
-    // 3. Check and clean cached teams
+
+    // 3. Check and clean cached teams & active workspace
+    const savedWs = localStorage.getItem("df_active_workspace") || "personal";
+    setActiveWorkspace(savedWs);
+
     try {
       const rawTeams = localStorage.getItem("df_teams_data");
       if (rawTeams) {
         const parsed = JSON.parse(rawTeams);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const MOCK_EMAILS = [
-            "alex.morgan@dataforge.internal",
-            "sarah.chen@dataforge.internal",
-            "marcus.v@dataforge.internal",
-            "david.kim@dataforge.internal",
-            "liam.oc@dataforge.internal",
-            "elena.r@dataforge.internal",
-            "maya.patel@dataforge.internal",
-            "amara.o@dataforge.internal",
-            "sarah.chen@company.com",
-            "marcus.vance@company.com",
-            "elena.rostova@company.com",
-          ];
-          const cleaned = parsed.map((t: TeamItem) => ({
-            ...t,
-            members: Array.isArray(t.members) ? t.members.filter(m => !MOCK_EMAILS.includes(m.email)) : [],
-          })).filter((t: TeamItem) => t.members.length > 0);
+          // Remove legacy placeholder teams
+          const cleaned = parsed.filter((t: TeamItem) => (!t.name.endsWith("Enterprise Team") && !t.name.endsWith("'s Team")) || t.members.length > 1);
           if (cleaned.length > 0) {
             setTeams(cleaned);
+          } else {
+            setTeams([]);
+            localStorage.removeItem("df_teams_data");
           }
         }
       }
@@ -338,12 +294,12 @@ export default function DashboardPage() {
                 } catch {}
                 if (memberList.length === 0) {
                   memberList = [{
-                    id: `m-${org.owner_id || 1}`,
-                    name: "Enterprise Lead",
-                    email: "analyst@dataforge.app",
+                    id: `m-${org.owner_id || "owner"}`,
+                    name: userName || "Workspace Owner",
+                    email: userEmail || "owner@dataforge.app",
                     role: (org.my_role as TeamRole) || "Admin",
-                    avatarId: "avatar-6",
-                    avatarUrl: "/avatars/avatar-6.svg",
+                    avatarId: userAvatarId || "avatar-1",
+                    avatarUrl: resolveAvatarUrl(userAvatarId || "avatar-1"),
                   }];
                 }
                 return {
@@ -354,26 +310,27 @@ export default function DashboardPage() {
                 };
               })
             );
-            if (orgTeams.length > 0) {
-              setTeams(orgTeams);
-              try {
-                localStorage.setItem("df_teams_data", JSON.stringify(orgTeams));
-              } catch {}
-            }
+            setTeams(orgTeams);
+            try {
+              localStorage.setItem("df_teams_data", JSON.stringify(orgTeams));
+            } catch {}
+          } else {
+            setTeams([]);
+            try {
+              localStorage.removeItem("df_teams_data");
+            } catch {}
           }
         }
       } catch (err) {
         console.warn("Failed to fetch teams:", err);
       }
     };
-    fetchTeams();
 
-    // 4. Fetch datasets
+    // 4. Fetch datasets and stats scoped to workspace
     const fetchDashboard = async () => {
       try {
-        const res = await fetch("/api/dashboard/init", {
-          headers: { Accept: "application/json" }
-        });
+        const currentWs = localStorage.getItem("df_active_workspace") || "personal";
+        const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(currentWs)}`);
         if (res.ok) {
           const data = await res.json();
           if (data.user) {
@@ -382,82 +339,171 @@ export default function DashboardPage() {
           }
           if (data.stats) {
             setStats({
-              uploads: data.stats.uploads || 1,
-              analyses: data.stats.analyses || 6,
-              models: data.stats.models || 3,
-              reports: data.stats.reports || 2
+              uploads: data.stats.uploads ?? 0,
+              analyses: data.stats.analyses ?? 0,
+              models: data.stats.models ?? 0,
+              reports: data.stats.reports ?? 0
             });
           }
-          if (Array.isArray(data.recent_uploads) && data.recent_uploads.length > 0) {
+          if (Array.isArray(data.recent_uploads)) {
             setDatasets(data.recent_uploads);
           } else {
-            setDatasets([
-              {
-                id: 1,
-                filename: "customer_churn_analysis.csv",
-                source_type: "csv",
-                rows: 7043,
-                cols: 21,
-                missing_pct: 0.15,
-                time_ago: "10m ago",
-                has_clean: true
-              },
-              {
-                id: 2,
-                filename: "ecommerce_sales_transactions.csv",
-                source_type: "sheets",
-                rows: 15200,
-                cols: 14,
-                missing_pct: 1.2,
-                time_ago: "2h ago",
-                has_clean: false
-              }
-            ]);
+            setDatasets([]);
           }
         } else {
-          setDatasets([
-            {
-              id: 1,
-              filename: "customer_churn_analysis.csv",
-              source_type: "csv",
-              rows: 7043,
-              cols: 21,
-              missing_pct: 0.15,
-              time_ago: "10m ago",
-              has_clean: true
-            },
-            {
-              id: 2,
-              filename: "ecommerce_sales_transactions.csv",
-              source_type: "sheets",
-              rows: 15200,
-              cols: 14,
-              missing_pct: 1.2,
-              time_ago: "2h ago",
-              has_clean: false
-            }
-          ]);
+          setDatasets([]);
         }
       } catch (err) {
-        setDatasets([
-          {
-            id: 1,
-            filename: "customer_churn_analysis.csv",
-            source_type: "csv",
-            rows: 7043,
-            cols: 21,
-            missing_pct: 0.15,
-            time_ago: "10m ago",
-            has_clean: true
-          }
-        ]);
+        setDatasets([]);
       } finally {
         setLoadingDatasets(false);
       }
     };
 
-    fetchDashboard();
+    const initAllDashboard = async () => {
+      try {
+        await Promise.allSettled([
+          apiFetch("/subscription")
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              const plan = data?.subscription?.plan || data?.plan;
+              if (plan) {
+                let clean = plan.toLowerCase();
+                if (clean === "enterprise") clean = "team";
+                setUserTier(clean);
+                localStorage.setItem("df_user_tier", clean);
+              }
+            })
+            .catch(() => {}),
+
+          apiFetch("/v1/auth/me")
+            .then((res) => {
+              if (res.status === 401) {
+                if (typeof window !== "undefined") {
+                  window.location.href = "/?login=1";
+                }
+                return null;
+              }
+              return res.ok ? res.json() : null;
+            })
+            .then((data) => {
+              if (data) {
+                if (data.name) setUserName(data.name);
+                if (data.email) setUserEmail(data.email);
+                const savedAvatar = localStorage.getItem("df_user_avatar");
+                if (savedAvatar) {
+                  setUserAvatarId(savedAvatar);
+                } else if (data.avatar) {
+                  setUserAvatarId(data.avatar);
+                }
+              }
+            })
+            .catch(() => {}),
+
+          fetchTeams(),
+          fetchDashboard()
+        ]);
+      } finally {
+        setIsLoadingDashboard(false);
+      }
+    };
+
+    initAllDashboard();
   }, []);
+
+  const handleSwitchWorkspace = (workspaceId: string, skipModal: boolean = false) => {
+    setWorkspaceDropdownOpen(false);
+    if (workspaceId === activeWorkspace) return;
+
+    const fromId = activeWorkspace;
+    const toId = workspaceId;
+
+    const getWsName = (id: string) => {
+      if (id === "personal") return "Personal Space";
+      const t = teams.find((item) => item.id === id);
+      return t ? t.name : "Analysis Workspace";
+    };
+
+    const getWsRole = (id: string) => {
+      if (id === "personal") return "Owner";
+      const t = teams.find((item) => item.id === id);
+      return t ? t.myRole : "Member";
+    };
+
+    const fromName = getWsName(fromId);
+    const toName = getWsName(toId);
+    const toRole = getWsRole(toId);
+
+    setActiveWorkspace(workspaceId);
+    try {
+      localStorage.setItem("df_active_workspace", workspaceId);
+    } catch {}
+
+    // Immediately clear stale datasets to prevent flickering old workspace items
+    setDatasets([]);
+    loadDashboardData(workspaceId);
+
+    if (!skipModal) {
+      setWorkspaceShiftModal({
+        isOpen: true,
+        fromName,
+        fromId,
+        toName,
+        toId,
+        toRole,
+      });
+    }
+  };
+
+  const loadDashboardData = async (wsId: string) => {
+    setLoadingDatasets(true);
+    setDatasets([]);
+    try {
+      const res = await apiFetch(`/dashboard/init?workspace_id=${encodeURIComponent(wsId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.stats) {
+          setStats({
+            uploads: data.stats.uploads ?? 0,
+            analyses: data.stats.analyses ?? 0,
+            models: data.stats.models ?? 0,
+            reports: data.stats.reports ?? 0,
+          });
+        }
+        if (Array.isArray(data.recent_uploads)) {
+          setDatasets(data.recent_uploads);
+        } else {
+          setDatasets([]);
+        }
+      } else {
+        setDatasets([]);
+      }
+    } catch {
+      setDatasets([]);
+    } finally {
+      setLoadingDatasets(false);
+    }
+
+    try {
+      const mOrg = wsId === "personal" ? "" : `?org_id=${encodeURIComponent(wsId)}`;
+      const mRes = await apiFetch(`/models${mOrg}`);
+      if (mRes.ok) {
+        const mData = await mRes.json();
+        if (Array.isArray(mData.models)) {
+          setModels(mData.models.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            algorithm: m.algorithm || "AutoML Champion",
+            target: m.target_column || "Target",
+            metric: Object.keys(m.metrics || {})[0] || "accuracy",
+            score: String(Object.values(m.metrics || {})[0] || "0.92"),
+            status: m.status === "production" ? "Trained" : "Ready",
+            created_at: m.created_at || new Date().toISOString(),
+          })));
+        }
+      }
+    } catch {}
+  };
 
   // Auto-dismiss delete alert message
   useEffect(() => {
@@ -578,12 +624,24 @@ export default function DashboardPage() {
   // Profile Save Handler (Avatar, Name, Email)
   const handleSaveProfile = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!editNameInput.trim()) return;
+    setEditProfileError("");
+
+    if (!editNameInput.trim()) {
+      setEditProfileError("Please enter your full name.");
+      return;
+    }
+    if (!editEmailInput.trim()) {
+      setEditProfileError("Please enter your work email address.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editEmailInput.trim())) {
+      setEditProfileError("Please enter a valid work email address (e.g. name@company.com).");
+      return;
+    }
 
     setUserName(editNameInput.trim());
-    if (editEmailInput.trim()) {
-      setUserEmail(editEmailInput.trim());
-    }
+    setUserEmail(editEmailInput.trim());
     setUserAvatarId(editAvatarId);
     setIsEditingProfile(false);
 
@@ -618,6 +676,7 @@ export default function DashboardPage() {
     setEditNameInput(userName);
     setEditEmailInput(userEmail);
     setEditAvatarId(userAvatarId);
+    setEditProfileError("");
     setIsEditingProfile(true);
   };
 
@@ -631,8 +690,8 @@ export default function DashboardPage() {
     setInviteModalOpen(true);
   };
 
-  // Add Member / Role with Tier Limit Enforcement
-  const handleInviteMember = (e: React.FormEvent) => {
+  // Add Member / Role with Tier Limit Enforcement and Verified Resend Email Dispatch
+  const handleInviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTeamId) return;
 
@@ -649,54 +708,151 @@ export default function DashboardPage() {
       return;
     }
 
-    if (!inviteName.trim() || !inviteEmail.trim()) {
-      setInviteError("Name and email are required.");
+    if (!inviteName.trim()) {
+      setInviteError("Please enter the member's full name.");
+      return;
+    }
+    if (!inviteEmail.trim()) {
+      setInviteError("Please enter the member's work email address.");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inviteEmail.trim())) {
+      setInviteError("Please enter a valid email address (e.g. name@company.com).");
       return;
     }
 
-    const randomAvatar = HUMAN_AVATARS[Math.floor(Math.random() * HUMAN_AVATARS.length)];
-    const newMember: TeamMember = {
-      id: `m-${Date.now()}`,
-      name: inviteName.trim(),
-      email: inviteEmail.trim(),
-      role: inviteRole,
-      avatarId: randomAvatar.id,
-      avatarUrl: randomAvatar.url,
-      avatarBg: randomAvatar.bg,
-    };
+    setIsSubmittingInvite(true);
+    setInviteError("");
 
-    const updatedTeams = teams.map((t) => {
-      if (t.id === selectedTeamId) {
-        return {
-          ...t,
-          members: [...t.members, newMember],
-        };
-      }
-      return t;
-    });
-
-    setTeams(updatedTeams);
     try {
-      localStorage.setItem("df_teams_data", JSON.stringify(updatedTeams));
-    } catch {}
-
-    // Dispatch invitation email and audit log to backend if team exists
-    if (selectedTeamId) {
-      apiFetch(`/teams/${selectedTeamId}/invite`, {
+      const res = await apiFetch(`/teams/${selectedTeamId}/invite`, {
         method: "POST",
         body: JSON.stringify({
           email: inviteEmail.trim(),
           name: inviteName.trim(),
           role: inviteRole,
         }),
-      }).catch((err: any) => {
-        console.warn("Backend team invite sync note:", err);
       });
+
+      if (res.ok) {
+        const data = await res.json();
+        const delivery = data.email_delivery;
+        const emailSent = delivery?.sent === true || delivery?.transport === "simulated";
+
+        if (emailSent) {
+          // Verified: Email was sent by Resend -> Now add member to team workspace
+          const randomAvatar = HUMAN_AVATARS[Math.floor(Math.random() * HUMAN_AVATARS.length)];
+          const newMember: TeamMember = {
+            id: data.member?.id || `m-${Date.now()}`,
+            name: inviteName.trim(),
+            email: inviteEmail.trim(),
+            role: inviteRole,
+            avatarId: randomAvatar.id,
+            avatarUrl: randomAvatar.url,
+            avatarBg: randomAvatar.bg,
+          };
+
+          const updatedTeams = teams.map((t) => {
+            if (t.id === selectedTeamId) {
+              return {
+                ...t,
+                members: [...t.members, newMember],
+              };
+            }
+            return t;
+          });
+
+          setTeams(updatedTeams);
+          try {
+            localStorage.setItem("df_teams_data", JSON.stringify(updatedTeams));
+          } catch {}
+
+          setInviteModalOpen(false);
+          setInviteName("");
+          setInviteEmail("");
+          setSaveSuccessMsg(`✓ Email has been sent to ${newMember.email}! They have been added to ${targetTeam.name} as ${newMember.role}.`);
+          setTimeout(() => setSaveSuccessMsg(""), 5000);
+        } else {
+          setInviteError(delivery?.error || "Email delivery failed via Resend. Colleague was not added.");
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setInviteError(err.detail || "Failed to invite member. Please check details.");
+      }
+    } catch (err: any) {
+      setInviteError(err.message || "Failed to invite member.");
+    } finally {
+      setIsSubmittingInvite(false);
+    }
+  };
+
+  // Create Team Workspace Handler
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWorkspaceName.trim()) {
+      setCreateWorkspaceError("Please enter a workspace name.");
+      return;
     }
 
-    setInviteModalOpen(false);
-    setSaveSuccessMsg(`Sent invitation to ${newMember.email} as ${newMember.role}`);
-    setTimeout(() => setSaveSuccessMsg(""), 3000);
+    if (!isTeamCollaboration) {
+      setCreateWorkspaceError("Team workspaces are exclusively available on the Team Collaboration plan. Please upgrade your plan.");
+      return;
+    }
+
+    setIsCreatingWorkspace(true);
+    setCreateWorkspaceError("");
+
+    try {
+      const res = await apiFetch("/teams", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newWorkspaceName.trim(),
+          plan: newWorkspacePlan || "Team",
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const createdOrg = data.organization;
+        const newTeam: TeamItem = {
+          id: createdOrg.id,
+          name: createdOrg.name,
+          myRole: "Admin",
+          members: [
+            {
+              id: `m-${createdOrg.owner_id || "owner"}`,
+              name: userName || "Workspace Owner",
+              email: userEmail || "owner@dataforge.app",
+              role: "Admin",
+              avatarId: userAvatarId || "avatar-1",
+              avatarUrl: resolveAvatarUrl(userAvatarId || "avatar-1"),
+            },
+          ],
+        };
+
+        const updatedTeams = [...teams, newTeam];
+        setTeams(updatedTeams);
+        try {
+          localStorage.setItem("df_teams_data", JSON.stringify(updatedTeams));
+        } catch {}
+
+        // Switch to newly created workspace
+        handleSwitchWorkspace(createdOrg.id, true);
+
+        setCreateWorkspaceModalOpen(false);
+        setNewWorkspaceName("");
+        setSaveSuccessMsg(`✓ Workspace "${createdOrg.name}" created successfully!`);
+        setTimeout(() => setSaveSuccessMsg(""), 4000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setCreateWorkspaceError(err.detail || "Failed to create workspace.");
+      }
+    } catch (err: any) {
+      setCreateWorkspaceError(err.message || "Failed to create workspace.");
+    } finally {
+      setIsCreatingWorkspace(false);
+    }
   };
 
   // Theme Switcher Handler
@@ -726,7 +882,10 @@ export default function DashboardPage() {
 
   const currentAvatar = getAvatarById(userAvatarId);
   const currentRoleMeta = ROLE_BADGES[userRole] || ROLE_BADGES["Admin"];
-  const currentTierInfo = TIER_LIMITS[userTier] || TIER_LIMITS["pro"];
+  const normalizedTier = userTier === "enterprise" ? "team" : (userTier || "free");
+  const currentTierInfo = TIER_LIMITS[normalizedTier] || TIER_LIMITS["free"];
+  const TierIcon = currentTierInfo.icon || Award;
+  const isTeamCollaboration = normalizedTier === "team" && userRole !== "Viewer";
 
   return (
     <div
@@ -763,17 +922,139 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/workspace"
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm no-underline"
-            style={{
-              background: "var(--accent)",
-              color: "#ffffff",
-            }}
-          >
-            <Play size={13} fill="currentColor" />
-            <span>Launch Studio</span>
-          </Link>
+          {/* ── WORKSPACE CONTEXT BADGE & SWITCHER ── */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer hover:border-[var(--accent)] shadow-sm"
+              style={{
+                background: "var(--card)",
+                borderColor: "var(--border)",
+                color: "var(--txt)",
+              }}
+              title="Switch or Create Workspace"
+            >
+              {activeWorkspace === "personal" ? (
+                <>
+                  <User size={13} style={{ color: "var(--accent)" }} />
+                  <span className="hidden sm:inline">Personal Space</span>
+                  <span className="sm:hidden">Personal</span>
+                </>
+              ) : (
+                <>
+                  <Users size={13} style={{ color: "#10b981" }} />
+                  <span className="truncate max-w-[110px] sm:max-w-[150px]">
+                    {teams.find((t) => t.id === activeWorkspace)?.name || "Team Workspace"}
+                  </span>
+                </>
+              )}
+              <ChevronDown size={12} className="opacity-60 shrink-0" />
+            </button>
+
+            {workspaceDropdownOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setWorkspaceDropdownOpen(false)}
+                />
+                <div
+                  className="absolute right-0 mt-2 w-64 rounded-xl border p-2 shadow-2xl z-50 animate-in fade-in zoom-in-95 space-y-1"
+                  style={{
+                    background: "var(--card)",
+                    borderColor: "var(--border)",
+                  }}
+                >
+                  <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                    Switch Workspace
+                  </div>
+
+                  {/* Personal Workspace Option */}
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchWorkspace("personal")}
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-left"
+                    style={{
+                      background: activeWorkspace === "personal" ? "var(--surface)" : "transparent",
+                      color: "var(--txt)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <User size={14} style={{ color: "var(--accent)" }} />
+                      <div className="truncate">
+                        <div className="truncate font-bold">Personal Space</div>
+                        <div className="text-[10px]" style={{ color: "var(--txt-m)" }}>Private datasets &amp; models</div>
+                      </div>
+                    </div>
+                    {activeWorkspace === "personal" && (
+                      <Check size={14} style={{ color: "var(--accent)" }} className="shrink-0" />
+                    )}
+                  </button>
+
+                  {/* Team Workspaces */}
+                  {teams.length > 0 && (
+                    <>
+                      <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
+                      <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                        Company Workspaces
+                      </div>
+                      {teams.map((t) => {
+                        const isCurrent = activeWorkspace === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => handleSwitchWorkspace(t.id)}
+                            className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-left"
+                            style={{
+                              background: isCurrent ? "var(--surface)" : "transparent",
+                              color: "var(--txt)",
+                            }}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <Users size={14} style={{ color: "#10b981" }} />
+                              <div className="truncate">
+                                <div className="truncate font-bold">{t.name}</div>
+                                <div className="text-[10px] flex items-center gap-1.5" style={{ color: "var(--txt-m)" }}>
+                                  <span>{t.myRole}</span>
+                                  <span>•</span>
+                                  <span>{t.members.length} members</span>
+                                </div>
+                              </div>
+                            </div>
+                            {isCurrent && (
+                              <Check size={14} style={{ color: "#10b981" }} className="shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Create Workspace Action (Only for Team Collaboration role) */}
+                  {isTeamCollaboration && (
+                    <>
+                      <div className="border-t my-1" style={{ borderColor: "var(--border)" }} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWorkspaceDropdownOpen(false);
+                          setCreateWorkspaceError("");
+                          setNewWorkspaceName("");
+                          setCreateWorkspaceModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer text-left hover:bg-[var(--surface)]"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        <Plus size={14} />
+                        <span>Create New Workspace</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           <ThemeSwitcher />
           <UserMenu />
@@ -782,6 +1063,24 @@ export default function DashboardPage() {
 
       {/* ── MAIN DASHBOARD CONTAINER ── */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 md:px-8 py-6 space-y-6">
+        {isLoadingDashboard ? (
+          <div className="min-h-[55vh] flex flex-col items-center justify-center py-24 space-y-4">
+            <div className="relative flex items-center justify-center">
+              <div
+                className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin"
+                style={{
+                  borderColor: "var(--border)",
+                  borderTopColor: "var(--accent)",
+                }}
+              />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-sm font-bold" style={{ color: "var(--txt)" }}>Loading Command Center...</p>
+              <p className="text-xs" style={{ color: "var(--txt-m)" }}>Fetching your datasets, models, and analytics ledger</p>
+            </div>
+          </div>
+        ) : (
+          <>
         {/* Success Alert Banner */}
         {saveSuccessMsg && (
           <div
@@ -853,19 +1152,20 @@ export default function DashboardPage() {
 
                   {/* Tier Badge */}
                   <span
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider"
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-md border tracking-wider inline-flex items-center gap-1.5 shadow-sm"
                     style={{
                       background: "var(--surface)",
                       borderColor: currentTierInfo.badgeColor,
                       color: currentTierInfo.badgeColor,
                     }}
                   >
-                    {currentTierInfo.name}
+                    <TierIcon size={12} />
+                    <span>{currentTierInfo.name}</span>
                   </span>
                 </div>
 
                 <p className="text-xs mt-1" style={{ color: "var(--txt-m)" }}>
-                  {userEmail} • <span className="font-mono">Org: DATAFORGE-PROD</span>
+                  {userEmail}
                 </p>
               </div>
             </div>
@@ -885,22 +1185,12 @@ export default function DashboardPage() {
                 <span>Edit Profile</span>
               </button>
 
-              <Link
-                href="/workspace"
-                className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-bold text-xs shadow-md transition-all no-underline"
-                style={{
-                  background: "var(--accent)",
-                  color: "#ffffff",
-                }}
-              >
-                <Play size={13} fill="currentColor" />
-                <span>Open Studio</span>
-              </Link>
+
             </div>
           </div>
         </section>
 
-        {/* ── MY TEAMS & WORKSPACES (With Role Badges & Tier Limit Enforcement) ── */}
+        {/* ── MY TEAMS & WORKSPACES ── */}
         <section
           className="rounded-2xl border p-5 md:p-6 shadow-sm space-y-4"
           style={{
@@ -908,7 +1198,7 @@ export default function DashboardPage() {
             borderColor: "var(--border)",
           }}
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3" style={{ borderColor: "var(--border)" }}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3" style={{ borderColor: "var(--border)" }}>
             <div>
               <div className="flex items-center gap-2">
                 <Users size={16} style={{ color: "var(--accent)" }} />
@@ -917,141 +1207,252 @@ export default function DashboardPage() {
                 </h3>
               </div>
               <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                Teams you are assigned to, active role badges, and seat quotas.
+                {teams.length === 0
+                  ? "Collaborate with colleagues, share datasets, and pool quotas."
+                  : "Teams you are assigned to, active role badges, and seat quotas."}
               </p>
             </div>
 
-            {/* Plan Tier Limit Indicator */}
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-[11px] font-medium" style={{ color: "var(--txt-m)" }}>
-                Seat Quota: <strong style={{ color: "var(--txt)" }}>{currentTierInfo.maxMembers} seats / team</strong> ({currentTierInfo.name})
-              </span>
-              <Link
-                href="/pricing"
-                className="text-[11px] font-bold underline transition-colors cursor-pointer"
-                style={{ color: "var(--accent)" }}
-              >
-                Upgrade Plan →
-              </Link>
+            <div className="flex items-center gap-3">
+              {/* Plan Tier Limit Indicator */}
+              <div className="hidden sm:flex items-center gap-2 text-xs">
+                <span className="text-[11px] font-medium" style={{ color: "var(--txt-m)" }}>
+                  Seat Quota: <strong style={{ color: "var(--txt)" }}>{currentTierInfo.maxMembers} seats / team</strong> ({currentTierInfo.name})
+                </span>
+                <Link
+                  href="/pricing"
+                  className="text-[11px] font-bold underline transition-colors cursor-pointer"
+                  style={{ color: "var(--accent)" }}
+                >
+                  Upgrade Plan →
+                </Link>
+              </div>
+
+              {isTeamCollaboration && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateWorkspaceError("");
+                    setNewWorkspaceName("");
+                    setCreateWorkspaceModalOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm transition-all cursor-pointer hover:opacity-90 shrink-0"
+                  style={{ background: "var(--accent)" }}
+                >
+                  <Plus size={14} />
+                  <span>Create Workspace</span>
+                </button>
+              )}
             </div>
           </div>
 
           {/* Teams Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {teams.map((team) => {
-              const roleMeta = ROLE_BADGES[team.myRole] || ROLE_BADGES["Analyst"];
-              const tierLimit = currentTierInfo.maxMembers;
-              const isAtCapacity = team.members.length >= tierLimit;
-
-              return (
-                <div
-                  key={team.id}
-                  className="rounded-xl border p-4 flex flex-col justify-between space-y-3 transition-all"
-                  style={{
-                    background: "var(--surface)",
-                    borderColor: "var(--border)",
-                  }}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-bold text-xs sm:text-sm" style={{ color: "var(--txt)" }}>
-                        {team.name}
-                      </h4>
-                      {/* User's Role Badge in this team */}
-                      <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0"
-                        style={{
-                          background: roleMeta.glow,
-                          borderColor: roleMeta.color,
-                          color: roleMeta.color,
-                        }}
-                      >
-                        {team.myRole}
-                      </span>
-                    </div>
-
-                    {/* Member Quota Progress */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10px]" style={{ color: "var(--txt-m)" }}>
-                        <span>Members</span>
-                        <span className="font-mono font-semibold" style={{ color: isAtCapacity ? "#ef4444" : "var(--txt)" }}>
-                          {team.members.length} / {tierLimit} seats
-                        </span>
-                      </div>
-                      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--inp-bg)" }}>
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${Math.min(100, (team.members.length / tierLimit) * 100)}%`,
-                            background: isAtCapacity ? "#ef4444" : "var(--accent)",
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Member Avatars List */}
-                    <div className="pt-1.5 space-y-1.5">
-                      <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-                        Active Members:
-                      </span>
-                      <div className="space-y-1 max-h-24 overflow-y-auto no-scrollbar">
-                        {team.members.map((m) => (
-                          <div
-                            key={m.id}
-                            className="flex items-center justify-between text-[11px] px-2 py-1 rounded-lg border"
-                            style={{
-                              background: "var(--card)",
-                              borderColor: "var(--border)",
-                            }}
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              <img
-                                src={resolveAvatarUrl(m.avatarUrl || m.avatarId)}
-                                className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/20"
-                                alt={m.name}
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = "/avatars/avatar-1.svg";
-                                }}
-                              />
-                              <span className="truncate font-medium" style={{ color: "var(--txt)" }}>
-                                {m.name}
-                              </span>
-                            </div>
-                            <span className="text-[9px] font-mono opacity-70 shrink-0">{m.role}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+            {teams.length === 0 ? (
+              <div
+                className="col-span-1 md:col-span-3 p-6 rounded-xl border border-dashed flex flex-col md:flex-row items-center justify-between gap-4"
+                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <div className="flex items-start gap-3.5">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
+                    style={{ background: "rgba(16, 185, 129, 0.1)", borderColor: "rgba(16, 185, 129, 0.25)", color: "#10b981" }}
+                  >
+                    <Users size={20} />
                   </div>
-
-                  {/* Add Member Button with tier limit check */}
-                  <div className="pt-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenInvite(team.id)}
-                      className="w-full py-1.5 px-3 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:border-[var(--accent)]"
-                      style={{
-                        background: "var(--card)",
-                        borderColor: isAtCapacity ? "rgba(239, 68, 68, 0.4)" : "var(--border)",
-                        color: isAtCapacity ? "#ef4444" : "var(--txt)",
-                      }}
-                    >
-                      {isAtCapacity ? (
-                        <>
-                          <Lock size={12} />
-                          <span>Tier Limit Reached</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus size={12} />
-                          <span>Add Team Member</span>
-                        </>
-                      )}
-                    </button>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold" style={{ color: "var(--txt)" }}>
+                        Team Collaboration &amp; Shared Workspaces
+                      </h4>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border" style={{ background: "rgba(16,185,129,0.12)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
+                        Workspaces
+                      </span>
+                    </div>
+                    <p className="text-xs max-w-xl leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                      {isTeamCollaboration
+                        ? "Collaborate with teammates, assign roles (Admin, Analyst, Viewer), and pool dataset quotas in real-time."
+                        : "Team collaboration workspaces are exclusively available on the Team Collaboration plan. Upgrade your plan to create shared workspaces and invite members."}
+                    </p>
                   </div>
                 </div>
-              );
-            })}
+
+                {isTeamCollaboration ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateWorkspaceError("");
+                      setNewWorkspaceName("");
+                      setCreateWorkspaceModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 shrink-0"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    <Plus size={14} />
+                    <span>Create Team Workspace</span>
+                  </button>
+                ) : (
+                  <Link
+                    href="/pricing"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 shrink-0"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    <span>Upgrade to Team Collaboration</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                )}
+              </div>
+            ) : (
+              teams.map((team) => {
+                const roleMeta = ROLE_BADGES[team.myRole] || ROLE_BADGES["Analyst"];
+                const tierLimit = currentTierInfo.maxMembers;
+                const isAtCapacity = team.members.length >= tierLimit;
+                const isActive = activeWorkspace === team.id;
+
+                return (
+                  <div
+                    key={team.id}
+                    className="rounded-xl border p-4 flex flex-col justify-between space-y-3 transition-all"
+                    style={{
+                      background: isActive ? "var(--surface)" : "var(--card)",
+                      borderColor: isActive ? "var(--accent)" : "var(--border)",
+                      boxShadow: isActive ? "0 0 16px rgba(59,130,246,0.12)" : "none",
+                    }}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-xs sm:text-sm" style={{ color: "var(--txt)" }}>
+                            {team.name}
+                          </h4>
+                          {isActive && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border" style={{ background: "rgba(16,185,129,0.1)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
+                              ● Active Workspace
+                            </span>
+                          )}
+                        </div>
+                        {/* User's Role Badge in this team */}
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0"
+                          style={{
+                            background: roleMeta.glow,
+                            borderColor: roleMeta.color,
+                            color: roleMeta.color,
+                          }}
+                        >
+                          {team.myRole}
+                        </span>
+                      </div>
+
+                      {/* Member Quota Progress */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px]" style={{ color: "var(--txt-m)" }}>
+                          <span>Members</span>
+                          <span className="font-mono font-semibold" style={{ color: isAtCapacity ? "#ef4444" : "var(--txt)" }}>
+                            {team.members.length} / {tierLimit} seats
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "var(--inp-bg)" }}>
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, (team.members.length / tierLimit) * 100)}%`,
+                              background: isAtCapacity ? "#ef4444" : "var(--accent)",
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Member Avatars List */}
+                      <div className="pt-1.5 space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+                          Active Members:
+                        </span>
+                        <div className="space-y-1 max-h-24 overflow-y-auto no-scrollbar">
+                          {team.members.map((m) => (
+                            <div
+                              key={m.id}
+                              className="flex items-center justify-between text-[11px] px-2 py-1 rounded-lg border"
+                              style={{
+                                background: "var(--card)",
+                                borderColor: "var(--border)",
+                              }}
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <img
+                                  src={resolveAvatarUrl(m.avatarUrl || m.avatarId)}
+                                  className="w-5 h-5 rounded-full object-cover shrink-0 border border-white/20"
+                                  alt={m.name}
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = "/avatars/avatar-1.svg";
+                                  }}
+                                />
+                                <span className="truncate font-medium" style={{ color: "var(--txt)" }}>
+                                  {m.name}
+                                </span>
+                              </div>
+                              <span className="text-[9px] font-mono opacity-70 shrink-0">{m.role}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions: Switch Workspace & Add Member */}
+                    <div className="pt-2 border-t flex flex-col gap-2" style={{ borderColor: "var(--border)" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchWorkspace(team.id)}
+                        className="w-full py-1.5 px-3 rounded-lg text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                        style={{
+                          background: isActive ? "var(--accent)" : "var(--surface)",
+                          borderColor: isActive ? "var(--accent)" : "var(--border)",
+                          color: isActive ? "#fff" : "var(--txt)",
+                        }}
+                      >
+                        {isActive ? (
+                          <>
+                            <Check size={12} />
+                            <span>Current Workspace</span>
+                          </>
+                        ) : (
+                          <>
+                            <ArrowRight size={12} />
+                            <span>Switch to this Workspace</span>
+                          </>
+                        )}
+                      </button>
+
+                      {team.myRole === "Admin" && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenInvite(team.id)}
+                          disabled={isAtCapacity}
+                          className="w-full py-1 px-3 rounded-lg text-[11px] font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer opacity-80 hover:opacity-100"
+                          style={{
+                            background: "transparent",
+                            borderColor: isAtCapacity ? "rgba(239, 68, 68, 0.4)" : "var(--border)",
+                            color: isAtCapacity ? "#ef4444" : "var(--txt-m)",
+                          }}
+                        >
+                          {isAtCapacity ? (
+                            <>
+                              <Lock size={11} />
+                              <span>Seat Limit Reached</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={11} />
+                              <span>Add Team Member</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </section>
 
@@ -1136,9 +1537,7 @@ export default function DashboardPage() {
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           {[
-            { id: "overview", label: "Overview & Datasets", icon: Database },
-            { id: "models", label: "Model Registry", icon: Cpu },
-            { id: "reports", label: "Automated Reports", icon: FileText },
+            { id: "overview", label: "History", icon: History },
             { id: "preferences", label: "Themes & Preferences", icon: Settings }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -1160,7 +1559,7 @@ export default function DashboardPage() {
           })}
         </div>
 
-        {/* ── TAB 1: OVERVIEW & DATASETS ── */}
+        {/* ── TAB 1: HISTORY ── */}
         {activeTab === "overview" && (
           <div className="space-y-6">
             <div
@@ -1172,11 +1571,25 @@ export default function DashboardPage() {
                 style={{ borderColor: "var(--border)" }}
               >
                 <div>
-                  <h2 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
-                    Ingested Datasets
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
+                      Ingested Datasets
+                    </h2>
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                      style={{
+                        background: activeWorkspace === "personal" ? "rgba(59,130,246,0.12)" : "rgba(16,185,129,0.12)",
+                        borderColor: activeWorkspace === "personal" ? "rgba(59,130,246,0.3)" : "rgba(16,185,129,0.3)",
+                        color: activeWorkspace === "personal" ? "var(--accent)" : "#10b981",
+                      }}
+                    >
+                      {activeWorkspace === "personal" ? "Personal Space" : (teams.find((t) => t.id === activeWorkspace)?.name || "Team Workspace")}
+                    </span>
+                  </div>
                   <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                    Launch any dataset directly into the clean, EDA, or AutoML studio tabs.
+                    {activeWorkspace === "personal"
+                      ? "Your private datasets in Personal Space."
+                      : `Shared team datasets in ${teams.find((t) => t.id === activeWorkspace)?.name || "this workspace"}.`}
                   </p>
                 </div>
 
@@ -1231,6 +1644,7 @@ export default function DashboardPage() {
                       <th className="px-5 py-3">Source</th>
                       <th className="px-5 py-3">Rows</th>
                       <th className="px-5 py-3">Columns</th>
+                      <th className="px-5 py-3">Size</th>
                       <th className="px-5 py-3">Quality</th>
                       <th className="px-5 py-3">Added</th>
                       <th className="px-5 py-3 text-right">Actions</th>
@@ -1240,7 +1654,7 @@ export default function DashboardPage() {
                     {datasets.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="px-5 py-8 text-center text-xs"
                           style={{ color: "var(--txt-m)" }}
                         >
@@ -1277,6 +1691,9 @@ export default function DashboardPage() {
                           </td>
                           <td className="px-5 py-3.5 font-mono font-medium" style={{ color: "var(--txt)" }}>
                             {d.cols}
+                          </td>
+                          <td className="px-5 py-3.5 font-mono font-semibold text-xs" style={{ color: "#10b981" }}>
+                            {d.size_human || (d.size_bytes ? formatBytes(d.size_bytes) : "—")}
                           </td>
                           <td className="px-5 py-3.5">
                             <span
@@ -1376,259 +1793,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── TAB 2: MODEL REGISTRY ── */}
-        {activeTab === "models" && (
-          <div className="space-y-6">
-            <div
-              className="rounded-2xl border p-5 shadow-sm"
-              style={{ background: "var(--card)", borderColor: "var(--border)" }}
-            >
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <div>
-                  <h2 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
-                    Machine Learning Models
-                  </h2>
-                  <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                    Automated ML models trained via LightGBM, XGBoost, and Scikit-Learn.
-                  </p>
-                </div>
-
-                <Link
-                  href="/workspace"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold no-underline"
-                  style={{ background: "var(--accent)", color: "#fff" }}
-                >
-                  <Plus size={13} />
-                  <span>Train New Model</span>
-                </Link>
-              </div>
-
-              {models.length === 0 ? (
-                <div
-                  className="p-8 text-center rounded-xl border border-dashed flex flex-col items-center justify-center gap-2"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <Cpu size={28} className="opacity-40" />
-                  <p className="text-xs font-bold" style={{ color: "var(--txt)" }}>No models in registry</p>
-                  <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>Train and register ML models via AutoML in the workspace.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                  {models.map((m) => (
-                    <div
-                      key={m.id}
-                      className="p-4 rounded-xl border flex flex-col justify-between transition-all"
-                      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span
-                            className="px-2 py-0.5 rounded text-[10px] font-bold border"
-                            style={{ background: "rgba(16,185,129,0.1)", borderColor: "#10b981", color: "#10b981" }}
-                          >
-                            {m.status}
-                          </span>
-                          <span className="text-[10px]" style={{ color: "var(--txt-m)" }}>{m.created_at}</span>
-                        </div>
-
-                        <h3 className="font-bold text-xs mb-0.5" style={{ color: "var(--txt)" }}>
-                          {m.name}
-                        </h3>
-                        <p className="text-[11px] font-mono mb-3" style={{ color: "var(--txt-m)" }}>
-                          {m.algorithm}
-                        </p>
-
-                        <div className="space-y-1 text-xs border-t pt-2" style={{ borderColor: "var(--border)" }}>
-                          <div className="flex justify-between">
-                            <span style={{ color: "var(--txt-m)" }}>Target:</span>
-                            <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{m.target}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span style={{ color: "var(--txt-m)" }}>{m.metric}:</span>
-                            <span className="font-mono font-bold text-emerald-500">{m.score}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-2 border-t flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-                        <Link
-                          href="/workspace"
-                          className="text-xs font-bold flex items-center gap-1 no-underline"
-                          style={{ color: "var(--accent)" }}
-                        >
-                          <span>Inspect</span>
-                          <ArrowRight size={12} />
-                        </Link>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => {
-                              setSaveSuccessMsg(`Model ${m.name} downloaded`);
-                              setTimeout(() => setSaveSuccessMsg(""), 2000);
-                            }}
-                            className="p-1 rounded text-xs opacity-75 hover:opacity-100 cursor-pointer"
-                            style={{ color: "var(--txt-m)" }}
-                            title="Download Weights (.joblib)"
-                          >
-                            <Download size={13} />
-                          </button>
-
-                          {deleteModelConfirmId === m.id ? (
-                            <div className="flex items-center gap-1 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded-md">
-                              <button
-                                onClick={() => handleDeleteModel(m.id, m.name)}
-                                disabled={deletingModelId === m.id}
-                                className="text-[10px] font-bold text-red-400 hover:text-red-300 cursor-pointer flex items-center gap-0.5"
-                              >
-                                {deletingModelId === m.id ? <Loader2 size={10} className="animate-spin" /> : null}
-                                <span>{deletingModelId === m.id ? "..." : "Delete"}</span>
-                              </button>
-                              <button
-                                onClick={() => setDeleteModelConfirmId(null)}
-                                className="text-[10px] text-gray-400 hover:text-white cursor-pointer ml-1"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setDeleteModelConfirmId(m.id)}
-                              className="p-1 rounded text-xs opacity-75 hover:opacity-100 hover:text-red-400 transition-colors cursor-pointer"
-                              style={{ color: "var(--txt-m)" }}
-                              title="Delete Model from Registry"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── TAB 3: AUTOMATED REPORTS ── */}
-        {activeTab === "reports" && (
-          <div className="space-y-6">
-            <div
-              className="rounded-2xl border p-5 shadow-sm"
-              style={{ background: "var(--card)", borderColor: "var(--border)" }}
-            >
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <div>
-                  <h2 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
-                    Automated Reports
-                  </h2>
-                  <p className="text-xs" style={{ color: "var(--txt-m)" }}>
-                    HTML and PDF intelligence documents generated from dataset EDA.
-                  </p>
-                </div>
-
-                <Link
-                  href="/workspace"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold no-underline"
-                  style={{ background: "var(--accent)", color: "#fff" }}
-                >
-                  <Plus size={13} />
-                  <span>Generate Report</span>
-                </Link>
-              </div>
-
-              {reports.length === 0 ? (
-                <div
-                  className="p-8 text-center rounded-xl border border-dashed flex flex-col items-center justify-center gap-2"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <FileText size={28} className="opacity-40" />
-                  <p className="text-xs font-bold" style={{ color: "var(--txt)" }}>No automated reports found</p>
-                  <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>Generate intelligence reports from any dataset in the workspace.</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {reports.map((r) => (
-                    <div
-                      key={r.id}
-                      className="p-3.5 rounded-xl border flex items-center justify-between gap-3 flex-wrap"
-                      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                          style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}
-                        >
-                          <FileText size={18} />
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-xs" style={{ color: "var(--txt)" }}>
-                            {r.triggered_by} — {r.filename}
-                          </h4>
-                          <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
-                            Generated {r.created_at} • HTML &amp; PDF Formats
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`/api/reports/${r.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1 no-underline"
-                          style={{ borderColor: "var(--border)", color: "var(--txt)" }}
-                        >
-                          <ExternalLink size={12} />
-                          <span>Preview</span>
-                        </a>
-                        <a
-                          href={`/api/reports/${r.id}?format=pdf`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 no-underline"
-                          style={{ background: "var(--accent)", color: "#fff" }}
-                        >
-                          <Download size={12} />
-                          <span>PDF</span>
-                        </a>
-
-                        {deleteReportConfirmId === r.id ? (
-                          <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/30 px-2 py-1 rounded-lg">
-                            <button
-                              onClick={() => handleDeleteReport(r.id, r.filename)}
-                              disabled={deletingReportId === r.id}
-                              className="text-xs font-bold text-red-400 hover:text-red-300 cursor-pointer flex items-center gap-1"
-                            >
-                              {deletingReportId === r.id ? <Loader2 size={12} className="animate-spin" /> : null}
-                              <span>{deletingReportId === r.id ? "Deleting..." : "Confirm Delete"}</span>
-                            </button>
-                            <button
-                              onClick={() => setDeleteReportConfirmId(null)}
-                              className="text-xs text-gray-400 hover:text-white cursor-pointer ml-1"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteReportConfirmId(r.id)}
-                            className="p-1.5 rounded-lg border text-xs opacity-75 hover:opacity-100 hover:text-red-400 hover:border-red-500/40 transition-all cursor-pointer"
-                            style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}
-                            title="Delete Report"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── TAB 4: THEMES & PLATFORM PREFERENCES ── */}
+        {/* ── TAB 2: THEMES & PLATFORM PREFERENCES ── */}
         {activeTab === "preferences" && (
           <div className="space-y-6">
             {/* Theme Palettes Grid */}
@@ -1749,14 +1914,16 @@ export default function DashboardPage() {
         <div className="pt-2">
           <CTABanner
             variant="compact"
-            title="Ready to launch a new data exploration or AutoML run?"
-            subtitle="Connect spreadsheets, PostgreSQL, or Snowflake for zero-config profiling and model training."
-            buttonText="Open Studio"
+            title="Launch exploration or AutoML run"
+            subtitle="Connect spreadsheets or databases for instant profiling."
+            buttonText="Launch Workspace"
             href="/workspace"
-            secondaryButtonText="Pricing & Seats"
+            secondaryButtonText="Plans & Seats"
             secondaryHref="/pricing"
           />
         </div>
+          </>
+        )}
       </main>
 
       {/* ── EDIT PROFILE MODAL (Avatar, Name, Email) ── */}
@@ -1791,7 +1958,21 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProfile} className="space-y-4">
+            {editProfileError && (
+              <div
+                className="p-3 rounded-xl border text-xs flex items-center gap-2 mb-3"
+                style={{
+                  background: "rgba(239, 68, 68, 0.1)",
+                  borderColor: "rgba(239, 68, 68, 0.3)",
+                  color: "#ef4444",
+                }}
+              >
+                <AlertCircle size={14} className="shrink-0" />
+                <p className="text-[11px] leading-relaxed font-medium">{editProfileError}</p>
+              </div>
+            )}
+
+            <form noValidate onSubmit={handleSaveProfile} className="space-y-4">
               {/* Avatar Selector */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -1844,14 +2025,16 @@ export default function DashboardPage() {
                   <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--txt-m)" }} />
                   <input
                     type="text"
-                    required
                     value={editNameInput}
-                    onChange={(e) => setEditNameInput(e.target.value)}
+                    onChange={(e) => {
+                      setEditNameInput(e.target.value);
+                      if (editProfileError) setEditProfileError("");
+                    }}
                     placeholder="Alex Morgan"
-                    className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border outline-none focus:border-[var(--accent)]"
+                    className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border outline-none transition-colors"
                     style={{
                       background: "var(--inp-bg)",
-                      borderColor: "var(--border)",
+                      borderColor: editProfileError && !editNameInput.trim() ? "#ef4444" : "var(--border)",
                       color: "var(--txt)",
                     }}
                   />
@@ -1867,14 +2050,16 @@ export default function DashboardPage() {
                   <Mail size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--txt-m)" }} />
                   <input
                     type="email"
-                    required
                     value={editEmailInput}
-                    onChange={(e) => setEditEmailInput(e.target.value)}
+                    onChange={(e) => {
+                      setEditEmailInput(e.target.value);
+                      if (editProfileError) setEditProfileError("");
+                    }}
                     placeholder="alex.morgan@dataforge.internal"
-                    className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border outline-none focus:border-[var(--accent)]"
+                    className="w-full pl-8 pr-3 py-2 rounded-xl text-xs border outline-none transition-colors"
                     style={{
                       background: "var(--inp-bg)",
-                      borderColor: "var(--border)",
+                      borderColor: editProfileError && (!editEmailInput.trim() || !editEmailInput.includes("@")) ? "#ef4444" : "var(--border)",
                       color: "var(--txt)",
                     }}
                   />
@@ -1897,6 +2082,298 @@ export default function DashboardPage() {
                   style={{ background: "var(--accent)" }}
                 >
                   Save Profile
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── WORKSPACE SHIFT POPUP MODAL ── */}
+      {workspaceShiftModal.isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200"
+          style={{ background: "rgba(0, 0, 0, 0.75)" }}
+          onClick={() => setWorkspaceShiftModal((prev) => ({ ...prev, isOpen: false }))}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border shadow-2xl p-6 space-y-5 animate-in zoom-in-95 duration-200"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border)",
+              color: "var(--txt)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center border"
+                  style={{
+                    background: "var(--surface)",
+                    borderColor: "var(--border)",
+                    color: "var(--accent)",
+                  }}
+                >
+                  <Sparkles size={16} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm" style={{ color: "var(--txt)" }}>
+                    Workspace Shift
+                  </h3>
+                  <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
+                    Data scope &amp; environment transitioned
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWorkspaceShiftModal((prev) => ({ ...prev, isOpen: false }))}
+                className="opacity-70 hover:opacity-100 cursor-pointer p-1 rounded-lg hover:bg-[var(--surface)] transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Shift Visualizer: Origin -> Destination */}
+            <div
+              className="p-3.5 rounded-xl border flex items-center justify-between gap-3"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--border)",
+              }}
+            >
+              {/* Origin Workspace */}
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider opacity-60 mb-1">
+                  From
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border"
+                    style={{
+                      background: workspaceShiftModal.fromId === "personal" ? "rgba(59,130,246,0.12)" : "rgba(16,185,129,0.12)",
+                      borderColor: workspaceShiftModal.fromId === "personal" ? "rgba(59,130,246,0.3)" : "rgba(16,185,129,0.3)",
+                      color: workspaceShiftModal.fromId === "personal" ? "var(--accent)" : "#10b981",
+                    }}
+                  >
+                    {workspaceShiftModal.fromId === "personal" ? <User size={13} /> : <Users size={13} />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold truncate" style={{ color: "var(--txt)" }}>
+                      {workspaceShiftModal.fromName}
+                    </div>
+                    <div className="text-[10px] truncate" style={{ color: "var(--txt-m)" }}>
+                      {workspaceShiftModal.fromId === "personal" ? "Private Space" : "Team Space"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Arrow Indicator */}
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 border shadow-sm"
+                style={{
+                  background: "var(--card)",
+                  borderColor: "var(--border)",
+                  color: "var(--accent)",
+                }}
+              >
+                <ArrowRight size={15} />
+              </div>
+
+              {/* Destination Workspace */}
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--accent)" }}>
+                  Switched To
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border"
+                    style={{
+                      background: workspaceShiftModal.toId === "personal" ? "rgba(59,130,246,0.15)" : "rgba(16,185,129,0.15)",
+                      borderColor: workspaceShiftModal.toId === "personal" ? "rgba(59,130,246,0.4)" : "rgba(16,185,129,0.4)",
+                      color: workspaceShiftModal.toId === "personal" ? "var(--accent)" : "#10b981",
+                    }}
+                  >
+                    {workspaceShiftModal.toId === "personal" ? <User size={13} /> : <Users size={13} />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold truncate" style={{ color: "var(--txt)" }}>
+                      {workspaceShiftModal.toName}
+                    </div>
+                    <div className="text-[10px] font-semibold truncate" style={{ color: workspaceShiftModal.toId === "personal" ? "var(--accent)" : "#10b981" }}>
+                      {workspaceShiftModal.toRole || "Active"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Explanation / Scope Isolation Details */}
+            <div
+              className="p-3.5 rounded-xl border text-xs space-y-2 leading-relaxed"
+              style={{
+                background: "rgba(59, 130, 246, 0.05)",
+                borderColor: "rgba(59, 130, 246, 0.2)",
+                color: "var(--txt)",
+              }}
+            >
+              <div className="flex items-center gap-1.5 font-bold text-xs" style={{ color: "var(--accent)" }}>
+                <Shield size={13} />
+                <span>Isolated Workspace Environment</span>
+              </div>
+              <p className="text-[11px]" style={{ color: "var(--txt-m)" }}>
+                {workspaceShiftModal.toId === "personal" ? (
+                  <>
+                    You are now in your <strong>Personal Space</strong>. Uploaded Google Sheets, Excel workbooks, analyses, models, and ingestion history are completely private to your individual account.
+                  </>
+                ) : (
+                  <>
+                    You are now collaborating in <strong>{workspaceShiftModal.toName}</strong>. Uploaded Google Sheets, files, analyses, and models are partitioned strictly to this team workspace and accessible only to verified members with <strong>{workspaceShiftModal.toRole || "assigned"}</strong> permissions.
+                  </>
+                )}
+              </p>
+              <div className="pt-1 border-t text-[11px] flex items-center gap-1.5" style={{ borderColor: "rgba(59, 130, 246, 0.15)", color: "var(--txt-m)" }}>
+                <Check size={12} style={{ color: "#10b981" }} />
+                <span>Personal and team sheets are fetched independently.</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setWorkspaceShiftModal((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full py-2 px-4 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 flex items-center justify-center gap-2"
+                style={{ background: "var(--accent)" }}
+              >
+                <span>Continue to {workspaceShiftModal.toName}</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE WORKSPACE MODAL ── */}
+      {createWorkspaceModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in"
+          style={{ background: "rgba(0, 0, 0, 0.7)" }}
+          onClick={() => setCreateWorkspaceModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border shadow-2xl p-6 space-y-4"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border)",
+              color: "var(--txt)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2">
+                <Users size={16} style={{ color: "var(--accent)" }} />
+                <h3 className="font-bold text-sm" style={{ color: "var(--txt)" }}>
+                  Create Team Workspace
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateWorkspaceModalOpen(false)}
+                className="opacity-70 hover:opacity-100 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <p className="text-xs leading-relaxed" style={{ color: "var(--txt-m)" }}>
+              Create an isolated organization workspace to collaborate with team members, share datasets, and pool quotas.
+            </p>
+
+            {createWorkspaceError && (
+              <div
+                className="p-3 rounded-xl border text-xs flex items-center gap-2 animate-in fade-in"
+                style={{
+                  background: "rgba(239, 68, 68, 0.1)",
+                  borderColor: "rgba(239, 68, 68, 0.3)",
+                  color: "#ef4444",
+                }}
+              >
+                <AlertCircle size={14} className="shrink-0" />
+                <span>{createWorkspaceError}</span>
+              </div>
+            )}
+
+            <form noValidate onSubmit={handleCreateWorkspace} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold" style={{ color: "var(--txt)" }}>
+                  Workspace Name
+                </label>
+                <input
+                  type="text"
+                  value={newWorkspaceName}
+                  onChange={(e) => {
+                    setNewWorkspaceName(e.target.value);
+                    if (createWorkspaceError) setCreateWorkspaceError("");
+                  }}
+                  placeholder="e.g. Acme Analytics, Growth Team"
+                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none transition-colors"
+                  style={{
+                    background: "var(--surface)",
+                    borderColor: "var(--border)",
+                    color: "var(--txt)",
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold" style={{ color: "var(--txt)" }}>
+                  Workspace Plan
+                </label>
+                <select
+                  value={newWorkspacePlan}
+                  onChange={(e) => setNewWorkspacePlan(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none cursor-pointer"
+                  style={{
+                    background: "var(--surface)",
+                    borderColor: "var(--border)",
+                    color: "var(--txt)",
+                  }}
+                >
+                  <option value="Team">Team Collaboration (Shared Workspace • Up to 25 Seats)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateWorkspaceModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer"
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--txt-m)",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingWorkspace}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all cursor-pointer hover:opacity-95 disabled:opacity-50 flex items-center gap-1.5"
+                  style={{ background: "var(--accent)" }}
+                >
+                  {isCreatingWorkspace ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <span>Create Workspace</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -1954,7 +2431,7 @@ export default function DashboardPage() {
 
             {inviteError && (
               <div
-                className="p-3 rounded-xl border text-xs flex flex-col gap-1.5"
+                className="p-3 rounded-xl border text-xs flex flex-col gap-1.5 animate-in fade-in"
                 style={{
                   background: "rgba(239, 68, 68, 0.1)",
                   borderColor: "rgba(239, 68, 68, 0.3)",
@@ -1963,38 +2440,47 @@ export default function DashboardPage() {
               >
                 <div className="flex items-center gap-1.5 font-bold">
                   <AlertCircle size={14} />
-                  <span>Limit Exceeded</span>
+                  <span>{inviteError.toLowerCase().includes("limit") ? "Limit Exceeded" : "Please Check Details"}</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">{inviteError}</p>
-                <Link
-                  href="/pricing"
-                  className="font-bold underline text-xs pt-1 flex items-center gap-1"
-                  style={{ color: "var(--accent)" }}
-                >
-                  <span>Upgrade to unlock higher team limits</span>
-                  <ArrowRight size={12} />
-                </Link>
+                {inviteError.toLowerCase().includes("limit") && (
+                  <Link
+                    href="/pricing"
+                    className="font-bold underline text-xs pt-1 flex items-center gap-1"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    <span>Upgrade to unlock higher team limits</span>
+                    <ArrowRight size={12} />
+                  </Link>
+                )}
               </div>
             )}
 
-            <form onSubmit={handleInviteMember} className="space-y-3.5">
+            <form noValidate onSubmit={handleInviteMember} className="space-y-3.5">
               <div className="space-y-1">
                 <label className="block text-xs font-semibold" style={{ color: "var(--txt)" }}>
                   Member Name
                 </label>
                 <input
                   type="text"
-                  required
                   value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
+                  onChange={(e) => {
+                    setInviteName(e.target.value);
+                    if (inviteError) setInviteError("");
+                  }}
                   placeholder="e.g. Jordan Lee"
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none focus:border-[var(--accent)]"
+                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none transition-colors"
                   style={{
                     background: "var(--inp-bg)",
-                    borderColor: "var(--border)",
+                    borderColor: inviteError && !inviteName.trim() ? "#ef4444" : "var(--border)",
                     color: "var(--txt)",
                   }}
                 />
+                {inviteError && !inviteName.trim() && (
+                  <p className="text-[11px] text-red-500 font-medium flex items-center gap-1 mt-0.5">
+                    <AlertCircle size={11} /> Please enter member name
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -2003,17 +2489,24 @@ export default function DashboardPage() {
                 </label>
                 <input
                   type="email"
-                  required
                   value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
+                  onChange={(e) => {
+                    setInviteEmail(e.target.value);
+                    if (inviteError) setInviteError("");
+                  }}
                   placeholder="jordan.lee@company.com"
-                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none focus:border-[var(--accent)]"
+                  className="w-full px-3 py-2 rounded-xl text-xs border outline-none transition-colors"
                   style={{
                     background: "var(--inp-bg)",
-                    borderColor: "var(--border)",
+                    borderColor: inviteError && (!inviteEmail.trim() || !inviteEmail.includes("@")) ? "#ef4444" : "var(--border)",
                     color: "var(--txt)",
                   }}
                 />
+                {inviteError && (!inviteEmail.trim() || !inviteEmail.includes("@")) && (
+                  <p className="text-[11px] text-red-500 font-medium flex items-center gap-1 mt-0.5">
+                    <AlertCircle size={11} /> Please enter a valid work email
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -2049,17 +2542,29 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setInviteModalOpen(false)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold border cursor-pointer"
+                  disabled={isSubmittingInvite}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold border cursor-pointer disabled:opacity-50"
                   style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-white cursor-pointer shadow-md"
+                  disabled={isSubmittingInvite}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white cursor-pointer shadow-md flex items-center gap-1.5 disabled:opacity-50"
                   style={{ background: "var(--accent)" }}
                 >
-                  Add to Team
+                  {isSubmittingInvite ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Sending Invite Email...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mail size={13} />
+                      <span>Add to Team</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

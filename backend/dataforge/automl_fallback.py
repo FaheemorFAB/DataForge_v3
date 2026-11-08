@@ -244,9 +244,20 @@ def run_sklearn_automl(
         if estimator_best_cfg is not None:
             losses[estimator_name] = estimator_best_loss
             configs[estimator_name] = estimator_best_cfg
+            metric_val = round(1.0 - estimator_best_loss, 4) if task == "classification" and estimator_best_loss <= 1.0 else round(estimator_best_loss, 4)
+            name_map = {
+                "logistic_regression": "Logistic Regression",
+                "random_forest": "Random Forest",
+                "gradient_boosting": "Gradient Boosting",
+                "ridge": "Ridge Regression",
+            }
             leaderboard.append({
                 "model": estimator_name,
-                "metric": round(estimator_best_loss, 6),
+                "display_name": name_map.get(estimator_name, estimator_name.replace("_", " ").title()),
+                "metric": metric_val,
+                "metric_name": "Accuracy" if task == "classification" else "R²",
+                "loss": round(estimator_best_loss, 4),
+                "elapsed_s": round(max(0.01, time.time() - (deadline - max(int(time_budget), 8))), 2),
                 "best_config": str(estimator_best_cfg),
                 "best": False,
             })
@@ -260,7 +271,9 @@ def run_sklearn_automl(
     for row in leaderboard:
         row["best"] = row["model"] == best_name
 
-    leaderboard.sort(key=lambda row: (row["metric"] is None, row["metric"] or 0))
+    leaderboard.sort(key=lambda row: (row["loss"] is None, row["loss"] or 0))
+    for idx, row in enumerate(leaderboard):
+        row["rank"] = idx + 1
 
     return SklearnAutoMLResult(
         model=EstimatorArtifact(estimator=best_model),

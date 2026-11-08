@@ -113,12 +113,19 @@ class ForecastInsight(BaseInsight):
             n_pts = stats.get("n_points", 0)
             raw_imp = min(abs(proj_growth) / 50.0 + n_pts / 200.0, 1.0)
 
+            decomp = result.get("decomposition")
+            decomp_stats = decomp.get("stats") if isinstance(decomp, dict) else None
+            decomp_expl = decomp.get("explanation") if isinstance(decomp, dict) else None
+
             return {
                 "title":       f"{metric} Forecast",
                 "description": description,
                 "importance":  self._clamp(raw_imp, 0.55, 0.97),
                 "type":        "forecast",
                 "chart":       "forecast",
+                "decomp":      decomp,
+                "decomp_stats": decomp_stats,
+                "decomp_explanation": decomp_expl,
                 "chart_data":  {
                     # Historical baseline
                     "labels":           result["historical_labels"],

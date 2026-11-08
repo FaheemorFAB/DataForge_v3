@@ -19,6 +19,7 @@ import {
   Search,
   Check,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 interface TeamMember {
@@ -90,7 +91,8 @@ export function TeamGovernanceDrawer({
 
   // Create team form state
   const [newTeamName, setNewTeamName] = useState("");
-  const [newTeamPlan, setNewTeamPlan] = useState("Enterprise");
+  const [newTeamPlan, setNewTeamPlan] = useState("Team Collaboration");
+  const [createTeamError, setCreateTeamError] = useState("");
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
   // Search & filter
@@ -164,7 +166,11 @@ export function TeamGovernanceDrawer({
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeOrg || !inviteEmail.trim()) return;
+    if (!activeOrg) return;
+    if (!inviteEmail.trim() || !inviteEmail.includes("@")) {
+      setInviteError("Please enter a valid work email address.");
+      return;
+    }
     setInviteSubmitting(true);
     setInviteError("");
 
@@ -230,7 +236,11 @@ export function TeamGovernanceDrawer({
 
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTeamName.trim()) return;
+    if (!newTeamName.trim()) {
+      setCreateTeamError("Please enter a team / organization name.");
+      return;
+    }
+    setCreateTeamError("");
     setCreateSubmitting(true);
 
     try {
@@ -318,14 +328,14 @@ export function TeamGovernanceDrawer({
                   {activeOrg?.name || "Team Workspace"}
                 </h2>
                 <span
-                  className="px-2 py-0.5 text-[10px] font-black uppercase rounded-full tracking-wider"
+                  className="px-2 py-0.5 text-[10px] font-black uppercase rounded-md tracking-wider"
                   style={{
                     background: "rgba(16, 185, 129, 0.15)",
                     color: "#10b981",
                     border: "1px solid rgba(16, 185, 129, 0.3)",
                   }}
                 >
-                  {activeOrg?.plan || "Enterprise"}
+                  {(activeOrg?.plan === "Enterprise" ? "Team Collaboration" : activeOrg?.plan) || "Team Collaboration"}
                 </span>
               </div>
               <p className="text-xs truncate" style={{ color: "var(--txt-m)" }}>
@@ -435,6 +445,15 @@ export function TeamGovernanceDrawer({
 
         {/* TAB BODY */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {loading ? (
+            <div className="py-20 flex flex-col items-center justify-center gap-3">
+              <Loader2 size={24} className="animate-spin" style={{ color: "var(--accent)" }} />
+              <span className="text-xs font-semibold" style={{ color: "var(--txt-m)" }}>
+                Loading team governance data...
+              </span>
+            </div>
+          ) : (
+            <>
           {activeTab === "members" && (
             <div className="space-y-4">
               {/* TOOLBAR */}
@@ -481,7 +500,7 @@ export function TeamGovernanceDrawer({
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs shrink-0"
+                          className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-xs shrink-0"
                           style={{
                             background: badge.bg,
                             color: badge.text,
@@ -685,6 +704,8 @@ export function TeamGovernanceDrawer({
               </div>
             </div>
           )}
+            </>
+          )}
         </div>
 
         {/* INVITE MODAL */}
@@ -713,14 +734,13 @@ export function TeamGovernanceDrawer({
                 </div>
               )}
 
-              <form onSubmit={handleInvite} className="space-y-3">
+              <form noValidate onSubmit={handleInvite} className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: "var(--txt-m)" }}>
                     Corporate Email Address
                   </label>
                   <input
                     type="email"
-                    required
                     placeholder="colleague@company.com"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
@@ -802,17 +822,23 @@ export function TeamGovernanceDrawer({
                 </button>
               </div>
 
-              <form onSubmit={handleCreateTeam} className="space-y-3">
+              {createTeamError && (
+                <div className="p-2.5 rounded-xl text-xs bg-red-500/10 border border-red-500/30 text-red-500 flex items-center gap-1.5 font-medium mb-3">
+                  <AlertCircle size={13} />
+                  <span>{createTeamError}</span>
+                </div>
+              )}
+
+              <form noValidate onSubmit={handleCreateTeam} className="space-y-3">
                 <div>
                   <label className="block text-xs font-semibold mb-1" style={{ color: "var(--txt-m)" }}>
                     Team / Organization Name
                   </label>
                   <input
                     type="text"
-                    required
                     placeholder="BioTech Quant Labs"
                     value={newTeamName}
-                    onChange={(e) => setNewTeamName(e.target.value)}
+                    onChange={(e) => { setNewTeamName(e.target.value); if (createTeamError) setCreateTeamError(""); }}
                     className="w-full px-3 py-2 rounded-xl text-xs border bg-transparent outline-none focus:border-[var(--accent)]"
                     style={{ borderColor: "var(--border)", color: "var(--txt)" }}
                   />
@@ -828,7 +854,7 @@ export function TeamGovernanceDrawer({
                     className="w-full px-3 py-2 rounded-xl text-xs border outline-none cursor-pointer"
                     style={{ borderColor: "var(--border)", color: "var(--txt)", background: "var(--inp-bg)" }}
                   >
-                    <option value="Enterprise">Shared Team Workspace (Multi-User Collaboration)</option>
+                    <option value="Team Collaboration">Team Collaboration (Multi-User Shared Workspace)</option>
                     <option value="Production">Production Analytics Environment</option>
                     <option value="Staging">Sandbox / Staging Research Cluster</option>
                   </select>

@@ -13,12 +13,14 @@ class CleanRequest(BaseModel):
     upload_id: Optional[str] = None
     expected_version_id: Optional[str] = Field(default=None, description="OCC version token for compare-and-swap")
     preview_only: bool = Field(default=False, description="If True, preview the cleaning operations without mutating dataset state or committing a snapshot")
+    share_token: Optional[str] = Field(default=None, description="Share token for link-accessed datasets")
 
 
 class EDARequest(BaseModel):
     upload_id: Optional[str] = None
     minimal: bool = False
     sample_n: Optional[int] = Field(default=None, description="Max rows to sample, or 0/None for full dataset")
+    share_token: Optional[str] = None
 
 
 class QueryRequest(BaseModel):
@@ -121,6 +123,7 @@ class GranularCleanRequest(BaseModel):
 class RuleDiffRequest(BaseModel):
     upload_id: str
     rule: Dict[str, Any] = Field(default_factory=dict)
+    share_token: Optional[str] = None
 
 
 class ShareInviteRequest(BaseModel):

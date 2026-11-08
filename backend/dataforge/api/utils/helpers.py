@@ -81,6 +81,59 @@ def robust_numeric_series(series: Any) -> pd.Series:
     return pd.to_numeric(cleaned, errors="coerce")
 
 
+def canonicalize_series(series: Any) -> pd.Series:
+    """
+    Case-insensitive and whitespace-tolerant series normalizer for categorical columns.
+    Maps string variants with different casing/whitespace (e.g. 'Female', 'female', 'FEMALE', ' Srinagar ')
+    to a single canonical representation (the most frequent variant, preferring Title Case on ties).
+    Non-string dtypes (numeric, datetime, bool) are preserved as-is.
+    NaNs and nulls are preserved.
+    """
+    if series is None:
+        return pd.Series(dtype=object)
+    if not isinstance(series, pd.Series):
+        series = pd.Series(series)
+    if len(series) == 0:
+        return series
+    if pd.api.types.is_numeric_dtype(series) or pd.api.types.is_datetime64_any_dtype(series) or pd.api.types.is_bool_dtype(series):
+        return series
+
+    non_null_mask = series.notna()
+    if not non_null_mask.any():
+        return series
+
+    # Strip whitespace from non-null string values
+    str_series = series[non_null_mask].astype(str).str.strip()
+    counts = str_series.value_counts()
+    if counts.empty:
+        return series
+
+    # Group counts by lowercased representation
+    canonical_map: dict[str, str] = {}
+    for orig_str, cnt in counts.items():
+        key = orig_str.lower()
+        if key not in canonical_map:
+            canonical_map[key] = orig_str
+        else:
+            prev = canonical_map[key]
+            prev_cnt = counts.get(prev, 0)
+            if cnt > prev_cnt:
+                canonical_map[key] = orig_str
+            elif cnt == prev_cnt:
+                # Prefer Title Case or capitalized
+                if orig_str.istitle() and not prev.istitle():
+                    canonical_map[key] = orig_str
+                elif orig_str.isupper() and prev.islower():
+                    canonical_map[key] = orig_str
+
+    # Create mapping from each original stripped string to its canonical representative
+    str_to_canonical = {orig_str: canonical_map[orig_str.lower()] for orig_str in counts.index}
+
+    out = series.astype(object) if isinstance(series.dtype, pd.CategoricalDtype) else series.copy()
+    out.loc[non_null_mask] = str_series.map(str_to_canonical)
+    return out
+
+
 def safe_json_value(v: Any) -> Any:
     if isinstance(v, np.integer):   return int(v)
     if isinstance(v, np.floating):  return None if np.isnan(v) else float(v)
@@ -94,23 +147,124 @@ def safe_json_value(v: Any) -> Any:
     return v
 
 
-def df_profile(df: pd.DataFrame, filename: str = "") -> dict:
-    """Compute a lightweight profile summary for a DataFrame."""
+def format_bytes(num_bytes: Optional[Union[int, float]]) -> str:
+    """Format byte counts into a readable string (e.g. 500 B, 45.2 KB, 1.4 MB, 2.1 GB)."""
+    if num_bytes is None or num_bytes < 0:
+        return "—"
+    if num_bytes < 1024:
+        return f"{int(num_bytes)} B"
+    elif num_bytes < 1024 * 1024:
+        return f"{num_bytes / 1024:.1f} KB"
+    elif num_bytes < 1024 * 1024 * 1024:
+        return f"{num_bytes / (1024 * 1024):.1f} MB"
+    else:
+        return f"{num_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+
+def format_dtype_label(dtype) -> str:
+    """Map raw pandas/numpy dtypes to clean, standardized, user-facing type names."""
+    if pd.api.types.is_datetime64_any_dtype(dtype):
+        return "datetime"
+    elif pd.api.types.is_float_dtype(dtype):
+        return "float"
+    elif pd.api.types.is_integer_dtype(dtype):
+        return "integer"
+    elif pd.api.types.is_bool_dtype(dtype):
+        return "boolean"
+    elif isinstance(dtype, pd.CategoricalDtype):
+        return "category"
+    return "string"
+
+
+def sniff_and_cast_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Sniffs data types on arrival: automatically coerces datetime and numeric columns
+    from string/object representation into proper datetime64 or float/int dtypes.
+    """
+    for col in df.columns:
+        if pd.api.types.is_string_dtype(df[col]) or pd.api.types.is_object_dtype(df[col]):
+            non_null = df[col].dropna()
+            if len(non_null) == 0:
+                continue
+            sample = non_null.head(100)
+            # 1. Datetime sniffing
+            try:
+                first_val = str(sample.iloc[0])
+                is_date_named = any(kw in str(col).lower() for kw in ["date", "time", "launch", "dob", "stamp", "period", "exam"])
+                has_date_chars = any(char in first_val for char in ["-", "/", ":"])
+                if is_date_named or has_date_chars:
+                    p = pd.to_datetime(sample, errors="coerce")
+                    if p.notna().mean() >= 0.75:
+                        df[col] = pd.to_datetime(df[col], errors="coerce")
+                        continue
+            except Exception:
+                pass
+
+            # 2. Numeric sniffing (strip currency symbols and formatted commas)
+            try:
+                cleaned = sample.astype(str).str.replace(r"[\$,€,£,₹,% ]", "", regex=True)
+                p_num = pd.to_numeric(cleaned, errors="coerce")
+                if p_num.notna().mean() >= 0.85:
+                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(r"[\$,€,£,₹,% ]", "", regex=True), errors="coerce")
+            except Exception:
+                pass
+    return df
+
+
+def df_profile(df: pd.DataFrame, filename: str = "", raw_bytes: Optional[int] = None) -> dict:
+    """Compute a structured profile summary for a DataFrame with prioritized column ordering (datetime -> float -> integer -> string)."""
+    # Proactively sniff types if any string/object columns exist
+    df = sniff_and_cast_df(df)
+
     missing     = int(df.isnull().sum().sum())
     numeric_cnt = int(len(df.select_dtypes(include=np.number).columns))
     total_cells = df.shape[0] * df.shape[1]
     miss_pct    = round(missing / max(total_cells, 1) * 100, 1)
+
+    if raw_bytes is not None and raw_bytes > 0:
+        size_bytes = int(raw_bytes)
+    else:
+        try:
+            size_bytes = int(df.memory_usage(deep=True).sum())
+        except Exception:
+            size_bytes = 0
+
+    size_human = format_bytes(size_bytes)
+    size_mb = round(size_bytes / (1024 * 1024), 2)
+
+    # Type ordering priority: datetime (0) -> float (1) -> integer (2) -> boolean (3) -> category (4) -> string (5)
+    TYPE_PRIORITY = {
+        "datetime": 0,
+        "float": 1,
+        "integer": 2,
+        "boolean": 3,
+        "category": 4,
+        "string": 5,
+    }
+
     columns = []
     for col, dtype in zip(df.columns, df.dtypes):
         null_pct = round(df[col].isnull().mean() * 100, 1)
+        fmt_dtype = format_dtype_label(dtype)
         columns.append({
-            "name": str(col), "dtype": str(dtype),
-            "null_pct": null_pct, "quality": round(100 - null_pct, 1)
+            "name": str(col),
+            "dtype": fmt_dtype,
+            "raw_dtype": str(dtype),
+            "null_pct": null_pct,
+            "quality": round(100 - null_pct, 1),
+            "_priority": TYPE_PRIORITY.get(fmt_dtype, 99),
         })
+
+    # Sort columns logically: datetime first, then floats, integers, and text
+    columns.sort(key=lambda c: c["_priority"])
+
     return {
         "filename": filename,
         "rows": df.shape[0], "cols": df.shape[1],
         "numeric": numeric_cnt, "missing": missing, "missing_pct": miss_pct,
+        "size_bytes": size_bytes,
+        "size_human": size_human,
+        "size_mb": size_mb,
         "columns": columns,
     }
 

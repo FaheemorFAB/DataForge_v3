@@ -326,16 +326,25 @@ def _category_dist_html(df: pd.DataFrame, max_cats: int = 15) -> str:
 
 def _pandas_fallback_report(df: pd.DataFrame) -> dict:
     """
-    Enhanced self-contained HTML report built from pandas only.
-    Used when ydata-profiling is not installed or crashes.
-    Includes: overview cards, column table with SVG missing bars,
-    correlation heatmap, categorical distributions, and numeric describe.
+    Comprehensive, high-performance HTML report built from pandas and SVG.
+    Includes: Executive overview cards, column attribute table with missing value bars,
+    Pearson correlation matrix heatmap, categorical distributions, and statistical moments.
     """
     rows           = len(df)
     cols           = len(df.columns)
     missing_total  = int(df.isnull().sum().sum())
     generated_at   = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    missing_pct_total = round(missing_total / max(rows * cols, 1) * 100, 1)
+    total_cells    = max(rows * cols, 1)
+    missing_pct_total = round(missing_total / total_cells * 100, 1)
+    duplicates     = int(df.duplicated().sum())
+    num_cols_cnt   = len(df.select_dtypes(include="number").columns)
+    cat_cols_cnt   = len(df.select_dtypes(include=["object", "category"]).columns)
+
+    try:
+        mem_usage = df.memory_usage(deep=True).sum()
+        mem_str = f"{mem_usage / (1024 * 1024):.1f} MB" if mem_usage >= 1024 * 1024 else f"{mem_usage / 1024:.0f} KB"
+    except Exception:
+        mem_str = "—"
 
     # Per-column stats table with SVG missing bars
     max_missing_pct = max(
@@ -352,13 +361,14 @@ def _pandas_fallback_report(df: pd.DataFrame) -> dict:
 
         if pd.api.types.is_numeric_dtype(s):
             clean = s.dropna()
-            mn  = f"{clean.min():.4g}"  if len(clean) else "&#8212;"
-            mx  = f"{clean.max():.4g}"  if len(clean) else "&#8212;"
-            avg = f"{clean.mean():.4g}" if len(clean) else "&#8212;"
-            extra = f"min {mn} &nbsp;/&nbsp; mean {avg} &nbsp;/&nbsp; max {mx}"
+            mn  = f"{clean.min():.4g}"  if len(clean) else "—"
+            mx  = f"{clean.max():.4g}"  if len(clean) else "—"
+            avg = f"{clean.mean():.4g}" if len(clean) else "—"
+            med = f"{clean.median():.4g}" if len(clean) else "—"
+            extra = f"min {mn} &middot; median {med} &middot; mean {avg} &middot; max {mx}"
         else:
-            top_val = s.value_counts().index[0] if s.notna().any() else "&#8212;"
-            extra   = f"top: {str(top_val)[:40]}"
+            top_val = s.value_counts().index[0] if s.notna().any() else "—"
+            extra   = f"top value: &ldquo;{str(top_val)[:35]}&rdquo;"
 
         badge_colour = (
             "#dc3545" if miss_pct > 20
@@ -369,12 +379,12 @@ def _pandas_fallback_report(df: pd.DataFrame) -> dict:
 
         col_rows_html.append(f"""
         <tr>
-          <td><code>{col}</code></td>
-          <td><span class="badge" style="background:{badge_colour}">{dtype}</span></td>
+          <td><strong style="color:var(--text);font-family:monospace">{col}</strong></td>
+          <td><span class="badge" style="background:{badge_colour}20;color:{badge_colour};border:1px solid {badge_colour}40;font-family:monospace;font-size:0.75rem">{dtype}</span></td>
           <td>{non_null:,}</td>
-          <td style="color:{badge_colour}">{miss_pct}% {miss_bar}</td>
+          <td style="color:{badge_colour};font-weight:600">{miss_pct}% {miss_bar}</td>
           <td>{n_unique:,}</td>
-          <td style="font-size:.85em;color:#a0aec0">{extra}</td>
+          <td style="font-size:0.82em;color:var(--text);opacity:0.8">{extra}</td>
         </tr>""")
 
     col_table        = "\n".join(col_rows_html)
@@ -385,7 +395,7 @@ def _pandas_fallback_report(df: pd.DataFrame) -> dict:
 <html lang="en" data-theme="dark" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
-  <title>DataForge EDA &mdash; {generated_at}</title>
+  <title>DataForge Automated Statistical Profile &mdash; {generated_at}</title>
   <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css">
   {_THEME_CSS}
@@ -393,51 +403,73 @@ def _pandas_fallback_report(df: pd.DataFrame) -> dict:
 </head>
 <body style="background:var(--bg);color:var(--text);padding:2rem">
 
-<div class="container-fluid">
+<div class="container-fluid" style="max-width:1400px;margin:0 auto">
 
-  <h2 class="mb-1">&#x1F4CA; DataForge EDA Report</h2>
-  <p class="text-muted mb-4" style="font-size:.85em">
-    Generated {generated_at} &nbsp;&middot;&nbsp;
-    Lightweight report &mdash; install <code>ydata-profiling</code> for full profiling
-  </p>
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-1" style="font-weight:800;letter-spacing:-0.5px">&#x1F4CA; DataForge Statistical Profile</h2>
+      <p class="text-muted mb-0" style="font-size:0.85em">
+        Dataset Profiling &amp; Distribution Audit &middot; Generated {generated_at}
+      </p>
+    </div>
+    <span class="badge px-3 py-2" style="background:#4f46e520;color:#6366f1;border:1px solid #4f46e540;font-size:0.8rem">
+      Tier 1 Automated Diagnostics
+    </span>
+  </div>
 
   <!-- Overview cards -->
   <div class="row g-3 mb-4">
-    <div class="col-md-3">
-      <div class="card text-center p-3">
-        <div style="font-size:2rem;font-weight:700">{rows:,}</div>
-        <div class="text-muted">Rows</div>
+    <div class="col-6 col-md-2">
+      <div class="card text-center p-3" style="background:var(--card-bg);border-color:var(--border)">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--text)">{rows:,}</div>
+        <div class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:600">Total Rows</div>
       </div>
     </div>
-    <div class="col-md-3">
-      <div class="card text-center p-3">
-        <div style="font-size:2rem;font-weight:700">{cols}</div>
-        <div class="text-muted">Columns</div>
+    <div class="col-6 col-md-2">
+      <div class="card text-center p-3" style="background:var(--card-bg);border-color:var(--border)">
+        <div style="font-size:1.8rem;font-weight:800;color:#6366f1">{cols}</div>
+        <div class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:600">{num_cols_cnt} Num &middot; {cat_cols_cnt} Cat</div>
       </div>
     </div>
-    <div class="col-md-3">
-      <div class="card text-center p-3">
-        <div style="font-size:2rem;font-weight:700">{missing_total:,}</div>
-        <div class="text-muted">Missing Values</div>
+    <div class="col-6 col-md-2">
+      <div class="card text-center p-3" style="background:var(--card-bg);border-color:var(--border)">
+        <div style="font-size:1.8rem;font-weight:800;color:{'#dc3545' if missing_pct_total > 5 else '#10b981'}">{missing_total:,}</div>
+        <div class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:600">Missing Cells</div>
       </div>
     </div>
-    <div class="col-md-3">
-      <div class="card text-center p-3">
-        <div style="font-size:2rem;font-weight:700">{missing_pct_total}%</div>
-        <div class="text-muted">Missing %</div>
+    <div class="col-6 col-md-2">
+      <div class="card text-center p-3" style="background:var(--card-bg);border-color:var(--border)">
+        <div style="font-size:1.8rem;font-weight:800;color:{'#dc3545' if missing_pct_total > 5 else '#10b981'}">{missing_pct_total}%</div>
+        <div class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:600">Missing Ratio</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="card text-center p-3" style="background:var(--card-bg);border-color:var(--border)">
+        <div style="font-size:1.8rem;font-weight:800;color:{'#fd7e14' if duplicates > 0 else '#10b981'}">{duplicates:,}</div>
+        <div class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:600">Duplicate Rows</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="card text-center p-3" style="background:var(--card-bg);border-color:var(--border)">
+        <div style="font-size:1.8rem;font-weight:800;color:var(--text)">{mem_str}</div>
+        <div class="text-muted" style="font-size:0.75rem;text-transform:uppercase;font-weight:600">Memory Footprint</div>
       </div>
     </div>
   </div>
 
   <!-- Column details -->
-  <div class="card p-3">
-    <h5 class="mb-3">Column Overview</h5>
+  <div class="card p-3 mb-4" style="background:var(--card-bg);border-color:var(--border)">
+    <h5 class="mb-3" style="font-weight:700">Column Schema &amp; Missingness Footprint</h5>
     <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle" style="font-size:.9em">
+      <table class="table table-sm table-hover align-middle" style="font-size:.88em;color:var(--text)">
         <thead>
-          <tr>
-            <th>Column</th><th>Type</th><th>Non-null</th>
-            <th>Missing %</th><th>Unique</th><th>Stats</th>
+          <tr style="border-bottom:2px solid var(--border)">
+            <th>Column Attribute</th>
+            <th>Type</th>
+            <th>Non-Null Count</th>
+            <th>Missing %</th>
+            <th>Cardinality</th>
+            <th>Distribution / Values</th>
           </tr>
         </thead>
         <tbody>
@@ -452,10 +484,10 @@ def _pandas_fallback_report(df: pd.DataFrame) -> dict:
   {cat_dist_section}
 
   <!-- Numeric describe -->
-  <div class="card p-3 mt-3">
-    <h5 class="mb-3">Numeric Summary</h5>
-    <div class="table-responsive" style="font-size: 0.85em;">
-      {df.describe(include='all').to_html(classes="table table-sm text-start", border=0)}
+  <div class="card p-3 mt-3 mb-4" style="background:var(--card-bg);border-color:var(--border)">
+    <h5 class="mb-3" style="font-weight:700">Parametric &amp; Quantile Statistics</h5>
+    <div class="table-responsive" style="font-size: 0.82em;">
+      {df.describe(include='all').to_html(classes="table table-sm table-hover text-start", border=0)}
     </div>
   </div>
 

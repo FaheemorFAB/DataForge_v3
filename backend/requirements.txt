@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 #  DataForge v3 — Python Backend Dependencies
 #  Last updated: 2026-07-28
 #  Run:  pip install -r requirements.txt
@@ -49,11 +49,11 @@ joblib>=1.5.0                 # Parallel processing & model serialisation (sklea
 numba>=0.62.0                 # JIT compilation — speeds up SHAP & numerical loops
 
 # ── EDA & Profiling ───────────────────────────────────────────────────────────
-ydata-profiling>=4.18.0       # Automated EDA report generation (HTML / JSON output)
+ydata-profiling>=4.18.0; python_version < "3.14"       # Automated EDA report generation (HTML / JSON output)
 matplotlib>=3.10.0            # Plot engine underlying ydata-profiling reports
 seaborn>=0.13.0               # Statistical visualisation (used in report charts)
-phik>=0.12.0                  # Phi_k correlation matrix (used by ydata-profiling)
-visions>=0.8.0                # Column type inference (used by ydata-profiling)
+phik>=0.12.0; python_version < "3.14"                  # Phi_k correlation matrix (used by ydata-profiling)
+visions>=0.8.0; python_version < "3.14"                # Column type inference (used by ydata-profiling)
 wordcloud>=1.9.0              # Word-cloud charts for text columns in EDA reports
 
 # ── NLP ───────────────────────────────────────────────────────────────────────

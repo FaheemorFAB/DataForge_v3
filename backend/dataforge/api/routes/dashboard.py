@@ -29,7 +29,7 @@ from dataforge.api.schemas.dashboard import (
     ScheduleCreateRequest,
 )
 from dataforge.api.storage.manager import exists, load, save, upath
-from dataforge.api.utils.helpers import format_stat_val, is_id_like_col, resolve_column, robust_numeric_series, time_ago
+from dataforge.api.utils.helpers import canonicalize_series, format_stat_val, is_id_like_col, resolve_column, robust_numeric_series, time_ago
 from dataforge.api.utils.json import safe_jsonable
 from dataforge.db import db_client, db_get
 
@@ -61,11 +61,46 @@ async def api_correlation_matrix(
 
 # ── Dashboard initialization ────────────────────────────────────────────────
 @router.get("/dashboard/init", summary="Get initialization data for the dashboard")
-async def api_dashboard_init(current_user: CurrentUser):
+async def api_dashboard_init(
+    current_user: CurrentUser,
+    workspace_id: Optional[str] = Query(None, description="'personal' or an org_id UUID"),
+):
     from dataforge.db import db_client, db_all, db_count
+    from dataforge.teams.manager import TeamManager
+    from dataforge.models.registry import ModelRegistry
+    from dataforge.api.storage.manager import STORE_DIR, load
+    from dataforge.api.utils.helpers import format_bytes
     
     user = current_user
-    recent_uploads = db_all("uploads", {"user_id": user.id}, order_by="uploaded_at", limit=10)
+    is_team_workspace = bool(workspace_id and workspace_id != "personal")
+
+    # If scoped to a specific team/org workspace, verify membership
+    if is_team_workspace:
+        role = TeamManager.get_user_role(workspace_id, user.id, user_email=user.email)
+        if not role:
+            raise HTTPException(status_code=403, detail="Access denied: You are not a member of this workspace")
+
+    def _resolve_size(item_id, meta_dict=None):
+        if meta_dict and isinstance(meta_dict, dict):
+            if meta_dict.get("size_human"):
+                return meta_dict.get("size_bytes", 0), meta_dict.get("size_human")
+            if meta_dict.get("size_bytes"):
+                return meta_dict["size_bytes"], format_bytes(meta_dict["size_bytes"])
+        try:
+            target_dir = STORE_DIR / str(item_id)
+            if target_dir.exists():
+                for candidate in ("raw_workbook.xlsx", "df_raw.parquet", "df_raw.csv"):
+                    f = target_dir / candidate
+                    if f.exists():
+                        sz = f.stat().st_size
+                        return sz, format_bytes(sz)
+                prof = load(str(item_id), "profile")
+                if prof and isinstance(prof, dict):
+                    if prof.get("size_bytes"):
+                        return prof["size_bytes"], format_bytes(prof["size_bytes"])
+        except Exception:
+            pass
+        return 0, "—"
 
     def _time_ago_local(dt_str):
         if not dt_str: return ""
@@ -80,15 +115,147 @@ async def api_dashboard_init(current_user: CurrentUser):
         if s < 86400:    return f"{s//3600}h ago"
         return f"{s//86400}d ago"
 
-    uploads_data = [{
-        "filename":    u.get("filename", ""),
-        "rows":        u.get("rows", 0) or 0,
-        "cols":        u.get("cols", 0) or 0,
-        "missing_pct": u.get("missing_pct", 0) or 0,
-        "time_ago":    _time_ago_local(u.get("uploaded_at")),
-        "id":          u.get("id"),
-        "source_type": u.get("source_type", "csv") or "csv",
-    } for u in recent_uploads]
+    # Fetch uploads according to active workspace scope
+    uploads_data = []
+    if is_team_workspace:
+        seen_ids = set()
+        # 1. Query Supabase database uploads table for team
+        try:
+            db_uploads = db_all("uploads", {"org_id": workspace_id}, order_by="uploaded_at", limit=50)
+            if not db_uploads:
+                db_uploads = db_all("uploads", {"workspace_id": workspace_id}, order_by="uploaded_at", limit=50)
+            for u in db_uploads:
+                uid_str = str(u.get("id"))
+                seen_ids.add(uid_str)
+                m = load(uid_str, "meta")
+                sz_bytes, sz_human = _resolve_size(uid_str, m)
+                uploads_data.append({
+                    "filename":    u.get("filename", ""),
+                    "rows":        u.get("rows", 0) or 0,
+                    "cols":        u.get("cols", 0) or 0,
+                    "size_bytes":  sz_bytes,
+                    "size_human":  sz_human,
+                    "missing_pct": u.get("missing_pct", 0) or 0,
+                    "time_ago":    _time_ago_local(u.get("uploaded_at")),
+                    "id":          uid_str,
+                    "source_type": u.get("source_type", "csv") or "csv",
+                    "timestamp":   u.get("uploaded_at"),
+                })
+        except Exception as e:
+            log.warning("db_all team uploads error: %s", e)
+
+        # 2. Scan local STORE_DIR for team uploads matching workspace_id
+        try:
+            if STORE_DIR.exists():
+                for item in STORE_DIR.iterdir():
+                    if item.is_dir() and item.name not in seen_ids and (item / "meta.json").exists():
+                        m = load(item.name, "meta")
+                        if not m or not isinstance(m, dict):
+                            continue
+                        m_org = m.get("org_id")
+                        m_ws = m.get("workspace_id")
+                        if (m_org and str(m_org) == str(workspace_id)) or (m_ws and str(m_ws) == str(workspace_id)):
+                            seen_ids.add(item.name)
+                            created_ts = m.get("created_at") or m.get("uploaded_at")
+                            sz_bytes, sz_human = _resolve_size(item.name, m)
+                            uploads_data.append({
+                                "filename":    m.get("filename", item.name),
+                                "rows":        m.get("rows", 0) or 0,
+                                "cols":        m.get("cols", 0) or 0,
+                                "size_bytes":  sz_bytes,
+                                "size_human":  sz_human,
+                                "missing_pct": m.get("missing_pct", 0) or 0,
+                                "time_ago":    _time_ago_local(created_ts),
+                                "id":          m.get("id", item.name),
+                                "source_type": m.get("source_type", "csv") or "csv",
+                                "timestamp":   created_ts,
+                            })
+        except Exception as e:
+            log.warning("Failed scanning team uploads: %s", e)
+    else:
+        # Personal workspace: STRICTLY show user's personal uploads (not tagged with an org_id)
+        c_email = (getattr(user, "email", None) or "").strip().lower()
+        seen_ids = set()
+
+        # 1. Query Supabase database uploads table
+        try:
+            db_uploads = db_all("uploads", {"user_id": user.id}, order_by="uploaded_at", limit=50)
+            for u in db_uploads:
+                if u.get("org_id") or (u.get("workspace_id") and u.get("workspace_id") != "personal"):
+                    continue  # Belongs to an org workspace, skip in personal
+                uid_str = str(u.get("id"))
+                m = load(uid_str, "meta")
+                if m and (m.get("org_id") or (m.get("workspace_id") and m.get("workspace_id") != "personal")):
+                    continue  # Belongs to an org workspace, skip in personal
+                seen_ids.add(uid_str)
+                sz_bytes, sz_human = _resolve_size(uid_str, m)
+                uploads_data.append({
+                    "filename":    u.get("filename", ""),
+                    "rows":        u.get("rows", 0) or 0,
+                    "cols":        u.get("cols", 0) or 0,
+                    "size_bytes":  sz_bytes,
+                    "size_human":  sz_human,
+                    "missing_pct": u.get("missing_pct", 0) or 0,
+                    "time_ago":    _time_ago_local(u.get("uploaded_at")),
+                    "id":          uid_str,
+                    "source_type": u.get("source_type", "csv") or "csv",
+                    "timestamp":   u.get("uploaded_at"),
+                })
+        except Exception as e:
+            log.warning("db_all uploads error: %s", e)
+
+        # 2. Scan local STORE_DIR for all personal datasets owned by user_id or email
+        try:
+            if STORE_DIR.exists():
+                for item in STORE_DIR.iterdir():
+                    if item.is_dir() and item.name not in seen_ids and (item / "meta.json").exists():
+                        m = load(item.name, "meta")
+                        if not m or not isinstance(m, dict):
+                            continue
+                        if m.get("org_id") or (m.get("workspace_id") and m.get("workspace_id") != "personal"):
+                            continue
+
+                        m_uid = str(m.get("user_id") or "")
+                        m_email = (m.get("user_email") or "").strip().lower()
+
+                        is_owner = (
+                            (m_uid and m_uid == str(user.id))
+                            or (bool(c_email) and m_email == c_email)
+                            or (not settings.PRODUCTION and (user.id == 1 or m_uid == "1"))
+                        )
+
+                        if is_owner:
+                            seen_ids.add(item.name)
+                            created_ts = m.get("created_at") or m.get("uploaded_at")
+                            sz_bytes, sz_human = _resolve_size(item.name, m)
+                            uploads_data.append({
+                                "filename":    m.get("filename", item.name),
+                                "rows":        m.get("rows", 0) or 0,
+                                "cols":        m.get("cols", 0) or 0,
+                                "size_bytes":  sz_bytes,
+                                "size_human":  sz_human,
+                                "missing_pct": m.get("missing_pct", 0) or 0,
+                                "time_ago":    _time_ago_local(created_ts),
+                                "id":          item.name,
+                                "source_type": m.get("source_type", "csv") or "csv",
+                                "timestamp":   created_ts,
+                            })
+        except Exception as e:
+            log.warning("STORE_DIR scan error: %s", e)
+
+    # Sort all uploads newest first
+    def _parse_ts(u):
+        for k in ("timestamp", "created_at", "uploaded_at"):
+            v = u.get(k)
+            if v:
+                try:
+                    return datetime.fromisoformat(str(v).replace("Z", "+00:00")).timestamp()
+                except Exception:
+                    pass
+        return 0.0
+
+    uploads_data.sort(key=_parse_ts, reverse=True)
+    uploads_data = uploads_data[:15]
 
     _icon_map = {"eda": "📊", "automl": "🤖", "clean": "🧹", "query": "💬", "insights": "💡", "report": "📄"}
     _map_labels = {
@@ -100,25 +267,34 @@ async def api_dashboard_init(current_user: CurrentUser):
         "report":   "Report Generated",
     }
 
-    analyses_res = db_client.table("analyses").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(30).execute()
-    recent_analyses = analyses_res.data if analyses_res and analyses_res.data else []
     analyses_data = []
-    for a in recent_analyses:
-        type_ = a.get("type", "")
-        up = a.get("uploads") or {}
-        analyses_data.append({
-            "type":     type_,
-            "label":    _map_labels.get(type_, type_.title()),
-            "icon":     _icon_map.get(type_, "⚡"),
-            "summary":  a.get("summary") or "",
-            "filename": up.get("filename", ""),
-            "time_ago": _time_ago_local(a.get("created_at")),
-        })
+    if not is_team_workspace and db_client:
+        try:
+            analyses_res = db_client.table("analyses").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(30).execute()
+            recent_analyses = analyses_res.data if analyses_res and analyses_res.data else []
+            for a in recent_analyses:
+                type_ = a.get("type", "")
+                up = a.get("uploads") or {}
+                analyses_data.append({
+                    "type":     type_,
+                    "label":    _map_labels.get(type_, type_.title()),
+                    "icon":     _icon_map.get(type_, "⚡"),
+                    "summary":  a.get("summary") or "",
+                    "filename": up.get("filename", ""),
+                    "time_ago": _time_ago_local(a.get("created_at")),
+                })
+        except Exception:
+            pass
 
-    alert_count = db_count("alerts", {"user_id": user.id, "resolved": False})
+    alert_count = db_count("alerts", {"user_id": user.id, "resolved": False}) if not is_team_workspace else 0
 
-    reports_res = db_client.table("reports").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(5).execute()
-    recent_reports = reports_res.data if reports_res and reports_res.data else []
+    recent_reports = []
+    if not is_team_workspace and db_client:
+        try:
+            reports_res = db_client.table("reports").select("*, uploads(filename)").eq("user_id", user.id).order("created_at", desc=True).limit(5).execute()
+            recent_reports = reports_res.data if reports_res and reports_res.data else []
+        except Exception:
+            pass
     reports_data = []
     for r in recent_reports:
         up = r.get("uploads") or {}
@@ -129,7 +305,7 @@ async def api_dashboard_init(current_user: CurrentUser):
             "triggered_by": r.get("triggered_by", "auto"),
         })
 
-    schedule_count = db_count("schedules", {"user_id": user.id})
+    schedule_count = db_count("schedules", {"user_id": user.id}) if not is_team_workspace else 0
 
     member_since = ""
     try:
@@ -140,14 +316,16 @@ async def api_dashboard_init(current_user: CurrentUser):
     except Exception:
         pass
 
-    upload_count = db_count("uploads", {"user_id": user.id})
-    analysis_count = db_count("analyses", {"user_id": user.id})
-    query_count = db_count("chat_sessions", {"user_id": user.id})
+    upload_count = len(uploads_data)
+    analysis_count = len(analyses_data)
+    query_count = db_count("chat_sessions", {"user_id": user.id}) if not is_team_workspace else 0
+    models_list = ModelRegistry.list_models(org_id=workspace_id if is_team_workspace else None)
+    models_count = len(models_list)
 
     stats = {
         "uploads": upload_count,
         "analyses": analysis_count,
-        "models": 0,
+        "models": models_count,
         "queries": query_count,
     }
 
@@ -164,10 +342,17 @@ async def api_dashboard_init(current_user: CurrentUser):
         "recent_reports": reports_data,
         "schedule_count": schedule_count,
         "member_since": member_since,
+        "workspace_id": workspace_id or "personal",
     }
 
 
 # ── Local chart helper (self-contained, no Flask dependency) ─────────────────
+
+def is_meaningful_numeric_col(col: str, s: pd.Series) -> bool:
+    if is_id_like_col(col, s):
+        return False
+    num_s = robust_numeric_series(s).dropna()
+    return len(num_s) >= 3 and num_s.nunique() >= 1
 
 def _compute_chart_data(df, config):
     """Compute chart data for a custom chart config dict."""
@@ -225,35 +410,70 @@ def _compute_chart_data(df, config):
             values = [int(v) for v in grp.values]
 
     elif chart_type == "boxplot":
-        s = robust_numeric_series(df[x_col]).dropna()
-        if len(s) > 0:
-            desc           = s.describe()
-            q1             = float(desc["25%"])
-            median         = float(desc["50%"])
-            q3             = float(desc["75%"])
-            iqr            = q3 - q1
-            lower_whisker  = float(s[s >= q1 - 1.5 * iqr].min()) if not s[s >= q1 - 1.5 * iqr].empty else float(desc["min"])
-            upper_whisker  = float(s[s <= q3 + 1.5 * iqr].max()) if not s[s <= q3 + 1.5 * iqr].empty else float(desc["max"])
-            values         = {"min": lower_whisker, "q1": q1, "median": median, "q3": q3, "max": upper_whisker}
-            formatted_values = {
-                "min":    format_stat_val(x_col, lower_whisker),
-                "q1":     format_stat_val(x_col, q1),
-                "median": format_stat_val(x_col, median),
-                "q3":     format_stat_val(x_col, q3),
-                "max":    format_stat_val(x_col, upper_whisker),
-            }
+        num_col = x_col if x_col in df.columns and is_meaningful_numeric_col(x_col, df[x_col]) else (
+            y_col if y_col and y_col in df.columns and is_meaningful_numeric_col(y_col, df[y_col]) else None
+        )
+        if not num_col:
+            num_col = x_col if x_col in df.columns else (y_col if y_col in df.columns else None)
+
+        cat_group_col = y_col if num_col == x_col and y_col in df.columns and y_col != x_col else (
+            x_col if num_col == y_col and x_col in df.columns and x_col != y_col else None
+        )
+
+        if num_col and num_col in df.columns:
+            s = robust_numeric_series(df[num_col]).dropna()
+            if len(s) > 0:
+                desc           = s.describe()
+                q1             = float(desc["25%"])
+                median         = float(desc["50%"])
+                q3             = float(desc["75%"])
+                iqr            = q3 - q1
+                lower_whisker  = float(s[s >= q1 - 1.5 * iqr].min()) if not s[s >= q1 - 1.5 * iqr].empty else float(desc["min"])
+                upper_whisker  = float(s[s <= q3 + 1.5 * iqr].max()) if not s[s <= q3 + 1.5 * iqr].empty else float(desc["max"])
+                values         = {"min": lower_whisker, "q1": q1, "median": median, "q3": q3, "max": upper_whisker}
+                formatted_values = {
+                    "min":    format_stat_val(num_col, lower_whisker),
+                    "q1":     format_stat_val(num_col, q1),
+                    "median": format_stat_val(num_col, median),
+                    "q3":     format_stat_val(num_col, q3),
+                    "max":    format_stat_val(num_col, upper_whisker),
+                }
+
+                if cat_group_col and cat_group_col in df.columns and 2 <= df[cat_group_col].dropna().nunique() <= 8:
+                    grp_res = []
+                    for cat_val, grp_df in df.groupby(cat_group_col):
+                        gs = robust_numeric_series(grp_df[num_col]).dropna()
+                        if len(gs) >= 3:
+                            gdesc = gs.describe()
+                            gq1 = float(gdesc["25%"])
+                            gmed = float(gdesc["50%"])
+                            gq3 = float(gdesc["75%"])
+                            giqr = gq3 - gq1
+                            gmin = float(gs[gs >= gq1 - 1.5 * giqr].min()) if not gs[gs >= gq1 - 1.5 * giqr].empty else float(gdesc["min"])
+                            gmax = float(gs[gs <= gq3 + 1.5 * giqr].max()) if not gs[gs <= gq3 + 1.5 * giqr].empty else float(gdesc["max"])
+                            grp_res.append({
+                                "category": str(cat_val),
+                                "min": gmin, "q1": gq1, "median": gmed, "q3": gq3, "max": gmax,
+                                "formatted_median": format_stat_val(num_col, gmed),
+                            })
+                    if grp_res:
+                        values["grouped"] = grp_res
+            else:
+                values = {"min": 0.0, "q1": 0.0, "median": 0.0, "q3": 0.0, "max": 0.0}
+                formatted_values = {"min": "0", "q1": "0", "median": "0", "q3": "0", "max": "0"}
         else:
             values = {"min": 0.0, "q1": 0.0, "median": 0.0, "q3": 0.0, "max": 0.0}
             formatted_values = {"min": "0", "q1": "0", "median": "0", "q3": "0", "max": "0"}
 
     elif chart_type in ("radar", "polarArea"):
+        canonical_x = canonicalize_series(df[x_col])
         if y_col and agg_type in ("sum", "mean"):
             num_y = robust_numeric_series(df[y_col])
-            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
-            grp = temp.groupby(x_col)["_y"].sum() if agg_type == "sum" else temp.groupby(x_col)["_y"].mean()
+            temp = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna()
+            grp = temp.groupby("_x")["_y"].sum() if agg_type == "sum" else temp.groupby("_x")["_y"].mean()
             grp = grp.sort_values(ascending=False).head(10)
         else:
-            grp = df.groupby(x_col).size().sort_values(ascending=False).head(10)
+            grp = canonical_x.dropna().value_counts().head(10)
         labels = [str(x) for x in grp.index]
         values = [round(float(v), 2) for v in grp.values]
 
@@ -281,24 +501,26 @@ def _compute_chart_data(df, config):
                 values = [[1.0, 0.0], [0.0, 1.0]]
 
     elif chart_type == "waterfall":
+        canonical_x = canonicalize_series(df[x_col])
         if y_col and agg_type in ("sum", "mean"):
             num_y = robust_numeric_series(df[y_col])
-            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
-            grp = temp.groupby(x_col)["_y"].sum().sort_values(ascending=False).head(8)
+            temp = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna()
+            grp = temp.groupby("_x")["_y"].sum().sort_values(ascending=False).head(8)
         else:
-            grp = df.groupby(x_col).size().sort_values(ascending=False).head(8)
+            grp = canonical_x.dropna().value_counts().head(8)
         labels = [str(x) for x in grp.index] + ["Net Total"]
         vals = [round(float(v), 2) for v in grp.values]
         net_val = round(float(sum(vals)), 2)
         values = vals + [net_val]
 
     elif chart_type == "funnel":
+        canonical_x = canonicalize_series(df[x_col])
         if y_col and agg_type in ("sum", "mean"):
             num_y = robust_numeric_series(df[y_col])
-            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
-            grp = temp.groupby(x_col)["_y"].sum().sort_values(ascending=False).head(6)
+            temp = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna()
+            grp = temp.groupby("_x")["_y"].sum().sort_values(ascending=False).head(6)
         else:
-            grp = df.groupby(x_col).size().sort_values(ascending=False).head(6)
+            grp = canonical_x.dropna().value_counts().head(6)
         labels = [str(x) for x in grp.index]
         counts = [round(float(v), 2) for v in grp.values]
         top_c = counts[0] if counts and counts[0] > 0 else 1.0
@@ -306,43 +528,47 @@ def _compute_chart_data(df, config):
         values = {"counts": counts, "pcts": pcts}
 
     elif chart_type == "combo":
-        grp_cnt = df.groupby(x_col).size().sort_values(ascending=False).head(10)
+        canonical_x = canonicalize_series(df[x_col])
+        grp_cnt = canonical_x.dropna().value_counts().head(10)
         labels = [str(x) for x in grp_cnt.index]
         bars = [round(float(v), 2) for v in grp_cnt.values]
         if y_col:
             num_y = robust_numeric_series(df[y_col])
-            temp = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna()
-            line_grp = temp.groupby(x_col)["_y"].mean().reindex(grp_cnt.index).fillna(0.0)
+            temp = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna()
+            line_grp = temp.groupby("_x")["_y"].mean().reindex(grp_cnt.index).fillna(0.0)
             lines = [round(float(v), 2) for v in line_grp.values]
         else:
             lines = [round(b * 1.05, 2) for b in bars]
         values = {"bars": bars, "lines": lines}
 
     else:  # bar / line / area / pie / doughnut
+        canonical_x = canonicalize_series(df[x_col])
         if agg_type == "none":
-            sub_df = df.dropna(subset=[x_col])
+            sub_df = pd.DataFrame({"_x": canonical_x})
             if y_col:
-                sub_df = sub_df.dropna(subset=[y_col])
+                sub_df["_y"] = robust_numeric_series(df[y_col])
+                sub_df = sub_df.dropna(subset=["_x", "_y"])
+            else:
+                sub_df = sub_df.dropna(subset=["_x"])
             if len(sub_df) > 500:
                 sub_df = sub_df.head(500)
-            labels = [str(v) for v in sub_df[x_col]]
+            labels = [str(v) for v in sub_df["_x"]]
             if y_col:
-                y_nums = robust_numeric_series(sub_df[y_col]).fillna(0.0)
-                values = [round(float(v), 2) for v in y_nums]
+                values = [round(float(v), 2) for v in sub_df["_y"]]
             else:
                 values = [1.0] * len(sub_df)
         else:
             if not y_col or agg_type == "count":
-                grp = df.groupby(x_col).size()
+                grp = canonical_x.dropna().value_counts()
             else:
                 num_y = robust_numeric_series(df[y_col])
-                temp_df = pd.DataFrame({x_col: df[x_col], "_y": num_y}).dropna(subset=["_y"])
+                temp_df = pd.DataFrame({"_x": canonical_x, "_y": num_y}).dropna(subset=["_x", "_y"])
                 if agg_type == "sum":
-                    grp = temp_df.groupby(x_col)["_y"].sum()
+                    grp = temp_df.groupby("_x")["_y"].sum()
                 elif agg_type == "mean":
-                    grp = temp_df.groupby(x_col)["_y"].mean()
+                    grp = temp_df.groupby("_x")["_y"].mean()
                 else:
-                    grp = temp_df.groupby(x_col)["_y"].count()
+                    grp = temp_df.groupby("_x")["_y"].count()
 
             top_n = config.get("top_n", 10) or 10
             if chart_type in ("pie", "doughnut"):
@@ -488,7 +714,7 @@ async def api_dashboard_stats(
                         "type": "sum",
                     })
             else:
-                s_cat = df[metric_col].dropna()
+                s_cat = canonicalize_series(df[metric_col]).dropna()
                 u_cnt = s_cat.nunique()
                 top_v = str(s_cat.mode().iloc[0]) if not s_cat.mode().empty else "N/A"
                 if len(top_v) > 15:
@@ -502,7 +728,7 @@ async def api_dashboard_stats(
                 })
 
         if dim_col and dim_col in df.columns:
-            s = df[dim_col].dropna()
+            s = canonicalize_series(df[dim_col]).dropna()
             if len(s) > 0:
                 unique_cnt = s.nunique()
                 top_val = str(s.mode().iloc[0]) if not s.mode().empty else "N/A"
@@ -535,10 +761,11 @@ async def api_dashboard_stats(
         # Charts
         charts = []
         if dim_col and dim_col in df.columns:
+            s_dim = canonicalize_series(df[dim_col])
             if metric_col and metric_col in df.columns and metric_col in valid_numeric_cols:
                 s_m = robust_numeric_series(df[metric_col])
-                temp_df = pd.DataFrame({dim_col: df[dim_col], metric_col: s_m}).dropna()
-                grp = temp_df.groupby(dim_col)[metric_col].sum().sort_values(ascending=False).head(15)
+                temp_df = pd.DataFrame({"_dim": s_dim, "_metric": s_m}).dropna()
+                grp = temp_df.groupby("_dim")["_metric"].sum().sort_values(ascending=False).head(15)
                 charts.append({
                     "id": "bar", "type": "bar",
                     "title": f"{metric_col} by {dim_col}",
@@ -548,7 +775,7 @@ async def api_dashboard_stats(
                     "agg_type": "sum",
                 })
             else:
-                grp = df.groupby(dim_col).size().sort_values(ascending=False).head(15)
+                grp = s_dim.dropna().value_counts().head(15)
                 charts.append({
                     "id": "bar", "type": "bar",
                     "title": f"Distribution of {dim_col}",
@@ -569,6 +796,65 @@ async def api_dashboard_stats(
                     "labels": [f"{format_stat_val(col, edges[i])}" for i in range(len(counts))],
                     "values": [int(c) for c in counts],
                     "x_col": col, "y_col": "count",
+                })
+
+            # Intelligent dispersion scoring for boxplot
+            disp_candidates = []
+            for c in valid_numeric_cols:
+                sc = robust_numeric_series(df[c]).dropna()
+                if len(sc) >= 5 and sc.nunique() >= 3:
+                    std_val = float(sc.std())
+                    iqr_val = float(sc.quantile(0.75) - sc.quantile(0.25))
+                    if std_val > 1e-4 or iqr_val > 1e-4:
+                        scr = min(sc.nunique(), 500)
+                        if c == metric_col:
+                            scr += 1000
+                        if any(kw in c.lower() for kw in ["mark", "score", "price", "amount", "salary", "revenue", "cost", "val", "pct", "rate"]):
+                            scr += 300
+                        disp_candidates.append((scr, c))
+            disp_candidates.sort(key=lambda x: x[0], reverse=True)
+            box_col = disp_candidates[0][1] if disp_candidates else (metric_col if metric_col in valid_numeric_cols else valid_numeric_cols[0])
+            s_box = robust_numeric_series(df[box_col]).dropna()
+            if len(s_box) > 0:
+                desc_b = s_box.describe()
+                q1_b = float(desc_b["25%"])
+                med_b = float(desc_b["50%"])
+                q3_b = float(desc_b["75%"])
+                iqr_b = q3_b - q1_b
+                lw_b = float(s_box[s_box >= q1_b - 1.5 * iqr_b].min()) if not s_box[s_box >= q1_b - 1.5 * iqr_b].empty else float(desc_b["min"])
+                uw_b = float(s_box[s_box <= q3_b + 1.5 * iqr_b].max()) if not s_box[s_box <= q3_b + 1.5 * iqr_b].empty else float(desc_b["max"])
+                b_vals = {"min": lw_b, "q1": q1_b, "median": med_b, "q3": q3_b, "max": uw_b}
+                if dim_col and dim_col in df.columns and 2 <= df[dim_col].dropna().nunique() <= 6:
+                    g_res = []
+                    for cv, gdf in df.groupby(dim_col):
+                        gsc = robust_numeric_series(gdf[box_col]).dropna()
+                        if len(gsc) >= 3:
+                            gd = gsc.describe()
+                            gq1 = float(gd["25%"])
+                            gmed = float(gd["50%"])
+                            gq3 = float(gd["75%"])
+                            giqr = gq3 - gq1
+                            gmin = float(gsc[gsc >= gq1 - 1.5 * giqr].min()) if not gsc[gsc >= gq1 - 1.5 * giqr].empty else float(gd["min"])
+                            gmax = float(gsc[gsc <= gq3 + 1.5 * giqr].max()) if not gsc[gsc <= gq3 + 1.5 * giqr].empty else float(gd["max"])
+                            g_res.append({
+                                "category": str(cv),
+                                "min": gmin, "q1": gq1, "median": gmed, "q3": gq3, "max": gmax,
+                                "formatted_median": format_stat_val(box_col, gmed),
+                            })
+                    if g_res:
+                        b_vals["grouped"] = g_res
+                charts.append({
+                    "id": "boxplot_stat", "type": "boxplot",
+                    "title": f"Quantile Dispersion: {box_col}",
+                    "values": b_vals,
+                    "formatted_values": {
+                        "min": format_stat_val(box_col, lw_b),
+                        "q1": format_stat_val(box_col, q1_b),
+                        "median": format_stat_val(box_col, med_b),
+                        "q3": format_stat_val(box_col, q3_b),
+                        "max": format_stat_val(box_col, uw_b),
+                    },
+                    "x_col": box_col, "y_col": "distribution",
                 })
 
         custom_configs = _load(target_upload_id, "custom_charts") or []
@@ -728,7 +1014,7 @@ async def api_agentic_auto_dashboard(
                         "type": "sum",
                     })
             else:
-                sc = df[primary_metric].dropna()
+                sc = canonicalize_series(df[primary_metric]).dropna()
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
                 if len(top_v) > 15:
                     top_v = top_v[:12] + "..."
@@ -740,7 +1026,7 @@ async def api_agentic_auto_dashboard(
                     "color": "#3b82f6",
                 })
         elif primary_cat and len(df) > 0:
-            sc = df[primary_cat].dropna()
+            sc = canonicalize_series(df[primary_cat]).dropna()
             if len(sc) > 0:
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "dominant segment"
                 top_cnt = int(sc.value_counts().iloc[0]) if not sc.empty else 0
@@ -754,7 +1040,7 @@ async def api_agentic_auto_dashboard(
                 })
 
         if primary_cat and primary_cat != primary_metric:
-            sc = df[primary_cat].dropna()
+            sc = canonicalize_series(df[primary_cat]).dropna()
             if len(sc) > 0:
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
                 if len(top_v) > 15:
@@ -766,7 +1052,7 @@ async def api_agentic_auto_dashboard(
                     "type": "distinct",
                 })
         elif len(cat_cols) > 0 and cat_cols[0] != primary_metric:
-            sc = df[cat_cols[0]].dropna()
+            sc = canonicalize_series(df[cat_cols[0]]).dropna()
             if len(sc) > 0:
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
                 if len(top_v) > 15:
@@ -798,8 +1084,9 @@ async def api_agentic_auto_dashboard(
         # Chart 1: Primary Cohort Breakdown
         if primary_cat and primary_metric and primary_metric in valid_numeric_cols:
             s_metric = robust_numeric_series(df[primary_metric])
-            temp_df = pd.DataFrame({primary_cat: df[primary_cat], primary_metric: s_metric}).dropna()
-            grp = temp_df.groupby(primary_cat)[primary_metric].sum().sort_values(ascending=False).head(12)
+            s_cat = canonicalize_series(df[primary_cat])
+            temp_df = pd.DataFrame({"_cat": s_cat, "_metric": s_metric}).dropna()
+            grp = temp_df.groupby("_cat")["_metric"].sum().sort_values(ascending=False).head(12)
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "bar",
@@ -814,7 +1101,8 @@ async def api_agentic_auto_dashboard(
             seen_charts.add((primary_cat, primary_metric))
             chart_id_counter += 1
         elif primary_cat:
-            grp = df.groupby(primary_cat).size().sort_values(ascending=False).head(12)
+            s_cat = canonicalize_series(df[primary_cat]).dropna()
+            grp = s_cat.value_counts().head(12)
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "bar",
@@ -832,14 +1120,15 @@ async def api_agentic_auto_dashboard(
         # Chart 2: Category Share / Donut Chart
         target_donut_cat = None
         for c in cat_cols:
-            if c != primary_cat and 2 <= df[c].nunique() <= 12:
+            if c != primary_cat and 2 <= canonicalize_series(df[c]).nunique() <= 12:
                 target_donut_cat = c
                 break
         if not target_donut_cat and len(cat_cols) > 1 and cat_cols[1] != primary_cat:
             target_donut_cat = cat_cols[1]
 
         if target_donut_cat and (target_donut_cat, "count") not in seen_charts:
-            grp = df.groupby(target_donut_cat).size().sort_values(ascending=False).head(8)
+            s_donut = canonicalize_series(df[target_donut_cat]).dropna()
+            grp = s_donut.value_counts().head(8)
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "doughnut",
@@ -854,43 +1143,76 @@ async def api_agentic_auto_dashboard(
             seen_charts.add((target_donut_cat, "count"))
             chart_id_counter += 1
 
-        # Chart 3: Temporal Trend / Activity over Time (Line)
-        if date_cols:
-            d_col = date_cols[0]
+        # Chart 3: Temporal Trend / Activity over Time (Line) - Requires >= 3 unique points
+        best_date_col = None
+        for c in date_cols:
+            if df[c].dropna().nunique() >= 3:
+                best_date_col = c
+                break
+        if not best_date_col:
+            for c in df.columns:
+                if pd.api.types.is_datetime64_any_dtype(df[c]) and df[c].dropna().nunique() >= 3:
+                    best_date_col = c
+                    break
+
+        if best_date_col:
+            d_col = best_date_col
             try:
                 if primary_metric and primary_metric in valid_numeric_cols:
                     s_m = robust_numeric_series(df[primary_metric])
-                    temp = pd.DataFrame({d_col: df[d_col], primary_metric: s_m}).dropna().sort_values(by=d_col).head(50)
-                    charts.append({
-                        "id": f"auto_{chart_id_counter}",
-                        "type": "line",
-                        "title": f"{primary_metric} Trajectory over {d_col}",
-                        "labels": [str(x)[:10] for x in temp[d_col]],
-                        "values": [round(float(v), 2) for v in temp[primary_metric]],
-                        "x_col": d_col,
-                        "y_col": primary_metric,
-                        "agg_type": "none",
-                        "is_custom": False,
-                        "agent_source": "AnalyticsAgent",
-                    })
-                    chart_id_counter += 1
+                    temp = pd.DataFrame({d_col: df[d_col], primary_metric: s_m}).dropna()
+                    temp_grp = temp.groupby(d_col)[primary_metric].mean().sort_index().tail(40)
+                    if len(temp_grp) >= 3:
+                        charts.append({
+                            "id": f"auto_{chart_id_counter}",
+                            "type": "line",
+                            "title": f"{primary_metric} Trajectory over {d_col}",
+                            "labels": [str(x)[:10] for x in temp_grp.index],
+                            "values": [round(float(v), 2) for v in temp_grp.values],
+                            "x_col": d_col,
+                            "y_col": primary_metric,
+                            "agg_type": "mean",
+                            "is_custom": False,
+                            "agent_source": "AnalyticsAgent",
+                        })
+                        chart_id_counter += 1
                 else:
-                    t_grp = df.groupby(d_col).size().head(30)
+                    t_grp = df.groupby(d_col).size().sort_index().tail(30)
+                    if len(t_grp) >= 3:
+                        charts.append({
+                            "id": f"auto_{chart_id_counter}",
+                            "type": "line",
+                            "title": f"Activity Volume over {d_col}",
+                            "labels": [str(x)[:10] for x in t_grp.index],
+                            "values": [int(v) for v in t_grp.values],
+                            "x_col": d_col,
+                            "y_col": "count",
+                            "agg_type": "count",
+                            "is_custom": False,
+                            "agent_source": "AnalyticsAgent",
+                        })
+                        chart_id_counter += 1
+            except Exception:
+                pass
+        elif len(cat_cols) > 1:
+            sec_cat = cat_cols[1] if cat_cols[1] != primary_cat else (cat_cols[0] if len(cat_cols) > 0 else None)
+            if sec_cat and (sec_cat, "count") not in seen_charts:
+                s_sec = canonicalize_series(df[sec_cat]).dropna()
+                grp = s_sec.value_counts().head(8)
+                if len(grp) >= 2:
                     charts.append({
                         "id": f"auto_{chart_id_counter}",
-                        "type": "line",
-                        "title": f"Activity Volume over {d_col}",
-                        "labels": [str(x)[:10] for x in t_grp.index],
-                        "values": [int(v) for v in t_grp.values],
-                        "x_col": d_col,
+                        "type": "bar",
+                        "title": f"Volume by {sec_cat}",
+                        "labels": [str(x) for x in grp.index],
+                        "values": [int(v) for v in grp.values],
+                        "x_col": sec_cat,
                         "y_col": "count",
                         "agg_type": "count",
                         "is_custom": False,
                         "agent_source": "AnalyticsAgent",
                     })
                     chart_id_counter += 1
-            except Exception:
-                pass
 
         # Chart 4: Bivariate Correlation Scatter (if >=2 valid numeric measures) OR Secondary Categorical Breakdown
         if len(valid_numeric_cols) >= 2:
@@ -902,12 +1224,19 @@ async def api_agentic_auto_dashboard(
             if len(sub) > 300:
                 sub = sub.sample(n=300, random_state=42)
             sub = sub.sort_values(by=x_num)
+            is_discrete_x = x_s.dropna().nunique() <= 5
+            rng = np.random.default_rng(42)
+            jitter_vals = rng.uniform(-0.5, 0.5, size=len(sub)) if is_discrete_x else np.zeros(len(sub))
+
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "scatter",
                 "title": f"Bivariate Correlation: {x_num} vs {y_num}",
                 "labels": [],
-                "values": [{"x": float(r[x_num]), "y": float(r[y_num])} for _, r in sub.iterrows()],
+                "values": [
+                    {"x": round(float(r[x_num]) + float(jitter_vals[i]), 2), "y": round(float(r[y_num]), 2)}
+                    for i, (_, r) in enumerate(sub.iterrows())
+                ],
                 "x_col": x_num,
                 "y_col": y_num,
                 "is_custom": False,
@@ -917,7 +1246,8 @@ async def api_agentic_auto_dashboard(
         elif len(cat_cols) >= 3:
             third_cat = next((c for c in cat_cols if c not in (primary_cat, target_donut_cat)), None)
             if third_cat and (third_cat, "count") not in seen_charts:
-                grp = df.groupby(third_cat).size().sort_values(ascending=False).head(10)
+                s_third = canonicalize_series(df[third_cat]).dropna()
+                grp = s_third.value_counts().head(10)
                 charts.append({
                     "id": f"auto_{chart_id_counter}",
                     "type": "bar",
@@ -953,7 +1283,8 @@ async def api_agentic_auto_dashboard(
         elif len(cat_cols) >= 4:
             fourth_cat = next((c for c in cat_cols if c not in (primary_cat, target_donut_cat, charts[-1]["x_col"])), None)
             if fourth_cat and (fourth_cat, "count") not in seen_charts:
-                grp = df.groupby(fourth_cat).size().sort_values(ascending=False).head(8)
+                s_fourth = canonicalize_series(df[fourth_cat]).dropna()
+                grp = s_fourth.value_counts().head(8)
                 charts.append({
                     "id": f"auto_{chart_id_counter}",
                     "type": "doughnut",
@@ -970,10 +1301,27 @@ async def api_agentic_auto_dashboard(
                 chart_id_counter += 1
 
         # Chart 6: Statistical Box Plot OR Heatmap Association Matrix
-        target_box_metric = valid_numeric_cols[1] if len(valid_numeric_cols) > 1 else (primary_metric if primary_metric in valid_numeric_cols else None)
+        # Intelligently score continuous numeric columns to pick high-variance metrics
+        dispersion_candidates = []
+        for c in valid_numeric_cols:
+            s_col = robust_numeric_series(df[c]).dropna()
+            if len(s_col) >= 5 and s_col.nunique() >= 3:
+                std_val = float(s_col.std())
+                iqr_val = float(s_col.quantile(0.75) - s_col.quantile(0.25))
+                if std_val > 1e-4 or iqr_val > 1e-4:
+                    score = min(s_col.nunique(), 500)
+                    if c == primary_metric:
+                        score += 1000
+                    if any(kw in c.lower() for kw in ["mark", "score", "price", "amount", "salary", "revenue", "cost", "val", "pct", "rate"]):
+                        score += 300
+                    dispersion_candidates.append((score, c))
+        dispersion_candidates.sort(key=lambda x: x[0], reverse=True)
+        target_box_metric = dispersion_candidates[0][1] if dispersion_candidates else (
+            primary_metric if primary_metric in valid_numeric_cols else (valid_numeric_cols[0] if valid_numeric_cols else None)
+        )
         if target_box_metric:
             s = robust_numeric_series(df[target_box_metric]).dropna()
-            if len(s) > 0 and s.nunique() > 1:
+            if len(s) > 0:
                 desc = s.describe()
                 q1 = float(desc["25%"])
                 median = float(desc["50%"])
@@ -981,11 +1329,32 @@ async def api_agentic_auto_dashboard(
                 iqr = q3 - q1
                 lower_w = float(s[s >= q1 - 1.5 * iqr].min()) if not s[s >= q1 - 1.5 * iqr].empty else float(desc["min"])
                 upper_w = float(s[s <= q3 + 1.5 * iqr].max()) if not s[s <= q3 + 1.5 * iqr].empty else float(desc["max"])
+                auto_box_vals = {"min": lower_w, "q1": q1, "median": median, "q3": q3, "max": upper_w}
+                if primary_cat and primary_cat in df.columns and 2 <= df[primary_cat].dropna().nunique() <= 6:
+                    auto_grp = []
+                    for cv, gdf in df.groupby(primary_cat):
+                        gs = robust_numeric_series(gdf[target_box_metric]).dropna()
+                        if len(gs) >= 3:
+                            gd = gs.describe()
+                            gq1 = float(gd["25%"])
+                            gmed = float(gd["50%"])
+                            gq3 = float(gd["75%"])
+                            giqr = gq3 - gq1
+                            gmin = float(gs[gs >= gq1 - 1.5 * giqr].min()) if not gs[gs >= gq1 - 1.5 * giqr].empty else float(gd["min"])
+                            gmax = float(gs[gs <= gq3 + 1.5 * giqr].max()) if not gs[gs <= gq3 + 1.5 * giqr].empty else float(gd["max"])
+                            auto_grp.append({
+                                "category": str(cv),
+                                "min": gmin, "q1": gq1, "median": gmed, "q3": gq3, "max": gmax,
+                                "formatted_median": format_stat_val(target_box_metric, gmed),
+                            })
+                    if auto_grp:
+                        auto_box_vals["grouped"] = auto_grp
+
                 charts.append({
                     "id": f"auto_{chart_id_counter}",
                     "type": "boxplot",
                     "title": f"Quantile Dispersion & Outlier Bounds: {target_box_metric}",
-                    "values": {"min": lower_w, "q1": q1, "median": median, "q3": q3, "max": upper_w},
+                    "values": auto_box_vals,
                     "formatted_values": {
                         "min": format_stat_val(target_box_metric, lower_w),
                         "q1": format_stat_val(target_box_metric, q1),
@@ -1143,9 +1512,9 @@ async def api_drilldown(
                     val = float(x_label)
                     filtered = df[df[col_name] == val]
                 except (ValueError, TypeError):
-                    filtered = df[df[col_name].astype(str) == str(x_label)]
+                    filtered = df[df[col_name].astype(str).str.strip().str.lower() == str(x_label).strip().lower()]
             else:
-                filtered = df[df[col_name].astype(str) == str(x_label)]
+                filtered = df[df[col_name].astype(str).str.strip().str.lower() == str(x_label).strip().lower()]
 
         rows = filtered.head(100).to_dict(orient="records")
         return JSONResponse(content=safe_jsonable({

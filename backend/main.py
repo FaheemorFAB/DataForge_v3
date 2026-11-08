@@ -6,7 +6,30 @@ so that db.py (which reads env vars at module level) gets the values.
 from pathlib import Path
 
 # ── Load .env before any dataforge imports ────────────────────────────────────
+import sys
 from dotenv import load_dotenv
+
+# Guard against [Errno 5] Input/output error if terminal/pty disconnects
+class _SafeStream:
+    def __init__(self, stream):
+        self._stream = stream
+    def write(self, data):
+        try:
+            return self._stream.write(data)
+        except (OSError, IOError):
+            return len(data) if isinstance(data, (str, bytes)) else 0
+    def flush(self):
+        try:
+            return self._stream.flush()
+        except (OSError, IOError):
+            pass
+    def __getattr__(self, item):
+        return getattr(self._stream, item)
+
+if sys.stdout is not None:
+    sys.stdout = _SafeStream(sys.stdout)
+if sys.stderr is not None:
+    sys.stderr = _SafeStream(sys.stderr)
 
 _HERE = Path(__file__).resolve().parent          # backend/
 _ROOT = _HERE.parent                             # DataForge_v3-main/

@@ -7,6 +7,7 @@ Upload service: file processing, profiling, storage, and DB logging.
 from __future__ import annotations
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from dataforge.api.repositories.upload import upload_repo
@@ -20,13 +21,15 @@ log = logging.getLogger(__name__)
 class UploadService:
 
     def process_dataframe(self, df, filename: str, source_type: str,
-                          user: User, source_config: Optional[dict] = None) -> dict:
+                          user: User, source_config: Optional[dict] = None,
+                          org_id: Optional[str] = None,
+                          raw_bytes: Optional[int] = None) -> dict:
         """
         Profile a DataFrame, log it to DB, save to disk.
         Returns: {"upload_id": int, "profile": dict} or raises on error.
         """
-        profile = df_profile(df, filename)
-        upload_id = self._log_upload(profile, source_type, user, source_config)
+        profile = df_profile(df, filename, raw_bytes=raw_bytes)
+        upload_id = self._log_upload(profile, source_type, user, source_config, org_id=org_id)
         if not upload_id:
             raise RuntimeError("Failed to create upload record in database")
 
@@ -36,11 +39,19 @@ class UploadService:
             "user_email": getattr(user, "email", None),
             "user_name": getattr(user, "name", None),
             "filename": filename,
+            "project_name": filename,
             "source_type": source_type,
             "rows": profile.get("rows", len(df)),
             "cols": profile.get("cols", len(df.columns)),
+            "size_bytes": profile.get("size_bytes", 0),
+            "size_human": profile.get("size_human", "—"),
+            "size_mb": profile.get("size_mb", 0.0),
             "storage_path": json.dumps(source_config) if source_config else None,
             "source_config": source_config,
+            "org_id": org_id,
+            "workspace_id": org_id if org_id else "personal",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
         }
         save(upload_id, "meta", meta)
         save(upload_id, "df_raw", df)
@@ -55,7 +66,8 @@ class UploadService:
         return {"upload_id": upload_id, "profile": profile}
 
     def _log_upload(self, profile: dict, source_type: str, user: User,
-                    source_config: Optional[dict] = None) -> Optional[str]:
+                    source_config: Optional[dict] = None,
+                    org_id: Optional[str] = None) -> Optional[str]:
         import uuid
         local_id = f"df_{uuid.uuid4().hex[:10]}"
         user_id = getattr(user, "id", None)
@@ -73,6 +85,8 @@ class UploadService:
             "missing_pct": profile.get("missing_pct", 0.0),
             "source_type": source_type,
             "storage_path": json.dumps(source_config) if source_config and source_type != "csv" else None,
+            "org_id": org_id,
+            "workspace_id": org_id if org_id else "personal",
         }
         res = upload_repo.create(data)
         if res and res.get("id"):
@@ -86,6 +100,31 @@ class UploadService:
 
         existing = upload_repo.find_by_filename(user_id, filename)
         if not existing:
+            try:
+                from dataforge.web.storage import STORE_DIR, _load
+                for d in STORE_DIR.iterdir():
+                    if d.is_dir() and not d.name.startswith(("_", ".")):
+                        meta = _load(d.name, "meta") or {}
+                        meta_fn = meta.get("filename") or ""
+                        meta_proj = meta.get("project_name") or ""
+                        clean_fn = filename.lower().strip()
+                        if meta_fn.lower().strip() == clean_fn or meta_proj.lower().strip() == clean_fn:
+                            upload_id = d.name
+                            profile = load(upload_id, "profile") or {}
+                            return {
+                                "duplicate": True,
+                                "upload_id": upload_id,
+                                "filename": meta.get("filename") or filename,
+                                "project_name": meta.get("project_name") or meta.get("filename") or filename,
+                                "rows": meta.get("rows", profile.get("rows", 0)),
+                                "cols": meta.get("cols", profile.get("cols", 0)),
+                                "numeric": profile.get("numeric", 0),
+                                "missing_pct": meta.get("missing_pct", profile.get("missing_pct", 0)),
+                                "time_ago": "previously uploaded",
+                                "has_clean": bool(profile.get("clean_cols") or meta.get("clean_meta_json")),
+                            }
+            except Exception as e:
+                log.warning("Disk duplicate check fallback error: %s", e)
             return None
 
         upload_id = existing.get("id")
@@ -94,6 +133,7 @@ class UploadService:
             "duplicate": True,
             "upload_id": upload_id,
             "filename": existing.get("filename"),
+            "project_name": existing.get("project_name") or existing.get("filename"),
             "rows": existing.get("rows", 0),
             "cols": existing.get("cols", 0),
             "numeric": profile.get("numeric", 0),

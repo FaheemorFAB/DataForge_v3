@@ -1,4 +1,4 @@
-# Virtual environment
+﻿# Virtual environment
 venv/
 .venv/
 backend/.venv
@@ -30,6 +30,7 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.production
 
 # Databases & local state
 *.db
@@ -57,3 +58,5 @@ Thumbs.db
 deployment.md
 report/slide_previews/
 catboost_info/
+.vercel
+.env*

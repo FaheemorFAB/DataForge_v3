@@ -504,6 +504,7 @@ export function ForecastCard({
   onDismiss?: (id: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<"forecast" | "decomp">("forecast");
+  const [decompMode, setDecompMode] = useState<"trend" | "seasonal" | "residual">("trend");
   const [horizon, setHorizon] = useState<number | null>(null);
   const [runningForecast, setRunningForecast] = useState(false);
   const [localData, setLocalData] = useState<any>(null);
@@ -513,6 +514,8 @@ export function ForecastCard({
   const stats = cd?.summary_stats || {};
   const mapes = cd?.model_mapes || {};
   const decomp = cd?.decomposition;
+  const decompStats = decomp?.stats;
+  const decompExplanation = decomp?.explanation;
   const col = "#00d4ff";
 
   const histLabels = cd?.labels || [];
@@ -566,6 +569,13 @@ export function ForecastCard({
     finally { setRunningForecast(false); }
   }, [uploadId, ins.metric]);
 
+  // Immediately refresh forecast on mount to guarantee fresh mathematical wave simulation
+  useEffect(() => {
+    if (!localData && uploadId && ins?.metric) {
+      rerunForecast(horizon || 90);
+    }
+  }, [uploadId, ins?.metric]);
+
   const growthPct = stats.projected_growth_pct ?? 0;
   const isPositive = growthPct >= 0;
   const bestModel = cd?.best_model || "Ensemble";
@@ -609,48 +619,35 @@ export function ForecastCard({
     ...lower80,
   ];
 
+  const tc = getChartThemeColors();
+  const forecastAccent = tc.isDark ? "#00d4ff" : "#0284c7";
+  const minimalCloudFill = tc.isDark ? "rgba(0,212,255,0.04)" : "rgba(2,132,199,0.05)";
+  const minimalCloudBorder = tc.isDark ? "rgba(0,212,255,0.22)" : "rgba(2,132,199,0.28)";
+
   const chartData = {
     labels: allLabels,
     datasets: [
       {
-        label: "Upper 95%",
-        data: upper95Bridge,
-        borderColor: "transparent",
-        backgroundColor: "rgba(0,212,255,0.06)",
-        fill: "+1" as const,
-        pointRadius: 0,
-        tension: 0.28,
-        borderWidth: 0,
-      },
-      {
-        label: "Lower 95%",
-        data: lower95Bridge,
-        borderColor: "transparent",
-        backgroundColor: "rgba(0,212,255,0.06)",
-        fill: false as const,
-        pointRadius: 0,
-        tension: 0.28,
-        borderWidth: 0,
-      },
-      {
-        label: "Upper 80%",
+        label: "Confidence Upper",
         data: upper80Bridge,
-        borderColor: "transparent",
-        backgroundColor: "rgba(0,212,255,0.10)",
+        borderColor: minimalCloudBorder,
+        backgroundColor: minimalCloudFill,
         fill: "+1" as const,
         pointRadius: 0,
         tension: 0.28,
-        borderWidth: 0,
+        borderWidth: 1,
+        borderDash: [3, 3],
       },
       {
-        label: "Lower 80%",
+        label: "Confidence Lower",
         data: lower80Bridge,
-        borderColor: "transparent",
-        backgroundColor: "rgba(0,212,255,0.10)",
+        borderColor: minimalCloudBorder,
+        backgroundColor: minimalCloudFill,
         fill: false as const,
         pointRadius: 0,
         tension: 0.28,
-        borderWidth: 0,
+        borderWidth: 1,
+        borderDash: [3, 3],
       },
       {
         label: "Historical",
@@ -667,20 +664,18 @@ export function ForecastCard({
       {
         label: "Forecast",
         data: fcDataBridge,
-        borderColor: "#00d4ff",
-        backgroundColor: "rgba(0,212,255,0.12)",
-        borderWidth: 2.5,
-        borderDash: [5, 4],
+        borderColor: forecastAccent,
+        backgroundColor: tc.isDark ? "rgba(0,212,255,0.08)" : "rgba(2,132,199,0.08)",
+        borderWidth: 2.8,
+        borderDash: [],
         fill: false as const,
-        pointRadius: 3,
-        pointHoverRadius: 5.5,
-        pointBackgroundColor: "#00d4ff",
-        tension: 0.28,
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: forecastAccent,
+        tension: 0.35,
       },
     ],
   };
-
-  const tc = getChartThemeColors();
   const chartOpts: any = {
     responsive: true,
     maintainAspectRatio: false,
@@ -742,6 +737,183 @@ export function ForecastCard({
     ? `Forecasting '${ins.metric}' over the next ${horizonVal} ${horizonLabel}. The model projects values to ${trendDesc} (est. end value: ${fmtN(stats.proj_end_val ?? 0)}). Ensemble accuracy (MAPE): ${avgMAPE}% · Best model: ${bestModel}.`
     : ins.description;
 
+  const decompChartData = useMemo(() => {
+    if (!decomp) return { labels: [], datasets: [] };
+    const labels = decomp.labels || [];
+    const trend = decomp.trend || [];
+    const seasonal = decomp.seasonal || [];
+    const residual = decomp.residual || [];
+    const observed = decomp.observed || [];
+
+    if (decompMode === "trend") {
+      return {
+        labels,
+        datasets: [
+          {
+            label: "Observed Values",
+            data: observed.length ? observed : histValues,
+            borderColor: "rgba(148, 163, 184, 0.45)",
+            backgroundColor: "transparent",
+            borderWidth: 1.5,
+            pointRadius: 2,
+            tension: 0.2,
+          },
+          {
+            label: "Smoothed Trend Component",
+            data: trend,
+            borderColor: "#6366f1",
+            backgroundColor: "rgba(99, 102, 241, 0.12)",
+            borderWidth: 2.5,
+            pointRadius: 0,
+            tension: 0.35,
+          },
+        ],
+      };
+    }
+
+    if (decompMode === "seasonal") {
+      return {
+        labels,
+        datasets: [
+          {
+            label: "Cyclical Seasonal Swing",
+            data: seasonal,
+            borderColor: "#10b981",
+            backgroundColor: "rgba(16, 185, 129, 0.14)",
+            borderWidth: 2,
+            fill: true,
+            pointRadius: 2,
+            tension: 0.3,
+          },
+        ],
+      };
+    }
+
+    if (decompMode === "residual") {
+      const residStd = decompStats?.residual_std || 1;
+      return {
+        labels,
+        datasets: [
+          {
+            label: "Irregular Residual (Noise)",
+            data: residual,
+            borderColor: "#ef4444",
+            backgroundColor: "rgba(239, 68, 68, 0.08)",
+            borderWidth: 1.5,
+            pointRadius: 2,
+            tension: 0.2,
+          },
+          {
+            label: "+2σ Normal Bound",
+            data: Array(labels.length).fill(Number((2 * residStd).toFixed(2))),
+            borderColor: "rgba(239, 68, 68, 0.45)",
+            borderDash: [4, 4],
+            borderWidth: 1,
+            pointRadius: 0,
+            fill: false,
+          },
+          {
+            label: "-2σ Normal Bound",
+            data: Array(labels.length).fill(Number((-2 * residStd).toFixed(2))),
+            borderColor: "rgba(239, 68, 68, 0.45)",
+            borderDash: [4, 4],
+            borderWidth: 1,
+            pointRadius: 0,
+            fill: false,
+          },
+        ],
+      };
+    }
+
+    // Combined dual-axis mode: Trend on left (natural level), Seasonal and Residual on right (zero-centered deviations)
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Trend (Level)",
+          data: trend,
+          borderColor: "#6366f1",
+          backgroundColor: "transparent",
+          borderWidth: 2.5,
+          pointRadius: 0,
+          tension: 0.35,
+          yAxisID: "y",
+        },
+        {
+          label: "Seasonal Swing",
+          data: seasonal,
+          borderColor: "#10b981",
+          backgroundColor: "transparent",
+          borderWidth: 2,
+          borderDash: [4, 3],
+          pointRadius: 0,
+          tension: 0.3,
+          yAxisID: "y1",
+        },
+        {
+          label: "Residual Noise",
+          data: residual,
+          borderColor: "rgba(239, 68, 68, 0.75)",
+          backgroundColor: "transparent",
+          borderWidth: 1.2,
+          pointRadius: 1,
+          tension: 0.2,
+          yAxisID: "y1",
+        },
+      ],
+    };
+  }, [decomp, decompMode, histValues, decompStats]);
+
+  const decompChartOpts = useMemo(() => {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 350 },
+      layout: { padding: { top: 6, right: 12, bottom: 4, left: 4 } },
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: tc.text,
+            font: { size: 10, weight: "bold" },
+            boxWidth: 12,
+          },
+        },
+        tooltip: {
+          ...mkTooltip(col),
+        },
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Observation Date",
+            color: tc.text,
+            font: { size: 11, weight: "bold" },
+            padding: { top: 4 },
+          },
+          ticks: { color: tc.text, font: { size: 10, weight: "bold" }, maxTicksLimit: 8 },
+          grid: { color: tc.grid },
+          border: { color: tc.border },
+        },
+        y: {
+          type: "linear" as const,
+          position: "left" as const,
+          title: {
+            display: true,
+            text: decompMode === "seasonal" ? "Seasonal Oscillation (± units)" : decompMode === "residual" ? "Residual Noise (± units)" : "Trend Baseline Level",
+            color: tc.text,
+            font: { size: 11, weight: "bold" },
+            padding: { bottom: 4 },
+          },
+          ticks: { color: tc.text, font: { size: 10, weight: "bold" }, callback: (v: any) => fmtN(Number(v)) },
+          grid: { color: tc.grid },
+          border: { color: tc.border },
+        },
+      },
+    };
+  }, [decompMode, tc, col]);
+
   return (
     <div className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: "1px solid rgba(0,212,255,0.28)", boxShadow: "0 4px 32px rgba(0,0,0,0.28), 0 0 40px rgba(0,212,255,0.05)", gridColumn: "1 / -1" }}>
       {/* Accent bar */}
@@ -750,8 +922,8 @@ export function ForecastCard({
       {/* Header */}
       <div className="px-5 pt-5 pb-3 flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg,rgba(0,212,255,0.18),rgba(99,102,241,0.18))", border: "1px solid rgba(0,212,255,0.25)" }}>
-            <GitBranch size={16} style={{ color: "#00d4ff" }} />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-indigo-500/10 dark:bg-cyan-500/15 border border-indigo-500/20 dark:border-cyan-500/30">
+            <GitBranch size={16} className="text-indigo-600 dark:text-cyan-400" />
           </div>
           <div>
             <p className="font-black text-sm leading-tight" style={{ color: "var(--txt)" }}>{ins.title}</p>
@@ -759,13 +931,13 @@ export function ForecastCard({
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
+          <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-md border font-bold" style={{ borderColor: "var(--border)", color: "var(--txt)" }}>
             forecast model
           </span>
 
           {isPinned && (
-            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-              <Pin size={9} className="fill-amber-400 text-amber-400" /> Pinned
+            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-[3px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 flex items-center gap-1">
+              <Pin size={9} className="fill-amber-500 text-amber-500" /> Pinned
             </span>
           )}
 
@@ -773,7 +945,7 @@ export function ForecastCard({
             <button
               onClick={() => onTogglePin(ins)}
               title={isPinned ? "Unpin finding" : "Pin finding to top (max 3)"}
-              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer border ${isPinned
+              className={`p-1.5 rounded-[4px] text-xs transition-all cursor-pointer border ${isPinned
                 ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
                 : "bg-white/5 hover:bg-white/10 text-slate-400 border-white/10"
                 }`}
@@ -786,7 +958,7 @@ export function ForecastCard({
             <button
               onClick={() => onDismiss(ins.id || ins.title || "forecast")}
               title="Dismiss this finding"
-              className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer border border-white/10"
+              className="p-1.5 rounded-[4px] text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer border border-white/10"
             >
               <X size={11} />
             </button>
@@ -797,73 +969,192 @@ export function ForecastCard({
       {/* Description */}
       <p className="px-5 pb-3 text-[11px] leading-relaxed" style={{ color: "var(--txt-m)" }}>{dynamicDescription}</p>
 
-      {/* Forecast Metric Tiles */}
-      <div className="px-5 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <div className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
-          {isPositive ? <TrendingUp size={14} style={{ color: "#10b981" }} /> : <TrendingDown size={14} style={{ color: "#ef4444" }} />}
-          <div className="min-w-0">
-            <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Projected</span>
-            <span className="block text-xs font-mono font-bold" style={{ color: isPositive ? "#10b981" : "#ef4444" }}>{isPositive ? "+" : ""}{growthPct.toFixed(1)}%</span>
+      {/* Dynamic Metric Tiles: Forecast or Decompose */}
+      {activeTab === "forecast" ? (
+        <div className="px-5 pb-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="flex items-center gap-2 p-2 rounded-md border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+            {isPositive ? <TrendingUp size={14} style={{ color: "#10b981" }} /> : <TrendingDown size={14} style={{ color: "#ef4444" }} />}
+            <div className="min-w-0">
+              <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Projected</span>
+              <span className="block text-xs font-mono font-bold" style={{ color: isPositive ? "#10b981" : "#ef4444" }}>{isPositive ? "+" : ""}{growthPct.toFixed(1)}%</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 p-2 rounded-md border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+            <Target size={14} className="text-cyan-500" />
+            <div className="min-w-0">
+              <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>End Val</span>
+              <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>{fmtN(stats.proj_end_val ?? 0)}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 p-2 rounded-md border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+            <Zap size={14} className="text-amber-500" />
+            <div className="min-w-0">
+              <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Avg MAPE</span>
+              <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>{avgMAPE}%</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 p-2 rounded-md border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+            <BarChart2 size={14} className="text-indigo-500" />
+            <div className="min-w-0">
+              <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Horizon</span>
+              <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>
+                {horizonVal} {horizonLabel}
+              </span>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
-          <Target size={14} className="text-cyan-500" />
-          <div className="min-w-0">
-            <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>End Val</span>
-            <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>{fmtN(stats.proj_end_val ?? 0)}</span>
+      ) : (
+        <div className="px-5 pb-3">
+          <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
+            <span>Component Decomposition · Select a card to inspect:</span>
+            <span className="font-mono text-indigo-600 dark:text-indigo-400 hidden sm:inline">Data = Trend + Pattern + Noise</span>
           </div>
-        </div>
-        <div className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
-          <Zap size={14} className="text-amber-500" />
-          <div className="min-w-0">
-            <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Avg MAPE</span>
-            <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>{avgMAPE}%</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 p-2 rounded-lg border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
-          <BarChart2 size={14} className="text-indigo-500" />
-          <div className="min-w-0">
-            <span className="block text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Horizon</span>
-            <span className="block text-xs font-mono font-bold" style={{ color: "var(--txt)" }}>
-              {horizonVal} {horizonLabel}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tab bar + Horizon selector */}
-      <div className="px-5 pb-2 flex items-center justify-between flex-wrap gap-2">
-        <div className="flex gap-1">
-          {(["forecast", "decomp"] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all"
-              style={{ background: activeTab === tab ? "rgba(0,212,255,0.15)" : "transparent", color: activeTab === tab ? "#00d4ff" : "var(--txt-m)", border: `1px solid ${activeTab === tab ? "rgba(0,212,255,0.3)" : "transparent"}` }}>
-              {tab === "forecast" ? "Forecast" : "Decompose"}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+            {/* 1. Overall Trend */}
+            <button
+              type="button"
+              onClick={() => setDecompMode("trend")}
+              className={`text-left p-3 rounded-md border transition-all cursor-pointer flex flex-col justify-between ${
+                decompMode === "trend"
+                  ? "ring-2 ring-indigo-500 border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/50 shadow-sm"
+                  : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40"
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                    <TrendingUp size={14} className="text-indigo-600 dark:text-indigo-400" />
+                    1. Overall Trend
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-[3px] bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300">
+                    {decompStats?.trend_strength ?? 0}% Driver
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-snug line-clamp-2">
+                  {decompExplanation?.trend_meaning || "Long-term underlying movement removing short-term noise."}
+                </p>
+              </div>
+              <div className="text-[10px] font-mono font-bold pt-1.5 border-t border-slate-200 dark:border-slate-800 mt-2 text-slate-800 dark:text-slate-200">
+                Shift: {decompStats?.trend_start ?? "—"} → {decompStats?.trend_end ?? "—"} ({decompStats?.trend_drift_pct >= 0 ? "+" : ""}{decompStats?.trend_drift_pct ?? 0}%)
+              </div>
             </button>
-          ))}
+
+            {/* 2. Repeating Rhythm */}
+            <button
+              type="button"
+              onClick={() => setDecompMode("seasonal")}
+              className={`text-left p-3 rounded-md border transition-all cursor-pointer flex flex-col justify-between ${
+                decompMode === "seasonal"
+                  ? "ring-2 ring-emerald-500 border-emerald-600 bg-emerald-50/70 dark:bg-emerald-950/50 shadow-sm"
+                  : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40"
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                    <Activity size={14} className="text-emerald-600 dark:text-emerald-400" />
+                    2. Repeating Rhythm
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-[3px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                    {decompStats?.seasonal_strength ?? 0}% Driver
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-snug line-clamp-2">
+                  {Number(decompStats?.seasonal_strength || 0) > 15
+                    ? `Predictable cycle. Peaks on ${decompStats?.peak_day || "peak days"} and troughs on ${decompStats?.trough_day || "troughs"}.`
+                    : "No strong recurring cycle detected (predominantly trend & random noise)."}
+                </p>
+              </div>
+              <div className="text-[10px] font-mono font-bold pt-1.5 border-t border-slate-200 dark:border-slate-800 mt-2 text-slate-800 dark:text-slate-200">
+                Swing: ±{((decompStats?.seasonal_swing ?? 0) / 2).toFixed(1)} pts {Number(decompStats?.seasonal_strength || 0) > 15 ? `(Peak: ${decompStats?.peak_day})` : ""}
+              </div>
+            </button>
+
+            {/* 3. Random Noise & Spikes */}
+            <button
+              type="button"
+              onClick={() => setDecompMode("residual")}
+              className={`text-left p-3 rounded-md border transition-all cursor-pointer flex flex-col justify-between ${
+                decompMode === "residual"
+                  ? "ring-2 ring-rose-500 border-rose-600 bg-rose-50/70 dark:bg-rose-950/50 shadow-sm"
+                  : "border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/40"
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                    <AlertTriangle size={14} className="text-rose-600 dark:text-rose-400" />
+                    3. Noise &amp; Spikes
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-[3px] bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300">
+                    {decompStats?.noise_pct ?? 0}% Noise
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-snug line-clamp-2">
+                  {decompExplanation?.residual_meaning || "Unexplained random variations and sudden shocks outside the pattern."}
+                </p>
+              </div>
+              <div className="text-[10px] font-mono font-bold pt-1.5 border-t border-slate-200 dark:border-slate-800 mt-2 text-slate-800 dark:text-slate-200">
+                Outliers: {decompStats?.outlier_count ?? 0} spikes (σ = ±{decompStats?.residual_std ?? "—"})
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tab bar + Horizon / Component selector */}
+      <div className="px-5 pb-2 flex items-center justify-between flex-wrap gap-2">
+        <div className="flex gap-1.5 p-1 rounded-md border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+          {(["forecast", "decomp"] as const).map(tab => {
+            const isActive = activeTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-[4px] transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                {tab === "forecast" ? "Forecast" : "Decompose"}
+              </button>
+            );
+          })}
         </div>
         {activeTab === "forecast" && (
-          <div className="flex gap-1">
-            {HORIZONS.map(h => (
-              <button key={h.v}
-                onClick={() => { setHorizon(h.v); rerunForecast(h.v); }}
-                disabled={runningForecast}
-                className="text-[9px] font-black px-2.5 py-1 rounded-lg transition-all"
-                style={{
-                  background: (horizon ?? cd?.horizon ?? 30) === h.v ? "rgba(0,212,255,0.2)" : "rgba(255,255,255,0.04)",
-                  color: (horizon ?? cd?.horizon ?? 30) === h.v ? "#00d4ff" : "var(--txt-m)",
-                  border: `1px solid ${(horizon ?? cd?.horizon ?? 30) === h.v ? "rgba(0,212,255,0.35)" : "var(--border)"}`,
-                  opacity: runningForecast ? 0.5 : 1,
-                }}>
-                {runningForecast && (horizon ?? cd?.horizon ?? 30) === h.v ? "…" : h.label}
-              </button>
-            ))}
+          <div className="flex gap-1.5">
+            {HORIZONS.map(h => {
+              const isSelected = (horizon ?? cd?.horizon ?? 30) === h.v;
+              return (
+                <button
+                  key={h.v}
+                  onClick={() => { setHorizon(h.v); rerunForecast(h.v); }}
+                  disabled={runningForecast}
+                  className={`text-[10px] font-bold px-3 py-1 rounded-[4px] transition-all cursor-pointer border ${
+                    isSelected
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                  style={{ opacity: runningForecast ? 0.6 : 1 }}
+                >
+                  {runningForecast && isSelected ? "…" : h.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {activeTab === "decomp" && (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
+              Active View: <strong className="text-indigo-600 dark:text-indigo-400 uppercase font-black">{decompMode === "trend" ? "Trend Trajectory" : decompMode === "seasonal" ? "Cyclical Rhythm" : "Residual Noise"}</strong>
+            </span>
           </div>
         )}
       </div>
 
       {/* Chart area */}
-      <div className="mx-3 mb-4 rounded-xl p-3 border shadow-inner" style={{ background: "var(--card-bg, var(--surface))", borderColor: "var(--border)", height: 290, position: "relative" }}>
+      <div className="mx-3 mb-4 rounded-xl p-3 border shadow-inner" style={{ background: "var(--card-bg, var(--surface))", borderColor: "var(--border)", height: 300, position: "relative" }}>
         {activeTab === "forecast" && (
           <>
             {runningForecast && (
@@ -879,17 +1170,7 @@ export function ForecastCard({
         )}
 
         {activeTab === "decomp" && decomp && (
-          <Line
-            data={{
-              labels: decomp.labels,
-              datasets: [
-                { label: "Trend", data: decomp.trend, borderColor: "#6366f1", backgroundColor: "transparent", borderWidth: 2, pointRadius: 0, tension: 0.4 },
-                { label: "Seasonal", data: decomp.seasonal, borderColor: "#10b981", backgroundColor: "transparent", borderWidth: 1.5, pointRadius: 0, tension: 0.4, borderDash: [4, 3] },
-                { label: "Residual", data: decomp.residual, borderColor: "rgba(239,68,68,0.6)", backgroundColor: "transparent", borderWidth: 1, pointRadius: 0, tension: 0.3 },
-              ],
-            }}
-            options={{ ...chartOpts, plugins: { ...chartOpts.plugins, legend: { display: true, labels: { color: tc.text, font: { size: 10, weight: "bold" }, boxWidth: 12 } } } }}
-          />
+          <Line data={decompChartData} options={decompChartOpts as any} />
         )}
         {activeTab === "decomp" && !decomp && (
           <div className="flex items-center justify-center h-full">
@@ -897,6 +1178,27 @@ export function ForecastCard({
           </div>
         )}
       </div>
+
+      {/* Decomposition Plain-English Guidance & Dominant Driver */}
+      {activeTab === "decomp" && decomp && (
+        <div className="px-5 pb-5">
+          <div className="p-3 rounded-md border flex items-center justify-between gap-3 text-xs" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2">
+              <Brain size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span className="font-medium" style={{ color: "var(--txt)" }}>
+                {decompMode === "trend"
+                  ? `Trend Analysis: Underlying metric baseline moved from ${decompStats?.trend_start ?? "start"} to ${decompStats?.trend_end ?? "end"} (${decompStats?.trend_drift_pct >= 0 ? "+" : ""}{decompStats?.trend_drift_pct ?? 0}% overall drift).`
+                  : decompMode === "seasonal"
+                    ? `Seasonal Pattern: Cyclical amplitude of ±${((decompStats?.seasonal_swing ?? 0) / 2).toFixed(1)} points. ${Number(decompStats?.seasonal_strength || 0) > 15 ? `Peak performance consistently lands on ${decompStats?.peak_day}.` : "No heavy calendar clustering found."}`
+                    : `Noise & Volatility: Normal variance corridor is ±${Number((2 * (decompStats?.residual_std || 1))).toFixed(1)}. Found ${decompStats?.outlier_count ?? 0} anomalous spikes exceeding normal operating bounds.`}
+              </span>
+            </div>
+            <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-[3px] border shrink-0" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
+              Dominant: {decompStats?.dominant_driver || "Trend"}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1010,7 +1312,7 @@ export function InsightCard({
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="font-black text-sm leading-tight truncate" title={ins.title} style={{ color: "var(--txt)" }}>{ins.title}</p>
             {isPinned && (
-              <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+              <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 flex items-center gap-1">
                 <Pin size={9} className="fill-amber-400 text-amber-400" /> Pinned
               </span>
             )}
@@ -1032,7 +1334,7 @@ export function InsightCard({
             <button
               onClick={() => onTogglePin(ins)}
               title={isPinned ? "Unpin from Dashboard" : "Pin finding to Dashboard"}
-              className={`p-1.5 rounded-lg text-xs transition-all cursor-pointer border ${isPinned
+              className={`p-1.5 rounded-[4px] text-xs transition-all cursor-pointer border ${isPinned
                 ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
                 : "bg-white/5 hover:bg-white/10 text-slate-400 border-white/10"
                 }`}
@@ -1045,7 +1347,7 @@ export function InsightCard({
             <button
               onClick={() => onDismiss(insId)}
               title="Dismiss this finding"
-              className="p-1.5 rounded-lg text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer border border-white/10"
+              className="p-1.5 rounded-[4px] text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer border border-white/10"
             >
               <X size={11} />
             </button>
@@ -1061,8 +1363,8 @@ export function InsightCard({
       {/* Importance bar */}
       <div className="px-4 pb-3 flex items-center gap-2">
         <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>Relevance</span>
-        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--inp-bg)" }}>
-          <div className="h-full rounded-full transition-all" style={{ width: `${imp}%`, background: `linear-gradient(90deg,${t.text},${t.text}88)` }} />
+        <div className="flex-1 h-1.5 rounded-xs overflow-hidden" style={{ background: "var(--inp-bg)" }}>
+          <div className="h-full rounded-xs transition-all" style={{ width: `${imp}%`, background: `linear-gradient(90deg,${t.text},${t.text}88)` }} />
         </div>
         <span className="font-mono text-[10px] font-bold" style={{ color: t.text }}>{imp}%</span>
       </div>
@@ -1193,7 +1495,7 @@ function ColumnRolesModal({
               <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>Correct or customize semantic tags. Changes persist per dataset.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg cursor-pointer" style={{ color: "var(--txt-m)" }}><X size={16} /></button>
+          <button onClick={onClose} className="p-1 rounded-[4px] cursor-pointer" style={{ color: "var(--txt-m)" }}><X size={16} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-3">
@@ -1212,7 +1514,7 @@ function ColumnRolesModal({
                   <tr key={col} className="py-2">
                     <td className="py-2.5 font-bold" style={{ color: "var(--txt)" }}>{col}</td>
                     <td className="py-2.5">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase border" style={{ background: "var(--inp-bg)", color: "var(--txt-m)", borderColor: "var(--border)" }}>
+                      <span className="px-2 py-0.5 rounded-[3px] text-[10px] font-bold uppercase border" style={{ background: "var(--inp-bg)", color: "var(--txt-m)", borderColor: "var(--border)" }}>
                         {currentRole}
                       </span>
                     </td>
@@ -1220,7 +1522,7 @@ function ColumnRolesModal({
                       <select
                         value={currentRole}
                         onChange={e => setRoles(r => ({ ...r, [col]: e.target.value }))}
-                        className="px-2 py-1 rounded border text-xs font-sans outline-none"
+                        className="px-2 py-1 rounded-[4px] border text-xs font-sans outline-none"
                         style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
                       >
                         <option value="kpi">Measure / KPI</option>
@@ -1240,11 +1542,11 @@ function ColumnRolesModal({
         </div>
 
         <div className="px-6 py-4 border-t flex justify-end gap-2" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-xs font-bold cursor-pointer" style={{ color: "var(--txt-m)" }}>Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-[4px] text-xs font-bold cursor-pointer" style={{ color: "var(--txt-m)" }}>Cancel</button>
           <button
             onClick={saveRoles}
             disabled={isSaving}
-            className="px-5 py-2 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+            className="px-5 py-2 rounded-[4px] text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
           >
             {isSaving ? "Saving..." : "Save Roles & Re-Run Analysis"}
           </button>
@@ -1494,7 +1796,7 @@ function ExecutiveBriefingCard({
             <Brain size={18} />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
               <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>AI Executive Briefing</h3>
             </div>
             <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>Automated synthesis anchored to computed statistical findings</p>
@@ -1503,13 +1805,13 @@ function ExecutiveBriefingCard({
 
         <div className="flex items-center gap-2">
           {targetMetric && (
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg border flex items-center gap-1" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-[4px] border flex items-center gap-1" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt-m)" }}>
               <Target size={12} className="text-indigo-500" /> Target KPI: <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>{targetMetric}</span>
             </span>
           )}
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-bold border transition-all cursor-pointer"
             style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}
             title="Copy briefing to clipboard"
           >
@@ -1565,7 +1867,7 @@ function ExecutiveBriefingCard({
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-2.5 pb-2 border-b" style={{ borderColor: "var(--border)" }}>
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full shadow-sm shrink-0" style={{ background: accentColor, boxShadow: `0 0 8px ${accentColor}80` }} />
+                      <span className="w-2 h-2 rounded-xs shadow-sm shrink-0" style={{ background: accentColor, boxShadow: `0 0 8px ${accentColor}80` }} />
                       <h4 className="text-xs font-black tracking-wide" style={{ color: "var(--txt)" }}>{sec.title}</h4>
                     </div>
                     {sec.badge && (
@@ -1617,8 +1919,7 @@ export function InsightsTab() {
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [rolesModalOpen, setRolesModalOpen] = useState(false);
 
-  // Load current insights and pinned state
-  useEffect(() => {
+  const loadInsightsData = useCallback(() => {
     if (!uploadId) return;
     apiFetch(`/insights/current?upload_id=${uploadId}`)
       .then(res => res.ok ? res.json() : null)
@@ -1647,7 +1948,19 @@ export function InsightsTab() {
         }
       })
       .catch(() => { });
-  }, [uploadId]);
+  }, [uploadId, targetMetric]);
+
+  // Load current insights and pinned state
+  useEffect(() => {
+    loadInsightsData();
+
+    // Listen to global workspace refresh events
+    const onRefresh = () => {
+      loadInsightsData();
+    };
+    window.addEventListener("df_workspace_refresh", onRefresh);
+    return () => window.removeEventListener("df_workspace_refresh", onRefresh);
+  }, [loadInsightsData]);
 
   const togglePin = async (ins: any) => {
     if (!uploadId) return;
@@ -1749,7 +2062,27 @@ export function InsightsTab() {
     ? insightSchema.kpi_candidates
     : (insightSchema?.metrics || profile?.columns?.filter((c: any) => c.dtype?.includes("int") || c.dtype?.includes("float")).map((c: any) => c.name) || []);
 
-  const visibleCards = insightCards.filter(ins => !dismissedIds.includes(ins.id || ins.title));
+  // Filter out redundant data hygiene & generic profiler cards already presented in the Live Explorer
+  const EXCLUDED_INSIGHT_TYPES = new Set([
+    "data_quality", "profile", "numeric_summary", "categorical",
+  ]);
+
+  const visibleCards = insightCards.filter(ins => {
+    if (dismissedIds.includes(ins.id || ins.title)) return false;
+    const t = (ins.type || "").toLowerCase();
+    if (EXCLUDED_INSIGHT_TYPES.has(t)) return false;
+    const title = (ins.title || "").toLowerCase();
+    if (
+      title.includes("missing count") ||
+      title.includes("data quality") ||
+      title.includes("null values") ||
+      title.includes("completeness rate") ||
+      title.includes("cardinality breakdown")
+    ) {
+      return false;
+    }
+    return true;
+  });
   // Pinned items take higher position on the grid (pinned - max 3)
   const sortedCards = [...visibleCards].sort((a, b) => {
     const aPinned = pinnedIds.includes(a.id || a.title);
@@ -1769,8 +2102,8 @@ export function InsightsTab() {
           <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Insight Engine</h2>
           <p className="text-[0.63rem] mt-1" style={{ color: "var(--txt-m)" }}>Trends · Anomalies · Correlations · Rankings · Distributions · Contributions</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center p-0.5 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <div className="flex items-center p-0.5 rounded-[4px] border flex-1 sm:flex-initial justify-center" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
             {[3, 6, 9].map(n => {
               const active = parseInt(insightTopN, 10) === n;
               return (
@@ -1778,7 +2111,7 @@ export function InsightsTab() {
                   key={n}
                   type="button"
                   onClick={() => setInsightTopN(String(n))}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${active
+                  className={`px-2.5 py-1 rounded-[3px] text-xs font-bold transition-all cursor-pointer ${active
                     ? "bg-indigo-600 text-white shadow-sm"
                     : "text-slate-400 hover:text-white"
                     }`}
@@ -1788,7 +2121,7 @@ export function InsightsTab() {
               );
             })}
           </div>
-          <button onClick={() => runInsights()} className="bp flex items-center gap-2 cursor-pointer"><Sparkles size={14} /> Run Insights</button>
+          <button onClick={() => runInsights()} className="bp flex items-center justify-center gap-2 cursor-pointer w-full sm:w-auto"><Sparkles size={14} /> Run Insights</button>
         </div>
       </div>
 
@@ -1797,14 +2130,14 @@ export function InsightsTab() {
       )}
 
       <div className="flex flex-col items-center justify-center gap-6 py-24 text-center">
-        <div className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.15),rgba(99,102,241,0.04))", border: "1px solid rgba(99,102,241,0.2)" }}>
+        <div className="w-24 h-24 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.15),rgba(99,102,241,0.04))", border: "1px solid rgba(99,102,241,0.2)" }}>
           <Brain size={40} style={{ color: "#6366f1" }} />
         </div>
         <div>
           <p className="font-black text-base mb-1" style={{ color: "var(--txt)" }}>No Insights Generated Yet</p>
           <p className="text-sm max-w-sm" style={{ color: "var(--txt-m)" }}>Click <strong>Run Insights</strong> to discover verified statistical signals, anchored correlations, and distribution findings.</p>
         </div>
-        <button onClick={() => runInsights()} className="px-6 py-3 rounded-xl font-bold text-sm text-white cursor-pointer" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>Run Insights</button>
+        <button onClick={() => runInsights()} className="px-6 py-3 rounded-[4px] font-bold text-sm text-white cursor-pointer w-full sm:w-auto max-w-xs flex items-center justify-center gap-2" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}><Sparkles size={16} /><span>Run Insights</span></button>
       </div>
     </div>
   );
@@ -1838,7 +2171,7 @@ export function InsightsTab() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Target KPI Anchor Selector (Section 4.1 & 5.1) */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+          <div className="flex items-center justify-between sm:justify-start gap-1.5 px-3 py-1.5 rounded-xl border w-full sm:w-auto" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
             <Target size={13} className="text-amber-500" />
             <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>Anchor KPI:</span>
             <select
@@ -1861,14 +2194,14 @@ export function InsightsTab() {
           {/* Semantic Roles Review Button */}
           <button
             onClick={() => setRolesModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border text-xs font-bold transition-all cursor-pointer"
             style={{ borderColor: "var(--border)", background: "var(--surface)", color: "var(--txt)" }}
           >
             <Tag size={12} className="text-indigo-500" /> Review Roles
           </button>
 
           {/* Top-N Count Selector: 3, 6, 9 */}
-          <div className="flex items-center p-0.5 rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <div className="flex items-center p-0.5 rounded-[4px] border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
             {[3, 6, 9].map(n => {
               const active = parseInt(insightTopN, 10) === n;
               return (
@@ -1881,7 +2214,7 @@ export function InsightsTab() {
                       runInsights(undefined, n);
                     }
                   }}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${active
+                  className={`px-2.5 py-1 rounded-[3px] text-xs font-bold transition-all cursor-pointer ${active
                     ? "bg-indigo-600 text-white shadow-sm"
                     : "hover:bg-slate-500/10"
                     }`}
@@ -1893,7 +2226,7 @@ export function InsightsTab() {
             })}
           </div>
 
-          <button onClick={() => runInsights()} disabled={isRunning} className="bp flex items-center gap-1.5 cursor-pointer">
+          <button onClick={() => runInsights()} disabled={isRunning} className="bp flex items-center justify-center gap-1.5 cursor-pointer w-full sm:w-auto">
             {isRunning
               ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
               : <Sparkles size={13} />
@@ -1907,7 +2240,7 @@ export function InsightsTab() {
       <div className="rounded-2xl p-4 border" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.06),rgba(139,92,246,0.03))", borderColor: "rgba(99,102,241,0.2)" }}>
         <form onSubmit={e => { e.preventDefault(); runInsights(); }} className="flex gap-2 items-center flex-wrap">
           <div
-            className="flex items-center gap-2 flex-1 min-w-[260px] border rounded-xl px-3 py-2 transition-all"
+            className="flex items-center gap-2 flex-1 min-w-[260px] border rounded-[4px] px-3 py-2 transition-all"
             style={{
               background: "var(--surface)",
               borderColor: "var(--border)",
@@ -1932,7 +2265,7 @@ export function InsightsTab() {
           <button
             type="submit"
             disabled={isRunning}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer shrink-0"
+            className="px-4 py-2 rounded-[4px] text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer shrink-0"
           >
             <Sparkles size={12} />
             {isRunning ? "Investigating..." : "Steer Analysis"}

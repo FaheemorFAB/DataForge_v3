@@ -56,11 +56,19 @@ async def api_upload(
     upload_id_override: Optional[int] = Form(default=None),
     expected_format: Optional[str] = Form(default=None),
     current_upload_id: Optional[str] = Form(default=None),
+    workspace_id: Optional[str] = Form(default=None),
+    dataset_name: Optional[str] = Form(default=None),
 ):
     """Accept a file upload, profile it, and persist to disk + Supabase."""
     _assert_no_active_workspace_dataset(current_upload_id)
-    filename = file.filename or "upload.csv"
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "csv"
+    raw_filename = file.filename or "upload.csv"
+    ext = raw_filename.rsplit(".", 1)[-1].lower() if "." in raw_filename else "csv"
+    
+    if dataset_name and str(dataset_name).strip():
+        chosen_name = str(dataset_name).strip()
+        filename = chosen_name if "." in chosen_name else f"{chosen_name}.{ext}"
+    else:
+        filename = raw_filename
 
     if ext not in {"csv", "xls", "xlsx", "parquet", "json", "jsonl", "ndjson"}:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: .{ext}")
@@ -130,7 +138,10 @@ async def api_upload(
     if not allowed_rows:
         raise HTTPException(status_code=402, detail=rows_reason)
 
-    result = upload_service.process_dataframe(df, filename, ext if ext in ("json", "parquet") else "csv", current_user)
+    target_org_id = workspace_id if (workspace_id and workspace_id != "personal") else None
+    result = upload_service.process_dataframe(
+        df, filename, ext if ext in ("json", "parquet") else "csv", current_user, org_id=target_org_id, raw_bytes=len(raw)
+    )
     if ext in ("xls", "xlsx"):
         try:
             raw_wb_path = STORE_DIR / str(result["upload_id"]) / "raw_workbook.xlsx"
@@ -184,7 +195,10 @@ async def api_upload_sheets(
             allowed_rows, rows_reason = EntitlementService.check_entitlement(current_user.id, "rows", len(df))
             if not allowed_rows:
                 raise HTTPException(status_code=402, detail=rows_reason)
-            result = upload_service.process_dataframe(df, filename, "excel_online", current_user, meta)
+            target_org_id = req.workspace_id if (req.workspace_id and req.workspace_id != "personal") else None
+            result = upload_service.process_dataframe(
+                df, filename, "excel_online", current_user, meta, org_id=target_org_id
+            )
             return JSONResponse(content=safe_jsonable({
                 "ok": True,
                 "upload_id": result["upload_id"],
@@ -217,7 +231,10 @@ async def api_upload_sheets(
     clean_tab = f"_{sheet_name[:16]}" if sheet_name else ""
     filename = f"sheet_{clean_id}{clean_tab}.csv"
     source_config = {"sheet_id": sheet_id, "gid": gid, "sheet_name": sheet_name, "url": url}
-    result = upload_service.process_dataframe(df, filename, "sheets", current_user, source_config)
+    target_org_id = req.workspace_id if (req.workspace_id and req.workspace_id != "personal") else None
+    result = upload_service.process_dataframe(
+        df, filename, "sheets", current_user, source_config, org_id=target_org_id
+    )
 
     return JSONResponse(content=safe_jsonable({
         "ok": True,
@@ -284,7 +301,10 @@ async def api_upload_excel_online(
             clean_id = (sheet_id or "sheet").replace("pub:", "")[:12]
             filename = f"sheet_{clean_id}.csv"
             source_config = {"sheet_id": sheet_id, "gid": gid, "url": url}
-            result = upload_service.process_dataframe(df, filename, "sheets", current_user, source_config)
+            target_org_id = req.workspace_id if (req.workspace_id and req.workspace_id != "personal") else None
+            result = upload_service.process_dataframe(
+                df, filename, "sheets", current_user, source_config, org_id=target_org_id
+            )
             return JSONResponse(content=safe_jsonable({
                 "ok": True,
                 "upload_id": result["upload_id"],
@@ -317,7 +337,10 @@ async def api_upload_excel_online(
     clean_name = raw_name.replace(".xlsx", "").replace(".xls", "")
     filename = f"{clean_name}.csv"
 
-    result = upload_service.process_dataframe(df, filename, "excel_online", current_user, meta)
+    target_org_id = req.workspace_id if (req.workspace_id and req.workspace_id != "personal") else None
+    result = upload_service.process_dataframe(
+        df, filename, "excel_online", current_user, meta, org_id=target_org_id
+    )
 
     return JSONResponse(content=safe_jsonable({
         "ok": True,
@@ -380,7 +403,10 @@ async def api_upload_json_url(
     if not filename.endswith((".json", ".csv")):
         filename += ".json"
 
-    result = upload_service.process_dataframe(df, filename, "json", current_user, {"url": req.url})
+    target_org_id = req.workspace_id if (req.workspace_id and req.workspace_id != "personal") else None
+    result = upload_service.process_dataframe(
+        df, filename, "json", current_user, {"url": req.url}, org_id=target_org_id
+    )
     return JSONResponse(content=safe_jsonable({
         "ok": True,
         "upload_id": result["upload_id"],
@@ -495,7 +521,10 @@ async def api_ingest_db(
         "table_name": req.table_name,
         "has_query": bool(req.query),
     }
-    result = upload_service.process_dataframe(df, filename, "database", current_user, source_config)
+    target_org_id = req.workspace_id if (req.workspace_id and req.workspace_id != "personal") else None
+    result = upload_service.process_dataframe(
+        df, filename, "database", current_user, source_config, org_id=target_org_id
+    )
 
     return JSONResponse(content=safe_jsonable({
         "ok": True,

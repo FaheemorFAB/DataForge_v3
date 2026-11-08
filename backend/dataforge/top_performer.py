@@ -7,6 +7,7 @@ Requires at least one categorical dimension and one numeric metric.
 
 import pandas as pd
 from .base_insight import BaseInsight
+from dataforge.api.utils.helpers import canonicalize_series
 
 
 class TopPerformerInsight(BaseInsight):
@@ -20,7 +21,9 @@ class TopPerformerInsight(BaseInsight):
         metric = schema["metrics"][0]
 
         try:
-            grouped = df.groupby(dim)[metric].sum().dropna().sort_values(ascending=False)
+            s_dim = canonicalize_series(df[dim])
+            temp_df = pd.DataFrame({"_dim": s_dim, "_metric": df[metric]}).dropna()
+            grouped = temp_df.groupby("_dim")["_metric"].sum().sort_values(ascending=False)
             if len(grouped) < 2:
                 return None
 

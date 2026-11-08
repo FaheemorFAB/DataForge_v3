@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import Header from "./components/landing/Header";
 import Footer from "./components/landing/Footer";
-import LoginModal from "./components/landing/LoginModal";
 import SplashLoader from "./components/SplashLoader";
 import BuiltFor from "./components/landing/BuiltFor";
 import TeamSection from "./components/landing/TeamSection";
@@ -119,7 +118,7 @@ function IngestVisual() {
         </span>
       </div>
       <div
-        className="overflow-hidden rounded-xl border"
+        className="overflow-x-auto rounded-xl border"
         style={{ borderColor: "var(--border)" }}
       >
         <table className="w-full text-xs">
@@ -685,15 +684,16 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const visualPanelRef = useRef<HTMLDivElement>(null);
   const { Visual, color } = PIPELINE_STAGES[active];
+  const [isPaused, setIsPaused] = useState(false);
+  const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleStageSelect = (index: number) => {
     setActive(index);
-    if (typeof window !== "undefined" && window.innerWidth < 768 && visualPanelRef.current) {
-      const rect = visualPanelRef.current.getBoundingClientRect();
-      if (rect.top < 70) {
-        visualPanelRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
-    }
+    setIsPaused(true);
+    if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    pauseTimerRef.current = setTimeout(() => {
+      setIsPaused(false);
+    }, 7000);
   };
 
   useEffect(() => {
@@ -722,8 +722,8 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
   const timelineFill = (active / (PIPELINE_STAGES.length - 1)) * 100;
 
   return (
-    <div ref={outerRef} className="relative h-auto lg:h-[600vh]">
-      <div className="lg:sticky lg:top-0 lg:h-screen flex flex-col justify-center lg:overflow-hidden px-5 sm:px-8 py-20 lg:py-0">
+    <div ref={outerRef} className="relative h-[240vh] md:h-[400vh] lg:h-[600vh]">
+      <div className="sticky top-16 h-[calc(100dvh-64px)] h-[calc(100vh-64px)] flex flex-col justify-center overflow-hidden px-5 sm:px-8 py-4 lg:py-0">
         <div className="max-w-6xl mx-auto w-full flex flex-col gap-8">
           {/* Section header */}
           <div className="flex flex-col gap-2">
@@ -741,10 +741,10 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
             </h2>
           </div>
 
-          {/* Split — Visual animation placed above 6 pipelines on mobile */}
+          {/* Split — Visual animation hidden on mobile screens */}
           <div className="flex flex-col md:flex-row gap-6 md:gap-8 lg:gap-12 items-start">
-            {/* Left (on desktop) / Bottom (on mobile) — timeline of 6 pipelines */}
-            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0 order-2 md:order-1">
+            {/* Left (on desktop) / Full width (on mobile) — timeline of 6 pipelines */}
+            <div className="w-full md:w-5/12 lg:w-2/5 relative flex flex-col gap-0 order-1">
               <div
                 className="absolute left-6 top-0 bottom-0 w-px"
                 style={{ background: "var(--border)", zIndex: 0 }}
@@ -765,7 +765,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                   <button
                     key={i}
                     onClick={() => handleStageSelect(i)}
-                    className="relative z-10 pl-16 pb-6 last:pb-0 text-left group w-full cursor-pointer"
+                    className="relative z-10 pl-16 pb-3.5 sm:pb-5 last:pb-0 text-left group w-full cursor-pointer"
                   >
                     <div
                       className="absolute left-0 top-0 w-12 h-12 rounded-full z-10"
@@ -836,8 +836,8 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
               })}
             </div>
 
-            {/* Right (on desktop) / Top (on mobile) — visual animation panel */}
-            <div ref={visualPanelRef} className="w-full md:w-7/12 lg:w-3/5 order-1 md:order-2">
+            {/* Right (on desktop) — visual animation panel (hidden on mobile screens) */}
+            <div ref={visualPanelRef} className="hidden md:block w-full md:w-7/12 lg:w-3/5 order-2">
               <div
                 className="rounded-2xl border overflow-hidden shadow-2xl transition-all duration-500"
                 style={{
@@ -881,7 +881,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                 </div>
 
                 {/* visual content */}
-                <div className="p-6">
+                <div className="p-3.5 sm:p-6">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={active}
@@ -896,7 +896,7 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
                 </div>
 
                 {/* CTA strip */}
-                <div className="px-6 pb-5">
+                <div className="px-3.5 sm:px-6 pb-3.5 sm:pb-5">
                   <button
                     onClick={onTryDataset}
                     className="relative overflow-hidden flex items-center justify-between w-full px-5 py-3 rounded-2xl font-bold text-sm transition-all duration-300 hover:scale-[1.015] active:scale-[0.99] group cursor-pointer border"
@@ -972,7 +972,6 @@ function PipelineShowcase({ onTryDataset }: { onTryDataset: () => void }) {
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 export default function Home() {
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [showLaunchModal, setShowLaunchModal] = useState(false);
   const [launchConnectorId, setLaunchConnectorId] = useState<string | undefined>(undefined);
   const [uploadAlert, setUploadAlert] = useState(false);
@@ -984,8 +983,7 @@ export default function Home() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("login") === "1") {
-        setShowLoginModal(true);
-        window.history.replaceState({}, "", "/");
+        router.push("/login");
       }
       if (params.get("launch") === "1" || params.get("ingest") === "1" || params.get("upload") === "1") {
         setShowLaunchModal(true);
@@ -1042,11 +1040,6 @@ export default function Home() {
         <SplashLoader isLoading={loading} onComplete={() => setShowSplash(false)} />
       )}
 
-      {/* Login Modal */}
-      {showLoginModal && (
-        <LoginModal onClose={() => setShowLoginModal(false)} />
-      )}
-
       {/* Universal Workspace Launch & Ingestion Modal */}
       <WorkspaceLaunchModal
         isOpen={showLaunchModal}
@@ -1087,13 +1080,13 @@ export default function Home() {
 
       {/* Main Navigation */}
       <Header
-        onLoginClick={() => setShowLoginModal(true)}
+        onLoginClick={() => router.push("/login")}
         onLaunchWorkspace={() => setShowLaunchModal(true)}
       />
 
       <main className="flex-1 w-full flex flex-col">
         {/* ══════════════ HERO ══════════════ */}
-        <section className="relative overflow-hidden md:min-h-[calc(100vh-80px)] flex md:items-center pt-5 pb-6 sm:py-16 md:py-20 px-4 sm:px-8">
+        <section className="relative overflow-hidden min-h-[calc(100dvh-64px)] min-h-[calc(100vh-64px)] flex flex-col justify-center items-center px-4 sm:px-8 py-6 sm:py-10 md:py-12">
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div
               className="w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] rounded-full filter blur-[100px] sm:blur-[140px] opacity-[0.14] transition-colors duration-500"
@@ -1101,39 +1094,29 @@ export default function Home() {
             />
           </div>
 
-          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center">
+          <div className="relative z-10 w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-6 lg:gap-10 items-center my-auto">
             {/* Left side: Text & CTA */}
-            <div className="flex flex-col items-start text-left gap-5 sm:gap-7 w-full max-w-xl md:max-w-none">
+            <div className="flex flex-col items-start text-left gap-4 sm:gap-6 w-full max-w-xl md:max-w-none">
               <motion.div
                 initial="hidden"
                 animate="visible"
                 variants={fadeUp}
                 className="flex flex-col items-start w-full"
               >
-
-
                 <h1
-                  className="text-[2.25rem] xs:text-[2.5rem] sm:text-5xl md:text-[2.6rem] lg:text-5xl xl:text-6xl font-black leading-[1.12] mb-3.5 sm:mb-5 transition-colors duration-300"
+                  className="text-[2.1rem] xs:text-[2.6rem] sm:text-5xl md:text-[2.75rem] lg:text-5xl xl:text-6xl font-black leading-[1.08] tracking-tight mb-3 sm:mb-5 transition-colors duration-300"
                   style={{ color: "var(--txt)" }}
                 >
-                  Turning Messy
-                  <br />
-                  Data
-                  <br />
-                  Into{" "}
-                  <span style={{ color: "var(--accent)" }}>Clear</span>
-                  <br />
+                  <span className="whitespace-nowrap">Turning Messy</span><br />
+                  Data<br />
+                  Into <span style={{ color: "var(--accent)" }}>Clear</span><br />
                   <span style={{ color: "var(--accent)" }}>Decisions.</span>
                 </h1>
                 <p
-                  className="max-w-lg text-[15px] sm:text-base md:text-lg lg:text-xl leading-relaxed transition-colors duration-300"
+                  className="max-w-lg text-sm sm:text-base md:text-lg lg:text-xl leading-relaxed transition-colors duration-300"
                   style={{ color: "var(--txt-m)" }}
                 >
-                  Transform raw spreadsheets into
-                  <br />
-                  statistical insights, predictive models,
-                  <br />
-                  and executive reports without code.
+                  Transform raw spreadsheets into statistical insights, predictive models, and executive reports <Scratch>without code.</Scratch>
                 </p>
               </motion.div>
 
@@ -1205,7 +1188,7 @@ export default function Home() {
                 Why We Built DataForge
               </h2>
               <div
-                className="flex flex-col gap-5 text-base sm:text-lg leading-relaxed text-justify transition-colors duration-300"
+                className="flex flex-col gap-5 text-base sm:text-lg leading-relaxed text-left transition-colors duration-300"
                 style={{ color: "var(--txt-m)" }}
               >
                 <p>
@@ -1235,7 +1218,7 @@ export default function Home() {
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
               variants={fadeUp}
-              className="relative w-full aspect-square flex items-center justify-center"
+              className="relative w-full max-w-sm sm:max-w-md mx-auto aspect-square flex items-center justify-center"
             >
               {/* Background glow */}
               <div
@@ -1363,23 +1346,23 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ══════════════ CTA BANNER (Above How It Works) ══════════════ */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 my-6 sm:my-8">
+          <CTABanner
+            variant="compact"
+            title="Test DataForge with your dataset"
+            subtitle="Free plan — zero setup, instant automated EDA."
+            buttonText="Launch Workspace"
+            onAction={handleLaunchWorkspace}
+            secondaryButtonText="Architecture"
+            secondaryHref="/#about"
+          />
+        </div>
+
         {/* ══════════════ PIPELINE ══════════════ */}
         <section id="pipeline">
           <PipelineShowcase onTryDataset={handleLaunchWorkspace} />
         </section>
-
-        {/* ══════════════ MID-PAGE CTA BANNER (Compact Variant) ══════════════ */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 my-10 sm:my-14">
-          <CTABanner
-            variant="compact"
-            title="Want to test DataForge with your dataset first?"
-            subtitle="Start on the Free Starter plan — zero setup, instant automated EDA."
-            buttonText="Launch Workspace"
-            onAction={handleLaunchWorkspace}
-            secondaryButtonText="Explore Architecture"
-            secondaryHref="/#about"
-          />
-        </div>
 
         {/* ══════════════ WHO USES DATAFORGE ══════════════ */}
         <BuiltFor />
@@ -1392,7 +1375,7 @@ export default function Home() {
       </main>
 
       {/* ══════════════ BOTTOM CTA BANNER (Compact Variant) ══════════════ */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mb-12 sm:mb-16">
         <CTABanner
           variant="compact"
           title="Ready to experience DataForge with your own data?"

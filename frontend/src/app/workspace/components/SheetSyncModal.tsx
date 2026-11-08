@@ -113,7 +113,7 @@ export function SheetSyncModal({ state, onClose, onExplore }: SheetSyncModalProp
                     : "Already in Sync"}
                 </h3>
                 <span
-                  className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border uppercase tracking-wider"
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold font-mono border uppercase tracking-wider"
                   style={{
                     background: isError
                       ? "rgba(239, 68, 68, 0.1)"
@@ -340,7 +340,7 @@ export function SheetSyncModal({ state, onClose, onExplore }: SheetSyncModalProp
                 }}
               >
                 <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center border mb-1"
+                  className="w-12 h-12 rounded-xl flex items-center justify-center border mb-1"
                   style={{
                     background: "rgba(59, 130, 246, 0.1)",
                     borderColor: "rgba(59, 130, 246, 0.25)",
@@ -356,7 +356,7 @@ export function SheetSyncModal({ state, onClose, onExplore }: SheetSyncModalProp
                   We compared the latest rows and columns from your Google Sheet against the workspace memory buffer. No new additions or modifications were found.
                 </p>
                 <div
-                  className="mt-2 px-3 py-1 rounded-full text-xs font-mono font-semibold border flex items-center gap-2"
+                  className="mt-2 px-3 py-1 rounded-md text-xs font-mono font-semibold border flex items-center gap-2"
                   style={{
                     background: "var(--surface)",
                     borderColor: "var(--border)",

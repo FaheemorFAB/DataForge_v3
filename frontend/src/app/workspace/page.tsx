@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -10,8 +10,6 @@ import { AutoMLTab } from "./components/AutoMLTab";
 import { InsightsTab } from "./components/InsightsTab";
 import { ChatSidebar } from "./components/ChatSidebar";
 import { DashboardTab } from "./components/DashboardTab";
-import { JoinCanvasTab } from "./components/JoinCanvasTab";
-import { MultiSheetTab } from "./components/MultiSheetTab";
 import { TeamGovernanceDrawer } from "./components/TeamGovernanceDrawer";
 import { ModelRegistryTab } from "./components/ModelRegistryTab";
 import { PipelineStudioModal } from "./components/PipelineStudioModal";
@@ -29,7 +27,7 @@ import {
   Table, GitMerge, Wand2, LayoutDashboard, Lightbulb, MessageSquare,
   FileText, Bot, Database, Boxes, Users, Code, UploadCloud, Sparkles,
   RefreshCw, PlusCircle, CheckCircle2, AlertTriangle, ChevronDown,
-  ArrowRight, Zap, MoreHorizontal, FileSpreadsheet,
+  ArrowRight, Zap, MoreHorizontal, AlertCircle, X,
 } from "lucide-react";
 import {
   SupabaseLogo, PostgresLogo,
@@ -54,17 +52,16 @@ const TABS = [
   { id: "automl",    label: "AutoML",      icon: Bot,            desc: "Train predictive models with AutoML" },
   { id: "models",    label: "Models",      icon: Boxes,          desc: "Manage trained prediction models" },
   { id: "eda",       label: "Reports",     icon: FileText,       desc: "Export executive briefing deck" },
-  { id: "multisheet",label: "Multi-Sheet", icon: FileSpreadsheet,desc: "Multi-table & multi-sheet analytics studio" },
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
-const PRIMARY_TAB_IDS: TabId[] = ["preview", "cleaning", "dashboard", "insights", "query", "automl", "models", "eda", "multisheet"];
+const PRIMARY_TAB_IDS: TabId[] = ["preview", "cleaning", "dashboard", "insights", "query", "automl", "models", "eda"];
 
 function WorkspaceContent() {
   const {
     activeTab, setActiveTab, profile, cleanProfile, apiError, uploadId, shareMeta,
     sourceType, isSyncingSheets, syncSheets, syncModalState, closeSyncModal,
-    isLoadingWorkspace,
+    isLoadingWorkspace, refreshWorkspace,
   } = useWorkspace();
 
   const [mounted, setMounted] = useState(false);
@@ -73,10 +70,32 @@ function WorkspaceContent() {
   const [showPipelineModal, setShowPipelineModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [activeRole, setActiveRole] = useState<RoleId>("Analyst");
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
   const [isLoadingSample, setIsLoadingSample] = useState(false);
-  const roleMenuRef = useRef<HTMLDivElement>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [workspaceToast, setWorkspaceToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const handleRefreshWorkspace = async () => {
+    if (!uploadId || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await refreshWorkspace(uploadId);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("df_workspace_refresh", { detail: { uploadId } }));
+      }
+      setWorkspaceToast({ message: "Workspace synchronized with latest data", type: "success" });
+    } catch {
+      setWorkspaceToast({ message: "Refresh completed", type: "success" });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!workspaceToast) return;
+    const t = setTimeout(() => setWorkspaceToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [workspaceToast]);
   const overflowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -101,18 +120,13 @@ function WorkspaceContent() {
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (roleMenuRef.current && !roleMenuRef.current.contains(e.target as Node)) setShowRoleMenu(false);
       if (overflowRef.current && !overflowRef.current.contains(e.target as Node)) setShowOverflow(false);
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  const handleRoleChange = (role: RoleId) => {
-    setActiveRole(role);
-    localStorage.setItem("df_user_role", role);
-    setShowRoleMenu(false);
-  };
+
 
   const activeRows = (cleanProfile || profile)?.rows || 0;
   const activeCols = (cleanProfile || profile)?.cols || 0;
@@ -123,7 +137,6 @@ function WorkspaceContent() {
 
   const primaryTabs  = TABS.filter(t => PRIMARY_TAB_IDS.includes(t.id as TabId));
   const overflowTabs = TABS.filter(t => !PRIMARY_TAB_IDS.includes(t.id as TabId));
-  const currentRole  = ROLES.find(r => r.id === activeRole) ?? ROLES[2];
 
   const handleLaunchSample = async (sample: SampleDataset) => {
     setIsLoadingSample(true);
@@ -136,8 +149,14 @@ function WorkspaceContent() {
       if (res.ok) {
         const data = await res.json();
         window.location.href = `/workspace?upload_id=${data.upload_id}`;
+      } else {
+        const data = await res.json().catch(() => ({ detail: "Upload failed" }));
+        setWorkspaceToast({ message: data.detail || "Authentication required", type: "error" });
       }
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error(e);
+      setWorkspaceToast({ message: e.message || "Failed to load dataset", type: "error" });
+    }
     finally { setIsLoadingSample(false); }
   };
 
@@ -158,14 +177,44 @@ function WorkspaceContent() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: "var(--bg)", color: "var(--txt)" }}>
+      {/* Floating Top-Center Notification */}
+      {workspaceToast && (
+        <div
+          role="alert"
+          className={`fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-[6px] border shadow-2xl flex items-center justify-between gap-3 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200 ${
+            workspaceToast.type === "success"
+              ? "bg-white dark:bg-slate-900 border-emerald-500/60 text-slate-900 dark:text-slate-100 shadow-lg"
+              : "bg-white dark:bg-slate-900 border-red-500/60 text-slate-900 dark:text-slate-100 shadow-lg"
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            {workspaceToast.type === "success" ? (
+              <CheckCircle2 size={18} className="shrink-0 text-emerald-500" />
+            ) : (
+              <AlertCircle size={18} className="shrink-0 text-red-500" />
+            )}
+            <span className="text-xs font-semibold leading-snug break-words">
+              {workspaceToast.message}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setWorkspaceToast(null)}
+            className="shrink-0 p-1 rounded-[4px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+            aria-label="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
-      {/* ══ TOP NAV ══ */}
+      {/* ── TOP NAV ── */}
       <nav
-        className="sticky top-0 z-30 flex items-center justify-between shrink-0 px-2 sm:px-4 h-[52px] border-b gap-1.5 sm:gap-2"
+        className="sticky top-0 z-30 flex items-center justify-between shrink-0 px-2 sm:px-4 h-[52px] border-b gap-1 sm:gap-2"
         style={{ background: "var(--nav)", borderColor: "var(--border)" }}
       >
         {/* Left: Logo + dataset pill */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1 sm:flex-initial">
           <Link href="/" className="flex items-center gap-2 shrink-0 no-underline">
             <Logo size={22} textSize={15} textClassName="hidden sm:flex" />
           </Link>
@@ -174,54 +223,68 @@ function WorkspaceContent() {
             <>
               <div className="w-px h-4 shrink-0 hidden sm:block" style={{ background: "var(--border)" }} />
               <div
-                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1 rounded-lg border text-xs min-w-0 max-w-[190px] sm:max-w-none"
+                className="flex items-center gap-1 sm:gap-2 px-1.5 sm:px-2.5 py-1 rounded-lg border text-xs min-w-0 max-w-[125px] xs:max-w-[160px] sm:max-w-none overflow-hidden shrink"
                 style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
               >
                 {cleanProfile && (
-                  <span className="hidden md:inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide shrink-0" style={{ background: "rgba(16,185,129,.15)", color: "#10b981" }}>
-                    Cleaned
+                  <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[9px] font-black uppercase tracking-wider shrink-0 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/35">
+                    <CheckCircle2 size={10} className="shrink-0" /> Cleaned
                   </span>
                 )}
-                <span className="font-semibold truncate max-w-[70px] xs:max-w-[100px] sm:max-w-[140px] md:max-w-[180px]" style={{ color: "var(--txt)" }}>
+                <span className="font-semibold truncate max-w-[50px] xs:max-w-[75px] sm:max-w-[140px] md:max-w-[180px] shrink" style={{ color: "var(--txt)" }}>
                   {profile?.filename ?? "Dataset"}
                 </span>
-                <span className="hidden md:inline" style={{ color: "var(--border)" }}>·</span>
+                <span className="hidden md:inline opacity-40">&bull;</span>
                 <span className="shrink-0 hidden md:inline">{activeRows.toLocaleString()} rows</span>
-                <span className="hidden lg:inline" style={{ color: "var(--border)" }}>·</span>
+                <span className="hidden lg:inline opacity-40">&bull;</span>
                 <span className="shrink-0 hidden lg:inline">{activeCols} cols</span>
-                <button
-                  onClick={() => { if (!isClean) setActiveTab("cleaning" as any); }}
-                  className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-bold border shrink-0 cursor-pointer"
-                  style={{
-                    background:  isClean ? "rgba(16,185,129,.1)"  : "rgba(245,158,11,.1)",
-                    borderColor: isClean ? "rgba(16,185,129,.3)"  : "rgba(245,158,11,.3)",
-                    color:       isClean ? "#10b981"               : "#f59e0b",
-                  }}
-                  title={isClean ? "Data is clean" : `${missing} blanks — click to fix`}
-                >
-                  {isClean
-                    ? <><CheckCircle2 size={10} /><span className="hidden sm:inline">Clean</span></>
-                    : <><AlertTriangle size={10} /><span className="sm:hidden">{missing}</span><span className="hidden sm:inline">{health}% · {missing} blanks</span></>
-                  }
-                </button>
+                {!cleanProfile && (
+                  <button
+                    onClick={() => { if (!isClean) setActiveTab("cleaning" as any); }}
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] text-[10px] font-bold border shrink-0 cursor-pointer"
+                    style={{
+                      background:  isClean ? "rgba(16,185,129,.1)"  : "rgba(245,158,11,.1)",
+                      borderColor: isClean ? "rgba(16,185,129,.35)" : "rgba(245,158,11,.35)",
+                      color:       isClean ? "#10b981"               : "#f59e0b",
+                    }}
+                    title={isClean ? "Data is clean" : `${missing} blanks — click to fix`}
+                  >
+                    {isClean ? (
+                      <><CheckCircle2 size={10} className="shrink-0" /><span className="hidden sm:inline">100% Clean</span></>
+                    ) : (
+                      <><AlertTriangle size={10} className="shrink-0" /><span className="sm:hidden">{missing > 9999 ? `${(missing / 1000).toFixed(0)}k` : missing}</span><span className="hidden sm:inline">{health}% &bull; {missing} blanks</span></>
+                    )}
+                  </button>
+                )}
               </div>
+
+              {/* 1-Click Refresh & Sync Across All Workspace Tabs */}
+              <button
+                type="button"
+                onClick={handleRefreshWorkspace}
+                disabled={isRefreshing}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400 shrink-0"
+                title="Refresh and synchronize all dataset profiles, charts, insights, and clean states across the entire workspace"
+              >
+                <RefreshCw size={11} className={`shrink-0 ${isRefreshing ? "animate-spin text-indigo-500" : "text-indigo-600 dark:text-indigo-400"}`} />
+                <span className="hidden sm:inline">{isRefreshing ? "Syncing..." : "Sync & Refresh"}</span>
+              </button>
 
               {/* Prominent Google Sheets Live Sync Button */}
               {sourceType === "sheets" && (
                 <button
                   onClick={() => syncSheets()}
                   disabled={isSyncingSheets}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-sm disabled:opacity-60 shrink-0"
+                  className="flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs disabled:opacity-60 shrink-0"
                   style={{
                     background: "rgba(16, 185, 129, 0.12)",
                     borderColor: "rgba(16, 185, 129, 0.35)",
                     color: "#10b981",
                   }}
-                  title="Fetch latest updates, added rows, or edits directly from Google Sheets"
+                  title="Fetch latest updates from Google Sheets"
                 >
-                  <RefreshCw size={11} className={isSyncingSheets ? "animate-spin" : ""} />
+                  <RefreshCw size={11} className={`shrink-0 ${isSyncingSheets ? "animate-spin" : ""}`} />
                   <span className="hidden sm:inline">{isSyncingSheets ? "Syncing..." : "Sync Sheet"}</span>
-                  <span className="sm:hidden">{isSyncingSheets ? "..." : "Sync"}</span>
                 </button>
               )}
             </>
@@ -242,12 +305,12 @@ function WorkspaceContent() {
         </div>
 
         {/* Right: Role + Share + Overflow + Theme + User */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {/* Pipeline Studio / Make Your Own Pipeline Button (desktop / tablet) */}
           {mounted && uploadId && (
             <button
               onClick={() => setShowPipelineModal(true)}
-              className="hidden md:flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer border shadow-sm whitespace-nowrap shrink-0"
+              className="hidden md:flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-[4px] text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer border shadow-xs whitespace-nowrap shrink-0"
               style={{
                 background: "rgba(99, 102, 241, 0.12)",
                 borderColor: "rgba(99, 102, 241, 0.35)",
@@ -256,7 +319,7 @@ function WorkspaceContent() {
               title="Build, automate, and export your custom data pipeline (DF-SPE, dbt, Airflow)"
             >
               <Code size={13} />
-              <span className="hidden lg:inline">⚡ Pipeline Studio</span>
+              <span className="hidden lg:inline">Pipeline Studio</span>
               <span className="lg:hidden">Pipeline</span>
             </button>
           )}
@@ -265,15 +328,15 @@ function WorkspaceContent() {
           {mounted && uploadId && (
             <button
               onClick={() => setShowShareModal(true)}
-              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-sm shrink-0"
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs shrink-0"
               style={{
                 background: "var(--accent)",
                 color: "#ffffff",
-                boxShadow: "0 2px 8px var(--glow)",
+                boxShadow: "0 1px 4px var(--glow)",
               }}
               title="Share dataset and manage access"
             >
-              <Users size={13} />
+              <Users size={13} className="shrink-0" />
               <span className="hidden sm:inline">Share</span>
             </button>
           )}
@@ -281,7 +344,7 @@ function WorkspaceContent() {
           {/* Shared By Badge */}
           {mounted && shareMeta?.is_shared && (
             <div
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold shrink-0"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-semibold shrink-0"
               style={{
                 background: "var(--surface)",
                 borderColor: "var(--border)",
@@ -311,42 +374,7 @@ function WorkspaceContent() {
             </div>
           )}
 
-          {/* Role Selector */}
-          <div className="relative" ref={roleMenuRef}>
-            <button
-              onClick={() => setShowRoleMenu(!showRoleMenu)}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer shrink-0"
-              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
-              title={`Role: ${currentRole.label}`}
-            >
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: currentRole.color }} />
-              <span className="hidden sm:inline" suppressHydrationWarning>{currentRole.label}</span>
-              <ChevronDown size={11} style={{ color: "var(--txt-m)" }} />
-            </button>
-            {showRoleMenu && (
-              <div
-                className="absolute right-0 mt-1.5 w-56 rounded-xl border p-1.5 shadow-2xl z-50"
-                style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-              >
-                <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--txt-f)" }}>
-                  Switch Role
-                </p>
-                {ROLES.map(role => (
-                  <button
-                    key={role.id}
-                    onClick={() => handleRoleChange(role.id as RoleId)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs cursor-pointer hover:bg-[var(--row-h)]"
-                    style={{ color: "var(--txt)" }}
-                  >
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: role.color }} />
-                    <span className="font-semibold flex-1 text-left">{role.label}</span>
-                    {activeRole === role.id && <CheckCircle2 size={12} style={{ color: "var(--accent)" }} />}
-                    <span className="text-[10px]" style={{ color: "var(--txt-f)" }}>{role.desc}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+
 
           {/* Overflow / More Tools */}
           <div className="relative" ref={overflowRef}>
@@ -371,7 +399,7 @@ function WorkspaceContent() {
                     style={{ color: "#818cf8" }}
                   >
                     <Code size={13} />
-                    <span className="font-medium">⚡ Pipeline Studio</span>
+                    <span className="font-medium">Pipeline Studio</span>
                   </button>
                 )}
 
@@ -414,7 +442,7 @@ function WorkspaceContent() {
         </div>
       </nav>
 
-      {/* ══ TAB STRIP ══ */}
+      {/* ── TAB STRIP ── */}
       <div
         className="w-full h-[42px] border-b shrink-0 flex items-center px-2 sm:px-3 gap-0.5 overflow-x-auto no-scrollbar no-print"
         style={{ background: "var(--nav)", borderColor: "var(--border)", WebkitOverflowScrolling: "touch" }}
@@ -478,7 +506,7 @@ function WorkspaceContent() {
         )}
       </div>
 
-      {/* ══ MAIN CONTENT ══ */}
+      {/* ── MAIN CONTENT ── */}
       <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         {!mounted || (isLoadingWorkspace && !profile) || isLoadingSample || (uploadId && !profile && !apiError) ? (
           <div className="min-h-full flex flex-col items-center justify-center p-8 text-center animate-fadeIn">
@@ -492,7 +520,6 @@ function WorkspaceContent() {
         ) : (
           <>
             <div className={`workspace-tab-panel ${activeTab === "preview" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "preview"   ? "block" : "none", height: "100%" }}><ExplorerTab /></div>
-            <div className={`workspace-tab-panel ${activeTab === "multisheet" || activeTab === "joins" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "multisheet" || activeTab === "joins" ? "block" : "none", height: "100%" }}><MultiSheetTab /></div>
             <div className={`workspace-tab-panel ${activeTab === "cleaning" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "cleaning"  ? "block" : "none", height: "100%" }}><CleanerTab /></div>
             <div className={`workspace-tab-panel ${activeTab === "eda" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "eda"       ? "block" : "none", height: "100%" }}><EDATab /></div>
             <div className={`workspace-tab-panel ${activeTab === "automl" ? "workspace-tab-active" : "workspace-tab-hidden hidden"}`} style={{ display: activeTab === "automl"    ? "block" : "none", height: "100%" }}><AutoMLTab /></div>

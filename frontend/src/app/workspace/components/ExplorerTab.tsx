@@ -35,7 +35,7 @@ export function ExplorerTab() {
   const [sortDir, setSortDir] = useState<number>(1);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
-  const [rowLimit, setRowLimit] = useState<number>(200);
+  const [rowLimit, setRowLimit] = useState<number>(50000);
   const [showClean, setShowClean] = useState(false);
   const [activeCol, setActiveCol] = useState<string | null>(null);
   const [colStats, setColStats] = useState<any>(null);
@@ -47,6 +47,16 @@ export function ExplorerTab() {
   const [loading, setLoading] = useState(false);
 
   const activeProfile = showClean && cleanProfile ? cleanProfile : profile;
+
+  const colTypeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of (activeProfile?.columns || [])) {
+      if (typeof c === "object" && c.name) {
+        map[c.name] = (c.dtype || "").toLowerCase();
+      }
+    }
+    return map;
+  }, [activeProfile]);
 
   const reloadData = useCallback(
     async (limitOverride?: number) => {
@@ -85,8 +95,22 @@ export function ExplorerTab() {
     [rowLimit, showClean, cleanProfile, uploadId, profile?.rows, profile?.cols]
   );
 
+  const handleLoadMore = useCallback(() => {
+    const currentCount = loadedRows || rowLimit;
+    const maxRows = totalRows || activeProfile?.rows || 100000;
+    const nextLimit = Math.min(maxRows, currentCount + 500);
+    setRowLimit(nextLimit);
+    reloadData(nextLimit);
+  }, [loadedRows, rowLimit, totalRows, activeProfile?.rows, reloadData]);
+
   useEffect(() => {
     reloadData();
+
+    const onRefresh = () => {
+      reloadData();
+    };
+    window.addEventListener("df_workspace_refresh", onRefresh);
+    return () => window.removeEventListener("df_workspace_refresh", onRefresh);
   }, [reloadData]);
 
   useEffect(() => {
@@ -241,7 +265,7 @@ export function ExplorerTab() {
           </div>
           <a
             href="/"
-            className="px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shrink-0"
+            className="px-4 py-2 rounded-[4px] text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shrink-0"
             style={{
               background: "var(--accent)",
               color: "#ffffff",
@@ -285,7 +309,7 @@ export function ExplorerTab() {
                 const btn = document.querySelector('[title="Import a new dataset or connect a data source"]') as HTMLButtonElement;
                 if (btn) btn.click();
               }}
-              className="mt-2 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm hover:scale-[1.02] transition-all"
+              className="mt-2 px-4 py-2 rounded-[4px] text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm hover:scale-[1.02] transition-all"
               style={{ background: "var(--accent)", color: "#fff" }}
             >
               <Upload size={14} />
@@ -297,22 +321,22 @@ export function ExplorerTab() {
 
       {/* -- 4 High-Impact KPI Telemetry Cards -- */}
       {activeProfile && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
 
           {/* Card 1: Rows */}
           <div
-            className="p-5 rounded-2xl border shadow-sm relative overflow-hidden group transition-all"
+            className="p-3.5 sm:p-5 rounded-2xl border shadow-sm relative overflow-hidden group transition-all"
             style={{
               background: "var(--card)",
               borderColor: "var(--border)",
             }}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider leading-snug break-words" style={{ color: "var(--txt-m)" }}>
                 Total Records
               </span>
               <div
-                className="w-8 h-8 rounded-lg border flex items-center justify-center"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0"
                 style={{
                   background: "var(--glow)",
                   borderColor: "var(--accent)",
@@ -322,31 +346,31 @@ export function ExplorerTab() {
                 <Database size={15} />
               </div>
             </div>
-            <p className="text-3xl font-black mt-3 tracking-tight font-mono" style={{ color: "var(--txt)" }}>
+            <p className="text-2xl sm:text-3xl font-black mt-2 tracking-tight font-mono" style={{ color: "var(--txt)" }}>
               {(activeProfile.rows || 0).toLocaleString()}
             </p>
-            <div className="flex items-center gap-1.5 text-xs mt-2" style={{ color: "var(--txt-m)" }}>
+            <div className="flex flex-wrap items-center gap-1 text-[10px] sm:text-xs mt-1.5" style={{ color: "var(--txt-m)" }}>
               <span className="font-bold font-mono" style={{ color: "var(--accent)" }}>
                 {loadedRows.toLocaleString()}
               </span>
-              <span>rows in memory buffer</span>
+              <span>rows in buffer</span>
             </div>
           </div>
 
           {/* Card 2: Columns */}
           <div
-            className="p-5 rounded-2xl border shadow-sm relative overflow-hidden group transition-all"
+            className="p-3.5 sm:p-5 rounded-2xl border shadow-sm relative overflow-hidden group transition-all"
             style={{
               background: "var(--card)",
               borderColor: "var(--border)",
             }}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider leading-snug break-words" style={{ color: "var(--txt-m)" }}>
                 Features / Columns
               </span>
               <div
-                className="w-8 h-8 rounded-lg border flex items-center justify-center"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0"
                 style={{
                   background: "var(--glow)",
                   borderColor: "var(--accent)",
@@ -356,32 +380,32 @@ export function ExplorerTab() {
                 <Layers size={15} />
               </div>
             </div>
-            <p className="text-3xl font-black mt-3 tracking-tight font-mono" style={{ color: "var(--txt)" }}>
+            <p className="text-2xl sm:text-3xl font-black mt-2 tracking-tight font-mono" style={{ color: "var(--txt)" }}>
               {activeProfile.cols}
             </p>
-            <div className="flex items-center gap-2 text-xs mt-2" style={{ color: "var(--txt-m)" }}>
+            <div className="flex flex-wrap items-center gap-1 text-[10px] sm:text-xs mt-1.5" style={{ color: "var(--txt-m)" }}>
               <span className="font-bold" style={{ color: "var(--accent)" }}>
-                {activeProfile.numeric} numeric
+                {activeProfile.numeric} num
               </span>
               <span style={{ color: "var(--txt-f)" }}>·</span>
-              <span>{(activeProfile.cols || 0) - (activeProfile.numeric || 0)} categorical</span>
+              <span>{(activeProfile.cols || 0) - (activeProfile.numeric || 0)} cat</span>
             </div>
           </div>
 
           {/* Card 3: Missing Cells */}
           <div
-            className="p-5 rounded-2xl border shadow-sm relative overflow-hidden group transition-all"
+            className="p-3.5 sm:p-5 rounded-2xl border shadow-sm relative overflow-hidden group transition-all"
             style={{
               background: "var(--card)",
               borderColor: "var(--border)",
             }}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider leading-snug break-words" style={{ color: "var(--txt-m)" }}>
                 Missing Values
               </span>
               <div
-                className="w-8 h-8 rounded-lg border flex items-center justify-center"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0"
                 style={{
                   background: "rgba(245, 158, 11, 0.12)",
                   borderColor: "rgba(245, 158, 11, 0.3)",
@@ -391,31 +415,31 @@ export function ExplorerTab() {
                 <AlertTriangle size={15} />
               </div>
             </div>
-            <p className="text-3xl font-black mt-3 tracking-tight font-mono" style={{ color: "var(--txt)" }}>
+            <p className="text-2xl sm:text-3xl font-black mt-2 tracking-tight font-mono" style={{ color: "var(--txt)" }}>
               {activeProfile.missing_pct}%
             </p>
-            <div className="flex items-center gap-1.5 text-xs mt-2" style={{ color: "var(--txt-m)" }}>
+            <div className="flex flex-wrap items-center gap-1 text-[10px] sm:text-xs mt-1.5" style={{ color: "var(--txt-m)" }}>
               <span className="font-mono font-bold" style={{ color: "var(--txt)" }}>
                 {(activeProfile.missing || 0).toLocaleString()}
               </span>
-              <span>empty cells detected</span>
+              <span>empty cells</span>
             </div>
           </div>
 
           {/* Card 4: Quality Score */}
           <div
-            className="p-5 rounded-2xl border shadow-sm relative overflow-hidden group transition-all"
+            className="p-3.5 sm:p-5 rounded-2xl border shadow-sm relative overflow-hidden group transition-all"
             style={{
               background: "var(--card)",
               borderColor: "var(--border)",
             }}
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider leading-snug break-words" style={{ color: "var(--txt-m)" }}>
                 Data Completeness
               </span>
               <div
-                className="w-8 h-8 rounded-lg border flex items-center justify-center"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center shrink-0"
                 style={{
                   background: "var(--glow)",
                   borderColor: "var(--accent)",
@@ -430,7 +454,7 @@ export function ExplorerTab() {
             </p>
             <div className="flex items-center gap-1.5 text-xs mt-2" style={{ color: "var(--txt-m)" }}>
               <span
-                className="w-2 h-2 rounded-full"
+                className="w-2 h-2 rounded-xs"
                 style={{ background: "var(--accent)", boxShadow: "0 0 6px var(--accent)" }}
               />
               <span className="font-semibold" style={{ color: "var(--accent)" }}>Ready for ML &amp; Analysis</span>
@@ -474,10 +498,10 @@ export function ExplorerTab() {
                 }}
               >
                 <tr>
-                  <th className="px-6 py-3">Column Name</th>
-                  <th className="px-6 py-3">Data Type</th>
-                  <th className="px-6 py-3">Null %</th>
-                  <th className="px-6 py-3">Completeness</th>
+                  <th className="sticky left-0 z-10 px-3 sm:px-6 py-2.5 sm:py-3 shadow-[2px_0_5px_rgba(0,0,0,0.1)] sm:shadow-none" style={{ background: "var(--row-head)" }}>Column Name</th>
+                  <th className="px-3 sm:px-6 py-2.5 sm:py-3">Data Type</th>
+                  <th className="px-3 sm:px-6 py-2.5 sm:py-3">Null %</th>
+                  <th className="px-3 sm:px-6 py-2.5 sm:py-3">Completeness</th>
                 </tr>
               </thead>
               <tbody className="divide-y font-mono" style={{ borderColor: "var(--border)" }}>
@@ -492,7 +516,7 @@ export function ExplorerTab() {
                     </td>
                     <td className="px-6 py-3">
                       <span
-                        className="px-2 py-0.5 rounded-md border text-[10px]"
+                        className="px-2 py-0.5 rounded-[3px] border text-[10px] font-semibold tracking-wider uppercase"
                         style={{
                           background: "var(--surface)",
                           borderColor: "var(--border)",
@@ -508,11 +532,11 @@ export function ExplorerTab() {
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-3">
                         <div
-                          className="w-24 h-2 rounded-full overflow-hidden"
+                          className="w-24 h-2 rounded-xs overflow-hidden"
                           style={{ background: "var(--border)" }}
                         >
                           <div
-                            className="h-full rounded-full"
+                            className="h-full rounded-xs"
                             style={{
                               width: `${col.quality}%`,
                               background: "var(--accent)",
@@ -539,18 +563,8 @@ export function ExplorerTab() {
           <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-black tracking-tight" style={{ color: "var(--txt)" }}>
-              Live Memory Explorer
+              Live Explorer
             </h3>
-            <span
-              className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border"
-              style={{
-                background: "var(--glow)",
-                borderColor: "var(--accent)",
-                color: "var(--accent)",
-              }}
-            >
-              {filteredAndSortedRows.length.toLocaleString()} rows visible
-            </span>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -566,7 +580,7 @@ export function ExplorerTab() {
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
                 placeholder="Search across all cells..."
-                className="w-56 rounded-xl py-1.5 pl-9 pr-3 text-xs focus:outline-none transition-colors border"
+                className="w-full sm:w-56 rounded-[4px] py-1.5 pl-9 pr-3 text-xs focus:outline-none transition-colors border"
                 style={{
                   background: "var(--inp-bg)",
                   borderColor: "var(--border)",
@@ -575,27 +589,10 @@ export function ExplorerTab() {
               />
             </div>
 
-            {/* Row Limit Selector */}
-            <select
-              value={rowLimit}
-              onChange={(e) => setRowLimit(Number(e.target.value))}
-              className="rounded-xl px-3 py-1.5 text-xs focus:outline-none border font-semibold"
-              style={{
-                background: "var(--inp-bg)",
-                borderColor: "var(--border)",
-                color: "var(--txt)",
-              }}
-            >
-              <option value="200">200 rows</option>
-              <option value="500">500 rows</option>
-              <option value="1000">1,000 rows</option>
-              <option value="2000">2,000 rows</option>
-            </select>
-
             {/* Clean filter toggle */}
             {cleanProfile && (
               <label
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border text-xs font-semibold cursor-pointer"
                 style={{
                   background: "var(--inp-bg)",
                   borderColor: "var(--border)",
@@ -622,7 +619,7 @@ export function ExplorerTab() {
                   }
                 }}
                 disabled={isSyncingSheets}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-60 hover:scale-[1.02] active:scale-[0.98]"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border text-xs font-bold transition-all shadow-sm cursor-pointer disabled:opacity-60 hover:scale-[1.02] active:scale-[0.98]"
                 style={{
                   background: "rgba(16, 185, 129, 0.12)",
                   borderColor: "rgba(16, 185, 129, 0.35)",
@@ -638,7 +635,7 @@ export function ExplorerTab() {
             {(globalSearch || sortCol) && (
               <button
                 onClick={clearAll}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer"
+                className="px-3 py-1.5 rounded-[4px] text-xs font-bold border transition-all flex items-center gap-1 cursor-pointer"
                 style={{
                   background: "rgba(239, 68, 68, 0.1)",
                   borderColor: "rgba(239, 68, 68, 0.3)",
@@ -734,17 +731,43 @@ export function ExplorerTab() {
                       }}
                       className="px-4 py-3.5 whitespace-nowrap cursor-pointer transition-colors select-none"
                     >
-                      <div className="flex items-center gap-1.5">
-                        <span style={{ color: sortCol === h ? "var(--accent)" : "inherit" }}>
-                          {h}
-                        </span>
-                        {sortCol === h ? (
-                          <span style={{ color: "var(--accent)" }}>
-                            {sortDir === 1 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span style={{ color: sortCol === h ? "var(--accent)" : "inherit" }}>
+                            {h}
                           </span>
-                        ) : (
-                          <span className="opacity-30">
-                            <ArrowUpDown size={12} />
+                          {sortCol === h ? (
+                            <span style={{ color: "var(--accent)" }}>
+                              {sortDir === 1 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+                            </span>
+                          ) : (
+                            <span className="opacity-30">
+                              <ArrowUpDown size={12} />
+                            </span>
+                          )}
+                        </div>
+                        {colTypeMap[h] && (
+                          <span
+                            className="text-[8px] font-mono font-bold tracking-wider uppercase opacity-70"
+                            style={{
+                              color: colTypeMap[h].includes("date") || colTypeMap[h].includes("time")
+                                ? "#2563eb"
+                                : colTypeMap[h].includes("float") || colTypeMap[h].includes("int") || colTypeMap[h].includes("num")
+                                ? "#059669"
+                                : colTypeMap[h].includes("bool")
+                                ? "#d97706"
+                                : "var(--txt-m)",
+                            }}
+                          >
+                            {colTypeMap[h].includes("date") || colTypeMap[h].includes("time")
+                              ? "datetime"
+                              : colTypeMap[h].includes("float")
+                              ? "float"
+                              : colTypeMap[h].includes("int")
+                              ? "integer"
+                              : colTypeMap[h].includes("bool")
+                              ? "boolean"
+                              : "string"}
                           </span>
                         )}
                       </div>
@@ -810,7 +833,7 @@ export function ExplorerTab() {
               <button
                 onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
                 disabled={currentPage === 0}
-                className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
+                className="p-1.5 rounded-[4px] border disabled:opacity-40 cursor-pointer transition-colors"
                 style={{
                   background: "var(--card)",
                   borderColor: "var(--border)",
@@ -835,7 +858,7 @@ export function ExplorerTab() {
                 disabled={
                   currentPage >= Math.ceil(filteredAndSortedRows.length / pageSize) - 1
                 }
-                className="p-1.5 rounded-lg border disabled:opacity-40 cursor-pointer"
+                className="p-1.5 rounded-[4px] border disabled:opacity-40 cursor-pointer transition-colors"
                 style={{
                   background: "var(--card)",
                   borderColor: "var(--border)",
@@ -851,7 +874,7 @@ export function ExplorerTab() {
                   setPageSize(Number(e.target.value));
                   setCurrentPage(0);
                 }}
-                className="rounded-lg px-2.5 py-1 text-xs focus:outline-none ml-2 border font-semibold"
+                className="rounded-[4px] px-2.5 py-1 text-xs focus:outline-none ml-2 border font-semibold"
                 style={{
                   background: "var(--inp-bg)",
                   borderColor: "var(--border)",
@@ -864,16 +887,10 @@ export function ExplorerTab() {
               </select>
             </div>
 
-            {loadedRows < totalRows && (
-              <button
-                onClick={() =>
-                  reloadData(rowLimit < 2000 ? rowLimit + 500 : rowLimit)
-                }
-                className="text-xs font-bold transition-colors cursor-pointer"
-                style={{ color: "var(--accent)" }}
-              >
-                Load Next 500 Records +
-              </button>
+            {totalRows > 0 && (
+              <span className="text-xs font-mono font-medium" style={{ color: "var(--txt-m)" }}>
+                {totalRows.toLocaleString()} rows total
+              </span>
             )}
           </div>
         </div>

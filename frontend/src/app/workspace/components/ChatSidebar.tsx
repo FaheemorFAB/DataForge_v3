@@ -18,7 +18,7 @@ import {
   Filler,
 } from "chart.js";
 import { Scatter, Line, Bar, Pie, Doughnut } from "react-chartjs-2";
-import { Check, X, Loader2, Copy, AlertTriangle, Download, Info, Cpu, GitFork, BarChart3, Wrench, Compass, Bot, Pin, BookmarkCheck } from "lucide-react";
+import { Check, X, Loader2, Copy, AlertTriangle, Download, Info, Cpu, GitFork, BarChart3, Wrench, Compass, Bot, Pin, BookmarkCheck, Lock } from "lucide-react";
 
 ChartJS.register(
   CategoryScale,
@@ -334,7 +334,7 @@ function renderTextParagraphs(rawText: string, keyPrefix: string) {
               className="flex items-start gap-2 py-0.5 text-xs leading-relaxed"
               style={{ color: "var(--txt)" }}
             >
-              <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "var(--accent)" }} />
+              <span className="w-1.5 h-1.5 rounded-xs mt-1.5 shrink-0" style={{ background: "var(--accent)" }} />
               <div className="flex-1" style={{ color: "var(--txt)" }}>{renderInlineMarkdown(bulletContent)}</div>
             </div>
           );
@@ -379,7 +379,8 @@ function FormattedMessage({ text }: { text: string }) {
 }
 
 export function ChatSidebar() {
-  const { uploadId, refreshWorkspace } = useWorkspace();
+  const { uploadId, refreshWorkspace, shareMeta } = useWorkspace();
+  const isViewer = Boolean(shareMeta?.is_shared && shareMeta?.effective_role === "Viewer");
   const [chatSessions, setChatSessions] = useState<any[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -607,6 +608,7 @@ export function ChatSidebar() {
   };
 
   const runQuery = async (q: string = query) => {
+    if (isViewer) return;
     if (!q.trim() || isAnalyzing || !uploadId) return;
 
     const queryText = q.trim();
@@ -710,7 +712,7 @@ export function ChatSidebar() {
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center mx-auto"
+            className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto"
             style={{ background: "rgba(46,91,255,.08)", color: "var(--accent)" }}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -773,12 +775,14 @@ export function ChatSidebar() {
 
         {/* Sidebar */}
         <div className={`chat-sidebar ${chatSidebarOpen ? "open" : "collapsed-desktop"}`}>
-          <button className="chat-sidebar-btn" onClick={createChatSession}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            New Chat
-          </button>
+          {!isViewer && (
+            <button className="chat-sidebar-btn" onClick={createChatSession}>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              New Chat
+            </button>
+          )}
           <p className="chat-sidebar-label">History</p>
           <div className="chat-sessions-list">
             {chatSessions.map((s) => (
@@ -833,7 +837,7 @@ export function ChatSidebar() {
                           <X size={10} />
                         </button>
                       </div>
-                    ) : (
+                    ) : !isViewer ? (
                       <div className="chat-session-actions" onClick={(e) => e.stopPropagation()}>
                         <button className="chat-action-btn" title="Rename" onClick={() => startRenameSession(s.id, s.name)}>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
@@ -846,7 +850,7 @@ export function ChatSidebar() {
                           </svg>
                         </button>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -882,7 +886,7 @@ export function ChatSidebar() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#22c55e", boxShadow: "0 0 5px #22c55e" }}></div>
+              <div className="w-1.5 h-1.5 rounded-xs" style={{ background: "#22c55e", boxShadow: "0 0 5px #22c55e" }}></div>
               <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>
                 Analyst AI
               </span>
@@ -1145,7 +1149,7 @@ export function ChatSidebar() {
           </div>
 
           {/* Pinned Suggested Follow-up Questions directly ABOVE the typing bar */}
-          {latestSuggestions && latestSuggestions.length > 0 && !isAnalyzing && (
+          {!isViewer && latestSuggestions && latestSuggestions.length > 0 && !isAnalyzing && (
             <div
               className="px-4 py-2 border-t backdrop-blur-xs transition-all"
               style={{
@@ -1165,15 +1169,10 @@ export function ChatSidebar() {
                       key={idx}
                       type="button"
                       onClick={() => runQuery(qText)}
-                      className="group flex items-center gap-2 px-3 py-1.5 rounded-full text-left text-xs font-medium border transition-all duration-200 cursor-pointer shrink-0 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
-                      style={{
-                        background: "var(--bg)",
-                        borderColor: "var(--border)",
-                        color: "var(--txt)",
-                      }}
+                      className="group flex items-center gap-2 px-3 py-1.5 rounded-lg text-left text-xs font-semibold border transition-all duration-200 cursor-pointer shrink-0 shadow-xs hover:shadow-sm hover:scale-[1.01] active:scale-[0.99] bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400 dark:hover:border-slate-500"
                       title={qText}
                     >
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0 group-hover:scale-125 transition-transform" style={{ background: "var(--accent)" }} />
+                      <span className="w-2 h-2 rounded-xs shrink-0" style={{ background: "var(--accent, #FF4310)" }} />
                       <span className="truncate max-w-[280px]">{act.label || act.query}</span>
                     </button>
                   );
@@ -1183,39 +1182,55 @@ export function ChatSidebar() {
           )}
 
           {/* Input */}
-          <div className="chat-input-wrap" style={{ margin: "1rem" }}>
-            <textarea
-              ref={textareaRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  runQuery();
-                }
+          {isViewer ? (
+            <div
+              className="p-3.5 mx-4 my-2.5 rounded-xl border flex items-center gap-2.5 text-xs font-medium animate-in fade-in"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--border)",
+                color: "var(--txt-m)",
               }}
-              placeholder="Ask anything about your data…"
-              className="chat-textarea"
-              rows={1}
-              onInput={handleTextareaInput}
-            />
-            <button
-              onClick={() => runQuery()}
-              disabled={isAnalyzing || !query.trim()}
-              className="chat-send-btn"
             >
-              {!isAnalyzing ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                </svg>
-              )}
-            </button>
-          </div>
+              <Lock size={15} style={{ color: "var(--accent)" }} className="shrink-0" />
+              <span>
+                <strong style={{ color: "var(--txt)" }}>Read-Only Mode:</strong> As a Viewer, you can inspect all existing AI conversations and reports, but submitting new queries requires an Analyst or Admin role.
+              </span>
+            </div>
+          ) : (
+            <div className="chat-input-wrap" style={{ margin: "1rem" }}>
+              <textarea
+                ref={textareaRef}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    runQuery();
+                  }
+                }}
+                placeholder="Ask anything about your data…"
+                className="chat-textarea"
+                rows={1}
+                onInput={handleTextareaInput}
+              />
+              <button
+                onClick={() => runQuery()}
+                disabled={isAnalyzing || !query.trim()}
+                className="chat-send-btn"
+              >
+                {!isAnalyzing ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                )}
+              </button>
+            </div>
+          )}
           <div className="text-center pb-2.5 px-3 space-y-0.5">
             <p className="text-[11px] font-medium tracking-tight" style={{ color: "var(--txt-m)" }}>
               AI can make mistakes. Verify important info.

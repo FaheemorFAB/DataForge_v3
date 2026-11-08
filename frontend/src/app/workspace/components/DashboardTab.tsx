@@ -94,30 +94,101 @@ function fmtNum(v: number): string {
 
 // -- Box Plot --
 function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: { data: any; formatted: any; xLabel?: string; yLabel?: string }) {
+  const [selectedGroupIdx, setSelectedGroupIdx] = useState<number | null>(null);
+
   if (!data || typeof data.min !== "number") return (
     <p className="text-xs text-center py-10 font-medium" style={{ color: "var(--txt-m)" }}>Invalid data</p>
   );
-  const range = data.max - data.min;
-  const pad = range === 0 ? 1 : range * 0.12;
-  const minX = data.min - pad;
-  const total = (data.max + pad) - minX;
-  const toPct = (v: number) => `${Math.max(0, Math.min(100, ((v - minX) / total) * 100)).toFixed(2)}%`;
-  return (
-    <div className="w-full h-full flex flex-col justify-center px-4 select-none">
-      <div className="text-center mb-1 font-bold text-xs uppercase tracking-wider" style={{ color: "var(--txt)" }}>{toLabel(xLabel)} Distribution ({toLabel(yLabel)})</div>
-      <div className="relative w-full h-14 flex items-center mb-8 mt-2">
-        <div className="absolute h-0.5" style={{ left: toPct(data.min), right: `${(100 - parseFloat(toPct(data.max))).toFixed(2)}%`, background: "var(--border)" }} />
-        <div className="absolute w-1 h-5 rounded" style={{ left: toPct(data.min), top: "50%", transform: "translate(-50%,-50%)", background: "var(--txt-m)" }} />
-        <div className="absolute w-1 h-5 rounded" style={{ left: toPct(data.max), top: "50%", transform: "translate(-50%,-50%)", background: "var(--txt-m)" }} />
-        <div className="absolute h-9 rounded-md" style={{ left: toPct(data.q1), width: `${((data.q3 - data.q1) / total) * 100}%`, background: "rgba(99,102,241,0.25)", border: "2px solid #6366f1", top: "50%", transform: "translateY(-50%)" }} />
-        <div className="absolute w-1 h-10 rounded bg-amber-500 shadow-md" style={{ left: toPct(data.median), top: "50%", transform: "translate(-50%,-50%)" }} />
-        <div className="absolute text-[10px] font-bold font-mono -bottom-6 text-center" style={{ left: toPct(data.min), transform: "translateX(-50%)", color: "var(--txt)" }}>{formatted?.min}</div>
-        <div className="absolute text-[10px] font-bold font-mono -bottom-6 text-center" style={{ left: toPct(data.max), transform: "translateX(-50%)", color: "var(--txt)" }}>{formatted?.max}</div>
-        <div className="absolute text-[11px] font-black font-mono -top-7 text-center text-amber-500" style={{ left: toPct(data.median), transform: "translateX(-50%)" }}>{formatted?.median}</div>
+
+  const activeData = selectedGroupIdx !== null && data.grouped?.[selectedGroupIdx]
+    ? data.grouped[selectedGroupIdx]
+    : data;
+
+  const range = activeData.max - activeData.min;
+  const cleanX = toLabel(xLabel).replace(/\s*\(?distribution\)?/gi, "").trim();
+  const displayTitle = `${cleanX || "Metric"} Dispersion`;
+
+  if (range === 0) {
+    return (
+      <div className="w-full h-full flex flex-col justify-between p-2 select-none">
+        <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: "var(--border)" }}>
+          <span className="font-bold text-xs uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+            {displayTitle}
+          </span>
+          <span className="text-[10px] font-black font-mono px-2 py-0.5 rounded-[3px] bg-slate-100 dark:bg-slate-800 border text-slate-700 dark:text-slate-300">
+            Constant Value
+          </span>
+        </div>
+        <div className="my-auto py-6 text-center">
+          <p className="text-base font-black font-mono text-indigo-500">{formatted?.median || activeData.median}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">All values in this column are identical (zero variance)</p>
+        </div>
       </div>
-      <div className="grid grid-cols-3 gap-2 mt-2">
-        {([["Q1", formatted?.q1, "#4f46e5"], ["Median", formatted?.median, "#d97706"], ["Q3", formatted?.q3, "#4f46e5"]] as [string, string, string][]).map(([lbl, val, col]) => (
-          <div key={lbl} className="text-center rounded-lg py-1.5 border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+    );
+  }
+
+  const pad = range * 0.12;
+  const minX = activeData.min - pad;
+  const total = (activeData.max + pad) - minX;
+  const toPct = (v: number) => `${Math.max(0, Math.min(100, ((v - minX) / total) * 100)).toFixed(2)}%`;
+
+  return (
+    <div className="w-full h-full flex flex-col justify-between p-2 select-none">
+      <div className="flex items-center justify-between pb-2 border-b gap-2" style={{ borderColor: "var(--border)" }}>
+        <span className="font-bold text-xs uppercase tracking-wider truncate" style={{ color: "var(--txt)" }}>
+          {selectedGroupIdx !== null && activeData.category ? `${activeData.category} · ` : ""}{displayTitle}
+        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {data.grouped && data.grouped.length > 0 && (
+            <select
+              value={selectedGroupIdx ?? -1}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                setSelectedGroupIdx(val >= 0 ? val : null);
+              }}
+              className="text-[10px] font-bold px-2 py-0.5 rounded-[3px] border bg-transparent"
+              style={{ borderColor: "var(--border)", color: "var(--txt)" }}
+            >
+              <option value="-1">Overall Dataset</option>
+              {data.grouped.map((g: any, gi: number) => (
+                <option key={gi} value={gi}>{g.category}</option>
+              ))}
+            </select>
+          )}
+          <span className="text-[10px] font-black font-mono px-2 py-0.5 rounded-[3px] bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300">
+            Median: {activeData.formatted_median || (activeData === data ? formatted?.median : activeData.median)}
+          </span>
+        </div>
+      </div>
+
+      <div className="relative w-full h-24 flex items-center my-auto pt-4 pb-6">
+        {/* Whiskers */}
+        <div className="absolute h-0.5" style={{ left: toPct(activeData.min), right: `${(100 - parseFloat(toPct(activeData.max))).toFixed(2)}%`, background: "var(--border)" }} />
+        <div className="absolute w-1 h-6 rounded-[2px]" style={{ left: toPct(activeData.min), top: "50%", transform: "translate(-50%,-50%)", background: "var(--txt-m)" }} />
+        <div className="absolute w-1 h-6 rounded-[2px]" style={{ left: toPct(activeData.max), top: "50%", transform: "translate(-50%,-50%)", background: "var(--txt-m)" }} />
+
+        {/* IQR Box */}
+        <div className="absolute h-9 rounded-[3px]" style={{ left: toPct(activeData.q1), width: `${Math.max(1, ((activeData.q3 - activeData.q1) / total) * 100)}%`, background: "rgba(99,102,241,0.20)", border: "2px solid #6366f1", top: "50%", transform: "translateY(-50%)" }} />
+
+        {/* Median bar */}
+        <div className="absolute w-1.5 h-10 rounded-[2px] bg-amber-500 shadow-sm" style={{ left: toPct(activeData.median), top: "50%", transform: "translate(-50%,-50%)" }} />
+
+        {/* Whisker values */}
+        <div className="absolute text-[10px] font-bold font-mono -bottom-1 text-center" style={{ left: toPct(activeData.min), transform: "translateX(-50%)", color: "var(--txt-m)" }}>
+          {activeData === data ? formatted?.min : fmtNum(activeData.min)}
+        </div>
+        <div className="absolute text-[10px] font-bold font-mono -bottom-1 text-center" style={{ left: toPct(activeData.max), transform: "translateX(-50%)", color: "var(--txt-m)" }}>
+          {activeData === data ? formatted?.max : fmtNum(activeData.max)}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 pt-2">
+        {([
+          ["Q1 (25%)", activeData === data ? formatted?.q1 : fmtNum(activeData.q1), "#4f46e5"],
+          ["Median (50%)", activeData === data ? formatted?.median : fmtNum(activeData.median), "#d97706"],
+          ["Q3 (75%)", activeData === data ? formatted?.q3 : fmtNum(activeData.q3), "#4f46e5"],
+        ] as [string, string, string][]).map(([lbl, val, col]) => (
+          <div key={lbl} className="text-center rounded-[4px] py-1 border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
             <p className="text-[9px] uppercase tracking-widest font-extrabold mb-0.5" style={{ color: "var(--txt-m)" }}>{lbl}</p>
             <p className="text-xs font-black font-mono" style={{ color: col }}>{val}</p>
           </div>
@@ -132,16 +203,16 @@ function KpiCard({ stat, idx }: { stat: any; idx: number }) {
   const color = stat.color || PALETTE[idx % PALETTE.length];
   const icon = stat.type === "entity_count" ? <Layers size={14} /> : stat.type === "distinct" ? <PieChart size={14} /> : stat.type === "completeness" ? <Activity size={14} /> : stat.type === "rows" ? <LayoutDashboard size={14} /> : <BarChart4 size={14} />;
   return (
-    <div className="relative overflow-hidden rounded-2xl p-5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid var(--border)", minHeight: 110 }}>
+    <div className="relative overflow-hidden rounded-2xl p-3.5 sm:p-5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid var(--border)", minHeight: 105 }}>
       <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-15 blur-2xl pointer-events-none" style={{ background: color }} />
-      <div className="flex items-start justify-between">
-        <p className="text-[10px] font-bold uppercase tracking-widest truncate pr-2" style={{ color: "var(--txt-m)" }}>{stat.label}</p>
+      <div className="flex items-start justify-between gap-1.5">
+        <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider leading-snug break-words" style={{ color: "var(--txt-m)" }}>{stat.label}</p>
         <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}22`, color }}>
           {icon}
         </div>
       </div>
       <div>
-        <p className="text-3xl font-black tracking-tight mt-2" style={{ color }}>{stat.value}</p>
+        <p className="text-2xl sm:text-3xl font-black tracking-tight mt-1.5 sm:mt-2" style={{ color }}>{stat.value}</p>
         {stat.sub && <p className="text-[10px] font-semibold mt-1 truncate" style={{ color: "var(--txt-m)" }}>{stat.sub}</p>}
       </div>
     </div>
@@ -249,9 +320,9 @@ function FunnelViz({ labels, values }: { labels: string[]; values: any }) {
               <span className="truncate max-w-[180px]">{stage}</span>
               <span className="font-mono font-extrabold" style={{ color: "var(--accent)" }}>{fmtNum(count)} ({pct}%)</span>
             </div>
-            <div className="w-full h-4 rounded-full overflow-hidden relative shadow-inner border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
+            <div className="w-full h-4 rounded-xs overflow-hidden relative shadow-inner border" style={{ background: "var(--inp-bg)", borderColor: "var(--border)" }}>
               <div
-                className="h-full rounded-full transition-all duration-500"
+                className="h-full rounded-xs transition-all duration-500"
                 style={{
                   width: `${Math.max(6, Math.min(100, pct))}%`,
                   background: `linear-gradient(90deg, #6366f1, #8b5cf6)`,
@@ -265,8 +336,77 @@ function FunnelViz({ labels, values }: { labels: string[]; values: any }) {
   );
 }
 
+// -- Deduplicate categorical chart data case-insensitively & trim whitespace --
+function deduplicateChartSeries(labels: any[], values: any): { labels: string[]; values: any } {
+  if (!Array.isArray(labels) || labels.length <= 1) return { labels, values };
+
+  if (Array.isArray(values) && (values.length === 0 || typeof values[0] === "number")) {
+    const map = new Map<string, { label: string; value: number }>();
+    for (let i = 0; i < labels.length; i++) {
+      const orig = String(labels[i] ?? "").trim();
+      const key = orig.toLowerCase();
+      const val = Number(values[i]) || 0;
+      if (!map.has(key)) {
+        map.set(key, { label: orig, value: val });
+      } else {
+        const item = map.get(key)!;
+        item.value += val;
+        if (orig && orig[0] === orig[0].toUpperCase() && item.label[0] !== item.label[0].toUpperCase()) {
+          item.label = orig;
+        }
+      }
+    }
+    const cleanLabels: string[] = [];
+    const cleanValues: number[] = [];
+    map.forEach(item => {
+      cleanLabels.push(item.label);
+      cleanValues.push(Number(item.value.toFixed(2)));
+    });
+    return { labels: cleanLabels, values: cleanValues };
+  }
+
+  if (values && typeof values === "object" && Array.isArray(values.bars)) {
+    const map = new Map<string, { label: string; bar: number; line: number; count: number }>();
+    const bars = values.bars || [];
+    const lines = values.lines || [];
+    for (let i = 0; i < labels.length; i++) {
+      const orig = String(labels[i] ?? "").trim();
+      const key = orig.toLowerCase();
+      const b = Number(bars[i]) || 0;
+      const l = Number(lines[i]) || 0;
+      if (!map.has(key)) {
+        map.set(key, { label: orig, bar: b, line: l, count: 1 });
+      } else {
+        const item = map.get(key)!;
+        item.bar += b;
+        item.line += l;
+        item.count += 1;
+        if (orig && orig[0] === orig[0].toUpperCase() && item.label[0] !== item.label[0].toUpperCase()) {
+          item.label = orig;
+        }
+      }
+    }
+    const cleanLabels: string[] = [];
+    const cleanBars: number[] = [];
+    const cleanLines: number[] = [];
+    map.forEach(item => {
+      cleanLabels.push(item.label);
+      cleanBars.push(Number(item.bar.toFixed(2)));
+      cleanLines.push(Number((item.line / item.count).toFixed(2)));
+    });
+    return { labels: cleanLabels, values: { bars: cleanBars, lines: cleanLines } };
+  }
+
+  return { labels, values };
+}
+
 // -- Chart renderer --
-function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALETTE) {
+function renderChart(rawCh: any, idx: number, activePaletteColors: string[] = PALETTE) {
+  let ch = rawCh;
+  if (rawCh && rawCh.labels && rawCh.type !== "heatmap" && rawCh.type !== "scatter" && rawCh.type !== "boxplot") {
+    const { labels, values } = deduplicateChartSeries(rawCh.labels, rawCh.values);
+    ch = { ...rawCh, labels, values };
+  }
   const color = activePaletteColors[idx % activePaletteColors.length];
   const xLabel = toLabel(ch.x_col || "Category");
   const agg = ch.agg_type && ch.agg_type !== "none" ? ` (${ch.agg_type})` : "";
@@ -422,7 +562,7 @@ function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALET
             backgroundColor: (ch.labels || []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}cc`),
             borderColor: (ch.labels || []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
             borderWidth: 1.5,
-            borderRadius: 6,
+            borderRadius: 3,
             yAxisID: "y",
           },
           {
@@ -430,9 +570,9 @@ function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALET
             label: `${yLabel} (Trend)`,
             data: lines,
             borderColor: "#f59e0b",
-            backgroundColor: "rgba(245,158,11,0.1)",
+            backgroundColor: "rgba(245,158,11,0.06)",
             borderWidth: 2.5,
-            tension: 0.35,
+            tension: 0.28,
             pointRadius: 4,
             pointBackgroundColor: "#fff",
             pointBorderColor: "#f59e0b",
@@ -469,8 +609,15 @@ function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALET
   }
 
   if (ch.type === "line") {
+    // If a temporal series has only 1 point, render as a clean column bar so it doesn't display an empty blank line
+    if (!ch.labels || ch.labels.length <= 1) {
+      return <Bar
+        data={{ labels: ch.labels, datasets: [{ label: yLabel, data: ch.values, backgroundColor: `${color}cc`, borderColor: color, borderWidth: 1.5, borderRadius: 3 }] }}
+        options={common}
+      />;
+    }
     return <Line
-      data={{ labels: ch.labels, datasets: [{ label: yLabel, data: ch.values, borderColor: color, backgroundColor: `${color}15`, borderWidth: 2.5, fill: true, tension: 0.35, pointRadius: 4, pointBackgroundColor: "#fff", pointBorderColor: color, pointBorderWidth: 2, pointHoverRadius: 7 }] }}
+      data={{ labels: ch.labels, datasets: [{ label: yLabel, data: ch.values, borderColor: color, backgroundColor: `${color}08`, borderWidth: 2.5, fill: true, tension: 0.28, pointRadius: 4, pointBackgroundColor: "#fff", pointBorderColor: color, pointBorderWidth: 2, pointHoverRadius: 7 }] }}
       options={common}
     />;
   }
@@ -479,7 +626,7 @@ function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALET
     const Comp = ch.type === "doughnut" ? Doughnut : Pie;
     const total = (ch.values || []).reduce((s: number, v: number) => s + (Number(v) || 0), 0);
     return <Comp
-      data={{ labels: ch.labels, datasets: [{ data: ch.values, backgroundColor: activePaletteColors, borderColor: "rgba(0,0,0,0.3)", borderWidth: 2, hoverOffset: 12 }] }}
+      data={{ labels: ch.labels, datasets: [{ data: ch.values, backgroundColor: activePaletteColors, borderColor: "rgba(0,0,0,0.3)", borderWidth: 2, hoverOffset: 8 }] }}
       options={{
         responsive: true,
         maintainAspectRatio: false,
@@ -491,7 +638,7 @@ function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALET
             position: "right" as const,
             labels: {
               color: "#0f172a",
-              font: { size: 12, weight: "bold" },
+              font: { size: 10, weight: "bold" },
               boxWidth: 14,
               padding: 14,
               generateLabels: (chart: any) => {
@@ -536,7 +683,7 @@ function renderChart(ch: any, idx: number, activePaletteColors: string[] = PALET
         backgroundColor: (ch.labels || []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}cc`),
         borderColor: (ch.labels || []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
         borderWidth: 1.5,
-        borderRadius: 6,
+        borderRadius: 3,
         borderSkipped: false as const,
       }],
     }}
@@ -583,7 +730,7 @@ function ChartCard({
   const minVal = numericVals ? Math.min(...numericVals) : null;
   const totalPts = Array.isArray(ch.values) ? ch.values.length : 0;
   const isPie = ch.type === "pie" || ch.type === "doughnut";
-  const chartH = isPie ? 300 : 280;
+  const chartH = isPie ? 310 : 290;
 
   const downloadPng = () => {
     const canvas = cardRef.current?.querySelector("canvas");
@@ -597,84 +744,103 @@ function ChartCard({
   };
 
   return (
-    <div ref={cardRef} className="rounded-2xl overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: isPinned ? "1px solid rgba(245,158,11,0.4)" : "1px solid var(--border)", boxShadow: isPinned ? "0 4px 30px rgba(245,158,11,0.15)" : "0 4px 30px rgba(0,0,0,0.25)" }}>
+    <div ref={cardRef} className="overflow-hidden flex flex-col" style={{ background: "var(--surface)", border: isPinned ? "2px solid rgba(245,158,11,0.5)" : "1px solid var(--border)", borderRadius: "6px", boxShadow: isPinned ? "0 2px 20px rgba(245,158,11,0.12)" : "0 2px 12px rgba(0,0,0,0.08)" }}>
       {/* Accent top bar */}
-      <div className="h-[3px] w-full" style={{ background: isPinned ? "linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b)" : `linear-gradient(90deg,${color},${color}44)` }} />
-      <div className="flex items-start justify-between px-5 pt-4 pb-2">
+      <div className="h-[3px] w-full shrink-0" style={{ background: isPinned ? "linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b)" : `linear-gradient(90deg,${color},${color}55)` }} />
+
+      {/* Card header */}
+      <div className="flex items-start justify-between px-4 pt-3 pb-2">
         <div className="min-w-0 flex-1">
+          {/* Title row */}
           <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-            <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: isPinned ? "#f59e0b" : color, boxShadow: `0 0 5px ${isPinned ? "#f59e0b" : color}` }} />
+            <div className="w-1.5 h-1.5 rounded-xs flex-shrink-0" style={{ background: isPinned ? "#f59e0b" : color }} />
             <p className="text-[11px] font-black uppercase tracking-wide truncate" style={{ color: "var(--txt)" }}>{ch.title}</p>
-            {isPinned && (
-              <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-0.5">
-                <Pin size={8} className="fill-amber-400 text-amber-400" /> Pinned
-              </span>
-            )}
-            {ch.is_custom && <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>Custom</span>}
-            {ch.agent_source && (
-              <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
-                <Bot size={9} /> {ch.agent_source}
-              </span>
-            )}
+            {/* Chart type tag – rectangular, no pill */}
             <span
-              className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded border"
+              className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-[3px] border font-bold"
               style={{ background: "var(--inp-bg)", color: "var(--txt-m)", borderColor: "var(--border)" }}
             >
               {ch.type}
             </span>
+            {isPinned && (
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-[3px] flex items-center gap-0.5"
+                style={{ background: "rgba(245,158,11,0.12)", color: "#b45309", border: "1px solid rgba(245,158,11,0.3)" }}>
+                <Pin size={9} className="fill-amber-600 text-amber-600" /> Pinned
+              </span>
+            )}
+            {ch.is_custom && (
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-[3px]"
+                style={{ background: "rgba(99,102,241,0.08)", color: "#4f46e5", border: "1px solid rgba(99,102,241,0.2)" }}>
+                Custom
+              </span>
+            )}
+            {ch.agent_source && (
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-[3px] flex items-center gap-1"
+                style={{ background: "rgba(16,185,129,0.08)", color: "#047857", border: "1px solid rgba(16,185,129,0.2)" }}>
+                <Bot size={9} /> {ch.agent_source}
+              </span>
+            )}
           </div>
-          {/* Axis context */}
+          {/* Axis sub-label */}
           {ch.x_col && (
             <p className="text-[9px] font-mono" style={{ color: "var(--txt-m)" }}>
               {ch.x_col}
               {ch.y_col && ch.y_col !== "count" && ch.y_col !== "distribution" ? ` → ${ch.y_col}` : ""}
               {ch.agg_type && ch.agg_type !== "none" && ch.y_col && ch.y_col !== "count"
                 ? ` · ${ch.agg_type}`
-                : (ch.agg_type === "count" || ch.y_col === "count" ? " · Count" : "")}
+                : (ch.agg_type === "count" || ch.y_col === "count" ? " · count" : "")}
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1.5 ml-2">
+        {/* Action buttons */}
+        <div className="flex items-center gap-1 ml-2 shrink-0">
           {onTogglePin && (
             <button
               onClick={onTogglePin}
-              title={isPinned ? "Unpin chart" : "Pin chart to top (max 3)"}
-              className={`flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                isPinned ? "bg-amber-500/20 text-amber-400 border border-amber-500/40" : "opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10"
-              }`}
-              style={{ color: isPinned ? "#f59e0b" : "var(--txt)" }}
+              title={isPinned ? "Unpin chart" : "Pin to top"}
+              className="w-6 h-6 rounded-[4px] flex items-center justify-center transition-colors cursor-pointer border"
+              style={{
+                background: isPinned ? "rgba(245,158,11,0.15)" : "transparent",
+                borderColor: isPinned ? "rgba(245,158,11,0.4)" : "var(--border)",
+                color: isPinned ? "#f59e0b" : "var(--txt-m)",
+              }}
             >
-              <Pin size={12} className={isPinned ? "fill-amber-400 text-amber-400" : ""} />
+              <Pin size={11} className={isPinned ? "fill-amber-400" : ""} />
             </button>
           )}
           <button
             onClick={downloadPng}
-            title="Export High-Res PNG"
-            className="w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10"
-            style={{ color: "var(--txt)" }}
+            title="Export PNG"
+            className="w-6 h-6 rounded-[4px] flex items-center justify-center transition-colors cursor-pointer border"
+            style={{ background: "transparent", borderColor: "var(--border)", color: "var(--txt-m)" }}
           >
-            <Download size={12} />
+            <Download size={11} />
           </button>
           <button
             onClick={onRemove}
-            title="Remove / dismiss chart"
-            className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer text-red-400 hover:bg-red-500/10"
+            title="Remove chart"
+            className="w-6 h-6 rounded-[4px] flex items-center justify-center transition-colors cursor-pointer border border-transparent hover:border-red-200 hover:bg-red-50 dark:hover:bg-red-950/30"
+            style={{ color: "var(--txt-m)" }}
           >
-            <X size={12} />
+            <X size={11} />
           </button>
         </div>
       </div>
+
       {/* Stats ribbon */}
       {numericVals && ch.type !== "boxplot" && (
-        <div className="flex items-center gap-3 px-5 pb-2">
-          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: "var(--inp-bg)", color: "var(--txt-m)" }}>{totalPts} pts</span>
+        <div className="flex items-center gap-3 px-4 pb-2">
+          <span className="text-[9px] font-bold font-mono" style={{ color: "var(--txt-m)" }}>{totalPts} pts</span>
           {maxVal !== null && <span className="text-[9px] font-bold" style={{ color: "#10b981" }}>↑ {fmtNum(maxVal)}</span>}
           {minVal !== null && <span className="text-[9px] font-bold" style={{ color: "#f59e0b" }}>↓ {fmtNum(minVal)}</span>}
-          {maxVal !== null && minVal !== null && maxVal !== minVal && <span className="text-[9px] font-bold" style={{ color: "var(--txt-m)" }}>Δ {fmtNum(maxVal - minVal)}</span>}
+          {maxVal !== null && minVal !== null && maxVal !== minVal && (
+            <span className="text-[9px] font-bold" style={{ color: "var(--txt-m)" }}>Δ {fmtNum(maxVal - minVal)}</span>
+          )}
         </div>
       )}
-      {/* Chart area */}
-      <div style={{ height: chartH, position: "relative", padding: "10px", background: "#ffffff", borderRadius: "12px", margin: "0 12px 12px", border: "1px solid #cbd5e1" }}>
+
+      {/* Chart area – adaptive canvas with crisp border */}
+      <div style={{ height: chartH, position: "relative", padding: "12px 10px 10px", background: "var(--card, #ffffff)", borderRadius: "4px", margin: "0 10px 10px", border: "1px solid var(--border)" }}>
         {ch.type === "boxplot"
           ? <BoxPlotViz data={ch.values} formatted={ch.formatted_values} xLabel={ch.x_col} yLabel={ch.y_col} />
           : renderChart(ch, idx, activePaletteColors)
@@ -784,6 +950,12 @@ export function DashboardTab() {
 
   useEffect(() => {
     if (uploadId) loadDashboard();
+
+    const onRefresh = () => {
+      if (uploadId) loadDashboard();
+    };
+    window.addEventListener("df_workspace_refresh", onRefresh);
+    return () => window.removeEventListener("df_workspace_refresh", onRefresh);
   }, [uploadId, loadDashboard]);
 
   const saveCustomChart = async () => {
@@ -891,14 +1063,14 @@ export function DashboardTab() {
   if (!dashStats.length && !isDashLoading) return (
     <div className="tab-panel px-4 py-8 md:px-8 space-y-6">
       <div className="flex flex-col items-center justify-center gap-6 py-20 text-center">
-        <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.15),rgba(99,102,241,0.04))", border: "1px solid rgba(99,102,241,0.2)" }}>
+        <div className="w-20 h-20 rounded-2xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.15),rgba(99,102,241,0.04))", border: "1px solid rgba(99,102,241,0.2)" }}>
           <LayoutDashboard size={36} style={{ color: "#6366f1" }} />
         </div>
         <div>
           <p className="font-black text-lg mb-1" style={{ color: "var(--txt)" }}>Dashboard Ready to Generate</p>
           <p className="text-sm max-w-md" style={{ color: "var(--txt-m)" }}>Synthesize an executive KPI strip, Pareto distributions, trends, and dispersion boxplots directly from your active dataset.</p>
         </div>
-        <button onClick={() => loadDashboard()} className="px-6 py-3 rounded-xl font-bold text-sm text-white flex items-center gap-2 cursor-pointer" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>
+        <button onClick={() => loadDashboard()} className="px-6 py-3 rounded-[4px] font-bold text-sm text-white flex items-center gap-2 cursor-pointer" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>
           <Sparkles size={16} className="text-amber-300" /> Synthesize Executive Dashboard
         </button>
       </div>
@@ -908,7 +1080,7 @@ export function DashboardTab() {
   // Skeleton
   if (isDashLoading && dashStats.length === 0) return (
     <div className="tab-panel px-4 py-6 md:px-6 space-y-6 animate-pulse">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
         {Array.from({ length: 4 }).map((_, i) => <div key={i} className="rounded-2xl p-5 h-28" style={{ background: "var(--surface)", border: "1px solid rgba(255,255,255,0.05)" }}><div className="h-2 w-16 rounded mb-4" style={{ background: "rgba(255,255,255,0.07)" }} /><div className="h-8 w-20 rounded" style={{ background: "rgba(255,255,255,0.1)" }} /></div>)}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -923,15 +1095,15 @@ export function DashboardTab() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2.5">
-            <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Executive Dashboard</h2>
+            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>Executive Dashboard</h2>
           </div>
 
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           {/* Primary KPI Attribute Selector */}
           {(validMetrics.length > 0 || idCols.length > 0 || catCols.length > 0 || profileCols.length > 0) && (
             <div
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold shadow-sm"
+              className="flex items-center justify-between sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-[11px] font-bold shadow-sm w-full sm:w-auto"
               style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
               title="Select which attribute anchors the executive summary KPI"
             >
@@ -940,7 +1112,7 @@ export function DashboardTab() {
               <select
                 value={selectedMetric}
                 onChange={e => handleMetricChange(e.target.value)}
-                className="bg-transparent border-none outline-none cursor-pointer font-sans text-[11px] font-semibold max-w-[140px] truncate"
+                className="bg-transparent border-none outline-none cursor-pointer font-sans text-[11px] font-semibold max-w-[160px] sm:max-w-[140px] truncate"
                 style={{ color: "var(--txt)" }}
               >
                 {validMetrics.length > 0 && (
@@ -981,7 +1153,7 @@ export function DashboardTab() {
 
           {/* Palette / Theme Selector */}
           <div
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold"
+            className="flex-1 sm:flex-initial flex items-center justify-between sm:justify-start gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-[11px] font-bold"
             style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
           >
             <Palette size={13} style={{ color: "var(--accent)" }} />
@@ -1003,7 +1175,7 @@ export function DashboardTab() {
           {/* Add Chart Button */}
           <button
             onClick={() => setBuilderOpen(b => !b)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all cursor-pointer"
+            className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[11px] font-bold border transition-all cursor-pointer"
             style={{
               borderColor: builderOpen ? "#6366f1" : "var(--border)",
               background: builderOpen ? "rgba(99,102,241,0.12)" : "var(--card)",
@@ -1015,7 +1187,7 @@ export function DashboardTab() {
           </button>
 
           {/* Refresh Button */}
-          <button onClick={() => loadDashboard()} disabled={isDashLoading} className="bp flex items-center gap-1.5 cursor-pointer">
+          <button onClick={() => loadDashboard()} disabled={isDashLoading} className="bp flex items-center justify-center gap-1.5 cursor-pointer w-full sm:w-auto">
             {isDashLoading ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : <RefreshCw size={13} />}
             {isDashLoading ? "Refreshing…" : "Refresh"}
           </button>
@@ -1029,41 +1201,11 @@ export function DashboardTab() {
         </div>
       )}
 
-      {/* AI Summary */}
-      {dashSummary && (
-        <div className="rounded-2xl p-5 flex gap-4" style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.07),rgba(139,92,246,0.03))", border: "1px solid rgba(99,102,241,0.18)" }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
-            <Activity size={15} className="text-white" />
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "#6366f1" }}>AI Insight Summary</p>
-            <p className="text-xs leading-relaxed" style={{ color: "var(--txt-m)" }}>{dashSummary}</p>
-          </div>
-        </div>
-      )}
-
-      {/* ID Stats */}
-      {dashIdStats && (
-        <div className="rounded-2xl p-5 flex items-center gap-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(245,158,11,0.1)" }}>
-            <GitBranch size={16} style={{ color: "#f59e0b" }} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--txt-m)" }}>Index Column — <span className="font-mono">{dashIdStats.col}</span></p>
-            <div className="flex gap-6">
-              {([["Unique", dashIdStats.total], ["Min", dashIdStats.min], ["Max", dashIdStats.max]] as [string, any][]).map(([l, v]) => (
-                <div key={l}><p className="text-[9px] uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>{l}</p><p className="text-lg font-black" style={{ color: "#f59e0b" }}>{v}</p></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Chart Builder */}
       {builderOpen && (
         <div className="rounded-2xl overflow-hidden" style={{ background: "var(--surface)", border: "1px solid rgba(99,102,241,0.22)", boxShadow: "0 0 40px rgba(99,102,241,0.07)" }}>
           <div className="flex items-center gap-3 px-5 py-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(99,102,241,0.05)" }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}><BarChart4 size={14} className="text-white" /></div>
+            <div className="w-8 h-8 rounded-[4px] flex items-center justify-center" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}><BarChart4 size={14} className="text-white" /></div>
             <div><p className="text-sm font-black uppercase tracking-wide" style={{ color: "var(--txt)" }}>Chart Builder</p><p className="text-[10px]" style={{ color: "var(--txt-m)" }}>Create a custom visualization and pin it to your dashboard</p></div>
           </div>
           <div className="p-5 space-y-5">
@@ -1072,7 +1214,7 @@ export function DashboardTab() {
               <div className="flex flex-wrap gap-2">
                 {CHART_TYPES.map(ct => (
                   <button key={ct.id} onClick={() => setCustomChart(c => ({ ...c, chart_type: ct.id }))}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-[11px] font-bold transition-all cursor-pointer"
                     style={customChart.chart_type === ct.id
                       ? { background: "#6366f1", color: "#fff", boxShadow: "0 0 12px rgba(99,102,241,0.35)" }
                       : { background: "rgba(255,255,255,0.05)", color: "var(--txt-m)", border: "1px solid rgba(255,255,255,0.08)" }
@@ -1081,18 +1223,33 @@ export function DashboardTab() {
               </div>
             </div>
             {customChart.chart_type === "heatmap" ? (
-              <div className="p-3.5 rounded-xl text-xs flex items-center gap-2.5" style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
+              <div className="p-3.5 rounded-[4px] text-xs flex items-center gap-2.5" style={{ background: "rgba(99,102,241,0.08)", color: "#818cf8", border: "1px solid rgba(99,102,241,0.2)" }}>
                 <span>⚡ <strong>Correlation Matrix Heatmap:</strong> Automatically computes pairwise correlation across all numeric metrics or rank association across categorical cohorts in your dataset.</span>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>X Axis / Category</label>
+                  <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>
+                    {customChart.chart_type === "boxplot" ? "Metric Column (Numeric)" : "X Axis / Category"}
+                  </label>
                   <select value={customChart.x_col} onChange={e => setCustomChart(c => ({ ...c, x_col: e.target.value }))} style={sel}>
                     <option value="">— Select Column —</option>
-                    {profileCols.map(c => <option key={c} value={c}>{c}</option>)}
+                    {(customChart.chart_type === "boxplot" && dashNumericCols.length > 0 ? dashNumericCols : profileCols).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
+                {customChart.chart_type === "boxplot" && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>
+                      Group By Category (Optional)
+                    </label>
+                    <select value={customChart.y_col} onChange={e => setCustomChart(c => ({ ...c, y_col: e.target.value }))} style={sel}>
+                      <option value="">— Entire Dataset (No Grouping) —</option>
+                      {(catCols.length > 0 ? catCols : profileCols.filter(c => c !== customChart.x_col)).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {!["histogram", "boxplot"].includes(customChart.chart_type) && (
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>
@@ -1137,7 +1294,7 @@ export function DashboardTab() {
                 <input type="text" value={customChart.title} onChange={e => setCustomChart(c => ({ ...c, title: e.target.value }))} placeholder="Auto-generated if blank" style={{ ...sel, fontFamily: "inherit" }} />
               </div>
               <button onClick={saveCustomChart} disabled={isGeneratingChart || (!customChart.x_col && customChart.chart_type !== "heatmap")}
-                className="px-5 py-2 rounded-xl font-bold text-sm text-white transition-all"
+                className="px-5 py-2 rounded-[4px] font-bold text-sm text-white transition-all cursor-pointer"
                 style={(!customChart.x_col && customChart.chart_type !== "heatmap") || isGeneratingChart ? { background: "rgba(99,102,241,0.3)", cursor: "not-allowed" } : { background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.25)" }}>
                 {isGeneratingChart ? "Saving…" : "Add to Dashboard"}
               </button>
@@ -1170,9 +1327,10 @@ export function DashboardTab() {
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-              <h3 className="text-xs font-black uppercase tracking-wider text-amber-400">
-                📌 Pinned Strategic Findings ({pinnedInsights.length})
+              <span className="w-2 h-2 rounded-xs bg-amber-400 animate-pulse" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <Pin size={13} className="fill-amber-400 text-amber-400" />
+                <span>Pinned Strategic Findings ({pinnedInsights.length})</span>
               </h3>
             </div>
             <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>Curated from Insight Engine · Live Evaluated</p>
