@@ -23,6 +23,8 @@ import {
   AlertCircle,
   Loader2,
   UploadCloud,
+  Sparkles,
+  Play,
   Clock,
   Lock,
   User,
@@ -418,6 +420,8 @@ export default function WorkspaceLaunchModal({
 
   // File Upload State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+  const [newProjectName, setNewProjectName] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -648,6 +652,9 @@ export default function WorkspaceLaunchModal({
         const formData = new FormData();
         formData.append("file", selectedFile);
         formData.append("expected_format", selectedConnector.id);
+        if (newProjectName && newProjectName.trim()) {
+          formData.append("dataset_name", newProjectName.trim());
+        }
         if (targetWorkspaceId) {
           formData.append("workspace_id", targetWorkspaceId);
         }
@@ -730,7 +737,7 @@ export default function WorkspaceLaunchModal({
     await executeIngestion();
   };
 
-  const handleIncomingFile = (file: File) => {
+  const handleIncomingFile = async (file: File) => {
     if (hasActiveDataset) {
       setErrorMsg(`A dataset ('${activeDatasetName || "Dataset"}') is already active in your workspace. You cannot upload any other dataset.`);
       return;
@@ -754,6 +761,7 @@ export default function WorkspaceLaunchModal({
         `File extension mismatch: '${file.name}' is a .${ext || "unknown"} file, but '${selectedConnector.name}' is selected.${suggestionText}`
       );
       setSelectedFile(null);
+      setDuplicateInfo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
@@ -761,11 +769,33 @@ export default function WorkspaceLaunchModal({
     if (file.size > 100 * 1024 * 1024) {
       setErrorMsg("File exceeds 100MB limit. For large tables, connect directly via a SQL Database.");
       setSelectedFile(null);
+      setDuplicateInfo(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
 
+    // Check duplicate
+    try {
+      const checkRes = await apiFetch("/upload/check-duplicate", {
+        method: "POST",
+        body: JSON.stringify({ filename: file.name }),
+      });
+      if (checkRes.ok) {
+        const dup = await checkRes.json();
+        if (dup.duplicate && dup.upload_id) {
+          setDuplicateInfo(dup);
+          setSelectedFile(file);
+          const baseName = file.name.replace(/\.[^/.]+$/, "");
+          setNewProjectName(`${baseName}_v2.${ext}`);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Duplicate check error:", e);
+    }
+
     setSelectedFile(file);
+    setDuplicateInfo(null);
     setErrorMsg("");
   };
 
@@ -1080,7 +1110,7 @@ export default function WorkspaceLaunchModal({
                   style={{ borderColor: "var(--border)" }}
                 >
                   {/* List */}
-                  <div className="flex-1 overflow-y-auto minimal-scrollbar space-y-1.5 pr-1.5 max-h-[165px] sm:max-h-[340px]">
+                  <div className="flex-1 overflow-y-auto minimal-scrollbar space-y-1.5 pr-1.5 max-h-[220px] sm:max-h-[440px]">
                     {filteredConnectors.map((c) => {
                       const isSelected = selectedConnector.id === c.id;
                       const Logo = c.Logo;
@@ -1192,61 +1222,150 @@ export default function WorkspaceLaunchModal({
                     </div>
                   ) : selectedConnector.category === "files" ? (
                     <div className="space-y-4">
-                      {/* Dropzone */}
-                      <div
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`border border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                          isDragging
-                            ? "border-indigo-500 bg-indigo-500/5"
-                            : "border-[var(--border)] hover:border-slate-400 bg-[var(--bg)]/50"
-                        }`}
-                      >
-                        <input
-                          type="file"
-                          ref={fileInputRef}
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) handleIncomingFile(e.target.files[0]);
+                      {/* Duplicate Dataset Resolution Card */}
+                      {duplicateInfo ? (
+                        <div
+                          className="rounded-lg border p-4 sm:p-5 space-y-3.5 text-left animate-in fade-in zoom-in-95 duration-200"
+                          style={{
+                            background: "rgba(99, 102, 241, 0.08)",
+                            borderColor: "rgba(99, 102, 241, 0.35)",
                           }}
-                          accept={getExpectedExtensions(selectedConnector.id).accept}
-                          className="hidden"
-                        />
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div
+                              className="w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0 border"
+                              style={{
+                                background: "rgba(99, 102, 241, 0.15)",
+                                borderColor: "rgba(99, 102, 241, 0.35)",
+                                color: "#818cf8",
+                              }}
+                            >
+                              <Sparkles size={16} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-900 dark:text-slate-100">
+                                Dataset Already Uploaded
+                              </h4>
+                              <p className="text-[11px] leading-relaxed mt-0.5 text-slate-600 dark:text-slate-300">
+                                <strong className="font-mono text-indigo-500">{duplicateInfo.filename}</strong> ({duplicateInfo.rows?.toLocaleString()} rows) already exists in your workspace.
+                              </p>
+                            </div>
+                          </div>
 
-                        {selectedFile ? (
-                          <div className="space-y-1">
-                            <p className="text-xs font-medium text-[var(--txt)] flex items-center justify-center gap-1.5">
-                              <CheckCircle2 size={14} className="text-emerald-500" />
-                              {selectedFile.name}
-                            </p>
-                            <p className="text-[11px] font-mono font-semibold text-emerald-400">
-                              {formatBytes(selectedFile.size)}
-                            </p>
+                          <div className="space-y-2.5 pt-1">
+                            {/* Option 1: Continue Existing */}
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
+                              onClick={() => {
+                                onClose();
+                                window.location.href = `/workspace?upload_id=${duplicateInfo.upload_id}`;
+                              }}
+                              className="w-full py-2.5 px-3 rounded-[4px] font-bold text-xs bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all active:scale-[0.99]"
+                            >
+                              <Play size={13} />
+                              <span>Continue Existing Project</span>
+                            </button>
+
+                            <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-slate-400 my-0.5 justify-center">
+                              <span className="h-px bg-slate-200 dark:bg-slate-700 flex-1" />
+                              <span>OR NAME NEW PROJECT</span>
+                              <span className="h-px bg-slate-200 dark:bg-slate-700 flex-1" />
+                            </div>
+
+                            {/* Option 2: Name New Project */}
+                            <div className="flex items-center gap-1.5 w-full">
+                              <input
+                                type="text"
+                                value={newProjectName}
+                                onChange={(e) => setNewProjectName(e.target.value)}
+                                placeholder="New project name (e.g. marksheet_v2.csv)"
+                                className="flex-1 text-xs px-3 py-2 rounded-[4px] border font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
+                                style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => executeIngestion()}
+                                className="py-2 px-3 rounded-[4px] font-bold text-xs border transition-all cursor-pointer whitespace-nowrap bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-700 hover:bg-indigo-100 shrink-0"
+                              >
+                                Create New
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-between items-center pt-2 border-t text-[11px]" style={{ borderColor: "rgba(99, 102, 241, 0.2)" }}>
+                            <span className="font-mono text-slate-500 text-[10px]">
+                              Existing ID: {duplicateInfo.upload_id}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDuplicateInfo(null);
                                 setSelectedFile(null);
                                 if (fileInputRef.current) fileInputRef.current.value = "";
                               }}
-                              className="text-[11px] text-red-400 hover:underline mt-1 cursor-pointer"
+                              className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline cursor-pointer"
                             >
-                              Remove
+                              Cancel &amp; choose another file
                             </button>
                           </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <UploadCloud size={20} className="mx-auto text-[var(--txt-m)] mb-2" />
-                            <p className="text-xs font-medium text-[var(--txt)]">
-                              Drop {getExpectedExtensions(selectedConnector.id).label} file or browse
-                            </p>
-                            <p className="text-[11px] text-[var(--txt-f)]">
-                              Up to 100MB ({getExpectedExtensions(selectedConnector.id).extensions.map((e) => `.${e}`).join(", ")})
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        /* Dropzone */
+                        <div
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`border border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                            isDragging
+                              ? "border-indigo-500 bg-indigo-500/5"
+                              : "border-[var(--border)] hover:border-slate-400 bg-[var(--bg)]/50"
+                          }`}
+                        >
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={(e) => {
+                              if (e.target.files?.[0]) handleIncomingFile(e.target.files[0]);
+                            }}
+                            accept={getExpectedExtensions(selectedConnector.id).accept}
+                            className="hidden"
+                          />
+
+                          {selectedFile ? (
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-[var(--txt)] flex items-center justify-center gap-1.5">
+                                <CheckCircle2 size={14} className="text-emerald-500" />
+                                {selectedFile.name}
+                              </p>
+                              <p className="text-[11px] font-mono font-semibold text-emerald-400">
+                                {formatBytes(selectedFile.size)}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedFile(null);
+                                  if (fileInputRef.current) fileInputRef.current.value = "";
+                                }}
+                                className="text-[11px] text-red-400 hover:underline mt-1 cursor-pointer"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <UploadCloud size={20} className="mx-auto text-[var(--txt-m)] mb-2" />
+                              <p className="text-xs font-medium text-[var(--txt)]">
+                                Drop {getExpectedExtensions(selectedConnector.id).label} file or browse
+                              </p>
+                              <p className="text-[11px] text-[var(--txt-f)]">
+                                Up to 100MB ({getExpectedExtensions(selectedConnector.id).extensions.map((e) => `.${e}`).join(", ")})
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Recent Ingestion Shortcuts (Hidden completely if user is not logged in) */}
                       {isLoggedIn && historyDatasets.length > 0 && (
@@ -1355,11 +1474,11 @@ export default function WorkspaceLaunchModal({
                   <button
                     type="button"
                     onClick={handleConnect}
-                    disabled={isConnecting || hasActiveDataset}
-                    className="px-4 py-2 rounded-md font-medium text-xs bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-40 flex items-center gap-2 cursor-pointer"
+                    disabled={isConnecting || hasActiveDataset || !!duplicateInfo}
+                    className="px-4 py-2 rounded-[4px] font-medium text-xs bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-40 flex items-center gap-2 cursor-pointer"
                   >
                     {isConnecting && <Loader2 size={13} className="animate-spin" />}
-                    <span>Launch Workspace</span>
+                    <span>{duplicateInfo ? "Resolve Duplicate Above" : "Launch Workspace"}</span>
                   </button>
                 </div>
               </div>

@@ -29,33 +29,44 @@ class TrendInsight(BaseInsight):
             if len(ts) < 4:
                 return None
 
-            # Compute overall trend via pct_change mean
-            agg = ts.groupby(ts[date_col].dt.to_period("D"))[metric].sum()
-            changes = agg.pct_change().dropna()
-            if changes.empty:
+            # Determine aggregation strategy based on intensive vs extensive metric
+            from dataforge.api.routes.dashboard import is_intensive_metric
+            is_int = is_intensive_metric(metric, ts[metric])
+            agg = ts.groupby(ts[date_col].dt.to_period("D"))[metric].mean() if is_int else ts.groupby(ts[date_col].dt.to_period("D"))[metric].sum()
+
+            if len(agg) < 2:
                 return None
 
-            trend = float(changes.mean())
-            if abs(trend) < 0.005:          # < 0.5% — not worth surfacing
+            first_w = float(agg.head(min(14, len(agg))).mean())
+            last_w = float(agg.tail(min(14, len(agg))).mean())
+            drift = last_w - first_w
+            pct = round((drift / abs(first_w) * 100) if first_w != 0 else 0.0, 1)
+
+            if abs(pct) < 0.2:  # < 0.2% — not worth surfacing
                 return None
 
-            direction_str = "upward" if trend > 0 else "downward"
-            movement_str = "increasing" if trend > 0 else "decreasing"
-            pct       = round(abs(trend) * 100, 1)
+            direction_str = "upward" if drift > 0 else "downward"
+            movement_str = "rising" if drift > 0 else "declining"
 
             # Build chart data — daily aggregated values
             chart_labels = [str(p) for p in agg.index]
             chart_values = [self._safe_float(v) for v in agg.values]
 
-            description = (
-                f"We observed a steady {direction_str} trend in '{metric}', "
-                f"with values {movement_str} by an average of {pct}% per period over the timeline."
-            )
+            if is_int:
+                description = (
+                    f"We observed an underlying {direction_str} trend in '{metric}', "
+                    f"moving from {first_w:.1f} to {last_w:.1f} ({pct:+.1f}%) over the timeline."
+                )
+            else:
+                description = (
+                    f"We observed a steady {direction_str} trend in '{metric}', "
+                    f"with total values {movement_str} from {first_w:,.0f} to {last_w:,.0f} ({pct:+.1f}%) over the timeline."
+                )
 
             return {
                 "title":       f"{metric} Trend",
                 "description": description,
-                "importance":  self._clamp(abs(trend) * 2),
+                "importance":  self._clamp(min(abs(pct) / 50.0 + 0.3, 0.95)),
                 "type":        "trend",
                 "chart":       "line",
                 "chart_data":  {"labels": chart_labels[-30:], "values": chart_values[-30:]},

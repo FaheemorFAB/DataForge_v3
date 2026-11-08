@@ -161,8 +161,61 @@ def format_bytes(num_bytes: Optional[Union[int, float]]) -> str:
         return f"{num_bytes / (1024 * 1024 * 1024):.2f} GB"
 
 
+def format_dtype_label(dtype) -> str:
+    """Map raw pandas/numpy dtypes to clean, standardized, user-facing type names."""
+    if pd.api.types.is_datetime64_any_dtype(dtype):
+        return "datetime"
+    elif pd.api.types.is_float_dtype(dtype):
+        return "float"
+    elif pd.api.types.is_integer_dtype(dtype):
+        return "integer"
+    elif pd.api.types.is_bool_dtype(dtype):
+        return "boolean"
+    elif isinstance(dtype, pd.CategoricalDtype):
+        return "category"
+    return "string"
+
+
+def sniff_and_cast_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Sniffs data types on arrival: automatically coerces datetime and numeric columns
+    from string/object representation into proper datetime64 or float/int dtypes.
+    """
+    for col in df.columns:
+        if pd.api.types.is_string_dtype(df[col]) or pd.api.types.is_object_dtype(df[col]):
+            non_null = df[col].dropna()
+            if len(non_null) == 0:
+                continue
+            sample = non_null.head(100)
+            # 1. Datetime sniffing
+            try:
+                first_val = str(sample.iloc[0])
+                is_date_named = any(kw in str(col).lower() for kw in ["date", "time", "launch", "dob", "stamp", "period", "exam"])
+                has_date_chars = any(char in first_val for char in ["-", "/", ":"])
+                if is_date_named or has_date_chars:
+                    p = pd.to_datetime(sample, errors="coerce")
+                    if p.notna().mean() >= 0.75:
+                        df[col] = pd.to_datetime(df[col], errors="coerce")
+                        continue
+            except Exception:
+                pass
+
+            # 2. Numeric sniffing (strip currency symbols and formatted commas)
+            try:
+                cleaned = sample.astype(str).str.replace(r"[\$,€,£,₹,% ]", "", regex=True)
+                p_num = pd.to_numeric(cleaned, errors="coerce")
+                if p_num.notna().mean() >= 0.85:
+                    df[col] = pd.to_numeric(df[col].astype(str).str.replace(r"[\$,€,£,₹,% ]", "", regex=True), errors="coerce")
+            except Exception:
+                pass
+    return df
+
+
 def df_profile(df: pd.DataFrame, filename: str = "", raw_bytes: Optional[int] = None) -> dict:
-    """Compute a lightweight profile summary for a DataFrame."""
+    """Compute a structured profile summary for a DataFrame with prioritized column ordering (datetime -> float -> integer -> string)."""
+    # Proactively sniff types if any string/object columns exist
+    df = sniff_and_cast_df(df)
+
     missing     = int(df.isnull().sum().sum())
     numeric_cnt = int(len(df.select_dtypes(include=np.number).columns))
     total_cells = df.shape[0] * df.shape[1]
@@ -179,13 +232,32 @@ def df_profile(df: pd.DataFrame, filename: str = "", raw_bytes: Optional[int] = 
     size_human = format_bytes(size_bytes)
     size_mb = round(size_bytes / (1024 * 1024), 2)
 
+    # Type ordering priority: datetime (0) -> float (1) -> integer (2) -> boolean (3) -> category (4) -> string (5)
+    TYPE_PRIORITY = {
+        "datetime": 0,
+        "float": 1,
+        "integer": 2,
+        "boolean": 3,
+        "category": 4,
+        "string": 5,
+    }
+
     columns = []
     for col, dtype in zip(df.columns, df.dtypes):
         null_pct = round(df[col].isnull().mean() * 100, 1)
+        fmt_dtype = format_dtype_label(dtype)
         columns.append({
-            "name": str(col), "dtype": str(dtype),
-            "null_pct": null_pct, "quality": round(100 - null_pct, 1)
+            "name": str(col),
+            "dtype": fmt_dtype,
+            "raw_dtype": str(dtype),
+            "null_pct": null_pct,
+            "quality": round(100 - null_pct, 1),
+            "_priority": TYPE_PRIORITY.get(fmt_dtype, 99),
         })
+
+    # Sort columns logically: datetime first, then floats, integers, and text
+    columns.sort(key=lambda c: c["_priority"])
+
     return {
         "filename": filename,
         "rows": df.shape[0], "cols": df.shape[1],

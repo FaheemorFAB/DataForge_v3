@@ -292,7 +292,7 @@ async def run_automl_task(
             log.warning("Failed to save automl_meta_json to DB: %s", exc)
 
         invalidate_upload(upload_id)
-        await registry.mark_success(job_id, {"key": "automl_meta"})
+        await registry.mark_success(job_id, {"key": "automl_meta", "automl_meta": result})
 
         up = db_get("uploads", upload_id)
         await get_ws_manager().send_to_user(user_id, "automl_ready", {
@@ -418,15 +418,68 @@ async def generate_report_task(
             numeric_cols = df.select_dtypes(include="number").columns.tolist()
             cat_cols     = df.select_dtypes(include="object").columns.tolist()
 
+            from dataforge.api.routes.dashboard import is_intensive_metric, get_benchmark_col_and_val, is_id_like_col
+            valid_num = [c for c in numeric_cols if not is_id_like_col(c, df[c])]
+            pri_metric = valid_num[0] if valid_num else None
+            for m in valid_num:
+                if any(k in m.lower() for k in ["sales", "revenue", "amount", "price", "profit", "cost", "total", "score", "value", "balance", "gdp", "marks"]):
+                    pri_metric = m
+                    break
+
+            quantile_summary = {}
+            pri_metric_info = {}
+            if pri_metric:
+                s_m = df[pri_metric].dropna()
+                if len(s_m) > 0:
+                    desc = s_m.describe()
+                    q1 = float(desc["25%"])
+                    med = float(desc["50%"])
+                    q3 = float(desc["75%"])
+                    iqr = q3 - q1
+                    min_w = float(s_m[s_m >= q1 - 1.5 * iqr].min()) if not s_m[s_m >= q1 - 1.5 * iqr].empty else float(desc["min"])
+                    max_w = float(s_m[s_m <= q3 + 1.5 * iqr].max()) if not s_m[s_m <= q3 + 1.5 * iqr].empty else float(desc["max"])
+                    b_col, b_val = get_benchmark_col_and_val(pri_metric, df)
+                    is_int = is_intensive_metric(pri_metric, s_m)
+                    mean_v = float(s_m.mean())
+                    if is_int:
+                        val_display = f"{mean_v:.1f} / {b_val:.0f}" if (b_val and b_val > 0) else f"{mean_v:.1f}%" if "pct" in pri_metric.lower() else f"{mean_v:.2f}"
+                        lbl_display = f"Average {pri_metric}"
+                    else:
+                        val_display = f"{s_m.sum():,.0f}" if s_m.sum() < 1e6 else f"{s_m.sum()/1e3:.1f}K"
+                        lbl_display = f"Total {pri_metric}"
+
+                    sub_display = f"Max: {s_m.max():.1f} · Min: {s_m.min():.1f} · Median: {med:.1f}"
+                    quantile_summary = {
+                        "metric": pri_metric,
+                        "min": round(min_w, 1),
+                        "q1": round(q1, 1),
+                        "median": round(med, 1),
+                        "q3": round(q3, 1),
+                        "max": round(max_w, 1),
+                        "iqr": round(iqr, 1),
+                        "mean": round(mean_v, 1),
+                    }
+                    pri_metric_info = {
+                        "label": lbl_display,
+                        "value": val_display,
+                        "sub": sub_display,
+                    }
+
             stats_lines = [
                 f"- Dataset Shape: {rows:,} rows x {cols} columns",
-                f"- Missing Data: {missing_cells:,} cells ({miss_pct}%)",
+                f"- Primary Metric: {pri_metric or 'N/A'}",
                 f"- Numeric columns ({len(numeric_cols)}): {', '.join(numeric_cols[:10])}",
                 f"- Categorical columns ({len(cat_cols)}): {', '.join(cat_cols[:10])}",
             ]
+            valid_insights = [
+                i for i in insights
+                if i.get("type") not in ("data_quality", "quality", "data_health", "health")
+                and "data quality" not in (i.get("title") or "").lower()
+                and "data health" not in (i.get("title") or "").lower()
+            ]
             insights_text = "\n".join(
                 f"- [{i.get('type','').upper()}] {i.get('title')}: {i.get('description')}"
-                for i in insights
+                for i in valid_insights
             )
 
             gemini_commentary = ""
@@ -440,10 +493,12 @@ STATS:
 INSIGHTS:
 {insights_text}
 
+STRICT INSTRUCTION: Do NOT mention data health, data cleanliness, null counts, or data hygiene. Focus strictly on business performance metrics, cohort breakdowns, drivers, and strategic actions.
+
 Write 4 sections:
 ---SLIDE_1--- Executive Summary
 ---SLIDE_2--- Critical Patterns
----SLIDE_3--- Data Health
+---SLIDE_3--- Statistical Dispersion & Cohort Performance
 ---SLIDE_4--- Strategic Recommendations"""
                 gemini_commentary = _gemini(prompt, temperature=0.7)
             except Exception as api_err:
@@ -461,17 +516,17 @@ Write 4 sections:
                     content = remainder[:next_match.start()] if next_match else remainder
                     content = content.lstrip("-: \t\r\n")
                     lines = content.split("\n", 1)
-                    if len(lines) > 1 and any(h in lines[0].lower() for h in ("summary", "pattern", "health", "recommend")):
+                    if len(lines) > 1 and any(h in lines[0].lower() for h in ("summary", "pattern", "health", "dispersion", "recommend")):
                         content = lines[1].strip()
                     return content.strip()
                 return ""
 
             slides = {i: _parse_slide(gemini_commentary, i) for i in range(1, 5)}
             defaults = {
-                1: f"Analysis of '{filename}' shows a {schema.get('dataset_type','general')} dataset with {rows:,} records.",
-                2: "Key patterns reveal important drivers across categorical and numeric fields.",
-                3: "Data health inspection reveals a stable layout with strong column structures.",
-                4: "1. Monitor alert metrics.\n2. Optimize dimension structures.\n3. Implement recurring reporting.",
+                1: f"Analysis of '{filename}' shows a {schema.get('dataset_type','general')} dataset with {rows:,} records and balanced feature coverage.",
+                2: "Key patterns reveal critical drivers across categorical dimensions and high-leverage variance in quantitative metrics.",
+                3: "Statistical dispersion indicates consistent performance clustering around the median, with actionable opportunities to elevate lower-quartile cohorts.",
+                4: "1. Focus intervention on lower-quartile cohorts to elevate baseline.\n2. Leverage top collinear drivers for early-warning indicators.\n3. Automate recurring executive KPI monitoring.",
             }
             for k, v in defaults.items():
                 if not slides.get(k) or len(slides[k]) < 10:
@@ -489,6 +544,8 @@ Write 4 sections:
                 "slide3": slides[3], "slide4": slides[4],
                 "rows": rows, "cols": cols, "missing_pct": miss_pct,
                 "columns": existing_cols,
+                "quantile_summary": quantile_summary,
+                "pri_metric_info": pri_metric_info,
             })
 
             html = generate_html_report(

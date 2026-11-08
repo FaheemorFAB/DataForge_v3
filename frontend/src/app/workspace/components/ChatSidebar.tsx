@@ -334,7 +334,7 @@ function renderTextParagraphs(rawText: string, keyPrefix: string) {
               className="flex items-start gap-2 py-0.5 text-xs leading-relaxed"
               style={{ color: "var(--txt)" }}
             >
-              <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "var(--accent)" }} />
+              <span className="w-1.5 h-1.5 rounded-xs mt-1.5 shrink-0" style={{ background: "var(--accent)" }} />
               <div className="flex-1" style={{ color: "var(--txt)" }}>{renderInlineMarkdown(bulletContent)}</div>
             </div>
           );
@@ -712,7 +712,7 @@ export function ChatSidebar() {
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center mx-auto"
+            className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto"
             style={{ background: "rgba(46,91,255,.08)", color: "var(--accent)" }}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -886,7 +886,7 @@ export function ChatSidebar() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-shrink-0">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#22c55e", boxShadow: "0 0 5px #22c55e" }}></div>
+              <div className="w-1.5 h-1.5 rounded-xs" style={{ background: "#22c55e", boxShadow: "0 0 5px #22c55e" }}></div>
               <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--txt-m)" }}>
                 Analyst AI
               </span>
@@ -1169,15 +1169,10 @@ export function ChatSidebar() {
                       key={idx}
                       type="button"
                       onClick={() => runQuery(qText)}
-                      className="group flex items-center gap-2 px-3 py-1.5 rounded-full text-left text-xs font-medium border transition-all duration-200 cursor-pointer shrink-0 shadow-xs hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
-                      style={{
-                        background: "var(--bg)",
-                        borderColor: "var(--border)",
-                        color: "var(--txt)",
-                      }}
+                      className="group flex items-center gap-2 px-3 py-1.5 rounded-lg text-left text-xs font-semibold border transition-all duration-200 cursor-pointer shrink-0 shadow-xs hover:shadow-sm hover:scale-[1.01] active:scale-[0.99] bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400 dark:hover:border-slate-500"
                       title={qText}
                     >
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0 group-hover:scale-125 transition-transform" style={{ background: "var(--accent)" }} />
+                      <span className="w-2 h-2 rounded-xs shrink-0" style={{ background: "var(--accent, #FF4310)" }} />
                       <span className="truncate max-w-[280px]">{act.label || act.query}</span>
                     </button>
                   );

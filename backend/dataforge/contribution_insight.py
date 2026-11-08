@@ -14,7 +14,14 @@ class ContributionInsight(BaseInsight):
     name = "contribution"
 
     def applicable(self, df: pd.DataFrame, schema: dict) -> bool:
-        return bool(schema.get("dimensions")) and bool(schema.get("metrics"))
+        if not (bool(schema.get("dimensions")) and bool(schema.get("metrics"))):
+            return False
+        metric = schema["metrics"][0]
+        if metric in df.columns:
+            from dataforge.api.routes.dashboard import is_intensive_metric
+            if is_intensive_metric(metric, df[metric]):
+                return False
+        return True
 
     def analyze(self, df: pd.DataFrame, schema: dict) -> dict | None:
         # Use second dimension if available (first used by TopPerformer)

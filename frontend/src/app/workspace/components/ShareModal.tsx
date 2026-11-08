@@ -400,7 +400,7 @@ export default function ShareModal({
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className="relative w-9 h-9 rounded-full overflow-hidden border shrink-0 flex items-center justify-center font-bold text-xs"
+                    className="relative w-9 h-9 rounded-lg overflow-hidden border shrink-0 flex items-center justify-center font-bold text-xs"
                     style={{ background: "var(--glow)", borderColor: "var(--accent)", color: "var(--accent)" }}
                   >
                     {shareData?.owner_avatar ? (
@@ -433,7 +433,7 @@ export default function ShareModal({
                   </div>
                 </div>
                 <span
-                  className="px-2.5 py-1 rounded-full text-[10px] font-bold border shrink-0"
+                  className="px-2.5 py-1 rounded-md text-[10px] font-bold border shrink-0"
                   style={{ background: "var(--glow)", borderColor: "var(--accent)", color: "var(--accent)" }}
                 >
                   Owner
@@ -451,7 +451,7 @@ export default function ShareModal({
                     >
                       <div className="flex items-center gap-3 truncate mr-2">
                         <div
-                          className="relative w-8 h-8 rounded-full overflow-hidden border shrink-0 flex items-center justify-center font-bold text-xs"
+                          className="relative w-8 h-8 rounded-lg overflow-hidden border shrink-0 flex items-center justify-center font-bold text-xs"
                           style={{ borderColor: "var(--border)", background: "var(--card)", color: "var(--txt)" }}
                         >
                           {c.avatar ? (
@@ -503,7 +503,7 @@ export default function ShareModal({
                           </>
                         ) : (
                           <span
-                            className="px-2.5 py-1 rounded-full text-[10px] font-bold border"
+                            className="px-2.5 py-1 rounded-md text-[10px] font-bold border"
                             style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}
                           >
                             {c.role}
@@ -529,7 +529,7 @@ export default function ShareModal({
                     <Shield size={13} style={{ color: "var(--accent)" }} />
                     <span>Solo Workspace • Role collaboration (Admin, Analyst, Viewer) is exclusive to Team Collaboration.</span>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0" style={{ borderColor: "var(--border)", color: "var(--txt)" }}>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0" style={{ borderColor: "var(--border)", color: "var(--txt)" }}>
                     {userTier === "pro" ? "Pro Analyst" : "Free Starter"}
                   </span>
                 </div>
@@ -548,7 +548,7 @@ export default function ShareModal({
             >
               <div className="flex items-start gap-3">
                 <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 border mt-0.5"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border mt-0.5"
                   style={{
                     background:
                       shareData?.general_access === "anyone_with_link"

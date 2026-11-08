@@ -52,6 +52,13 @@ interface IngestionCardProps {
   reset: () => void;
   goToWorkspace: (uploadId?: string | null) => void;
 
+  // Duplicate resolution props
+  duplicateInfo?: any;
+  newProjectName?: string;
+  setNewProjectName?: (name: string) => void;
+  onConfirmNewProject?: () => void;
+  onCancelDuplicate?: () => void;
+
   // Database props
   dbDialect: "postgresql" | "mysql" | "sqlite" | "clickhouse";
   setDbDialect: (dialect: any) => void;
@@ -441,37 +448,112 @@ export default function IngestionCard(props: IngestionCardProps) {
               {/* ── SOURCE 1: CSV FILE VIEW (Unified Across Variations) ─────── */}
               {props.sourceTab === "csv" && (
                 <div className="space-y-4">
-                  <div
-                    onClick={() => props.fileInputRef.current?.click()}
-                    className="cursor-pointer group relative border border-dashed rounded-xl p-8 sm:p-10 flex flex-col items-center justify-center text-center transition-all duration-300 hover:border-orange-500/50 hover:bg-white/[0.015]"
-                    style={{
-                      borderColor: props.isDragging ? "var(--accent)" : "rgba(255, 255, 255, 0.12)",
-                      background: "rgba(255, 255, 255, 0.02)",
-                    }}
-                  >
+                  {props.duplicateInfo ? (
                     <div
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3.5 transition-transform duration-300 group-hover:scale-110 shadow-lg border"
+                      className="rounded-[6px] border p-5 space-y-4 text-left animate-in fade-in zoom-in-95 duration-200"
                       style={{
-                        background: "rgba(255, 67, 16, 0.08)",
-                        borderColor: "rgba(255, 67, 16, 0.25)",
+                        background: "rgba(99, 102, 241, 0.08)",
+                        borderColor: "rgba(99, 102, 241, 0.35)",
                       }}
                     >
-                      <UploadCloud size={24} style={{ color: "var(--accent)" }} />
-                    </div>
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="w-10 h-10 rounded-[4px] flex items-center justify-center shrink-0 border"
+                          style={{
+                            background: "rgba(99, 102, 241, 0.15)",
+                            borderColor: "rgba(99, 102, 241, 0.35)",
+                            color: "#818cf8",
+                          }}
+                        >
+                          <Sparkles size={20} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-black text-sm" style={{ color: "var(--txt)" }}>
+                            Dataset Already Uploaded
+                          </h4>
+                          <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--txt-m)" }}>
+                            A project with filename <strong className="font-mono" style={{ color: "var(--txt)" }}>{props.duplicateInfo.filename}</strong> ({props.duplicateInfo.rows?.toLocaleString()} rows, {props.duplicateInfo.cols} cols) already exists in your workspace.
+                          </p>
+                        </div>
+                      </div>
 
-                    <h3 className="text-sm sm:text-base font-bold tracking-tight mb-1" style={{ color: "var(--txt)" }}>
-                      Drop your CSV file here
-                    </h3>
-                    <p className="text-xs max-w-xs mb-3" style={{ color: "var(--txt-m)" }}>
-                      Drag & drop or <span className="underline font-semibold" style={{ color: "var(--accent)" }}>browse from computer</span>
-                    </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        {/* Option 1: Continue Existing */}
+                        <button
+                          type="button"
+                          onClick={() => props.goToWorkspace(props.duplicateInfo.upload_id)}
+                          className="w-full py-2.5 px-3 rounded-[4px] font-bold text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:scale-[1.01]"
+                        >
+                          <Play size={13} />
+                          <span>Continue Existing Project</span>
+                        </button>
 
-                    <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider opacity-60">
-                      <span>Max 200 MB</span>
-                      <span>•</span>
-                      <span>Auto-cleaning & profiling included</span>
+                        {/* Option 2: Name New Project */}
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={props.newProjectName || ""}
+                            onChange={(e) => props.setNewProjectName?.(e.target.value)}
+                            placeholder="New project name..."
+                            className="flex-1 text-xs px-2.5 py-2 rounded-[4px] border font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 min-w-0"
+                            style={{ background: "var(--inp-bg)", borderColor: "var(--border)", color: "var(--txt)" }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => props.onConfirmNewProject?.()}
+                            className="py-2 px-3 rounded-[4px] font-bold text-xs border transition-all cursor-pointer whitespace-nowrap bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-700 hover:border-indigo-400"
+                          >
+                            Create New
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-1 border-t" style={{ borderColor: "rgba(99, 102, 241, 0.2)" }}>
+                        <span className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
+                          Upload ID: <span className="font-bold text-indigo-400">{props.duplicateInfo.upload_id}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => props.onCancelDuplicate?.()}
+                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div
+                      onClick={() => props.fileInputRef.current?.click()}
+                      className="cursor-pointer group relative border border-dashed rounded-xl p-8 sm:p-10 flex flex-col items-center justify-center text-center transition-all duration-300 hover:border-orange-500/50 hover:bg-white/[0.015]"
+                      style={{
+                        borderColor: props.isDragging ? "var(--accent)" : "rgba(255, 255, 255, 0.12)",
+                        background: "rgba(255, 255, 255, 0.02)",
+                      }}
+                    >
+                      <div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3.5 transition-transform duration-300 group-hover:scale-110 shadow-lg border"
+                        style={{
+                          background: "rgba(255, 67, 16, 0.08)",
+                          borderColor: "rgba(255, 67, 16, 0.25)",
+                        }}
+                      >
+                        <UploadCloud size={24} style={{ color: "var(--accent)" }} />
+                      </div>
+
+                      <h3 className="text-sm sm:text-base font-bold tracking-tight mb-1" style={{ color: "var(--txt)" }}>
+                        Drop your CSV file here
+                      </h3>
+                      <p className="text-xs max-w-xs mb-3" style={{ color: "var(--txt-m)" }}>
+                        Drag & drop or <span className="underline font-semibold" style={{ color: "var(--accent)" }}>browse from computer</span>
+                      </p>
+
+                      <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider opacity-60">
+                        <span>Max 200 MB</span>
+                        <span>•</span>
+                        <span>Auto-cleaning & profiling included</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Dynamic Ingestion History (Hidden completely if user is not logged in) */}
                   {props.isLoggedIn && recentDatasets.length > 0 && (

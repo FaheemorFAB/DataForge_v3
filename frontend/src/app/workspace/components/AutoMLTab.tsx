@@ -17,7 +17,7 @@ import {
   Bot, ShieldAlert, ShieldCheck, AlertTriangle, Sliders,
   Cpu, Check, Download, Play, RefreshCw, Search, Filter,
   Terminal, Code, Layers, Zap, BarChart3, ChevronRight, CheckCircle2, Boxes, ArrowRight, AlertCircle, Tag, X,
-  Trophy, Settings2, Sparkles, SlidersHorizontal
+  Trophy, Settings2, Sparkles, SlidersHorizontal, Clock, Eye
 } from "lucide-react";
 
 interface FeatureInfo {
@@ -45,8 +45,43 @@ const AVAILABLE_ALGORITHMS = [
   { id: "svm", name: "Support Vector Machine", tag: "Margin-based", desc: "Maximal-margin hyperplane classifier/regressor with regularized boundary.", category: "svm" },
 ];
 
+function renderConfigBadges(cfgStr: string) {
+  if (!cfgStr || cfgStr === "{}" || cfgStr === "-") return <span className="opacity-40 font-mono text-[10px]">—</span>;
+  try {
+    const cleaned = cfgStr
+      .replace(/'/g, '"')
+      .replace(/True/g, 'true')
+      .replace(/False/g, 'false')
+      .replace(/None/g, 'null');
+    const parsed = JSON.parse(cleaned);
+    const keys = Object.keys(parsed)
+      .filter((k) => !k.startsWith("_") && typeof parsed[k] !== "object")
+      .slice(0, 3);
+    if (keys.length === 0) return <span className="font-mono text-[10px] opacity-50">Standard Parameters</span>;
+    return (
+      <div className="flex flex-wrap gap-1 items-center max-w-[200px]" title={cfgStr}>
+        {keys.map((k) => {
+          const shortK = k.replace("n_estimators", "trees").replace("learning_rate", "lr").replace("max_depth", "depth");
+          return (
+            <span
+              key={k}
+              className="px-1.5 py-0.5 rounded text-[9px] font-mono border"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
+            >
+              {shortK}: {String(parsed[k])}
+            </span>
+          );
+        })}
+      </div>
+    );
+  } catch {
+    return <span className="font-mono text-[10px] truncate max-w-[150px] block opacity-70" title={cfgStr}>{cfgStr}</span>;
+  }
+}
+
 export function AutoMLTab() {
   const { profile, cleanProfile, uploadId, setActiveTab, automlMeta, setAutomlMeta, refreshWorkspace, cleanResult } = useWorkspace();
+  const [inspectedLeaderboardModel, setInspectedLeaderboardModel] = useState<any>(null);
 
   const effectiveProfile = useMemo(() => {
     if (cleanProfile?.columns && Array.isArray(cleanProfile.columns) && cleanProfile.columns.length > 0) {
@@ -161,31 +196,62 @@ export function AutoMLTab() {
   useEffect(() => {
     if (allColumns.length === 0) return;
 
+    const findSmartTarget = (): string => {
+      const isIdOrDate = (col: string): boolean => {
+        const l = col.toLowerCase().trim();
+        if (l === "id" || l.endsWith("_id") || l.startsWith("id_") || l.includes("uuid") || l.includes("guid") || l.includes("index")) return true;
+        if (l.includes("date") || l.includes("time") || l.includes("dob") || l.includes("timestamp") || l.includes("created") || l.includes("updated")) return true;
+        return false;
+      };
+
+      // 1. Direct standard target keywords (excluding ID/date columns)
+      const explicitTarget = allColumns.find(c => {
+        if (isIdOrDate(c)) return false;
+        const l = c.toLowerCase().trim();
+        return ["target", "label", "class", "churn", "status", "outcome", "survived", "y", "is_churn", "fraud", "loan_status", "income", "salary", "price", "revenue", "sales", "score", "grade", "rating"].includes(l);
+      });
+      if (explicitTarget) return explicitTarget;
+
+      // 2. Categorical columns with 2 to 20 unique values (from profile)
+      const validCategorical = allColumns.find(c => {
+        if (isIdOrDate(c)) return false;
+        const meta = profileColMap[c];
+        const nUniq = meta?.n_unique ?? meta?.unique_count;
+        return typeof nUniq === "number" && nUniq >= 2 && nUniq <= 20;
+      });
+      if (validCategorical) return validCategorical;
+
+      // 3. Numeric columns that are not ID or date
+      const validNumeric = allColumns.find(c => {
+        if (isIdOrDate(c)) return false;
+        const meta = profileColMap[c];
+        const dtype = (meta?.dtype || meta?.type || "").toLowerCase();
+        return dtype.includes("int") || dtype.includes("float") || dtype.includes("num");
+      });
+      if (validNumeric) return validNumeric;
+
+      // 4. Any non-ID, non-date column
+      const fallback = allColumns.find(c => !isIdOrDate(c));
+      return fallback || allColumns[0];
+    };
+
     if (!isTargetInitialized.current) {
       isTargetInitialized.current = true;
       if (!automlTarget) {
-        const candidate = allColumns.find(c => {
-          const lower = c.toLowerCase().trim();
-          return ["target", "label", "class", "churn", "status", "outcome", "survived", "y", "is_churn", "fraud", "loan_status"].includes(lower);
-        });
-        const targetToSet = candidate || allColumns[allColumns.length - 1];
+        const targetToSet = findSmartTarget();
         if (targetToSet) {
           setAutomlTarget(targetToSet);
           setCustomModelName(`${targetToSet.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
         }
       }
     } else if (automlTarget && !allColumns.includes(automlTarget)) {
-      const candidate = allColumns.find(c => {
-        const lower = c.toLowerCase().trim();
-        return ["target", "label", "class", "churn", "status", "outcome", "survived", "y", "is_churn", "fraud", "loan_status"].includes(lower);
-      });
-      const targetToSet = candidate || allColumns[allColumns.length - 1];
+      const targetToSet = findSmartTarget();
       if (targetToSet) {
         setAutomlTarget(targetToSet);
         setCustomModelName(`${targetToSet.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Predictor`);
       }
     }
-  }, [allColumns, automlTarget]);
+  }, [allColumns, automlTarget, profileColMap]);
 
   // Active features list: uses deep analysis if available, otherwise immediate local baseline from dataset profile
   const activeFeaturesList: FeatureInfo[] = useMemo(() => {
@@ -453,12 +519,18 @@ export function AutoMLTab() {
           if (!pRes.ok) throw new Error("AutoML job status polling failed.");
           const pData = await pRes.json();
           if (pData.status === "completed" || pData.status === "success") {
-            if (pData.result?.key === "automl_meta" && uploadId) {
+            if (pData.result?.automl_meta && pData.result.automl_meta.leaderboard) {
+              return pData.result.automl_meta;
+            }
+            if (uploadId) {
               const shareToken = getShareToken(uploadId);
-              const metaRes = await apiFetch(`/workspace/state?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`);
-              if (metaRes.ok) {
-                const state = await metaRes.json();
-                if (state.automl_meta) return state.automl_meta;
+              for (let retry = 0; retry < 5; retry++) {
+                const metaRes = await apiFetch(`/workspace/state?upload_id=${encodeURIComponent(uploadId || '')}${shareToken ? `&share_token=${encodeURIComponent(shareToken)}` : ""}`);
+                if (metaRes.ok) {
+                  const state = await metaRes.json();
+                  if (state.automl_meta && state.automl_meta.leaderboard) return state.automl_meta;
+                }
+                await new Promise(r => setTimeout(r, 1000));
               }
             }
             return pData.result;
@@ -493,7 +565,7 @@ export function AutoMLTab() {
               <Bot size={20} />
             </span>
             <h2 className="text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
-              Enterprise AutoML Studio
+              AutoML Studio
             </h2>
           </div>
 
@@ -504,7 +576,7 @@ export function AutoMLTab() {
             <>
               <button
                 onClick={() => setActiveTab("models")}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-[4px] text-xs font-bold transition-all cursor-pointer"
                 style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.25)" }}>
                 <Boxes size={14} />
                 <span>Models Catalog</span>
@@ -513,7 +585,7 @@ export function AutoMLTab() {
               <a
                 href={`/api/automl/download?upload_id=${uploadId}`}
                 download
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-md transition-all hover:opacity-90"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-[4px] text-xs font-bold text-white shadow-md transition-all hover:opacity-90"
                 style={{ background: "linear-gradient(135deg, #10b981, #059669)", textDecoration: "none" }}>
                 <Download size={14} />
                 <span>DOWNLOAD MODEL (.joblib)</span>
@@ -654,7 +726,7 @@ export function AutoMLTab() {
             <button
               type="button"
               onClick={() => setActiveTab("preview")}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:opacity-90 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[4px] text-xs font-bold text-white shadow-sm hover:opacity-90 transition-all cursor-pointer"
               style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
               Go to Data Preview / Ingestion
             </button>
@@ -668,20 +740,20 @@ export function AutoMLTab() {
                   <h3 className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
                     Dataset Attributes &amp; Predictor Whitelist
                   </h3>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-mono font-bold" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1" }}>
+                  <span className="text-xs px-2 py-0.5 rounded-md font-mono font-bold" style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1" }}>
                     {selectedFeatures.length} of {activeFeaturesList.length} Predictors Selected
                   </span>
                   {automlTarget ? (
-                    <span className="text-xs px-2.5 py-0.5 rounded-full font-mono font-bold" style={{ background: "rgba(99,102,241,0.15)", color: "#6366f1" }}>
+                    <span className="text-xs px-2.5 py-0.5 rounded-md font-mono font-bold" style={{ background: "rgba(99,102,241,0.15)", color: "#6366f1" }}>
                       Target: {automlTarget} (Y)
                     </span>
                   ) : (
-                    <span className="text-xs px-2.5 py-0.5 rounded-full font-mono font-bold" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
+                    <span className="text-xs px-2.5 py-0.5 rounded-md font-mono font-bold" style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
                       Target not selected
                     </span>
                   )}
                   {isAnalyzingFeatures && (
-                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 animate-pulse">
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-500 animate-pulse">
                       <RefreshCw size={11} className="animate-spin" />
                       <span>Auditing signal correlations...</span>
                     </span>
@@ -851,7 +923,7 @@ export function AutoMLTab() {
                           </td>
                           <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                             {isTarget ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-500">
                                 Target Variable
                               </span>
                             ) : (
@@ -891,19 +963,19 @@ export function AutoMLTab() {
                           </td>
                           <td className="py-2 px-3">
                             {isTarget ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-500">
                                 <Zap size={10} /> Target
                               </span>
                             ) : f.leakage_risk === "high" ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-500">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-red-500/15 text-red-500">
                                 <AlertTriangle size={10} /> High Risk
                               </span>
                             ) : f.leakage_risk === "medium" ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-500">
                                 Medium Signal
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-500">
                                 <CheckCircle2 size={10} /> Safe
                               </span>
                             )}
@@ -1490,13 +1562,7 @@ export function AutoMLTab() {
                 )}
               </div>
 
-              {/* JSON preview */}
-              <div className="pt-2 border-t flex items-center justify-between flex-wrap gap-2 text-[10px] font-mono" style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}>
-                <span>Parameters payload:</span>
-                <span className="px-2 py-0.5 rounded border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                  {JSON.stringify(hyperparams)}
-                </span>
-              </div>
+
             </div>
           </div>
         )}
@@ -1532,7 +1598,7 @@ export function AutoMLTab() {
         <button
           onClick={runAutoml}
           disabled={isTraining || !automlTarget || selectedFeatures.length === 0 || (trainingMode === "tournament" && selectedAlgos.length === 0)}
-          className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          className="flex items-center gap-2 px-6 py-3 rounded-[4px] text-xs font-black uppercase tracking-wider text-white transition-all shadow-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}>
           {isTraining ? (
             <>
@@ -1608,14 +1674,14 @@ export function AutoMLTab() {
         <div className="space-y-5">
           {/* Mode Banner */}
           {automlResult.mode === "tournament" ? (
-            <div className="p-3.5 rounded-xl border flex items-center justify-between flex-wrap gap-2" style={{ background: "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(99,102,241,0.06))", borderColor: "rgba(245,158,11,0.25)" }}>
+            <div className="p-3.5 rounded-xl border flex items-center justify-between flex-wrap gap-2" style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.06), rgba(59,130,246,0.04))", borderColor: "var(--border)" }}>
               <div className="flex items-center gap-2">
-                <Trophy size={16} className="text-amber-400" />
+                <BarChart3 size={16} style={{ color: "var(--accent)" }} />
                 <span className="text-xs font-bold" style={{ color: "var(--txt)" }}>
                   AutoML Tournament Completed: 10 Common Models Evaluated Side-by-Side
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                  Champion: {automlResult.best_estimator_name || automlResult.best_estimator}
+                <span className="text-[11px] font-mono font-medium" style={{ color: "var(--txt-m)" }}>
+                  &middot; Best Model: {automlResult.best_estimator_name || automlResult.best_estimator}
                 </span>
               </div>
               <span className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
@@ -1704,65 +1770,105 @@ export function AutoMLTab() {
           {/* Leaderboard & Feature Importance Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Leaderboard Table (6 cols) */}
-            <div className="lg:col-span-6 p-5 rounded-2xl space-y-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between">
+            <div className="lg:col-span-6 p-5 rounded-2xl space-y-3.5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
-                  <Trophy size={14} className="text-amber-400" />
-                  <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
-                    {automlResult.mode === "manual" ? "Tuned Model Performance" : "Tournament Leaderboard"}
-                  </h3>
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center border" style={{ background: "rgba(99,102,241,0.1)", color: "var(--accent)", borderColor: "rgba(99,102,241,0.2)" }}>
+                    <BarChart3 size={15} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider" style={{ color: "var(--txt)" }}>
+                      {automlResult.mode === "manual" ? "Tuned Model Performance" : "Tournament Leaderboard"}
+                    </h3>
+                    <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
+                      Ranked by {automlResult.leaderboard?.[0]?.metric_name || (automlResult.task === "regression" ? "R² Score" : "Accuracy")} &middot; 5-fold CV
+                    </p>
+                  </div>
                 </div>
-                <span className="text-[10px] font-mono" style={{ color: "var(--txt-m)" }}>
-                  {automlResult.mode === "manual" ? "1 Model Tuned" : `${(automlResult.leaderboard || []).length} Models Evaluated`}
-                </span>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border" style={{ borderColor: "var(--border)" }}>
+              <div className="overflow-x-auto rounded-xl border flex-1" style={{ borderColor: "var(--border)" }}>
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="font-mono text-[10px] uppercase tracking-wider" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)", color: "var(--txt-m)" }}>
+                  <thead className="font-mono text-[10px] uppercase tracking-wider" style={{ background: "var(--card)", borderBottom: "1px solid var(--border)", color: "var(--txt-m)" }}>
                     <tr>
-                      <th className="py-2.5 px-3">Rank & Model</th>
-                      <th className="py-2.5 px-3">Score</th>
+                      <th className="py-2.5 px-3">Rank &amp; Model</th>
+                      <th className="py-2.5 px-3">
+                        Score ({automlResult.leaderboard?.[0]?.metric_name || (automlResult.task === "regression" ? "R²" : "Accuracy")})
+                      </th>
                       <th className="py-2.5 px-3">Latency</th>
                       <th className="py-2.5 px-3">Configuration</th>
+                      <th className="py-2.5 px-2 text-center">Inspect</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: "var(--border)" }}>
                     {(automlResult.leaderboard || []).map((row: any, i: number) => {
-                      const isFirst = i === 0 || row.best;
-                      const isSecond = i === 1 && !row.best;
-                      const isThird = i === 2 && !row.best;
-                      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`;
+                      const isChampion = row.best || (row.rank === 1 && !automlResult.leaderboard.some((r: any) => r.best));
+                      const rankNum = row.rank || (i + 1);
+                      const rankDisplay = `#${rankNum}`;
+                      const metricVal = typeof row.metric === "number" ? row.metric : null;
+                      const bestMetric = automlResult.leaderboard[0]?.metric || 1;
+                      const scorePct = metricVal !== null && bestMetric > 0 
+                        ? Math.max(8, Math.min(100, Math.round((metricVal / Math.max(bestMetric, 0.001)) * 100))) 
+                        : 8;
 
                       return (
                         <tr
                           key={i}
-                          style={{ background: isFirst ? "rgba(99,102,241,0.08)" : "transparent" }}>
+                          onClick={() => setInspectedLeaderboardModel(row)}
+                          className="hover:bg-indigo-500/5 transition-colors cursor-pointer group"
+                          style={{ background: isChampion ? "rgba(99,102,241,0.08)" : "transparent" }}
+                        >
                           <td className="py-2.5 px-3 font-mono font-bold">
-                            <div className="flex items-center gap-2">
-                              <span className="w-5 h-5 flex items-center justify-center rounded-md text-[11px] font-mono">
-                                {medal}
+                            <div className="flex items-center gap-2.5">
+                              <span 
+                                className="w-6 text-[11px] font-mono font-bold"
+                                style={{ color: isChampion ? "var(--accent)" : "var(--txt-m)" }}
+                              >
+                                {rankDisplay}
                               </span>
-                              <div>
-                                <span style={{ color: isFirst ? "var(--accent)" : "var(--txt)" }}>
-                                  {row.display_name || row.model}
-                                </span>
-                                {isFirst && (
-                                  <span className="ml-1.5 text-[8px] font-sans font-bold uppercase tracking-wider px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                    Champion
-                                  </span>
-                                )}
+                              <span className="font-semibold" style={{ color: isChampion ? "var(--accent)" : "var(--txt)" }}>
+                                {row.display_name || row.model}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono">
+                            <div className="space-y-1">
+                              <span className="font-bold text-xs" style={{ color: isChampion ? "var(--accent)" : "var(--txt)" }}>
+                                {metricVal !== null ? metricVal.toFixed(4) : "-"}
+                              </span>
+                              <div className="w-20 h-1 rounded-xs bg-zinc-800 overflow-hidden">
+                                <div
+                                  className="h-full rounded-xs transition-all"
+                                  style={{
+                                    width: `${scorePct}%`,
+                                    background: isChampion ? "var(--accent)" : "#6366f1",
+                                  }}
+                                />
                               </div>
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 font-mono font-bold" style={{ color: isFirst ? "var(--accent)" : "var(--txt)" }}>
-                            {typeof row.metric === 'number' ? row.metric.toFixed(4) : (row.metric !== null ? row.metric : "-")}
-                          </td>
                           <td className="py-2.5 px-3 font-mono text-[10px]" style={{ color: "var(--txt-m)" }}>
-                            {row.elapsed_s ? `${Number(row.elapsed_s).toFixed(2)}s` : "-"}
+                            <span className="inline-flex items-center gap-1">
+                              <Clock size={10} className="text-zinc-500" />
+                              {row.elapsed_s ? `${Number(row.elapsed_s).toFixed(2)}s` : "<0.05s"}
+                            </span>
                           </td>
-                          <td className="py-2.5 px-3 font-mono text-[10px] max-w-[160px] truncate" style={{ color: "var(--txt-f)" }} title={row.best_config}>
-                            {row.best_config || "-"}
+                          <td className="py-2.5 px-3">
+                            {renderConfigBadges(row.best_config)}
+                          </td>
+                          <td className="py-2.5 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInspectedLeaderboardModel(row);
+                              }}
+                              className="p-1 rounded-md border text-zinc-400 hover:text-white hover:border-indigo-400/50 transition-all cursor-pointer opacity-70 group-hover:opacity-100"
+                              style={{ borderColor: "var(--border)", background: "var(--card)" }}
+                              title="Inspect model parameters"
+                            >
+                              <Eye size={12} />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1793,9 +1899,9 @@ export function AutoMLTab() {
                         <span className="w-28 font-mono text-[11px] truncate text-right font-medium" style={{ color: "var(--txt)" }}>
                           {fi.feature}
                         </span>
-                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                        <div className="flex-1 h-2 rounded-xs overflow-hidden" style={{ background: "var(--border)" }}>
                           <div
-                            className="h-full rounded-full transition-all duration-500"
+                            className="h-full rounded-xs transition-all duration-500"
                             style={{
                               background: "linear-gradient(90deg, #6366f1, #3b82f6)",
                               width: `${pct}%`
@@ -1842,7 +1948,7 @@ export function AutoMLTab() {
 
               <button
                 onClick={() => setActiveTab("models")}
-                className="px-5 py-2.5 rounded-xl font-black uppercase tracking-wider text-xs text-white flex items-center gap-2 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
+                className="px-5 py-2.5 rounded-[4px] font-black uppercase tracking-wider text-xs text-white flex items-center gap-2 transition-all hover:scale-[1.02] cursor-pointer shadow-lg"
                 style={{ background: "linear-gradient(135deg, #6366f1, #3b82f6)" }}
               >
                 <span>Open in Models Section</span>
@@ -1852,6 +1958,102 @@ export function AutoMLTab() {
           </div>
         </div>
 
+      )}
+
+      {/* Model Parameters Inspection Modal */}
+      {inspectedLeaderboardModel && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div
+            className="w-full max-w-lg rounded-2xl p-6 border shadow-2xl relative space-y-4 text-xs"
+            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+          >
+            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <Cpu size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold" style={{ color: "var(--txt)" }}>
+                    {inspectedLeaderboardModel.display_name || inspectedLeaderboardModel.model}
+                  </h3>
+                  <p className="text-[10px]" style={{ color: "var(--txt-m)" }}>
+                    Rank #{inspectedLeaderboardModel.rank || 1} &middot; {inspectedLeaderboardModel.best ? "Tournament Champion" : "Evaluated Candidate"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectedLeaderboardModel(null)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center border hover:opacity-100 opacity-60 transition cursor-pointer"
+                style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5">
+              <div className="p-3 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <span className="text-[9px] uppercase tracking-wider block font-bold" style={{ color: "var(--txt-m)" }}>
+                  {inspectedLeaderboardModel.metric_name || "Validation Score"}
+                </span>
+                <span className="text-base font-black font-mono text-indigo-400 mt-0.5 block">
+                  {typeof inspectedLeaderboardModel.metric === "number" ? inspectedLeaderboardModel.metric.toFixed(4) : "-"}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <span className="text-[9px] uppercase tracking-wider block font-bold" style={{ color: "var(--txt-m)" }}>
+                  Training Loss
+                </span>
+                <span className="text-base font-black font-mono text-rose-400 mt-0.5 block">
+                  {typeof inspectedLeaderboardModel.loss === "number" ? inspectedLeaderboardModel.loss.toFixed(4) : "-"}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <span className="text-[9px] uppercase tracking-wider block font-bold" style={{ color: "var(--txt-m)" }}>
+                  Latency
+                </span>
+                <span className="text-base font-black font-mono text-emerald-400 mt-0.5 block">
+                  {inspectedLeaderboardModel.elapsed_s ? `${Number(inspectedLeaderboardModel.elapsed_s).toFixed(2)}s` : "<0.05s"}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+                  Fitted Hyperparameters
+                </span>
+                <span className="text-[9px] font-mono text-zinc-500">JSON Configuration</span>
+              </div>
+              <pre
+                className="p-3 rounded-xl border font-mono text-[11px] overflow-auto max-h-48 whitespace-pre-wrap break-all leading-relaxed"
+                style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}
+              >
+                {(() => {
+                  try {
+                    const str = inspectedLeaderboardModel.best_config;
+                    if (!str) return "Default parameters used.";
+                    const cleaned = str.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false').replace(/None/g, 'null');
+                    return JSON.stringify(JSON.parse(cleaned), null, 2);
+                  } catch {
+                    return inspectedLeaderboardModel.best_config || "Default parameters used.";
+                  }
+                })()}
+              </pre>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setInspectedLeaderboardModel(null)}
+                className="px-4 py-2 rounded-[4px] text-xs font-bold transition cursor-pointer"
+                style={{ background: "var(--accent)", color: "#fff" }}
+              >
+                Close Inspector
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

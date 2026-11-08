@@ -56,6 +56,11 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
   const [dbPreview, setDbPreview] = useState<any | null>(null);
   const [isPreviewingDb, setIsPreviewingDb] = useState(false);
 
+  // Duplicate dataset handling
+  const [duplicateInfo, setDuplicateInfo] = useState<any>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [newProjectName, setNewProjectName] = useState("");
+
   const heroContainerRef = useRef<HTMLDivElement>(null);
   const badgeRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -96,20 +101,51 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
     const file = e.dataTransfer.files[0];
     if (!file) return;
     if (!isLoggedIn) { onLoginRequired(); return; }
-    await uploadFile(file);
+    await checkAndUploadFile(file);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!isLoggedIn) { onLoginRequired(); return; }
-    await uploadFile(file);
+    await checkAndUploadFile(file);
   };
 
-  const uploadFile = async (file: File) => {
+  const checkAndUploadFile = async (file: File, customName?: string) => {
     if (!file.name.endsWith('.csv')) { setErrorMsg('Only CSV files are supported.'); return; }
-    setErrorMsg(''); setIsUploading(true); setFileName(file.name);
-    const fd = new FormData(); fd.append('file', file);
+    setErrorMsg('');
+    
+    if (!customName) {
+      try {
+        const checkRes = await apiFetch('/upload/check-duplicate', {
+          method: 'POST',
+          body: JSON.stringify({ filename: file.name }),
+        });
+        if (checkRes.ok) {
+          const dup = await checkRes.json();
+          if (dup.duplicate && dup.upload_id) {
+            setDuplicateInfo(dup);
+            setPendingFile(file);
+            const baseName = file.name.replace(/\.[^/.]+$/, "");
+            setNewProjectName(`${baseName}_v2.csv`);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Duplicate check error:", e);
+      }
+    }
+    await uploadFile(file, customName);
+  };
+
+  const uploadFile = async (file: File, customName?: string) => {
+    if (!file.name.endsWith('.csv')) { setErrorMsg('Only CSV files are supported.'); return; }
+    setErrorMsg(''); setIsUploading(true); setFileName(customName || file.name); setDuplicateInfo(null);
+    const fd = new FormData();
+    fd.append('file', file);
+    if (customName) {
+      fd.append('dataset_name', customName);
+    }
     const activeWs = typeof window !== 'undefined' ? localStorage.getItem('df_active_workspace') : null;
     if (activeWs && activeWs !== 'personal') {
       fd.append('workspace_id', activeWs);
@@ -154,6 +190,9 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
     setDbError('');
     setDbPreview(null);
     setCurrentUploadId(null);
+    setDuplicateInfo(null);
+    setPendingFile(null);
+    setNewProjectName('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
@@ -469,6 +508,18 @@ export default function HeroSection({ onLoginRequired }: HeroSectionProps) {
             isExcelOnlineLoading={isExcelOnlineLoading}
             loadExcelOnline={loadExcelOnline}
             uploadFile={uploadFile}
+            duplicateInfo={duplicateInfo}
+            newProjectName={newProjectName}
+            setNewProjectName={setNewProjectName}
+            onConfirmNewProject={() => {
+              if (pendingFile) {
+                uploadFile(pendingFile, newProjectName.trim() || undefined);
+              }
+            }}
+            onCancelDuplicate={() => {
+              setDuplicateInfo(null);
+              setPendingFile(null);
+            }}
 
             reset={reset}
             goToWorkspace={goToWorkspace}

@@ -328,7 +328,7 @@ export function TeamGovernanceDrawer({
                   {activeOrg?.name || "Team Workspace"}
                 </h2>
                 <span
-                  className="px-2 py-0.5 text-[10px] font-black uppercase rounded-full tracking-wider"
+                  className="px-2 py-0.5 text-[10px] font-black uppercase rounded-md tracking-wider"
                   style={{
                     background: "rgba(16, 185, 129, 0.15)",
                     color: "#10b981",
@@ -500,7 +500,7 @@ export function TeamGovernanceDrawer({
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs shrink-0"
+                          className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-xs shrink-0"
                           style={{
                             background: badge.bg,
                             color: badge.text,

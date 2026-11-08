@@ -23,7 +23,6 @@ export function CleanerTab() {
   const [mode, setMode] = useState<"auto" | "dynamic">("dynamic");
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanError, setCleanError] = useState("");
-  const [alreadyCleanModal, setAlreadyCleanModal] = useState(false);
 
   // Auto-dismiss cleanError after 6 seconds
   useEffect(() => {
@@ -305,11 +304,9 @@ export function CleanerTab() {
       setCleanResult(data);
       setCleanProfile(data.clean_profile);
 
-      const missingLog = data.missing_log || [];
-      const structActions = data.struct_actions || [];
-      const isClean = missingLog.length === 0 && structActions.length === 0;
-      if (isClean || (profile && profile.missing_pct === 0)) {
-        setAlreadyCleanModal(true);
+      // Trigger workspace refresh event so all tabs (Explorer, Dashboard, etc.) immediately reflect cleaned data
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("df_workspace_refresh", { detail: { uploadId } }));
       }
     } catch (e: any) {
       setCleanError("Network error: " + e.message);
@@ -376,7 +373,7 @@ export function CleanerTab() {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight" style={{ background: "linear-gradient(135deg,var(--txt),var(--txt-m))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1.1 }}>
-              Enterprise Data Cleaning Studio
+              Data Cleaning Studio
             </h2>
 
           </div>
@@ -385,12 +382,12 @@ export function CleanerTab() {
 
         <div className="flex items-center gap-2">
           {/* Mode Switcher */}
-          <div className="flex p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            <button onClick={() => setMode("dynamic")} className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+          <div className="flex p-1 rounded-[4px]" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <button onClick={() => setMode("dynamic")} className="px-3 py-1.5 rounded-[3px] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               style={mode === "dynamic" ? { background: "#6366f1", color: "#fff", boxShadow: "0 0 12px rgba(99,102,241,0.3)" } : { color: "var(--txt-m)" }}>
               <Sliders size={13} /> Granular Studio
             </button>
-            <button onClick={() => setMode("auto")} className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+            <button onClick={() => setMode("auto")} className="px-3 py-1.5 rounded-[3px] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               style={mode === "auto" ? { background: "#6366f1", color: "#fff", boxShadow: "0 0 12px rgba(99,102,241,0.3)" } : { color: "var(--txt-m)" }}>
               <Sparkles size={13} /> 1-Click Auto
             </button>
@@ -398,12 +395,11 @@ export function CleanerTab() {
 
           {cleanResult && (
             <div className="flex gap-2">
-              <button onClick={() => setShowCodeModal(true)} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all"
-                style={{ background: "rgba(99,102,241,0.1)", borderColor: "rgba(99,102,241,0.3)", color: "#818cf8" }}>
-                <Terminal size={13} /> Export Script
+              <button onClick={() => setShowCodeModal(true)} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-[4px] border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400">
+                <Terminal size={13} className="text-indigo-600 dark:text-indigo-400" /> Export Script
               </button>
-              <a href={`/api/clean/download?upload_id=${uploadId}`} className="bg flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ textDecoration: "none" }}><Download size={13} /> CSV</a>
-              <a href={`/api/clean/download?format=xlsx&upload_id=${uploadId}`} className="bg flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border" style={{ textDecoration: "none" }}><Download size={13} /> Excel</a>
+              <a href={`/api/clean/download?upload_id=${uploadId}`} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-[4px] border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400" style={{ textDecoration: "none" }}><Download size={13} /> CSV</a>
+              <a href={`/api/clean/download?format=xlsx&upload_id=${uploadId}`} className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-[4px] border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400" style={{ textDecoration: "none" }}><Download size={13} /> Excel</a>
             </div>
           )}
         </div>
@@ -481,7 +477,7 @@ export function CleanerTab() {
               Automatically normalizes column names to snake_case, drops &gt;60% missing columns, imputes missing values using distribution heuristics (Mean/Median/Mode), and strips extra whitespace.
             </p>
           </div>
-          <button onClick={runAutoCleaning} disabled={isCleaning} className="px-6 py-3 rounded-xl font-bold text-sm text-white flex items-center gap-2"
+          <button onClick={runAutoCleaning} disabled={isCleaning} className="px-6 py-3 rounded-[4px] font-bold text-sm text-white flex items-center gap-2 cursor-pointer"
             style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>
             {isCleaning ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
             {isCleaning ? "Cleaning Dataset…" : "Run Automated Clean"}
@@ -898,7 +894,7 @@ export function CleanerTab() {
                   <button
                     onClick={runPreviewDiff}
                     disabled={selectedCols.length === 0 || diffLoading}
-                    className="px-4 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5"
+                    className="px-4 py-2 rounded-[4px] text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer"
                     style={{ borderColor: "rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.03)", color: "var(--txt)" }}
                   >
                     {diffLoading ? <RefreshCw size={13} className="animate-spin text-indigo-400" /> : <Eye size={13} className="text-indigo-400" />}
@@ -908,7 +904,7 @@ export function CleanerTab() {
                   <button
                     onClick={addRule}
                     disabled={selectedCols.length === 0}
-                    className="px-5 py-2 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all shadow-md"
+                    className="px-5 py-2 rounded-[4px] text-xs font-bold text-white flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
                     style={selectedCols.length === 0 ? { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)", cursor: "not-allowed" } : { background: "#6366f1", boxShadow: "0 0 14px rgba(99,102,241,0.3)" }}
                   >
                     <Plus size={14} /> Clean
@@ -1018,13 +1014,13 @@ export function CleanerTab() {
                             </span>
 
                             {changedCount > 0 && (
-                              <div className="flex items-center gap-1 p-0.5 rounded-lg border text-[10px]" style={{ background: "var(--surface-2, var(--card))", borderColor: "var(--border)" }}>
+                              <div className="flex items-center gap-1 p-0.5 rounded-[4px] border text-[10px]" style={{ background: "var(--surface-2, var(--card))", borderColor: "var(--border)" }}>
                                 <button
                                   type="button"
                                   onClick={() => setDiffFilter("all")}
-                                  className={`px-2.5 py-0.5 rounded font-bold transition-all cursor-pointer ${diffFilter === "all"
-                                    ? "bg-indigo-600 text-white shadow-sm"
-                                    : ""
+                                  className={`px-2.5 py-1 rounded-[3px] font-bold text-xs transition-all cursor-pointer ${diffFilter === "all"
+                                    ? "bg-indigo-600 text-white shadow-xs"
+                                    : "hover:bg-slate-200 dark:hover:bg-slate-800"
                                     }`}
                                   style={diffFilter !== "all" ? { color: "var(--txt-m)" } : undefined}
                                 >
@@ -1033,9 +1029,9 @@ export function CleanerTab() {
                                 <button
                                   type="button"
                                   onClick={() => setDiffFilter("modified")}
-                                  className={`px-2.5 py-0.5 rounded font-bold transition-all cursor-pointer ${diffFilter === "modified"
-                                    ? "bg-emerald-600 text-white shadow-sm"
-                                    : ""
+                                  className={`px-2.5 py-1 rounded-[3px] font-bold text-xs transition-all cursor-pointer ${diffFilter === "modified"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "hover:bg-slate-200 dark:hover:bg-slate-800"
                                     }`}
                                   style={diffFilter !== "modified" ? { color: "var(--txt-m)" } : undefined}
                                 >
@@ -1069,11 +1065,11 @@ export function CleanerTab() {
                                     <td className="p-2.5 font-semibold" style={{ color: "var(--txt-m)" }}>#{row.row}</td>
                                     <td className="p-2.5">
                                       {isNullBefore ? (
-                                        <span className="px-1.5 py-0.5 rounded bg-red-500/15 text-red-500 font-bold text-[10px] border border-red-500/30">
+                                        <span className="px-2 py-0.5 rounded-[3px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 font-bold text-[10px] border border-rose-300 dark:border-rose-800">
                                           NaN
                                         </span>
                                       ) : row.changed ? (
-                                        <span className="line-through text-red-500/80 mr-1.5 font-medium">
+                                        <span className="line-through text-rose-600/80 mr-1.5 font-medium">
                                           {row.before}
                                         </span>
                                       ) : (
@@ -1082,11 +1078,11 @@ export function CleanerTab() {
                                     </td>
                                     <td className="p-2.5">
                                       {isRemoved ? (
-                                        <span className="px-1.5 py-0.5 rounded bg-red-500/15 text-red-500 font-bold text-[10px] border border-red-500/30">
+                                        <span className="px-2 py-0.5 rounded-[3px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 font-bold text-[10px] border border-rose-300 dark:border-rose-800">
                                           DROPPED
                                         </span>
                                       ) : row.changed ? (
-                                        <span className="font-bold text-emerald-500 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30">
+                                        <span className="font-bold text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-[3px] bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800">
                                           {row.after}
                                         </span>
                                       ) : (
@@ -1095,11 +1091,11 @@ export function CleanerTab() {
                                     </td>
                                     <td className="p-2.5 text-right">
                                       {isRemoved ? (
-                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-red-500/15 text-red-500 border border-red-500/30">
+                                        <span className="text-[9px] px-2 py-0.5 rounded-[3px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-300 dark:border-rose-800">
                                           Removed
                                         </span>
                                       ) : row.changed ? (
-                                        <span className="text-[9px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+                                        <span className="text-[9px] px-2 py-0.5 rounded-[3px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                                           Modified
                                         </span>
                                       ) : (
@@ -1160,7 +1156,7 @@ export function CleanerTab() {
                 })}
               </div>
 
-              <button onClick={runDynamicCleaning} disabled={isCleaning} className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all shadow-xl"
+              <button onClick={runDynamicCleaning} disabled={isCleaning} className="w-full py-3.5 rounded-[4px] font-bold text-sm text-white flex items-center justify-center gap-2 transition-all shadow-xl cursor-pointer"
                 style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 24px rgba(99,102,241,0.3)" }}>
                 {isCleaning ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                 {isCleaning ? "Executing Full Pipeline…" : "Execute Full Cleaning Pipeline"}
@@ -1246,7 +1242,24 @@ export function CleanerTab() {
               }
             });
 
-            if (combinedLog.length === 0) return null;
+            if (combinedLog.length === 0) {
+              return (
+                <div className="p-4 rounded-[4px] border flex items-center justify-between gap-4" style={{ background: "rgba(16,185,129,0.06)", borderColor: "rgba(16,185,129,0.25)" }}>
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+                    <div>
+                      <p className="font-bold text-xs" style={{ color: "var(--txt)" }}>Cleaned Dataset Verified</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
+                        Dataset is fully normalized, types coerced, and 100% complete across all columns.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-[3px] bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-400">
+                    Production Ready
+                  </span>
+                </div>
+              );
+            }
 
             return (
               <div>
@@ -1332,11 +1345,11 @@ export function CleanerTab() {
                               </td>
                               <td>
                                 <span
-                                  className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full inline-block"
+                                  className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-[3px] inline-block font-mono"
                                   style={{
                                     background: `${borderCol}18`,
                                     color: borderCol,
-                                    border: `1px solid ${borderCol}33`,
+                                    border: `1px solid ${borderCol}40`,
                                   }}
                                 >
                                   {type}
@@ -1347,15 +1360,15 @@ export function CleanerTab() {
                               </td>
                               <td className="font-mono text-xs">
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-500/10 text-rose-400 border border-rose-500/25">
+                                  <span className="px-1.5 py-0.5 rounded-[3px] text-[10px] font-mono bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800/60 font-semibold">
                                     {diffBefore}
                                   </span>
                                   <span className="text-[10px]" style={{ color: "var(--txt-m)" }}>→</span>
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                                  <span className="px-1.5 py-0.5 rounded-[3px] text-[10px] font-mono bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800/60 font-semibold">
                                     {diffAfter}
                                   </span>
                                   {delta && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-[3px] font-mono bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800/60">
                                       {delta}
                                     </span>
                                   )}
@@ -1389,15 +1402,15 @@ export function CleanerTab() {
                 </h3>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={copyPythonCode} className="px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-all"
+                <button onClick={copyPythonCode} className="px-3 py-1.5 rounded-[4px] text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer"
                   style={{ background: "rgba(99,102,241,0.1)", borderColor: "rgba(99,102,241,0.3)", color: "#818cf8" }}>
                   {copiedCode ? <Check size={13} /> : <Copy size={13} />}
                   {copiedCode ? "Copied!" : "Copy Code"}
                 </button>
-                <a href={`/api/clean/export-script?upload_id=${uploadId}`} className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white flex items-center gap-1.5 shadow-md no-underline">
+                <a href={`/api/clean/export-script?upload_id=${uploadId}`} className="px-3 py-1.5 rounded-[4px] text-xs font-bold bg-indigo-600 text-white flex items-center gap-1.5 shadow-md no-underline">
                   <Download size={13} /> Download .py
                 </a>
-                <button onClick={() => setShowCodeModal(false)} className="p-1 rounded-lg text-gray-500 hover:text-white"><X size={16} /></button>
+                <button onClick={() => setShowCodeModal(false)} className="p-1 rounded-[4px] text-gray-500 hover:text-white cursor-pointer"><X size={16} /></button>
               </div>
             </div>
 
@@ -1408,39 +1421,6 @@ export function CleanerTab() {
             <div className="flex-1 overflow-auto rounded-xl border bg-black/40 p-4 font-mono text-xs text-gray-300 leading-relaxed no-scrollbar select-all">
               <pre>{cleanResult.pipeline_script}</pre>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* -- Dataset Already Clean Modal ---- */}
-      {alreadyCleanModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/65 backdrop-blur-md animate-fadeIn" onClick={() => setAlreadyCleanModal(false)}>
-          <div className="w-full max-w-md rounded-3xl p-6 md:p-8 flex flex-col items-center text-center shadow-2xl relative overflow-hidden border"
-            onClick={(e) => e.stopPropagation()}
-            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}>
-
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 border shadow-lg"
-              style={{ background: "rgba(16,185,129,0.12)", borderColor: "rgba(16,185,129,0.3)", color: "#10b981" }}>
-              <CheckCircle2 size={34} />
-            </div>
-
-            <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full mb-3" style={{ background: "rgba(16,185,129,0.12)", color: "#10b981", border: "1px solid rgba(16,185,129,0.25)" }}>
-              100% Analysis Ready
-            </span>
-
-            <h3 className="text-xl font-black tracking-tight mb-2" style={{ color: "var(--txt)" }}>
-              Dataset is Already Clean! 🎉
-            </h3>
-
-            <p className="text-xs leading-relaxed mb-6" style={{ color: "var(--txt-m)" }}>
-              No missing values, duplicate records, or formatting errors were detected in your dataset. Your dataset is already in pristine condition and ready for analysis!
-            </p>
-
-            <button onClick={() => setAlreadyCleanModal(false)}
-              className="w-full py-3 rounded-xl font-bold text-xs text-white shadow-xl transition-all hover:scale-[1.02]"
-              style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 0 20px rgba(99,102,241,0.3)" }}>
-              Great, Continue Analysis!
-            </button>
           </div>
         </div>
       )}

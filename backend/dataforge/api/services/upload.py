@@ -39,6 +39,7 @@ class UploadService:
             "user_email": getattr(user, "email", None),
             "user_name": getattr(user, "name", None),
             "filename": filename,
+            "project_name": filename,
             "source_type": source_type,
             "rows": profile.get("rows", len(df)),
             "cols": profile.get("cols", len(df.columns)),
@@ -99,6 +100,31 @@ class UploadService:
 
         existing = upload_repo.find_by_filename(user_id, filename)
         if not existing:
+            try:
+                from dataforge.web.storage import STORE_DIR, _load
+                for d in STORE_DIR.iterdir():
+                    if d.is_dir() and not d.name.startswith(("_", ".")):
+                        meta = _load(d.name, "meta") or {}
+                        meta_fn = meta.get("filename") or ""
+                        meta_proj = meta.get("project_name") or ""
+                        clean_fn = filename.lower().strip()
+                        if meta_fn.lower().strip() == clean_fn or meta_proj.lower().strip() == clean_fn:
+                            upload_id = d.name
+                            profile = load(upload_id, "profile") or {}
+                            return {
+                                "duplicate": True,
+                                "upload_id": upload_id,
+                                "filename": meta.get("filename") or filename,
+                                "project_name": meta.get("project_name") or meta.get("filename") or filename,
+                                "rows": meta.get("rows", profile.get("rows", 0)),
+                                "cols": meta.get("cols", profile.get("cols", 0)),
+                                "numeric": profile.get("numeric", 0),
+                                "missing_pct": meta.get("missing_pct", profile.get("missing_pct", 0)),
+                                "time_ago": "previously uploaded",
+                                "has_clean": bool(profile.get("clean_cols") or meta.get("clean_meta_json")),
+                            }
+            except Exception as e:
+                log.warning("Disk duplicate check fallback error: %s", e)
             return None
 
         upload_id = existing.get("id")
@@ -107,6 +133,7 @@ class UploadService:
             "duplicate": True,
             "upload_id": upload_id,
             "filename": existing.get("filename"),
+            "project_name": existing.get("project_name") or existing.get("filename"),
             "rows": existing.get("rows", 0),
             "cols": existing.get("cols", 0),
             "numeric": profile.get("numeric", 0),

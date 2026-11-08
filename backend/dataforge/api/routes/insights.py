@@ -194,6 +194,33 @@ async def api_forecast(
         if "error" in result:
             raise HTTPException(422, result["error"])
 
+        # Update last_insights cache on disk so future /insights/current queries stay up to date
+        try:
+            cached_insights = load(body.upload_id, "last_insights")
+            if isinstance(cached_insights, list):
+                updated = False
+                for item in cached_insights:
+                    if item.get("type") == "forecast":
+                        item["chart_data"] = {
+                            "labels": result.get("historical_labels", []),
+                            "values": result.get("historical_values", []),
+                            "forecast_labels": result.get("forecast_labels", []),
+                            "forecast_values": result.get("forecast_values", []),
+                            "upper_95": result.get("upper_95", []),
+                            "lower_95": result.get("lower_95", []),
+                            "upper_80": result.get("upper_80", []),
+                            "lower_80": result.get("lower_80", []),
+                            "decomposition": result.get("decomposition"),
+                            "summary_stats": result.get("summary_stats", {}),
+                            "model_mapes": result.get("model_mapes", {}),
+                            "best_model": result.get("best_model", "Holt-Winters"),
+                        }
+                        updated = True
+                if updated:
+                    save(body.upload_id, "last_insights", cached_insights)
+        except Exception as e:
+            log.warning("Could not sync forecast to last_insights: %s", e)
+
         return JSONResponse(content=safe_jsonable(result))
 
     except HTTPException:

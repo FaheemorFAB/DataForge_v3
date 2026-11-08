@@ -23,6 +23,8 @@ def test_pipeline_export_and_assert(client):
         "revenue": [100.5, 200.0, 150.0, 300.0]
     })
     save(upload_id, "df_raw", df)
+    save(upload_id, "df_clean", df)
+    save(upload_id, "clean_meta", {"rules_applied": [{"action": "impute"}]})
     save(upload_id, "profile", {"filename": "sales.csv", "columns": list(df.columns)})
 
     # Test export

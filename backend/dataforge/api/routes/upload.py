@@ -57,11 +57,18 @@ async def api_upload(
     expected_format: Optional[str] = Form(default=None),
     current_upload_id: Optional[str] = Form(default=None),
     workspace_id: Optional[str] = Form(default=None),
+    dataset_name: Optional[str] = Form(default=None),
 ):
     """Accept a file upload, profile it, and persist to disk + Supabase."""
     _assert_no_active_workspace_dataset(current_upload_id)
-    filename = file.filename or "upload.csv"
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "csv"
+    raw_filename = file.filename or "upload.csv"
+    ext = raw_filename.rsplit(".", 1)[-1].lower() if "." in raw_filename else "csv"
+    
+    if dataset_name and str(dataset_name).strip():
+        chosen_name = str(dataset_name).strip()
+        filename = chosen_name if "." in chosen_name else f"{chosen_name}.{ext}"
+    else:
+        filename = raw_filename
 
     if ext not in {"csv", "xls", "xlsx", "parquet", "json", "jsonl", "ndjson"}:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: .{ext}")

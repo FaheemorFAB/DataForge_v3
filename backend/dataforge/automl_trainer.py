@@ -208,26 +208,42 @@ def _build_leaderboard(automl) -> list:
         best_name = automl.best_estimator
 
         for estimator, loss in loss_map.items():
+            algo_info = next((a for a in COMMON_ALGORITHMS if a["id"] == _resolve_algo_id(estimator)), None)
+            display_name = algo_info["name"] if algo_info else str(estimator).replace("_", " ").title()
             try:
-                metric_val = round(float(loss), 6)
-                if not math.isfinite(metric_val):
-                    metric_val = None
+                loss_val = round(float(loss), 4)
+                if not math.isfinite(loss_val):
+                    loss_val = None
             except (TypeError, ValueError):
-                metric_val = None
+                loss_val = None
+
+            # If task was classification, metric is roughly 1 - loss
+            metric_val = round(1.0 - loss_val, 4) if loss_val is not None and loss_val <= 1.0 else loss_val
 
             rows.append({
                 "model": estimator,
+                "display_name": display_name,
                 "metric": metric_val,
+                "loss": loss_val,
+                "elapsed_s": 0.0,
                 "best_config": str(config_map.get(estimator, "")),
                 "best": estimator == best_name,
             })
 
-        rows.sort(key=lambda r: (r["metric"] is None, r["metric"] or 0))
+        rows.sort(key=lambda r: (r["loss"] is None, r["loss"] or 0))
+        for idx, r in enumerate(rows):
+            r["rank"] = idx + 1
     except Exception:
         try:
+            algo_info = next((a for a in COMMON_ALGORITHMS if a["id"] == _resolve_algo_id(automl.best_estimator)), None)
+            display_name = algo_info["name"] if algo_info else str(automl.best_estimator).replace("_", " ").title()
             rows = [{
+                "rank": 1,
                 "model": automl.best_estimator,
-                "metric": round(float(automl.best_loss), 6),
+                "display_name": display_name,
+                "metric": round(float(automl.best_loss), 4),
+                "loss": round(float(automl.best_loss), 4),
+                "elapsed_s": 0.0,
                 "best_config": str(automl.best_config),
                 "best": True,
             }]
@@ -696,21 +712,41 @@ def _run_tournament(
         algo_info = next((a for a in COMMON_ALGORITHMS if a["id"] == key), None)
         display_name = algo_info["name"] if algo_info else key
         try:
+            t_model_start = time.time()
             model = _build_model_instance(key, task, {})
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
+            t_elapsed = round(max(0.01, time.time() - t_model_start), 3)
 
             if task == "classification":
-                from sklearn.metrics import accuracy_score
+                from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
                 acc = float(accuracy_score(y_test, y_pred))
-                loss = 1.0 - acc
                 metric_score = acc
+                loss = 1.0 - acc
+                metric_display_name = "Accuracy"
+
+                if metric_name in ("f1", "macro_f1", "weighted_f1"):
+                    f1 = float(f1_score(y_test, y_pred, average="weighted", zero_division=0))
+                    metric_score = f1
+                    loss = 1.0 - f1
+                    metric_display_name = "F1-Score"
+                elif metric_name == "roc_auc" and hasattr(model, "predict_proba"):
+                    try:
+                        proba = model.predict_proba(X_test)
+                        if proba is not None and proba.shape[1] >= 2:
+                            auc = float(roc_auc_score(y_test, proba[:, 1]))
+                            metric_score = auc
+                            loss = 1.0 - auc
+                            metric_display_name = "ROC-AUC"
+                    except Exception:
+                        pass
             else:
                 from sklearn.metrics import mean_squared_error, r2_score
                 rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
                 r2 = float(r2_score(y_test, y_pred))
                 loss = rmse
                 metric_score = r2
+                metric_display_name = "R²"
 
             losses[key] = loss
             cfg = getattr(model, "get_params", lambda: {})()
@@ -722,6 +758,8 @@ def _run_tournament(
                 "display_name": display_name,
                 "loss": loss,
                 "metric": metric_score,
+                "metric_name": metric_display_name,
+                "elapsed_s": t_elapsed,
                 "best_config": compact_cfg,
                 "instance": model,
             })
@@ -747,7 +785,9 @@ def _run_tournament(
             "model": item["model"],
             "display_name": item["display_name"],
             "metric": round(item["metric"], 4) if item["metric"] is not None else None,
+            "metric_name": item.get("metric_name", "Score"),
             "loss": round(item["loss"], 4) if item["loss"] is not None else None,
+            "elapsed_s": item.get("elapsed_s", 0.0),
             "best_config": str(item["best_config"]),
             "best": is_best,
             "status": "champion" if is_best else "evaluated",
@@ -776,28 +816,34 @@ def _run_manual_model(
     display_name = algo_info["name"] if algo_info else key
     params = dict(hyperparameters or {})
 
+    t_start = time.time()
     model = _build_model_instance(key, task, params)
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
+    t_elapsed = round(max(0.01, time.time() - t_start), 3)
 
     if task == "classification":
         from sklearn.metrics import accuracy_score
         acc = float(accuracy_score(y_test, y_pred))
         loss = 1.0 - acc
         metric_score = acc
+        metric_display_name = "Accuracy"
     else:
         from sklearn.metrics import mean_squared_error, r2_score
         rmse = float(np.sqrt(mean_squared_error(y_test, y_pred)))
         r2 = float(r2_score(y_test, y_pred))
         loss = rmse
         metric_score = r2
+        metric_display_name = "R²"
 
     leaderboard = [{
         "rank": 1,
         "model": key,
         "display_name": display_name,
         "metric": round(metric_score, 4),
+        "metric_name": metric_display_name,
         "loss": round(loss, 4),
+        "elapsed_s": t_elapsed,
         "best_config": str(params),
         "best": True,
         "status": "manual_trained",
@@ -842,10 +888,21 @@ def run_automl(
     if df[target_col].dropna().empty:
         return {"error": f"Target column '{target_col}' has no non-null values.", "model_pkl": None}
 
+    y_clean = df[target_col].dropna()
+    n_unique_y = y_clean.nunique()
+    if n_unique_y < 2:
+        return {"error": f"Target column '{target_col}' has only 1 unique value. Machine learning requires at least 2 distinct values or classes.", "model_pkl": None}
+
     t0 = time.time()
     auto_task = _detect_task(df[target_col])
     task = auto_task if task_choice == "auto-detect" else task_choice
     log.info("[automl_trainer] Task detected: %s (rows=%d, cols=%d)", task, len(df), df.shape[1])
+
+    if task == "classification" and n_unique_y > 50:
+        return {
+            "error": f"Target column '{target_col}' has {n_unique_y} unique values. Classification supports up to 50 categories. Please choose a categorical target or switch task to regression.",
+            "model_pkl": None,
+        }
 
     # Granular feature selection (whitelist & blacklist)
     all_features = [c for c in df.columns if c != target_col]

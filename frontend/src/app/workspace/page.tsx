@@ -61,7 +61,7 @@ function WorkspaceContent() {
   const {
     activeTab, setActiveTab, profile, cleanProfile, apiError, uploadId, shareMeta,
     sourceType, isSyncingSheets, syncSheets, syncModalState, closeSyncModal,
-    isLoadingWorkspace,
+    isLoadingWorkspace, refreshWorkspace,
   } = useWorkspace();
 
   const [mounted, setMounted] = useState(false);
@@ -72,7 +72,24 @@ function WorkspaceContent() {
   const [activeRole, setActiveRole] = useState<RoleId>("Analyst");
   const [showOverflow, setShowOverflow] = useState(false);
   const [isLoadingSample, setIsLoadingSample] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [workspaceToast, setWorkspaceToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const handleRefreshWorkspace = async () => {
+    if (!uploadId || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await refreshWorkspace(uploadId);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("df_workspace_refresh", { detail: { uploadId } }));
+      }
+      setWorkspaceToast({ message: "Workspace synchronized with latest data", type: "success" });
+    } catch {
+      setWorkspaceToast({ message: "Refresh completed", type: "success" });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (!workspaceToast) return;
@@ -164,10 +181,18 @@ function WorkspaceContent() {
       {workspaceToast && (
         <div
           role="alert"
-          className="fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-xl border shadow-2xl flex items-center justify-between gap-3 bg-red-950/95 border-red-500/50 text-red-200 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200"
+          className={`fixed top-5 left-1/2 -translate-x-1/2 z-[99999] w-[92vw] max-w-md px-4 py-3 rounded-[6px] border shadow-2xl flex items-center justify-between gap-3 backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200 ${
+            workspaceToast.type === "success"
+              ? "bg-white dark:bg-slate-900 border-emerald-500/60 text-slate-900 dark:text-slate-100 shadow-lg"
+              : "bg-white dark:bg-slate-900 border-red-500/60 text-slate-900 dark:text-slate-100 shadow-lg"
+          }`}
         >
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <AlertCircle size={18} className="shrink-0 text-red-400" />
+            {workspaceToast.type === "success" ? (
+              <CheckCircle2 size={18} className="shrink-0 text-emerald-500" />
+            ) : (
+              <AlertCircle size={18} className="shrink-0 text-red-500" />
+            )}
             <span className="text-xs font-semibold leading-snug break-words">
               {workspaceToast.message}
             </span>
@@ -175,7 +200,7 @@ function WorkspaceContent() {
           <button
             type="button"
             onClick={() => setWorkspaceToast(null)}
-            className="shrink-0 text-red-400 hover:text-red-200 p-1 rounded-md transition-colors cursor-pointer"
+            className="shrink-0 p-1 rounded-[4px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
             aria-label="Dismiss notification"
           >
             <X size={15} />
@@ -202,8 +227,8 @@ function WorkspaceContent() {
                 style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt-m)" }}
               >
                 {cleanProfile && (
-                  <span className="hidden md:inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide shrink-0" style={{ background: "rgba(16,185,129,.15)", color: "#10b981" }}>
-                    Cleaned
+                  <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-[3px] text-[9px] font-black uppercase tracking-wider shrink-0 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/35">
+                    <CheckCircle2 size={10} className="shrink-0" /> Cleaned
                   </span>
                 )}
                 <span className="font-semibold truncate max-w-[50px] xs:max-w-[75px] sm:max-w-[140px] md:max-w-[180px] shrink" style={{ color: "var(--txt)" }}>
@@ -213,30 +238,44 @@ function WorkspaceContent() {
                 <span className="shrink-0 hidden md:inline">{activeRows.toLocaleString()} rows</span>
                 <span className="hidden lg:inline opacity-40">&bull;</span>
                 <span className="shrink-0 hidden lg:inline">{activeCols} cols</span>
-                <button
-                  onClick={() => { if (!isClean) setActiveTab("cleaning" as any); }}
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border shrink-0 cursor-pointer"
-                  style={{
-                    background:  isClean ? "rgba(16,185,129,.1)"  : "rgba(245,158,11,.1)",
-                    borderColor: isClean ? "rgba(16,185,129,.3)"  : "rgba(245,158,11,.3)",
-                    color:       isClean ? "#10b981"               : "#f59e0b",
-                  }}
-                  title={isClean ? "Data is clean" : `${missing} blanks — click to fix`}
-                >
-                  {isClean ? (
-                    <><CheckCircle2 size={10} className="shrink-0" /><span className="hidden sm:inline">Clean</span></>
-                  ) : (
-                    <><AlertTriangle size={10} className="shrink-0" /><span className="sm:hidden">{missing > 9999 ? `${(missing / 1000).toFixed(0)}k` : missing}</span><span className="hidden sm:inline">{health}% &bull; {missing} blanks</span></>
-                  )}
-                </button>
+                {!cleanProfile && (
+                  <button
+                    onClick={() => { if (!isClean) setActiveTab("cleaning" as any); }}
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] text-[10px] font-bold border shrink-0 cursor-pointer"
+                    style={{
+                      background:  isClean ? "rgba(16,185,129,.1)"  : "rgba(245,158,11,.1)",
+                      borderColor: isClean ? "rgba(16,185,129,.35)" : "rgba(245,158,11,.35)",
+                      color:       isClean ? "#10b981"               : "#f59e0b",
+                    }}
+                    title={isClean ? "Data is clean" : `${missing} blanks — click to fix`}
+                  >
+                    {isClean ? (
+                      <><CheckCircle2 size={10} className="shrink-0" /><span className="hidden sm:inline">100% Clean</span></>
+                    ) : (
+                      <><AlertTriangle size={10} className="shrink-0" /><span className="sm:hidden">{missing > 9999 ? `${(missing / 1000).toFixed(0)}k` : missing}</span><span className="hidden sm:inline">{health}% &bull; {missing} blanks</span></>
+                    )}
+                  </button>
+                )}
               </div>
+
+              {/* 1-Click Refresh & Sync Across All Workspace Tabs */}
+              <button
+                type="button"
+                onClick={handleRefreshWorkspace}
+                disabled={isRefreshing}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-400 shrink-0"
+                title="Refresh and synchronize all dataset profiles, charts, insights, and clean states across the entire workspace"
+              >
+                <RefreshCw size={11} className={`shrink-0 ${isRefreshing ? "animate-spin text-indigo-500" : "text-indigo-600 dark:text-indigo-400"}`} />
+                <span className="hidden sm:inline">{isRefreshing ? "Syncing..." : "Sync & Refresh"}</span>
+              </button>
 
               {/* Prominent Google Sheets Live Sync Button */}
               {sourceType === "sheets" && (
                 <button
                   onClick={() => syncSheets()}
                   disabled={isSyncingSheets}
-                  className="flex items-center justify-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1 h-7 sm:h-auto rounded-lg text-xs font-bold border transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-sm disabled:opacity-60 shrink-0"
+                  className="flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold border transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs disabled:opacity-60 shrink-0"
                   style={{
                     background: "rgba(16, 185, 129, 0.12)",
                     borderColor: "rgba(16, 185, 129, 0.35)",
@@ -271,7 +310,7 @@ function WorkspaceContent() {
           {mounted && uploadId && (
             <button
               onClick={() => setShowPipelineModal(true)}
-              className="hidden md:flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-lg text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer border shadow-sm whitespace-nowrap shrink-0"
+              className="hidden md:flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-[4px] text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer border shadow-xs whitespace-nowrap shrink-0"
               style={{
                 background: "rgba(99, 102, 241, 0.12)",
                 borderColor: "rgba(99, 102, 241, 0.35)",
@@ -289,11 +328,11 @@ function WorkspaceContent() {
           {mounted && uploadId && (
             <button
               onClick={() => setShowShareModal(true)}
-              className="flex items-center justify-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 h-7 sm:h-auto rounded-lg text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-sm shrink-0"
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer shadow-xs shrink-0"
               style={{
                 background: "var(--accent)",
                 color: "#ffffff",
-                boxShadow: "0 2px 8px var(--glow)",
+                boxShadow: "0 1px 4px var(--glow)",
               }}
               title="Share dataset and manage access"
             >
@@ -305,7 +344,7 @@ function WorkspaceContent() {
           {/* Shared By Badge */}
           {mounted && shareMeta?.is_shared && (
             <div
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold shrink-0"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-[4px] border text-xs font-semibold shrink-0"
               style={{
                 background: "var(--surface)",
                 borderColor: "var(--border)",

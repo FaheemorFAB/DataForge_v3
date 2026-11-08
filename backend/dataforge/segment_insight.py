@@ -41,17 +41,25 @@ class SegmentInsight(BaseInsight):
             if worst_val == 0:
                 return None
 
-            ratio = round(best_val / worst_val, 1)
+            diff_abs = best_val - worst_val
+            pct_diff = round((diff_abs / abs(worst_val) * 100) if worst_val != 0 else 0.0, 1)
 
             labels = [str(i) for i in seg_means.index]
             values = [self._safe_float(v) for v in seg_means.values]
 
             best_fmt = self._format_precise(metric, best_val)
             worst_fmt = self._format_precise(metric, worst_val)
-            description = (
-                f"The '{best}' segment leads with an average '{metric}' of {best_fmt}, "
-                f"which is {ratio}× higher than the '{worst}' segment (average {worst_fmt})."
-            )
+            if abs(pct_diff) < 5.0:
+                description = (
+                    f"The '{best}' segment leads with an average '{metric}' of {best_fmt}, "
+                    f"slightly ahead of '{worst}' ({worst_fmt}, +{diff_abs:.2f} pts or +{pct_diff:.1f}%). "
+                    f"Cohort performance across '{dim}' is closely clustered with minimal variance."
+                )
+            else:
+                description = (
+                    f"The '{best}' segment leads with an average '{metric}' of {best_fmt}, "
+                    f"outperforming '{worst}' ({worst_fmt}) by {pct_diff:.1f}% (+{diff_abs:.2f} pts)."
+                )
 
             return {
                 "title":       f"{metric} by {dim}",

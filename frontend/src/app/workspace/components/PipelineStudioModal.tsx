@@ -8,17 +8,13 @@ import {
   Download,
   Copy,
   Check,
-  ShieldCheck,
   Play,
-  Layers,
-  Terminal,
-  FileCode,
   X,
-  Sparkles,
-  AlertTriangle,
   CheckCircle2,
-  Zap,
+  AlertTriangle,
   Loader2,
+  RefreshCw,
+  ShieldCheck,
 } from "lucide-react";
 
 interface PipelineStudioModalProps {
@@ -35,43 +31,12 @@ export function PipelineStudioModal({
   const workspaceContext = useWorkspace();
   const refreshWorkspace = workspaceContext?.refreshWorkspace;
 
-  const [activeTab, setActiveTab] = useState<"recipe" | "python" | "dbt" | "airflow" | "quality">("recipe");
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [qualityResults, setQualityResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [runningAssertions, setRunningAssertions] = useState(false);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
-  // Stored Procedure (DF-SPE) Recipe State
-  const [recipeJson, setRecipeJson] = useState<string>(() => JSON.stringify({
-    schema_version: "1.0",
-    procedure_name: "custom_pipeline_procedure",
-    description: "Automated pipeline DAG with quality assertion gates",
-    parameters: [
-      { name: "min_rows", type: "int", default_value: 1, description: "Row threshold" }
-    ],
-    steps: [
-      {
-        step_id: "s1_source",
-        type: "source",
-        source_upload_id: uploadId || "active_dataset"
-      },
-      {
-        step_id: "s2_clean_filter",
-        type: "transform_sql",
-        sql: "SELECT * FROM s1_source WHERE 1=1"
-      },
-      {
-        step_id: "s3_quality_gate",
-        type: "assertion_gate",
-        rules: [
-          { rule: "row_count_gte", threshold: 1 }
-        ],
-        on_violation: "warn"
-      }
-    ],
-    output_step_id: "s2_clean_filter"
-  }, null, 2));
+  const [copied, setCopied] = useState(false);
+  const [activeSection, setActiveSection] = useState<"code" | "quality">("code");
 
   const fetchPipelineCode = useCallback(async () => {
     if (!uploadId) return;
@@ -84,9 +49,6 @@ export function PipelineStudioModal({
       if (res.ok) {
         const data = await res.json();
         setPipelineData(data);
-        if (data.recipe_json) {
-          setRecipeJson(JSON.stringify(data.recipe_json, null, 2));
-        }
       }
     } catch (e) {
       console.error("Failed to load pipeline export:", e);
@@ -123,10 +85,11 @@ export function PipelineStudioModal({
     }
   }, [isOpen, uploadId, fetchPipelineCode, executeAssertions]);
 
-  const copyToClipboard = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+  const copyToClipboard = () => {
+    const code = pipelineData?.python_script || "";
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownloadZip = async () => {
@@ -162,386 +125,313 @@ export function PipelineStudioModal({
   if (!isOpen) return null;
 
   const isCleaned = Boolean(pipelineData?.is_cleaned);
-
-  const currentCode =
-    activeTab === "recipe"
-      ? recipeJson
-      : activeTab === "python"
-      ? pipelineData?.python_script || ""
-      : activeTab === "dbt"
-      ? `${pipelineData?.dbt_sql || ""}\n\n-- models/schema.yml\n${pipelineData?.dbt_schema_yml || ""}`
-      : activeTab === "airflow"
-      ? pipelineData?.airflow_dag || ""
-      : pipelineData?.data_quality_tests || "";
+  const pythonCode = pipelineData?.python_script || "";
+  const integrityScore = qualityResults?.score ?? 100;
+  const overallStatus = qualityResults?.overall_status || "PASSED";
+  const assertions = qualityResults?.assertions || [];
+  const passCount = assertions.filter((a: any) => a.status === "PASSED").length;
+  const totalCount = assertions.length;
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div
-        className="w-full max-w-4xl max-h-[90vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-3xl max-h-[88vh] rounded-[6px] border shadow-2xl flex flex-col overflow-hidden"
         style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--txt)" }}
       >
         {/* HEADER */}
         <div
-          className="p-4 border-b flex items-center justify-between shrink-0"
+          className="px-5 py-3.5 border-b flex items-center justify-between shrink-0"
           style={{ background: "var(--nav)", borderColor: "var(--border)" }}
         >
           <div className="flex items-center gap-3">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{
-                background: "rgba(99, 102, 241, 0.12)",
-                color: "#6366f1",
-                border: "1px solid rgba(99, 102, 241, 0.3)",
-              }}
+              className="w-8 h-8 rounded-[4px] flex items-center justify-center shrink-0"
+              style={{ background: "rgba(99,102,241,0.12)", color: "#6366f1", border: "1px solid rgba(99,102,241,0.3)" }}
             >
-              <Code size={18} />
+              <Code size={16} />
             </div>
             <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-bold text-sm">Production Pipeline &amp; Data Quality Studio</h3>
-                <span
-                  className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider"
-                  style={{
-                    background: "rgba(16, 185, 129, 0.15)",
-                    color: "#10b981",
-                    border: "1px solid rgba(16, 185, 129, 0.3)",
-                  }}
-                >
-                  CI/CD Ready
-                </span>
-                {isCleaned ? (
-                  <span
-                    className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
-                    style={{
-                      background: "rgba(16, 185, 129, 0.15)",
-                      color: "#10b981",
-                      border: "1px solid rgba(16, 185, 129, 0.3)",
-                    }}
-                  >
-                    <CheckCircle2 size={11} />
-                    Production Cleaned Pipeline
-                  </span>
-                ) : (
-                  <span
-                    className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
-                    style={{
-                      background: "rgba(99, 102, 241, 0.15)",
-                      color: "#818cf8",
-                      border: "1px solid rgba(99, 102, 241, 0.3)",
-                    }}
-                  >
-                    <Zap size={11} />
-                    Raw Ingestion Baseline
-                  </span>
-                )}
-              </div>
-              <p className="text-xs mt-0.5" style={{ color: "var(--txt-m)" }}>
+              <h3 className="font-black text-sm" style={{ color: "var(--txt)" }}>Pipeline Studio</h3>
+              <p className="text-[10px] font-mono mt-0.5" style={{ color: "var(--txt-m)" }}>
                 {isCleaned
-                  ? `Synthesized from verified cleaned data (${pipelineData?.cleaning_summary?.rules_count || 1} rules applied). Export to DF-SPE, dbt, Airflow, and Python.`
-                  : "Baseline raw ingestion pipeline with schema validation. Run Clean & Fix in workspace to auto-generate transform rules."}
+                  ? `Cleaned pipeline · ${pipelineData?.cleaning_summary?.rules_count || 1} transform rules applied`
+                  : "Raw baseline ingestion · Run Clean & Fix to generate transform rules"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
+              onClick={fetchPipelineCode}
+              disabled={loading}
+              className="p-1.5 rounded-[4px] border transition-colors cursor-pointer"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+              title="Reload pipeline code"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            </button>
+            <button
               onClick={handleDownloadZip}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-md"
-              style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "#ffffff" }}
-              title="Download standalone zip repository"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-bold border transition-colors cursor-pointer"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
+              title="Download ZIP"
             >
               <Download size={13} />
               <span>Download ZIP</span>
             </button>
-
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+              className="p-1.5 rounded-[4px] border transition-colors cursor-pointer"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
             >
-              <X size={18} />
+              <X size={15} />
             </button>
           </div>
         </div>
 
-        {/* TABS SUB-NAV */}
+        {/* SECTION NAV */}
         <div
-          className="flex items-center justify-between px-4 border-b shrink-0 text-xs font-bold overflow-x-auto"
+          className="px-5 border-b flex items-center justify-between shrink-0"
           style={{ background: "var(--nav)", borderColor: "var(--border)" }}
         >
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setActiveTab("recipe")}
-              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === "recipe" ? "border-[var(--accent)] text-[var(--txt)]" : "border-transparent text-[var(--txt-m)]"
-              }`}
-            >
-              <Zap size={14} className="text-amber-500" />
-              <span>Stored Procedure (DF-SPE)</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("python")}
-              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === "python" ? "border-[var(--accent)] text-[var(--txt)]" : "border-transparent text-[var(--txt-m)]"
-              }`}
-            >
-              <Terminal size={14} />
-              <span>Python ETL</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("dbt")}
-              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === "dbt" ? "border-[var(--accent)] text-[var(--txt)]" : "border-transparent text-[var(--txt-m)]"
-              }`}
-            >
-              <FileCode size={14} />
-              <span>dbt SQL Model</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("airflow")}
-              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === "airflow" ? "border-[var(--accent)] text-[var(--txt)]" : "border-transparent text-[var(--txt-m)]"
-              }`}
-            >
-              <Layers size={14} />
-              <span>Airflow DAG</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("quality")}
-              className={`py-3 px-3 border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === "quality" ? "border-[var(--accent)] text-[var(--txt)]" : "border-transparent text-[var(--txt-m)]"
-              }`}
-            >
-              <ShieldCheck size={14} />
-              <span>Data Quality Suite</span>
-            </button>
+          <div className="flex items-center">
+            {(["code", "quality"] as const).map((sec) => (
+              <button
+                key={sec}
+                onClick={() => setActiveSection(sec)}
+                className={`py-2.5 px-3 mr-1 border-b-2 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  activeSection === sec
+                    ? "border-indigo-500 text-indigo-600 dark:text-indigo-400"
+                    : "border-transparent"
+                }`}
+                style={{ color: activeSection === sec ? undefined : "var(--txt-m)" }}
+              >
+                {sec === "code" ? (
+                  <>
+                    <Code size={13} />
+                    <span>Python Script</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={13} />
+                    <span>Quality Gates</span>
+                    {totalCount > 0 && (
+                      <span
+                        className="ml-1 text-[10px] font-black px-1.5 py-0.5 rounded-[3px]"
+                        style={{
+                          background: passCount === totalCount ? "rgba(16,185,129,0.12)" : "rgba(245,158,11,0.12)",
+                          color: passCount === totalCount ? "#10b981" : "#f59e0b",
+                          border: `1px solid ${passCount === totalCount ? "rgba(16,185,129,0.25)" : "rgba(245,158,11,0.25)"}`,
+                        }}
+                      >
+                        {passCount}/{totalCount}
+                      </span>
+                    )}
+                  </>
+                )}
+              </button>
+            ))}
           </div>
-
-          <div className="flex items-center gap-2">
+          {activeSection === "code" && (
             <button
-              onClick={() => copyToClipboard(currentCode, activeTab)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all hover:bg-black/5 dark:hover:bg-white/10 active:scale-[0.98] cursor-pointer shadow-sm"
+              onClick={copyToClipboard}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-semibold border transition-colors cursor-pointer"
               style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--txt)" }}
             >
-              {copiedKey === activeTab ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
-              <span>{copiedKey === activeTab ? "Copied" : "Copy Code"}</span>
+              {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+              <span>{copied ? "Copied" : "Copy"}</span>
             </button>
-          </div>
+          )}
         </div>
 
         {/* BODY */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3">
-              <Loader2 size={24} className="animate-spin text-indigo-500" />
+              <Loader2 size={22} className="animate-spin text-indigo-500" />
               <span className="text-xs font-semibold" style={{ color: "var(--txt-m)" }}>
-                Exporting pipeline code and architecture...
+                Generating Python pipeline…
               </span>
             </div>
-          ) : activeTab === "quality" ? (
-            <div className="space-y-4">
-              {/* QUALITY SCORECARD */}
+          ) : activeSection === "code" ? (
+            <div className="p-4">
+              {!pythonCode ? (
+                <div className="py-16 flex flex-col items-center gap-3 text-center">
+                  <Code size={32} style={{ color: "var(--txt-m)" }} />
+                  <p className="text-sm font-semibold" style={{ color: "var(--txt-m)" }}>
+                    No pipeline code generated yet.
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--txt-m)" }}>
+                    Upload a dataset and run Clean & Fix to auto-generate the Python ETL script.
+                  </p>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div
+                    className="text-[10px] font-mono font-bold uppercase tracking-widest mb-2 flex items-center justify-between"
+                    style={{ color: "var(--txt-m)" }}
+                  >
+                    <span>python etl · auto-generated from workspace state</span>
+                    {isCleaned && (
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 size={11} />
+                        Cleaned Pipeline
+                      </span>
+                    )}
+                  </div>
+                  <pre
+                    className="p-4 rounded-[4px] text-xs font-mono overflow-x-auto border leading-relaxed"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: "var(--border)",
+                      color: "var(--txt)",
+                      minHeight: "380px",
+                      tabSize: 4,
+                    }}
+                  >
+                    {pythonCode}
+                  </pre>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* QUALITY GATES */
+            <div className="p-4 space-y-4">
+              {/* Score bar */}
               <div
-                className="p-4 rounded-xl border flex items-center justify-between flex-wrap gap-4"
+                className="p-4 rounded-[4px] border flex items-center justify-between gap-4 flex-wrap"
                 style={{ background: "var(--card)", borderColor: "var(--border)" }}
               >
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-                    Automated Test Suite Status • {isCleaned ? "Production Cleaned State" : "Raw Pre-Cleaning State"}
+                  <span className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--txt-m)" }}>
+                    Data Integrity Score · {isCleaned ? "Post-Cleaning" : "Raw State"}
                   </span>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <div className="flex items-baseline gap-2">
                     <span
-                      className="text-lg font-black"
-                      style={{ color: qualityResults?.overall_status === "PASSED" ? "#10b981" : "#f59e0b" }}
+                      className="text-2xl font-black"
+                      style={{ color: overallStatus === "PASSED" ? "#10b981" : "#f59e0b" }}
                     >
-                      {qualityResults?.score ?? 100}% Integrity Score
+                      {integrityScore}%
                     </span>
                     <span
-                      className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase"
-                      style={{
-                        background:
-                          qualityResults?.overall_status === "PASSED"
-                            ? "rgba(16, 185, 129, 0.15)"
-                            : "rgba(245, 158, 11, 0.15)",
-                        color: qualityResults?.overall_status === "PASSED" ? "#10b981" : "#f59e0b",
-                      }}
+                      className="text-[10px] font-mono font-bold uppercase"
+                      style={{ color: overallStatus === "PASSED" ? "#10b981" : "#f59e0b" }}
                     >
-                      {qualityResults?.overall_status || "PASSED"}
+                      {overallStatus}
                     </span>
                     {isCleaned && qualityResults?.raw_score !== undefined && (
-                      <span className="text-xs ml-1 font-mono" style={{ color: "var(--txt-m)" }}>
-                        (Raw baseline: {qualityResults.raw_score}%)
+                      <span className="text-[11px] font-mono" style={{ color: "var(--txt-m)" }}>
+                        (was {qualityResults.raw_score}% raw)
                       </span>
                     )}
                     {isCleaned && Number(qualityResults?.improvement_pct || 0) > 0 && (
-                      <span
-                        className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase"
-                        style={{
-                          background: "rgba(16, 185, 129, 0.15)",
-                          color: "#10b981",
-                          border: "1px solid rgba(16, 185, 129, 0.3)",
-                        }}
-                      >
-                        +{qualityResults.improvement_pct}% Quality Gain
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        +{qualityResults.improvement_pct}% gain
                       </span>
                     )}
+                  </div>
+                  {/* Score track */}
+                  <div className="mt-2 w-48 h-1.5 rounded-xs overflow-hidden" style={{ background: "var(--border)" }}>
+                    <div
+                      className="h-full rounded-xs transition-all duration-700"
+                      style={{
+                        width: `${integrityScore}%`,
+                        background: overallStatus === "PASSED"
+                          ? "linear-gradient(90deg,#10b981,#34d399)"
+                          : "linear-gradient(90deg,#f59e0b,#fbbf24)",
+                      }}
+                    />
                   </div>
                 </div>
 
                 <button
                   onClick={executeAssertions}
                   disabled={runningAssertions}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold text-white transition-all hover:opacity-95 hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-md"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[4px] text-xs font-bold text-white transition-colors cursor-pointer border-0"
                   style={{
-                    background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                    border: "none",
+                    background: runningAssertions ? "rgba(99,102,241,0.4)" : "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                    cursor: runningAssertions ? "not-allowed" : "pointer",
                   }}
                 >
-                  <Play size={12} fill="currentColor" />
-                  <span>{runningAssertions ? "Executing..." : "Re-Run Assertions"}</span>
+                  <Play size={11} fill="currentColor" />
+                  {runningAssertions ? "Running…" : "Re-Run Assertions"}
                 </button>
               </div>
 
-              {/* ASSERTIONS LIST */}
-              <div
-                className="rounded-xl border divide-y overflow-hidden"
-                style={{ background: "var(--card)", borderColor: "var(--border)" }}
-              >
-                {(qualityResults?.assertions || []).map((ast: any, i: number) => {
-                  const isPass = ast.status === "PASSED";
-                  return (
-                    <div key={i} className="p-3.5 flex items-center justify-between gap-4 text-xs">
-                      <div className="flex items-center gap-3">
-                        {isPass ? (
-                          <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-                        ) : (
-                          <AlertTriangle size={16} className="text-amber-500 shrink-0" />
-                        )}
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold">{ast.rule}</span>
-                            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border" style={{ borderColor: "var(--border)" }}>
-                              {ast.column}
-                            </span>
-                            {ast.resolved && (
-                              <span
-                                className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase flex items-center gap-1"
-                                style={{
-                                  background: "rgba(16, 185, 129, 0.15)",
-                                  color: "#10b981",
-                                  border: "1px solid rgba(16, 185, 129, 0.3)",
-                                }}
-                              >
-                                <Sparkles size={10} />
-                                Resolved by Cleaning
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
-                            {ast.message}
-                          </p>
-                          {ast.resolved && ast.before_val && ast.after_val && (
-                            <p className="text-[10px] font-mono mt-0.5 text-emerald-400">
-                              Before: {ast.before_val} ➔ After: {ast.after_val}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <span
-                        className="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase"
-                        style={{
-                          background: isPass ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.12)",
-                          color: isPass ? "#10b981" : "#f59e0b",
-                        }}
-                      >
-                        {ast.status}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* PYTEST CODE VIEW */}
-              <div className="space-y-1.5 pt-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
-                  Great Expectations / pytest Assertions Script
-                </span>
-                <pre
-                  className="p-4 rounded-xl text-xs font-mono overflow-x-auto border"
-                  style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}
-                >
-                  {pipelineData?.data_quality_tests}
-                </pre>
-              </div>
-            </div>
-          ) : activeTab === "recipe" ? (
-            <div className="space-y-4">
-              <div
-                className="p-4 rounded-xl border flex items-center justify-between flex-wrap gap-3"
-                style={{ background: "var(--card)", borderColor: "var(--border)" }}
-              >
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-xs" style={{ color: "var(--txt)" }}>
-                      Stored Procedure Engine (DF-SPE v1)
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold">
-                      DuckDB Sandbox
-                    </span>
-                    {isCleaned ? (
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold">
-                        Production Cleaned Pipeline
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 font-bold">
-                        Raw Baseline Pipeline
-                      </span>
-                    )}
+              {/* Assertions table */}
+              {assertions.length > 0 && (
+                <div className="rounded-[4px] border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                  <div
+                    className="px-4 py-2 text-[10px] font-black uppercase tracking-wider border-b"
+                    style={{ color: "var(--txt-m)", borderColor: "var(--border)" }}
+                  >
+                    Assertion Results — {passCount} of {totalCount} passed
                   </div>
-                  <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>
-                    {isCleaned
-                      ? "Declarative DAG executing source ingestion, active cleaning transformations, and quality gates."
-                      : "Declarative DAG executing raw baseline source ingestion and schema verification gates."}
-                  </p>
+                  <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                    {assertions.map((ast: any, i: number) => {
+                      const isPass = ast.status === "PASSED";
+                      return (
+                        <div key={i} className="px-4 py-3 flex items-start justify-between gap-4 text-xs">
+                          <div className="flex items-start gap-3">
+                            {isPass ? (
+                              <CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" />
+                            ) : (
+                              <AlertTriangle size={15} className="text-amber-500 shrink-0 mt-0.5" />
+                            )}
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold" style={{ color: "var(--txt)" }}>{ast.rule}</span>
+                                <span
+                                  className="font-mono text-[10px] px-1.5 py-0.5 rounded-[3px] border"
+                                  style={{ borderColor: "var(--border)", color: "var(--txt-m)" }}
+                                >
+                                  {ast.column}
+                                </span>
+                                {ast.resolved && (
+                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                    ✓ Resolved by cleaning
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] mt-0.5" style={{ color: "var(--txt-m)" }}>{ast.message}</p>
+                              {ast.resolved && ast.before_val && ast.after_val && (
+                                <p className="text-[10px] font-mono mt-0.5 text-emerald-600 dark:text-emerald-400">
+                                  Before: {ast.before_val} → After: {ast.after_val}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <span
+                            className="text-[10px] font-bold font-mono uppercase shrink-0 px-2 py-0.5 rounded-[3px]"
+                            style={{
+                              background: isPass ? "rgba(16,185,129,0.1)" : "rgba(245,158,11,0.1)",
+                              color: isPass ? "#10b981" : "#f59e0b",
+                              border: `1px solid ${isPass ? "rgba(16,185,129,0.25)" : "rgba(245,158,11,0.25)"}`,
+                            }}
+                          >
+                            {ast.status}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] font-mono" style={{ color: "var(--txt-m)" }}>
-                  <span>PROCEDURE RECIPE SPECIFICATION (JSON Schema v1)</span>
-                  <span className="text-emerald-500 font-bold">Synchronized with Workspace State</span>
+              {/* Pytest script */}
+              {pipelineData?.data_quality_tests && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--txt-m)" }}>
+                    pytest / Great Expectations Script
+                  </span>
+                  <pre
+                    className="p-4 rounded-[4px] text-xs font-mono overflow-x-auto border leading-relaxed"
+                    style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--txt)" }}
+                  >
+                    {pipelineData.data_quality_tests}
+                  </pre>
                 </div>
-                <textarea
-                  value={recipeJson}
-                  onChange={(e) => setRecipeJson(e.target.value)}
-                  rows={15}
-                  className="w-full p-3 rounded-xl text-xs font-mono border leading-relaxed focus:outline-none"
-                  style={{
-                    background: "var(--surface)",
-                    borderColor: "var(--border)",
-                    color: "var(--txt)",
-                  }}
-                  spellCheck={false}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <pre
-                className="p-4 rounded-xl text-xs font-mono overflow-x-auto border leading-relaxed"
-                style={{
-                  background: "var(--surface)",
-                  borderColor: "var(--border)",
-                  color: "var(--txt)",
-                  minHeight: "380px",
-                }}
-              >
-                {currentCode}
-              </pre>
+              )}
             </div>
           )}
         </div>

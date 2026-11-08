@@ -586,7 +586,7 @@ export function ModelRegistryTab() {
             <Boxes size={20} />
           </div>
           <div>
-            <h1 className="text-base font-bold">Enterprise Model Registry</h1>
+            <h1 className="text-base font-bold">Model Registry</h1>
             <p className="text-xs" style={{ color: "var(--txt-m)" }}>
               AutoML & custom-trained model catalog — test live inference, batch score CSVs, and apply to dataset.
             </p>
