@@ -81,10 +81,18 @@ function SlideChartCard({ chart, title, subtitle }: { chart: any; title?: string
   const isScatter = chart.type === "scatter";
   const isDonut = chart.type === "doughnut" || chart.type === "pie";
 
-  if (!isBoxplot && !isScatter && (!chart.labels || chart.labels.length === 0)) return null;
+  const rawLabels: string[] = Array.isArray(chart.labels)
+    ? chart.labels
+    : (chart.labels && typeof chart.labels === "object" ? Object.keys(chart.labels) : []);
 
-  let donutLabels = chart.labels || [];
-  let donutValues = (chart.values || []).map((v: any) => Number(v) || 0);
+  const rawValues: any[] = Array.isArray(chart.values)
+    ? chart.values
+    : (chart.values && typeof chart.values === "object" && !isBoxplot ? Object.values(chart.values) : []);
+
+  if (!isBoxplot && !isScatter && rawLabels.length === 0) return null;
+
+  let donutLabels = [...rawLabels];
+  let donutValues = rawValues.map((v: any) => Number(v) || 0);
   if (isDonut && donutValues.length > 6) {
     const topVals = donutValues.slice(0, 5);
     const topLabels = donutLabels.slice(0, 5);
@@ -109,11 +117,11 @@ function SlideChartCard({ chart, title, subtitle }: { chart: any; title?: string
       }
     : !isBoxplot && !isScatter
     ? {
-        labels: (chart.labels || []).slice(0, 10),
+        labels: rawLabels.slice(0, 10),
         datasets: [
           {
             label: chart.y_col || "Metric",
-            data: (chart.values || []).slice(0, 10),
+            data: rawValues.slice(0, 10),
             backgroundColor: chart.type === "line" ? "rgba(99, 102, 241, 0.15)" : "#6366f1",
             borderColor: "#6366f1",
             borderWidth: 2,
@@ -759,19 +767,25 @@ export function EDATab() {
             const chartTitle = chart.title || `Chart ${cIdx + 1}: Performance Distribution`;
             const chartSub = chart.description || "Executive metric breakdown across active cohorts";
             const chType = (chart.type || "bar").toLowerCase();
-            const labels: string[] = chart.labels || [];
-            const values: any[] = chart.values || [];
+            const labels: string[] = Array.isArray(chart.labels)
+              ? chart.labels
+              : (chart.labels && typeof chart.labels === "object" ? Object.keys(chart.labels) : []);
+            const values: any[] = Array.isArray(chart.values)
+              ? chart.values
+              : (chart.values && typeof chart.values === "object" && chType !== "boxplot" ? Object.values(chart.values) : []);
 
             let findingText = "";
             let driversText = "";
             let actionText = "";
 
             if (chType === "boxplot") {
-              const vals: Record<string, any> = typeof values === "object" && !Array.isArray(values) ? (values as any) : {};
+              const vals: Record<string, any> = typeof chart.values === "object" && chart.values !== null && !Array.isArray(chart.values) 
+                ? (chart.values as any) 
+                : (typeof values === "object" && !Array.isArray(values) ? (values as any) : {});
               const med = vals.median ?? vals.q50 ?? 67.0;
-              const iqr = vals.iqr ?? 25.5;
-              const q1 = vals.q1 ?? 54.4;
-              const q3 = vals.q3 ?? 79.9;
+              const iqr = vals.iqr ?? (vals.q75 && vals.q25 ? Number((vals.q75 - vals.q25).toFixed(1)) : 25.5);
+              const q1 = vals.q1 ?? vals.q25 ?? 54.4;
+              const q3 = vals.q3 ?? vals.q75 ?? 79.9;
               findingText = `Performance distribution tightly balances around median ${med} with an interquartile spread (IQR) of ${iqr} (Q1: ${q1}, Q3: ${q3}).`;
               driversText = "50% of all cohort observations sit tightly within the core interquartile corridor without severe structural skew.";
               actionText = `Elevate baseline score outcomes by targeting intensive remediation toward the bottom quartile (below ${q1}).`;

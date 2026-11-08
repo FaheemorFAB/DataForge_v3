@@ -520,14 +520,14 @@ export function ForecastCard({
   const decompExplanation = decomp?.explanation;
   const col = "#00d4ff";
 
-  const histLabels = cd?.labels || [];
-  const histValues = cd?.values || [];
-  const fcLabels = cd?.forecast_labels || [];
-  const fcValues = cd?.forecast_values || [];
-  const upper95 = cd?.upper_95 || [];
-  const lower95 = cd?.lower_95 || [];
-  const upper80 = cd?.upper_80 || [];
-  const lower80 = cd?.lower_80 || [];
+  const histLabels = Array.isArray(cd?.labels) ? cd.labels : [];
+  const histValues = Array.isArray(cd?.values) ? cd.values : [];
+  const fcLabels = Array.isArray(cd?.forecast_labels) ? cd.forecast_labels : [];
+  const fcValues = Array.isArray(cd?.forecast_values) ? cd.forecast_values : [];
+  const upper95 = Array.isArray(cd?.upper_95) ? cd.upper_95 : [];
+  const lower95 = Array.isArray(cd?.lower_95) ? cd.lower_95 : [];
+  const upper80 = Array.isArray(cd?.upper_80) ? cd.upper_80 : [];
+  const lower80 = Array.isArray(cd?.lower_80) ? cd.lower_80 : [];
 
   const allLabels = [...histLabels, ...fcLabels];
   const n_hist = histLabels.length;

@@ -525,7 +525,7 @@ function renderChart(rawCh: any, idx: number, activePaletteColors: string[] = PA
         labels: ch.labels,
         datasets: [{
           data: ch.values,
-          backgroundColor: (ch.labels || []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}bb`),
+          backgroundColor: (Array.isArray(ch.labels) ? ch.labels : []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}bb`),
           borderColor: "rgba(0,0,0,0.25)",
           borderWidth: 1.5,
         }],
@@ -567,8 +567,8 @@ function renderChart(rawCh: any, idx: number, activePaletteColors: string[] = PA
             type: "bar" as const,
             label: `${yLabel} (Volume)`,
             data: bars,
-            backgroundColor: (ch.labels || []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}cc`),
-            borderColor: (ch.labels || []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
+            backgroundColor: (Array.isArray(ch.labels) ? ch.labels : []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}cc`),
+            borderColor: (Array.isArray(ch.labels) ? ch.labels : []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
             borderWidth: 1.5,
             borderRadius: 3,
             yAxisID: "y",
@@ -607,9 +607,10 @@ function renderChart(rawCh: any, idx: number, activePaletteColors: string[] = PA
   }
 
   if (ch.type === "scatter") {
-    const pts = Array.isArray(ch.values) && ch.values.length > 0 && typeof ch.values[0] === "object" && ch.values[0].x !== undefined
-      ? ch.values
-      : (ch.values || []).map((v: any, i: number) => ({ x: parseFloat(ch.labels?.[i]) || i, y: v }));
+    const safeScatterVals = Array.isArray(ch.values) ? ch.values : [];
+    const pts = safeScatterVals.length > 0 && typeof safeScatterVals[0] === "object" && safeScatterVals[0].x !== undefined
+      ? safeScatterVals
+      : safeScatterVals.map((v: any, i: number) => ({ x: parseFloat(ch.labels?.[i]) || i, y: v }));
     return <Scatter
       data={{ datasets: [{ label: ch.title, data: pts, backgroundColor: `${color}99`, pointRadius: 5, pointHoverRadius: 8, pointBorderColor: color, pointBorderWidth: 1 }] }}
       options={{ ...common, scales: { ...scales, x: { ...scales.x, type: "linear" as const } } }}
@@ -632,9 +633,10 @@ function renderChart(rawCh: any, idx: number, activePaletteColors: string[] = PA
 
   if (ch.type === "pie" || ch.type === "doughnut") {
     const Comp = ch.type === "doughnut" ? Doughnut : Pie;
-    const total = (ch.values || []).reduce((s: number, v: number) => s + (Number(v) || 0), 0);
+    const safeVals = Array.isArray(ch.values) ? ch.values : (ch.values && typeof ch.values === "object" ? Object.values(ch.values) : []);
+    const total = safeVals.reduce((s: number, v: number) => s + (Number(v) || 0), 0);
     return <Comp
-      data={{ labels: ch.labels, datasets: [{ data: ch.values, backgroundColor: activePaletteColors, borderColor: "rgba(0,0,0,0.3)", borderWidth: 2, hoverOffset: 8 }] }}
+      data={{ labels: ch.labels, datasets: [{ data: safeVals, backgroundColor: activePaletteColors, borderColor: "rgba(0,0,0,0.3)", borderWidth: 2, hoverOffset: 8 }] }}
       options={{
         responsive: true,
         maintainAspectRatio: false,
@@ -688,8 +690,8 @@ function renderChart(rawCh: any, idx: number, activePaletteColors: string[] = PA
       datasets: [{
         label: yLabel,
         data: ch.values,
-        backgroundColor: (ch.labels || []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}cc`),
-        borderColor: (ch.labels || []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
+        backgroundColor: (Array.isArray(ch.labels) ? ch.labels : []).map((_: any, i: number) => `${activePaletteColors[i % activePaletteColors.length]}cc`),
+        borderColor: (Array.isArray(ch.labels) ? ch.labels : []).map((_: any, i: number) => activePaletteColors[i % activePaletteColors.length]),
         borderWidth: 1.5,
         borderRadius: 3,
         borderSkipped: false as const,
