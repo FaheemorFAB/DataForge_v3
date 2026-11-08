@@ -1353,13 +1353,21 @@ async def api_agentic_auto_dashboard(
 
         if target_donut_cat and (target_donut_cat, "count") not in seen_charts:
             s_donut = canonicalize_series(df[target_donut_cat]).dropna()
-            grp = s_donut.value_counts().head(8)
+            vc = s_donut.value_counts()
+            if len(vc) > 6:
+                top_vc = vc.head(5)
+                other_sum = int(vc.iloc[5:].sum())
+                donut_labels = [str(x) for x in top_vc.index] + [f"Other ({len(vc) - 5} categories)"]
+                donut_values = [int(v) for v in top_vc.values] + [other_sum]
+            else:
+                donut_labels = [str(x) for x in vc.index]
+                donut_values = [int(v) for v in vc.values]
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "doughnut",
                 "title": f"Distribution of {target_donut_cat}",
-                "labels": [str(x) for x in grp.index],
-                "values": [int(v) for v in grp.values],
+                "labels": donut_labels,
+                "values": donut_values,
                 "x_col": target_donut_cat,
                 "y_col": "count",
                 "agg_type": "count",
@@ -1529,13 +1537,21 @@ async def api_agentic_auto_dashboard(
             fourth_cat = next((c for c in cat_cols if c not in (primary_cat, target_donut_cat, charts[-1]["x_col"])), None)
             if fourth_cat and (fourth_cat, "count") not in seen_charts:
                 s_fourth = canonicalize_series(df[fourth_cat]).dropna()
-                grp = s_fourth.value_counts().head(8)
+                vc4 = s_fourth.value_counts()
+                if len(vc4) > 6:
+                    top_vc4 = vc4.head(5)
+                    other_sum4 = int(vc4.iloc[5:].sum())
+                    donut_labels4 = [str(x) for x in top_vc4.index] + [f"Other ({len(vc4) - 5} categories)"]
+                    donut_values4 = [int(v) for v in top_vc4.values] + [other_sum4]
+                else:
+                    donut_labels4 = [str(x) for x in vc4.index]
+                    donut_values4 = [int(v) for v in vc4.values]
                 charts.append({
                     "id": f"auto_{chart_id_counter}",
                     "type": "doughnut",
                     "title": f"Category Share: {fourth_cat}",
-                    "labels": [str(x) for x in grp.index],
-                    "values": [int(v) for v in grp.values],
+                    "labels": donut_labels4,
+                    "values": donut_values4,
                     "x_col": fourth_cat,
                     "y_col": "count",
                     "agg_type": "count",

@@ -83,15 +83,27 @@ function SlideChartCard({ chart, title, subtitle }: { chart: any; title?: string
 
   if (!isBoxplot && !isScatter && (!chart.labels || chart.labels.length === 0)) return null;
 
+  let donutLabels = chart.labels || [];
+  let donutValues = (chart.values || []).map((v: any) => Number(v) || 0);
+  if (isDonut && donutValues.length > 6) {
+    const topVals = donutValues.slice(0, 5);
+    const topLabels = donutLabels.slice(0, 5);
+    const otherVal = donutValues.slice(5).reduce((a: number, b: number) => a + b, 0);
+    donutLabels = [...topLabels, `Other (${donutValues.length - 5} items)`];
+    donutValues = [...topVals, otherVal];
+  }
+
+  const DONUT_PALETTE = ["#4F46E5", "#0D9488", "#F59E0B", "#8B5CF6", "#EC4899", "#64748B"];
+
   const data = isDonut
     ? {
-        labels: (chart.labels || []).slice(0, 7),
+        labels: donutLabels,
         datasets: [
           {
-            data: (chart.values || []).slice(0, 7),
-            backgroundColor: PALETTE.slice(0, (chart.labels || []).length),
-            borderWidth: 1.5,
-            borderColor: "rgba(255,255,255,0.1)",
+            data: donutValues,
+            backgroundColor: DONUT_PALETTE.slice(0, donutLabels.length),
+            borderWidth: 2,
+            borderColor: "rgba(255,255,255,0.8)",
           },
         ],
       }
@@ -768,11 +780,21 @@ export function EDATab() {
               driversText = "Positive linear correlation confirms higher feature engagement systematically aligns with elevated score outcomes.";
               actionText = `Incorporate '${chart.x_col || "driver"}' as a mandatory leading operational KPI for early intervention.`;
             } else if (chType === "doughnut" || chType === "pie") {
-              const topLbl = labels[0] || "Leading Segment";
-              const topVal = values[0] ? Number(values[0]) : 0;
               const totalVal = values.reduce((acc: number, v: any) => acc + (Number(v) || 0), 0);
+              let topIdx = 0;
+              let maxV = -1;
+              values.forEach((v: any, i: number) => {
+                const num = Number(v) || 0;
+                const lbl = String(labels[i] || "");
+                if (!lbl.toLowerCase().startsWith("other") && num > maxV) {
+                  maxV = num;
+                  topIdx = i;
+                }
+              });
+              const topLbl = labels[topIdx] || "Leading Segment";
+              const topVal = values[topIdx] ? Number(values[topIdx]) : 0;
               const topPct = totalVal > 0 ? ((topVal / totalVal) * 100).toFixed(1) : "0";
-              findingText = `'${topLbl}' represents the largest operational share at ${topPct}% (${topVal.toLocaleString()} records).`;
+              findingText = `'${topLbl}' represents the primary volume cluster with ${topVal.toLocaleString()} records (${topPct}% share). The top segments drive the overwhelming majority of transaction activity.`;
               driversText = "Core volume is concentrated across the top categories, highlighting both a strategic focus area and operational dependency.";
               actionText = "Maintain instructional excellence in top categories while cross-deploying resources to elevate lagging segments.";
             } else if (chType === "line" || chType === "area") {

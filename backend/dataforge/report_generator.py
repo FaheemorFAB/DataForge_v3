@@ -216,65 +216,104 @@ def _render_svg_bar(
     return svg
 
 
-def _render_svg_donut(labels: list, values: list, height: int = 180, width: int = 420) -> str:
-    """Renders vector SVG Donut chart with clear percentage breakdown."""
+def _render_svg_donut(labels: list, values: list, height: int = 190, width: int = 440) -> str:
+    """Renders vector SVG Donut chart with full 360-degree closure, distinct palette, and 100% total coverage."""
     if not values:
         return ""
 
-    cx, cy, r_outer, r_inner = 100, height // 2, 58, 34
-    total = sum(abs(float(v)) for v in values if v is not None)
-    if total == 0:
+    num_vals = []
+    str_lbls = []
+    for l, v in zip(labels, values):
+        try:
+            val = abs(float(v)) if v is not None else 0.0
+            if val > 0:
+                num_vals.append(val)
+                str_lbls.append(str(l))
+        except Exception:
+            continue
+
+    total = sum(num_vals)
+    if total <= 0:
         return ""
 
+    # Ensure 100% full circle by grouping beyond top 5 into 'Other'
+    MAX_SLICES = 6
+    if len(num_vals) > MAX_SLICES:
+        display_lbls = list(str_lbls[:MAX_SLICES - 1])
+        display_vals = list(num_vals[:MAX_SLICES - 1])
+        rem_count = len(num_vals) - (MAX_SLICES - 1)
+        rem_val = sum(num_vals[MAX_SLICES - 1:])
+        display_lbls.append(f"Other ({rem_count} categories)")
+        display_vals.append(rem_val)
+    else:
+        display_lbls = list(str_lbls)
+        display_vals = list(num_vals)
+
+    cx, cy = 95, height // 2
+    r_outer, r_inner = 64, 38
+
+    # 6 distinct, accessible, high-contrast executive colors (no repeated purples)
+    colors = [INDIGO, "#0D9488", "#F59E0B", "#8B5CF6", "#EC4899", "#64748B"]
+
     slices = []
-    current_angle = -90.0
+    if len(display_vals) == 1:
+        slices.append(f'<circle cx="{cx}" cy="{cy}" r="{r_outer}" fill="{colors[0]}" stroke="#FFFFFF" stroke-width="2"/>')
+        slices.append(f'<circle cx="{cx}" cy="{cy}" r="{r_inner}" fill="#FFFFFF"/>')
+    else:
+        current_angle = -90.0
+        n_slices = len(display_vals)
+        for i, val in enumerate(display_vals):
+            # For the last slice, snap exactly to 270.0 to prevent floating-point gaps
+            if i == n_slices - 1:
+                angle = 270.0 - current_angle
+            else:
+                frac = val / total
+                angle = frac * 360.0
 
-    colors = [INDIGO, "#0D9488", "#D97706", "#7C3AED", "#DB2777", "#94A3B8"]
-    for i, (lbl, val) in enumerate(zip(labels[:6], values[:6])):
-        v = abs(float(val))
-        pct = (v / total)
-        angle = pct * 360.0
+            if angle <= 0.01:
+                continue
 
-        a0 = math.radians(current_angle)
-        a1 = math.radians(current_angle + angle)
-        current_angle += angle
+            a0 = math.radians(current_angle)
+            a1 = math.radians(current_angle + angle)
+            current_angle += angle
 
-        x0_o = cx + r_outer * math.cos(a0)
-        y0_o = cy + r_outer * math.sin(a0)
-        x1_o = cx + r_outer * math.cos(a1)
-        y1_o = cy + r_outer * math.sin(a1)
+            x0_o = cx + r_outer * math.cos(a0)
+            y0_o = cy + r_outer * math.sin(a0)
+            x1_o = cx + r_outer * math.cos(a1)
+            y1_o = cy + r_outer * math.sin(a1)
 
-        x0_i = cx + r_inner * math.cos(a1)
-        y0_i = cy + r_inner * math.sin(a1)
-        x1_i = cx + r_inner * math.cos(a0)
-        y1_i = cy + r_inner * math.sin(a0)
+            x0_i = cx + r_inner * math.cos(a1)
+            y0_i = cy + r_inner * math.sin(a1)
+            x1_i = cx + r_inner * math.cos(a0)
+            y1_i = cy + r_inner * math.sin(a0)
 
-        large_arc = 1 if angle > 180 else 0
-        c = colors[i % len(colors)]
+            large_arc = 1 if angle > 180 else 0
+            c = colors[i % len(colors)]
 
-        path_d = (
-            f"M {x0_o:.1f} {y0_o:.1f} "
-            f"A {r_outer} {r_outer} 0 {large_arc} 1 {x1_o:.1f} {y1_o:.1f} "
-            f"L {x0_i:.1f} {y0_i:.1f} "
-            f"A {r_inner} {r_inner} 0 {large_arc} 0 {x1_i:.1f} {y1_i:.1f} Z"
-        )
-        slices.append(f'<path d="{path_d}" fill="{c}" opacity="0.95"/>')
+            path_d = (
+                f"M {x0_o:.2f} {y0_o:.2f} "
+                f"A {r_outer} {r_outer} 0 {large_arc} 1 {x1_o:.2f} {y1_o:.2f} "
+                f"L {x0_i:.2f} {y0_i:.2f} "
+                f"A {r_inner} {r_inner} 0 {large_arc} 0 {x1_i:.2f} {y1_i:.2f} Z"
+            )
+            slices.append(f'<path d="{path_d}" fill="{c}" stroke="#FFFFFF" stroke-width="2" opacity="0.95"/>')
 
     legend_items = []
-    for i, (lbl, val) in enumerate(zip(labels[:6], values[:6])):
-        v = abs(float(val))
-        pct_str = f"{(v / total * 100):.1f}%"
+    for i, (lbl, val) in enumerate(zip(display_lbls, display_vals)):
+        pct_str = f"{(val / total * 100):.1f}%"
         c = colors[i % len(colors)]
-        ly = 20 + i * 24
+        ly = 16 + i * 25
         legend_items.append(f"""
-          <rect x="190" y="{ly}" width="10" height="10" rx="2" fill="{c}"/>
-          <text x="208" y="{ly + 9}" fill="#1E293B" font-size="10px" font-weight="600" font-family="'Inter', sans-serif">{html.escape(str(lbl)[:16])}</text>
-          <text x="{width - 20}" y="{ly + 9}" fill="{NAVY}" font-size="10px" font-weight="800" text-anchor="end" font-family="'Inter', sans-serif">{pct_str}</text>
+          <rect x="195" y="{ly}" width="10" height="10" rx="2" fill="{c}"/>
+          <text x="214" y="{ly + 9}" fill="#1E293B" font-size="10.5px" font-weight="600" font-family="'Inter', sans-serif">{html.escape(str(lbl)[:24])}</text>
+          <text x="{width - 20}" y="{ly + 9}" fill="{NAVY}" font-size="10.5px" font-weight="800" text-anchor="end" font-family="'Inter', sans-serif">{pct_str}</text>
         """)
 
-    svg = f"""<svg viewBox="0 0 {width} {height}" width="100%" height="{height}px">
+    svg = f"""<svg viewBox="0 0 {width} {height}" width="100%" height="{height}px" style="overflow:visible;">
       <g>{"".join(slices)}</g>
-      <circle cx="{cx}" cy="{cy}" r="{r_inner-2}" fill="#FFFFFF"/>
+      <circle cx="{cx}" cy="{cy}" r="{r_inner - 2}" fill="#FFFFFF"/>
+      <text x="{cx}" y="{cy - 2}" text-anchor="middle" font-size="12px" font-weight="800" fill="{NAVY}" font-family="'Inter', sans-serif">{_fmt_num(total)}</text>
+      <text x="{cx}" y="{cy + 11}" text-anchor="middle" font-size="8px" font-weight="700" fill="#64748B" font-family="'Inter', sans-serif">TOTAL</text>
       <g>{"".join(legend_items)}</g>
     </svg>"""
     return svg
@@ -540,9 +579,14 @@ def _explain_chart(chart: dict, dataset_type: str = "general") -> dict:
     if c_type in ("doughnut", "pie") and isinstance(values, list) and len(values) > 0:
         num_vals = [abs(float(v)) for v in values if v is not None]
         total = sum(num_vals) if sum(num_vals) > 0 else 1.0
-        top_idx = num_vals.index(max(num_vals)) if num_vals else 0
+        top_idx = 0
+        max_v = -1.0
+        for i, (l, v) in enumerate(zip(labels, num_vals)):
+            if not str(l).lower().startswith("other") and v > max_v:
+                max_v = v
+                top_idx = i
         top_lbl = str(labels[top_idx]) if top_idx < len(labels) else "Leading Category"
-        top_val = num_vals[top_idx] if num_vals else 0
+        top_val = num_vals[top_idx] if top_idx < len(num_vals) else 0
         top_pct = (top_val / total) * 100
 
         return {
