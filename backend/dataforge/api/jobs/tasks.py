@@ -399,13 +399,49 @@ async def generate_report_task(
             from dataforge.insight_engine import detect_schema, run_insights
             from dataforge.report_generator import generate_html_report
             from dataforge.gemini_pipeline import _gemini
+            from dataforge.settings import PROJECTS_DIR
+            p_dir = PROJECTS_DIR / str(upload_id)
 
             insights = load(upload_id, "last_insights")
+            if not insights and (p_dir / "last_insights.json").exists():
+                try:
+                    insights = json.loads((p_dir / "last_insights.json").read_text(encoding="utf-8"))
+                except Exception:
+                    insights = None
             schema   = load(upload_id, "last_schema")
             if not schema:
                 schema = detect_schema(df)
             if not insights:
-                insights = run_insights(df, schema, top_n=6)
+                insights = run_insights(df, schema, top_n=8)
+
+            # Load dashboard and custom charts so every dashboard chart is explained on its own slide
+            dashboard_data = load(upload_id, "agentic_dashboard")
+            if not dashboard_data and (p_dir / "agentic_dashboard.json").exists():
+                try:
+                    dashboard_data = json.loads((p_dir / "agentic_dashboard.json").read_text(encoding="utf-8"))
+                except Exception:
+                    dashboard_data = {}
+
+            custom_charts = load(upload_id, "custom_charts") or []
+            if not custom_charts and (p_dir / "custom_charts.json").exists():
+                try:
+                    custom_charts = json.loads((p_dir / "custom_charts.json").read_text(encoding="utf-8"))
+                except Exception:
+                    custom_charts = []
+
+            all_charts = []
+            seen_ids = set()
+            if dashboard_data and isinstance(dashboard_data, dict):
+                for c in dashboard_data.get("charts", []):
+                    cid = c.get("id") or str(c.get("title"))
+                    if cid not in seen_ids:
+                        all_charts.append(c)
+                        seen_ids.add(cid)
+            for c in custom_charts:
+                cid = c.get("id") or str(c.get("title"))
+                if cid not in seen_ids:
+                    all_charts.append(c)
+                    seen_ids.add(cid)
 
             profile = load(upload_id, "profile") or {}
             up = db_get("uploads", upload_id)
@@ -553,6 +589,8 @@ Write 4 sections:
                 dataset_name=filename,
                 dataset_type=schema.get("dataset_type", "general"),
                 profile=profile,
+                dashboard_data=dashboard_data,
+                charts=all_charts,
             )
 
             rep = {
@@ -575,6 +613,8 @@ Write 4 sections:
             d = PROJECTS_DIR / str(upload_id)
             d.mkdir(parents=True, exist_ok=True)
             (d / "report_html").write_text(html, encoding="utf-8")
+            (d / "report_html.json").write_text(json.dumps(html), encoding="utf-8")
+            (d / "data_report_html.json").write_text(json.dumps(html), encoding="utf-8")
             save(upload_id, "report_html", html)
             save(upload_id, "data_report_html", html)
             return html, report_id, filename
