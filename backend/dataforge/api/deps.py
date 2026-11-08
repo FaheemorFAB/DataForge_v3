@@ -420,7 +420,11 @@ from functools import lru_cache
 def _is_trusted_proxy_ip(ip_str: str) -> bool:
     try:
         ip = ipaddress.ip_address(ip_str.strip())
+        if ip.is_loopback:
+            return True
         for proxy_spec in settings.TRUSTED_PROXIES:
+            if proxy_spec == "*":
+                continue
             try:
                 if "/" in proxy_spec:
                     if ip in ipaddress.ip_network(proxy_spec, strict=False):

@@ -37,6 +37,7 @@ import {
   Sparkles,
   LayoutDashboard,
   Target,
+  Award,
 } from "lucide-react";
 import { Scatter, Line, Bar, Pie, Doughnut, Radar, PolarArea } from "react-chartjs-2";
 import { ForecastCard, InsightCard } from "./InsightsTab";
@@ -93,7 +94,7 @@ function fmtNum(v: number): string {
 }
 
 // -- Box Plot --
-function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: { data: any; formatted: any; xLabel?: string; yLabel?: string }) {
+export function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: { data: any; formatted: any; xLabel?: string; yLabel?: string }) {
   const [selectedGroupIdx, setSelectedGroupIdx] = useState<number | null>(null);
 
   if (!data || typeof data.min !== "number") return (
@@ -201,7 +202,14 @@ function BoxPlotViz({ data, formatted, xLabel = "Category", yLabel = "Value" }: 
 // -- KPI Card --
 function KpiCard({ stat, idx }: { stat: any; idx: number }) {
   const color = stat.color || PALETTE[idx % PALETTE.length];
-  const icon = stat.type === "entity_count" ? <Layers size={14} /> : stat.type === "distinct" ? <PieChart size={14} /> : stat.type === "completeness" ? <Activity size={14} /> : stat.type === "rows" ? <LayoutDashboard size={14} /> : <BarChart4 size={14} />;
+  const icon = stat.type === "entity_count" ? <Layers size={14} />
+    : stat.type === "distinct" ? <PieChart size={14} />
+    : stat.type === "average" ? <TrendingUp size={14} />
+    : stat.type === "top_performer" ? <Award size={14} />
+    : stat.type === "attainment" ? <Target size={14} />
+    : stat.type === "completeness" ? <Activity size={14} />
+    : stat.type === "rows" ? <LayoutDashboard size={14} />
+    : <BarChart4 size={14} />;
   return (
     <div className="relative overflow-hidden rounded-2xl p-3.5 sm:p-5 flex flex-col justify-between" style={{ background: "var(--surface)", border: "1px solid var(--border)", minHeight: 105 }}>
       <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-15 blur-2xl pointer-events-none" style={{ background: color }} />

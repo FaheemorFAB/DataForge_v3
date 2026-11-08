@@ -196,7 +196,7 @@ def test_numeric_ids_and_rollnos_never_summed(monkeypatch):
     assert res.status_code == 200, res.text
     d = res.json()
     labels = [st["label"] for st in d["stats"]]
-    assert "Total marks" in labels, f"Expected marks to be selected, got: {labels}"
+    assert any(m in labels for m in ["Average marks", "Total marks"]), f"Expected marks to be selected, got: {labels}"
     assert not any("Total roll" in l or "Total id" in l or "Mean roll" in l for l in labels), f"Forbidden math on ID found: {labels}"
 
     # 2. User explicitly selects roll_no via dropdown

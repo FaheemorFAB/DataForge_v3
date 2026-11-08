@@ -354,6 +354,69 @@ def is_meaningful_numeric_col(col: str, s: pd.Series) -> bool:
     num_s = robust_numeric_series(s).dropna()
     return len(num_s) >= 3 and num_s.nunique() >= 1
 
+
+def is_intensive_metric(col: str, s: Optional[pd.Series] = None) -> bool:
+    """
+    Identifies if a numeric metric is intensive (scores, marks, averages, ratios, rates, percentages)
+    where calculating a sum across rows is statistically nonsensical.
+    """
+    col_lower = (col or "").lower().strip()
+    intensive_keywords = [
+        "mark", "score", "pct", "percent", "percentage", "rate", "ratio",
+        "grade", "gpa", "rating", "accuracy", "attendance", "discount",
+        "temp", "temperature", "speed", "velocity", "yield", "margin",
+        "prob", "probability", "index", "age", "unit_price", "unit_cost",
+        "frequency", "rank", "ranking", "satisfaction", "retention", "per_"
+    ]
+    if any(k in col_lower for k in intensive_keywords):
+        return True
+
+    if s is not None:
+        try:
+            s_clean = pd.to_numeric(s, errors="coerce").dropna()
+            if len(s_clean) > 0:
+                if 0 <= s_clean.min() and s_clean.max() <= 100:
+                    if any(k in col_lower for k in ["pct", "%", "rate", "ratio", "share", "score", "portion"]):
+                        return True
+                if 0 <= s_clean.min() and s_clean.max() <= 1.0 and s_clean.max() > 0:
+                    if any(k in col_lower for k in ["rate", "ratio", "score", "pct", "factor", "weight"]):
+                        return True
+        except Exception:
+            pass
+    return False
+
+
+def get_benchmark_col_and_val(metric_col: str, df: pd.DataFrame) -> tuple[Optional[str], Optional[float]]:
+    """
+    Finds a paired benchmark or ceiling value for an intensive metric (e.g. max_marks for marks_obtained).
+    """
+    col_lower = (metric_col or "").lower()
+    candidate_keywords = ["max", "target", "total", "out_of", "benchmark", "ceiling", "full"]
+
+    # 1. Exact or prefix/suffix patterns
+    for c in df.columns:
+        c_l = c.lower()
+        if c_l == col_lower:
+            continue
+        if any(kw in c_l for kw in candidate_keywords) and any(stem in c_l for stem in ["mark", "score", "grade", "target", "pts", "points"]):
+            s = robust_numeric_series(df[c]).dropna()
+            if len(s) > 0 and s.nunique() <= 5:
+                val = float(s.mode().iloc[0]) if not s.mode().empty else float(s.max())
+                if val > 0:
+                    return c, val
+
+    # 2. General search for target/benchmark/max columns
+    for c in df.columns:
+        c_l = c.lower()
+        if c_l in ["target", "benchmark", "max", "goal", "quota"]:
+            s = robust_numeric_series(df[c]).dropna()
+            if len(s) > 0:
+                val = float(s.mode().iloc[0]) if not s.mode().empty else float(s.max())
+                if val > 0:
+                    return c, val
+
+    return None, None
+
 def _compute_chart_data(df, config):
     """Compute chart data for a custom chart config dict."""
     chart_id   = config.get("id")
@@ -617,11 +680,12 @@ def _compute_chart_data(df, config):
 
 @router.post("/dashboard/stats", summary="Compute dashboard KPIs and charts")
 async def api_dashboard_stats(
-    body: DashboardStatsRequest,
-    current_user: CurrentUser,
+    body: Optional[DashboardStatsRequest] = None,
+    current_user: CurrentUser = None,
     upload_id: Optional[str] = Query(default=None),
 ):
-    target_upload_id = body.upload_id or upload_id
+    req_body = body or DashboardStatsRequest()
+    target_upload_id = req_body.upload_id or upload_id
     if not target_upload_id:
         raise HTTPException(400, "upload_id required")
     await require_upload_with_data(target_upload_id, current_user)
@@ -633,7 +697,7 @@ async def api_dashboard_stats(
         df = df_clean if df_clean is not None else _load(target_upload_id, "df_raw")
 
         # Apply filters
-        filters = body.filters or {}
+        filters = req_body.filters or {}
         for col, val in filters.items():
             if col in df.columns:
                 try:
@@ -641,8 +705,8 @@ async def api_dashboard_stats(
                 except Exception:
                     pass
 
-        dim    = body.chart_dim
-        metric = body.chart_metric
+        dim    = req_body.chart_dim
+        metric = req_body.chart_metric
 
         schema  = _load(target_upload_id, "last_schema") or {}
         profile = _load(target_upload_id, "profile") or {}
@@ -707,12 +771,32 @@ async def api_dashboard_stats(
             elif pd.api.types.is_numeric_dtype(df[metric_col]) or metric_col in all_numeric:
                 s = robust_numeric_series(df[metric_col]).dropna()
                 if len(s) > 0:
-                    stats.append({
-                        "label": f"Total {metric_col}",
-                        "value": format_stat_val(metric_col, float(s.sum())),
-                        "sub": f"Avg: {format_stat_val(metric_col, float(s.mean()))}",
-                        "type": "sum",
-                    })
+                    if is_intensive_metric(metric_col, s):
+                        b_col, b_val = get_benchmark_col_and_val(metric_col, df)
+                        mean_val = float(s.mean())
+                        s_min = float(s.min())
+                        s_max = float(s.max())
+                        s_med = float(s.median())
+                        if b_val and b_val > 0:
+                            val_str = f"{mean_val:.1f} / {b_val:.0f}"
+                        elif any(k in metric_col.lower() for k in ["pct", "percent", "%", "attendance", "rate", "ratio", "margin", "yield"]):
+                            val_str = f"{mean_val:.1f}%"
+                        else:
+                            val_str = f"{mean_val:.2f}"
+                        stats.append({
+                            "label": f"Average {metric_col}",
+                            "value": val_str,
+                            "sub": f"Max: {s_max:.1f} · Min: {s_min:.1f} · Median: {s_med:.1f}",
+                            "type": "average",
+                            "color": "#6366f1",
+                        })
+                    else:
+                        stats.append({
+                            "label": f"Total {metric_col}",
+                            "value": format_stat_val(metric_col, float(s.sum())),
+                            "sub": f"Avg: {format_stat_val(metric_col, float(s.mean()))}",
+                            "type": "sum",
+                        })
             else:
                 s_cat = canonicalize_series(df[metric_col]).dropna()
                 u_cnt = s_cat.nunique()
@@ -741,22 +825,63 @@ async def api_dashboard_stats(
                     "type": "distinct",
                 })
 
-        # Data Completeness Card
-        missing = int(df.isnull().sum().sum())
-        total_cells = df.shape[0] * df.shape[1]
-        missing_pct = (missing / total_cells) * 100 if total_cells > 0 else 0.0
-        score = 100.0 - missing_pct
+        # 4th KPI Card: High-Impact Performance or Attainment (Keep Data Health out of Executive Dashboard)
+        fourth_card_added = False
+        if metric_col and metric_col in df.columns and (pd.api.types.is_numeric_dtype(df[metric_col]) or metric_col in all_numeric):
+            s_met = robust_numeric_series(df[metric_col]).dropna()
+            b_col, b_val = get_benchmark_col_and_val(metric_col, df)
 
-        lbl = "Excellent" if score >= 95 else "Good" if score >= 85 else "Fair" if score >= 70 else "Needs Attention"
-        color = "#10b981" if score >= 95 else "#84cc16" if score >= 85 else "#f59e0b" if score >= 70 else "#ef4444"
+            # If a categorical dimension exists, find top cohort by mean
+            if dim_col and dim_col in df.columns:
+                temp_cohort = pd.DataFrame({"_c": df[dim_col], "_v": robust_numeric_series(df[metric_col])}).dropna()
+                if not temp_cohort.empty and temp_cohort["_c"].nunique() >= 2:
+                    grp_cohort = temp_cohort.groupby("_c")["_v"].mean().sort_values(ascending=False)
+                    top_name = str(grp_cohort.index[0])
+                    top_avg = float(grp_cohort.iloc[0])
+                    if len(top_name) > 16:
+                        top_name = top_name[:14] + "..."
+                    stats.append({
+                        "label": f"Top Cohort ({dim_col})",
+                        "value": top_name,
+                        "sub": f"Highest Avg {metric_col}: {top_avg:.1f}",
+                        "color": "#10b981",
+                        "type": "top_performer",
+                    })
+                    fourth_card_added = True
 
-        stats.append({
-            "label": "Data Completeness",
-            "value": f"{score:.1f}%",
-            "sub": lbl,
-            "color": color,
-            "type": "completeness",
-        })
+            # If benchmark exists, show benchmark attainment
+            if not fourth_card_added and b_val and b_val > 0 and len(s_met) > 0:
+                pass_th = b_val * 0.4
+                pct_pass = (s_met >= pass_th).mean() * 100
+                stats.append({
+                    "label": "Benchmark Attainment",
+                    "value": f"{pct_pass:.1f}%",
+                    "sub": f"Scoring ≥ {pass_th:.0f} of {b_val:.0f} Target",
+                    "color": "#10b981",
+                    "type": "attainment",
+                })
+                fourth_card_added = True
+
+        if not fourth_card_added:
+            sec_candidates = [c for c in cat_cols if c != dim_col] if 'cat_cols' in locals() and cat_cols else []
+            if sec_candidates:
+                s_alt = canonicalize_series(df[sec_candidates[0]]).dropna()
+                top_v = str(s_alt.mode().iloc[0]) if not s_alt.mode().empty else "N/A"
+                stats.append({
+                    "label": f"Cohort ({sec_candidates[0]})",
+                    "value": f"{s_alt.nunique():,} Categories",
+                    "sub": f"Dominant: '{top_v[:14]}'",
+                    "color": "#8b5cf6",
+                    "type": "distinct",
+                })
+            else:
+                stats.append({
+                    "label": "Active Analysis Scope",
+                    "value": f"{len(df):,} Records",
+                    "sub": f"{df.shape[1]} Ingested Dimensions",
+                    "color": "#6366f1",
+                    "type": "rows",
+                })
 
         # Charts
         charts = []
@@ -765,14 +890,21 @@ async def api_dashboard_stats(
             if metric_col and metric_col in df.columns and metric_col in valid_numeric_cols:
                 s_m = robust_numeric_series(df[metric_col])
                 temp_df = pd.DataFrame({"_dim": s_dim, "_metric": s_m}).dropna()
-                grp = temp_df.groupby("_dim")["_metric"].sum().sort_values(ascending=False).head(15)
+                is_int = is_intensive_metric(metric_col, s_m)
+                agg_type = "mean" if is_int else "sum"
+                if agg_type == "mean":
+                    grp = temp_df.groupby("_dim")["_metric"].mean().sort_values(ascending=False).head(15)
+                    ch_title = f"Average {metric_col} by {dim_col}"
+                else:
+                    grp = temp_df.groupby("_dim")["_metric"].sum().sort_values(ascending=False).head(15)
+                    ch_title = f"{metric_col} by {dim_col}"
                 charts.append({
                     "id": "bar", "type": "bar",
-                    "title": f"{metric_col} by {dim_col}",
+                    "title": ch_title,
                     "labels": [str(x) for x in grp.index],
                     "values": [round(float(v), 2) for v in grp.values],
                     "x_col": dim_col, "y_col": metric_col,
-                    "agg_type": "sum",
+                    "agg_type": agg_type,
                 })
             else:
                 grp = s_dim.dropna().value_counts().head(15)
@@ -916,11 +1048,12 @@ async def api_dashboard_stats(
 # ── Agentic Auto-Pilot Dashboard ──────────────────────────────────────────────
 @router.post("/dashboard/agentic-auto", summary="Generate agentic automated dashboard governed by AI workflow")
 async def api_agentic_auto_dashboard(
-    body: DashboardStatsRequest,
-    current_user: CurrentUser,
+    body: Optional[DashboardStatsRequest] = None,
+    current_user: CurrentUser = None,
     upload_id: Optional[str] = Query(default=None),
 ):
-    target_upload_id = body.upload_id or upload_id
+    req_body = body or DashboardStatsRequest()
+    target_upload_id = req_body.upload_id or upload_id
     if not target_upload_id:
         raise HTTPException(400, "upload_id required")
     await require_upload_with_data(target_upload_id, current_user)
@@ -948,11 +1081,11 @@ async def api_agentic_auto_dashboard(
 
         # Case-insensitive resolution of requested dim / metric from body
         col_map = {c.lower(): c for c in df.columns}
-        req_metric = body.chart_metric
+        req_metric = req_body.chart_metric
         if req_metric and req_metric not in df.columns and req_metric.lower() in col_map:
             req_metric = col_map[req_metric.lower()]
 
-        req_dim = body.chart_dim
+        req_dim = req_body.chart_dim
         if req_dim and req_dim not in df.columns and req_dim.lower() in col_map:
             req_dim = col_map[req_dim.lower()]
 
@@ -1007,12 +1140,32 @@ async def api_agentic_auto_dashboard(
             elif primary_metric in valid_numeric_cols or pd.api.types.is_numeric_dtype(df[primary_metric]):
                 s = robust_numeric_series(df[primary_metric]).dropna()
                 if len(s) > 0:
-                    stats.append({
-                        "label": f"Total {primary_metric}",
-                        "value": format_stat_val(primary_metric, float(s.sum())),
-                        "sub": f"Mean: {format_stat_val(primary_metric, float(s.mean()))}",
-                        "type": "sum",
-                    })
+                    if is_intensive_metric(primary_metric, s):
+                        b_col, b_val = get_benchmark_col_and_val(primary_metric, df)
+                        mean_val = float(s.mean())
+                        s_min = float(s.min())
+                        s_max = float(s.max())
+                        s_med = float(s.median())
+                        if b_val and b_val > 0:
+                            val_str = f"{mean_val:.1f} / {b_val:.0f}"
+                        elif any(k in primary_metric.lower() for k in ["pct", "percent", "%", "attendance", "rate", "ratio", "margin", "yield"]):
+                            val_str = f"{mean_val:.1f}%"
+                        else:
+                            val_str = f"{mean_val:.2f}"
+                        stats.append({
+                            "label": f"Average {primary_metric}",
+                            "value": val_str,
+                            "sub": f"Max: {s_max:.1f} · Min: {s_min:.1f} · Median: {s_med:.1f}",
+                            "type": "average",
+                            "color": "#6366f1",
+                        })
+                    else:
+                        stats.append({
+                            "label": f"Total {primary_metric}",
+                            "value": format_stat_val(primary_metric, float(s.sum())),
+                            "sub": f"Mean: {format_stat_val(primary_metric, float(s.mean()))}",
+                            "type": "sum",
+                        })
             else:
                 sc = canonicalize_series(df[primary_metric]).dropna()
                 top_v = str(sc.mode().iloc[0]) if not sc.mode().empty else "N/A"
@@ -1064,17 +1217,62 @@ async def api_agentic_auto_dashboard(
                     "type": "distinct",
                 })
 
-        missing = int(df.isnull().sum().sum())
-        total_cells = df.shape[0] * df.shape[1]
-        missing_pct = (missing / total_cells) * 100 if total_cells > 0 else 0.0
-        score = 100.0 - missing_pct
-        stats.append({
-            "label": "Data Completeness",
-            "value": f"{score:.1f}%",
-            "sub": "Complete (0 nulls)" if missing == 0 else f"{missing:,} missing values",
-            "color": "#10b981" if score >= 95 else "#f59e0b",
-            "type": "completeness",
-        })
+        # 4. Fourth KPI Card: Top Performing Cohort or Benchmark Attainment (Keep Data Health out)
+        fourth_card_added = False
+        if primary_metric and (primary_metric in valid_numeric_cols or pd.api.types.is_numeric_dtype(df[primary_metric])):
+            s_met = robust_numeric_series(df[primary_metric]).dropna()
+            b_col, b_val = get_benchmark_col_and_val(primary_metric, df)
+
+            # Check if primary_cat exists to find top cohort
+            if primary_cat and primary_cat in df.columns:
+                temp_cohort = pd.DataFrame({"_c": df[primary_cat], "_v": robust_numeric_series(df[primary_metric])}).dropna()
+                if not temp_cohort.empty and temp_cohort["_c"].nunique() >= 2:
+                    grp_cohort = temp_cohort.groupby("_c")["_v"].mean().sort_values(ascending=False)
+                    top_name = str(grp_cohort.index[0])
+                    top_avg = float(grp_cohort.iloc[0])
+                    if len(top_name) > 16:
+                        top_name = top_name[:14] + "..."
+                    stats.append({
+                        "label": f"Top Cohort ({primary_cat})",
+                        "value": top_name,
+                        "sub": f"Highest Avg {primary_metric}: {top_avg:.1f}",
+                        "color": "#10b981",
+                        "type": "top_performer",
+                    })
+                    fourth_card_added = True
+
+            if not fourth_card_added and b_val and b_val > 0 and len(s_met) > 0:
+                pass_th = b_val * 0.4
+                pct_pass = (s_met >= pass_th).mean() * 100
+                stats.append({
+                    "label": "Benchmark Attainment",
+                    "value": f"{pct_pass:.1f}%",
+                    "sub": f"Scoring ≥ {pass_th:.0f} of {b_val:.0f} Target",
+                    "color": "#10b981",
+                    "type": "attainment",
+                })
+                fourth_card_added = True
+
+        if not fourth_card_added:
+            sec_cats = [c for c in cat_cols if c != primary_cat]
+            if sec_cats:
+                s_alt = canonicalize_series(df[sec_cats[0]]).dropna()
+                top_v = str(s_alt.mode().iloc[0]) if not s_alt.mode().empty else "N/A"
+                stats.append({
+                    "label": f"Cohort ({sec_cats[0]})",
+                    "value": f"{s_alt.nunique():,} Categories",
+                    "sub": f"Dominant: '{top_v[:14]}'",
+                    "color": "#8b5cf6",
+                    "type": "distinct",
+                })
+            else:
+                stats.append({
+                    "label": "Metric Scope",
+                    "value": f"{len(valid_numeric_cols)} Metrics",
+                    "sub": f"{len(cat_cols)} Categorical Features",
+                    "color": "#6366f1",
+                    "type": "rows",
+                })
 
         # 4. Automated Charts Suite
         charts = []
@@ -1086,16 +1284,23 @@ async def api_agentic_auto_dashboard(
             s_metric = robust_numeric_series(df[primary_metric])
             s_cat = canonicalize_series(df[primary_cat])
             temp_df = pd.DataFrame({"_cat": s_cat, "_metric": s_metric}).dropna()
-            grp = temp_df.groupby("_cat")["_metric"].sum().sort_values(ascending=False).head(12)
+            is_intensive = is_intensive_metric(primary_metric, s_metric)
+            agg_type = "mean" if is_intensive else "sum"
+            if agg_type == "mean":
+                grp = temp_df.groupby("_cat")["_metric"].mean().sort_values(ascending=False).head(12)
+                ch_title = f"Average {primary_metric} by {primary_cat}"
+            else:
+                grp = temp_df.groupby("_cat")["_metric"].sum().sort_values(ascending=False).head(12)
+                ch_title = f"{primary_metric} by {primary_cat}"
             charts.append({
                 "id": f"auto_{chart_id_counter}",
                 "type": "bar",
-                "title": f"{primary_metric} by {primary_cat}",
+                "title": ch_title,
                 "labels": [str(x) for x in grp.index],
                 "values": [round(float(v), 2) for v in grp.values],
                 "x_col": primary_cat,
                 "y_col": primary_metric,
-                "agg_type": "sum",
+                "agg_type": agg_type,
                 "is_custom": False,
             })
             seen_charts.add((primary_cat, primary_metric))
@@ -1214,10 +1419,30 @@ async def api_agentic_auto_dashboard(
                     })
                     chart_id_counter += 1
 
-        # Chart 4: Bivariate Correlation Scatter (if >=2 valid numeric measures) OR Secondary Categorical Breakdown
-        if len(valid_numeric_cols) >= 2:
-            x_num = valid_numeric_cols[0]
-            y_num = valid_numeric_cols[1]
+        # Chart 4: Bivariate Correlation Scatter (if >=2 valid numeric measures with variance) OR Secondary Categorical Breakdown
+        varying_numeric_cols = [
+            c for c in valid_numeric_cols
+            if robust_numeric_series(df[c]).dropna().nunique() >= 4
+            and robust_numeric_series(df[c]).dropna().std() > 1e-4
+        ]
+        if len(varying_numeric_cols) >= 2:
+            if primary_metric in varying_numeric_cols:
+                cand_others = [c for c in varying_numeric_cols if c != primary_metric]
+                def _corr_score(col):
+                    try:
+                        s1 = robust_numeric_series(df[primary_metric]).dropna()
+                        s2 = robust_numeric_series(df[col]).dropna()
+                        idx = s1.index.intersection(s2.index)
+                        return abs(float(np.corrcoef(s1.loc[idx], s2.loc[idx])[0, 1]))
+                    except Exception:
+                        return 0.0
+                cand_others.sort(key=_corr_score, reverse=True)
+                x_num = cand_others[0]
+                y_num = primary_metric
+            else:
+                x_num = varying_numeric_cols[0]
+                y_num = varying_numeric_cols[1]
+
             x_s = robust_numeric_series(df[x_num])
             y_s = robust_numeric_series(df[y_num])
             sub = pd.DataFrame({x_num: x_s, y_num: y_s}).dropna()

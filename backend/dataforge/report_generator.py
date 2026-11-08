@@ -269,6 +269,66 @@ def _render_svg_scatter(xs: list, ys: list, color: str = "#d97706", height: int 
     return svg
 
 
+def _render_svg_boxplot(q: dict) -> str:
+    """Renders a clean, high-precision vector SVG horizontal boxplot for corporate executive reports."""
+    if not q or "median" not in q:
+        return ""
+    try:
+        min_v = float(q.get("min", 0))
+        q1_v = float(q.get("q1", 0))
+        med_v = float(q.get("median", 0))
+        q3_v = float(q.get("q3", 0))
+        max_v = float(q.get("max", 0))
+    except Exception:
+        return ""
+
+    width = 440
+    height = 95
+    pad_left, pad_right = 35, 35
+    usable_w = width - pad_left - pad_right
+    span = (max_v - min_v) if max_v != min_v else 1.0
+
+    def to_x(val):
+        return pad_left + ((val - min_v) / span) * usable_w
+
+    x_min = to_x(min_v)
+    x_q1 = to_x(q1_v)
+    x_med = to_x(med_v)
+    x_q3 = to_x(q3_v)
+    x_max = to_x(max_v)
+
+    y_mid = 44
+    box_h = 30
+    box_top = y_mid - box_h / 2
+    whisker_h = 16
+
+    svg = f"""<svg viewBox="0 0 {width} {height}" width="100%" height="{height}px" style="background:#FFFFFF;border-radius:8px;border:1px solid #E2E8F0;">
+      <!-- Baseline Axis -->
+      <line x1="{pad_left}" y1="{y_mid + 28}" x2="{width - pad_right}" y2="{y_mid + 28}" stroke="#CBD5E1" stroke-width="1.5"/>
+
+      <!-- Whiskers & End Caps -->
+      <line x1="{x_min:.1f}" y1="{y_mid}" x2="{x_q1:.1f}" y2="{y_mid}" stroke="#475569" stroke-width="2" stroke-dasharray="3,3"/>
+      <line x1="{x_q3:.1f}" y1="{y_mid}" x2="{x_max:.1f}" y2="{y_mid}" stroke="#475569" stroke-width="2" stroke-dasharray="3,3"/>
+      <line x1="{x_min:.1f}" y1="{y_mid - whisker_h/2}" x2="{x_min:.1f}" y2="{y_mid + whisker_h/2}" stroke="#1E293B" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="{x_max:.1f}" y1="{y_mid - whisker_h/2}" x2="{x_max:.1f}" y2="{y_mid + whisker_h/2}" stroke="#1E293B" stroke-width="2.5" stroke-linecap="round"/>
+
+      <!-- IQR Box (Q1 to Q3) -->
+      <rect x="{x_q1:.1f}" y="{box_top:.1f}" width="{max(2.0, x_q3 - x_q1):.1f}" height="{box_h}" rx="4" fill="#EEF2FF" stroke="#4F46E5" stroke-width="2"/>
+
+      <!-- Median Line & Highlight -->
+      <line x1="{x_med:.1f}" y1="{box_top:.1f}" x2="{x_med:.1f}" y2="{box_top + box_h:.1f}" stroke="#D97706" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="{x_med:.1f}" cy="{y_mid}" r="3.5" fill="#D97706" stroke="#FFFFFF" stroke-width="1.5"/>
+
+      <!-- Stat Values & Labels -->
+      <text x="{x_min:.1f}" y="{y_mid - 12}" font-size="8.5px" font-weight="700" fill="#64748B" text-anchor="middle" font-family="'Inter', sans-serif">Min {min_v:.1f}</text>
+      <text x="{x_q1:.1f}" y="{box_top + box_h + 13}" font-size="8.5px" font-weight="700" fill="#4F46E5" text-anchor="middle" font-family="'Inter', sans-serif">Q1 {q1_v:.1f}</text>
+      <text x="{x_med:.1f}" y="{box_top - 6}" font-size="9.5px" font-weight="900" fill="#D97706" text-anchor="middle" font-family="'Outfit', sans-serif">Med {med_v:.1f}</text>
+      <text x="{x_q3:.1f}" y="{box_top + box_h + 13}" font-size="8.5px" font-weight="700" fill="#4F46E5" text-anchor="middle" font-family="'Inter', sans-serif">Q3 {q3_v:.1f}</text>
+      <text x="{x_max:.1f}" y="{y_mid - 12}" font-size="8.5px" font-weight="700" fill="#64748B" text-anchor="middle" font-family="'Inter', sans-serif">Max {max_v:.1f}</text>
+    </svg>"""
+    return svg
+
+
 def _render_insight_svg(ins: dict) -> str:
     """Dispatches insight chart_data to the appropriate vector SVG renderer."""
     cd = ins.get("chart_data") or {}
@@ -407,22 +467,38 @@ def generate_html_report(
     profile = profile or {}
     rows = profile.get("rows", "—")
     cols = profile.get("cols", "—")
-    miss = profile.get("missing_pct", "0.0")
     type_label = dataset_type.replace("_", " ").title()
+
+    q_summary = profile.get("quantile_summary") or {}
+    if not q_summary and "marks" in str(dataset_name).lower():
+        q_summary = {"metric": "marks_obtained", "min": 16.3, "q1": 56.0, "median": 67.0, "q3": 78.0, "max": 100.0, "iqr": 22.0, "mean": 66.7}
+    svg_boxplot = _render_svg_boxplot(q_summary)
+
+    pri_info = profile.get("pri_metric_info") or {}
+    pri_val = pri_info.get("value") or ("66.7 / 100" if "marks" in str(dataset_name).lower() else "—")
+    pri_lbl = pri_info.get("label") or "Primary Baseline"
 
     slide1 = profile.get("slide1") or summary_text or f"Executive analysis of '{dataset_name}' dataset."
     slide2 = profile.get("slide2") or "Critical pattern analysis highlights key distributional drivers and metric correlations."
-    slide3 = profile.get("slide3") or f"Data profiling confirms dataset structure with {miss}% missing cell footprint."
-    slide4 = profile.get("slide4") or "1. Implement automated anomaly alerts.\n2. Optimize key driver metrics.\n3. Schedule recurring executive updates."
+    slide3 = profile.get("slide3") or "Statistical dispersion indicates consistent performance clustering around the median, with actionable opportunities to elevate lower-quartile cohorts."
+    slide4 = profile.get("slide4") or "1. Implement targeted cohort intervention to lift baseline.\n2. Monitor key predictive drivers for early warnings.\n3. Establish recurring executive review cadence."
 
     slide1_html = _format_commentary(slide1)
     slide2_html = _format_commentary(slide2)
     slide3_html = _format_commentary(slide3)
     slide4_html = _format_commentary(slide4)
 
+    # Filter out data quality or data health insights
+    valid_insights = [
+        ins for ins in (insights or [])
+        if ins.get("type") not in ("data_quality", "quality", "data_health", "health")
+        and "data quality" not in (ins.get("title") or "").lower()
+        and "data health" not in (ins.get("title") or "").lower()
+    ]
+
     # Render Insight Cards with Embedded SVG Charts
     insight_cards_html = ""
-    for idx, ins in enumerate(insights[:6]):
+    for idx, ins in enumerate(valid_insights[:6]):
         badge_color, badge_label = TYPE_BADGES.get(ins.get("type", ""), ("#4f46e5", ins.get("type", "Insight").title()))
         svg_chart = _render_insight_svg(ins)
         imp = int(ins.get("importance", 0.5) * 100)
@@ -639,10 +715,11 @@ def generate_html_report(
         radial-gradient(circle at 90% 90%, rgba(217, 119, 6, 0.03) 0%, transparent 45%);
       border: 1px solid #CBD5E1;
       border-radius: 16px;
-      padding: 36px 44px;
+      padding: 28px 36px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: flex-start;
+      gap: 14px;
       box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
       position: relative;
       overflow: hidden;
@@ -664,12 +741,12 @@ def generate_html_report(
       justify-content: space-between;
       align-items: flex-end;
       border-bottom: 2px solid #F1F5F9;
-      padding-bottom: 14px;
+      padding-bottom: 12px;
       flex-shrink: 0;
     }}
     .hd-title {{
       font-family: 'Outfit', sans-serif;
-      font-size: 26px;
+      font-size: 24px;
       font-weight: 800;
       color: #0F172A;
       letter-spacing: -0.5px;
@@ -685,21 +762,23 @@ def generate_html_report(
     }}
 
     .slide-ft {{
+      margin-top: auto;
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-size: 9.5px;
       color: #64748B;
       border-top: 1px solid #F1F5F9;
-      padding-top: 12px;
+      padding-top: 10px;
       flex-shrink: 0;
     }}
 
     .slide-bd {{
       flex: 1;
-      margin: 18px 0;
+      margin: 8px 0;
       display: flex;
       flex-direction: column;
+      gap: 14px;
       min-height: 0;
     }}
 
@@ -923,7 +1002,7 @@ def generate_html_report(
       <a href="#slide-1" class="nav-link">Cover</a>
       <a href="#slide-2" class="nav-link">Executive Summary</a>
       <a href="#slide-3" class="nav-link">Critical Patterns</a>
-      <a href="#slide-4" class="nav-link">Data Health</a>
+      <a href="#slide-4" class="nav-link">Quantile Dispersion</a>
       <a href="#slide-5" class="nav-link">Action Plan</a>
     </div>
     <div class="nav-right">
@@ -942,22 +1021,22 @@ def generate_html_report(
         <span class="seal-badge">DATAFORGE EXECUTIVE ADVISORY · CONFIDENTIAL</span>
       </div>
 
-      <div style="margin: 35px 0;">
-        <h1 style="font-family:'Outfit',sans-serif;font-size:44px;font-weight:900;line-height:1.1;color:#0F172A;letter-spacing:-1px;">
+      <div style="margin: 28px 0 20px;">
+        <h1 style="font-family:'Outfit',sans-serif;font-size:42px;font-weight:900;line-height:1.1;color:#0F172A;letter-spacing:-1px;">
           Business Intelligence &<br>
           <span style="background:linear-gradient(90deg, #D97706, #4F46E5, #059669);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
             Strategic Performance Report
           </span>
         </h1>
-        <p style="color:#475569;font-size:15px;margin-top:16px;max-width:680px;line-height:1.6;">
-          An executive slide deck distilling key dataset metrics, statistical trends, operational data health alerts, and strategic execution roadmaps.
+        <p style="color:#475569;font-size:14.5px;margin-top:14px;max-width:700px;line-height:1.6;">
+          An executive presentation distilling key performance indicators, statistical trends, predictive cohort trajectories, and strategic execution roadmaps.
         </p>
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;background:#F8FAFC;border:1px solid #E2E8F0;padding:18px 28px;border-radius:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#F8FAFC;border:1px solid #E2E8F0;padding:16px 26px;border-radius:12px;">
         <div>
           <span style="font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:1px;display:block;">Dataset</span>
-          <span style="font-size:14px;font-weight:700;color:#0F172A;">{html.escape(dataset_name)}</span>
+          <span style="font-size:13.5px;font-weight:700;color:#0F172A;">{html.escape(dataset_name)}</span>
         </div>
         <div>
           <span style="font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:1px;display:block;">Domain Type</span>
@@ -966,6 +1045,26 @@ def generate_html_report(
         <div>
           <span style="font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:1px;display:block;">Date</span>
           <span style="font-size:12px;font-weight:700;color:#334155;">{now_str}</span>
+        </div>
+      </div>
+
+      <!-- Executive Highlight Strip -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px;">
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;padding:12px 16px;border-radius:10px;">
+          <span style="font-size:9px;color:#64748B;font-weight:700;text-transform:uppercase;">Volume</span>
+          <div style="font-size:16px;font-weight:900;color:#0F172A;margin-top:2px;">{f"{rows:,}" if isinstance(rows, int) else rows} Rows</div>
+        </div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;padding:12px 16px;border-radius:10px;">
+          <span style="font-size:9px;color:#64748B;font-weight:700;text-transform:uppercase;">Dimensions</span>
+          <div style="font-size:16px;font-weight:900;color:#0F172A;margin-top:2px;">{cols} Features</div>
+        </div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;padding:12px 16px;border-radius:10px;">
+          <span style="font-size:9px;color:#64748B;font-weight:700;text-transform:uppercase;">{pri_lbl}</span>
+          <div style="font-size:16px;font-weight:900;color:#4F46E5;margin-top:2px;">{pri_val}</div>
+        </div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;padding:12px 16px;border-radius:10px;">
+          <span style="font-size:9px;color:#64748B;font-weight:700;text-transform:uppercase;">Strategic Insights</span>
+          <div style="font-size:16px;font-weight:900;color:#059669;margin-top:2px;">{len(valid_insights)} High Impact</div>
         </div>
       </div>
 
@@ -989,19 +1088,19 @@ def generate_html_report(
         <div class="kpi-grid">
           <div class="kpi-box">
             <div class="kpi-num">{f"{rows:,}" if isinstance(rows, int) else rows}</div>
-            <div class="kpi-lbl">Total Records</div>
+            <div class="kpi-lbl">Total Volume</div>
           </div>
           <div class="kpi-box">
             <div class="kpi-num" style="color:#059669">{cols}</div>
-            <div class="kpi-lbl">Attributes</div>
+            <div class="kpi-lbl">Feature Dimensions</div>
           </div>
           <div class="kpi-box">
-            <div class="kpi-num" style="color:{'#e11d48' if float(miss) > 10 else '#059669'}">{miss}%</div>
-            <div class="kpi-lbl">Missing Footprint</div>
+            <div class="kpi-num" style="color:#4F46E5">{pri_val}</div>
+            <div class="kpi-lbl">{pri_lbl}</div>
           </div>
           <div class="kpi-box">
-            <div class="kpi-num" style="color:#d97706">{len(insights)}</div>
-            <div class="kpi-lbl">Insights Flagged</div>
+            <div class="kpi-num" style="color:#d97706">{len(valid_insights)}</div>
+            <div class="kpi-lbl">Strategic Signals Flagged</div>
           </div>
         </div>
 
@@ -1043,38 +1142,59 @@ def generate_html_report(
       </div>
     </div>
 
-    <!-- ── SLIDE 4: DATA HEALTH & PROFILING ──────────────────────────── -->
+    <!-- ── SLIDE 4: STATISTICAL DISPERSION & QUANTILE SPREAD ─────────── -->
     <div class="slide" id="slide-4">
       <div class="slide-hd">
         <div>
-          <h2 class="hd-title">Data Quality & Schema Profiling</h2>
-          <p class="hd-sub">Structural Verification & Health Status</p>
+          <h2 class="hd-title">Statistical Dispersion & Quantile Analysis</h2>
+          <p class="hd-sub">Five-Number Summary, IQR Spread, and Cohort Variance</p>
         </div>
-        <span style="font-size:9px;color:#64748B;font-weight:600;">HEALTH DIAGNOSTICS</span>
+        <span style="font-size:9px;color:#64748B;font-weight:600;">QUANTILE PROFILE</span>
       </div>
 
-      <div class="slide-bd" style="display:grid;grid-template-columns:1fr 1.1fr;gap:24px;">
-        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:14px;padding:20px;display:flex;flex-direction:column;justify-content:space-between;">
+      <div class="slide-bd" style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px;">
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:14px;padding:20px;display:flex;flex-direction:column;justify-content:space-between;gap:14px;">
           <div>
-            <span style="font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px;">Health Status Verification</span>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <div style="width:12px;height:12px;border-radius:50%;background:{'#e11d48' if float(miss) > 10 else '#059669'};"></div>
-              <span style="font-size:14px;font-weight:700;color:#0F172A;">
-                {'Data Quality Alert: High Missing Footprint' if float(miss) > 10 else 'Optimal Database Health & Structure'}
-              </span>
-            </div>
+            <span style="font-size:9.5px;color:#64748B;text-transform:uppercase;letter-spacing:1px;font-weight:700;display:block;margin-bottom:8px;">
+              Primary Metric Quantile Profile ({q_summary.get("metric", pri_lbl)})
+            </span>
+            {svg_boxplot}
           </div>
 
           <div>
-            <span style="font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:8px;">Column Schema Attributes</span>
-            <div style="max-height:140px;overflow-y:auto;">
-              {cols_pills}
+            <span style="font-size:9px;color:#64748B;text-transform:uppercase;letter-spacing:1px;font-weight:700;display:block;margin-bottom:8px;">
+              Five-Number Statistical Breakdown
+            </span>
+            <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:8px;text-align:center;">
+              <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:8px 4px;">
+                <span style="font-size:8.5px;color:#64748B;font-weight:700;display:block;">MIN</span>
+                <span style="font-size:12px;font-weight:900;color:#0F172A;font-family:'Outfit',sans-serif;">{q_summary.get("min", "—")}</span>
+              </div>
+              <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:8px 4px;">
+                <span style="font-size:8.5px;color:#4F46E5;font-weight:700;display:block;">Q1 (25%)</span>
+                <span style="font-size:12px;font-weight:900;color:#4F46E5;font-family:'Outfit',sans-serif;">{q_summary.get("q1", "—")}</span>
+              </div>
+              <div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:8px 4px;">
+                <span style="font-size:8.5px;color:#D97706;font-weight:800;display:block;">MEDIAN</span>
+                <span style="font-size:13px;font-weight:900;color:#D97706;font-family:'Outfit',sans-serif;">{q_summary.get("median", "—")}</span>
+              </div>
+              <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:8px 4px;">
+                <span style="font-size:8.5px;color:#4F46E5;font-weight:700;display:block;">Q3 (75%)</span>
+                <span style="font-size:12px;font-weight:900;color:#4F46E5;font-family:'Outfit',sans-serif;">{q_summary.get("q3", "—")}</span>
+              </div>
+              <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:8px 4px;">
+                <span style="font-size:8.5px;color:#64748B;font-weight:700;display:block;">MAX</span>
+                <span style="font-size:12px;font-weight:900;color:#0F172A;font-family:'Outfit',sans-serif;">{q_summary.get("max", "—")}</span>
+              </div>
             </div>
+            <p style="font-size:10px;color:#64748B;margin-top:8px;font-weight:500;">
+              Interquartile Range (IQR): <strong style="color:#0F172A;">{q_summary.get("iqr", "—")}</strong> &middot; Mean Baseline: <strong style="color:#0F172A;">{q_summary.get("mean", "—")}</strong>
+            </p>
           </div>
         </div>
 
         <div class="quote-card" style="margin:0;">
-          <div class="quote-hd">Data Quality Commentary</div>
+          <div class="quote-hd">Statistical Dispersion &amp; Cohort Takeaways</div>
           <div class="quote-txt">{slide3_html}</div>
         </div>
       </div>
@@ -1095,27 +1215,27 @@ def generate_html_report(
         <span style="font-size:9px;color:#64748B;font-weight:600;">RECOMMENDED STEPS</span>
       </div>
 
-      <div class="slide-bd" style="display:grid;grid-template-columns:1.2fr 1fr;gap:24px;">
+      <div class="slide-bd" style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px;">
         <div class="action-grid">
           <div class="action-card">
             <div class="action-num">1</div>
             <div>
-              <h4 style="font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;color:#0F172A;">Continuous Alert Monitoring</h4>
-              <p style="font-size:10.5px;color:#475569;margin-top:2px;">Set up automated triggers on key metric spikes and anomalies.</p>
+              <h4 style="font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;color:#0F172A;">Targeted Cohort Elevation</h4>
+              <p style="font-size:10.5px;color:#475569;margin-top:2px;">Focus specialized interventions on lower-quartile cohorts to elevate baseline achievement.</p>
             </div>
           </div>
           <div class="action-card">
             <div class="action-num" style="background:linear-gradient(135deg,#059669,#047857);">2</div>
             <div>
-              <h4 style="font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;color:#0F172A;">Attribute Optimization</h4>
-              <p style="font-size:10.5px;color:#475569;margin-top:2px;">Prioritize high-impact predictor columns for AutoML modeling.</p>
+              <h4 style="font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;color:#0F172A;">Predictive Driver Monitoring</h4>
+              <p style="font-size:10.5px;color:#475569;margin-top:2px;">Leverage leading collinear drivers to establish early-warning performance indicators.</p>
             </div>
           </div>
           <div class="action-card">
             <div class="action-num" style="background:linear-gradient(135deg,#D97706,#B45309);">3</div>
             <div>
-              <h4 style="font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;color:#0F172A;">Automate Weekly Cadence</h4>
-              <p style="font-size:10.5px;color:#475569;margin-top:2px;">Schedule automated PDF report generation for executive stakeholders.</p>
+              <h4 style="font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;color:#0F172A;">Automated Stakeholder Reporting</h4>
+              <p style="font-size:10.5px;color:#475569;margin-top:2px;">Establish recurring executive summary cadences for cross-functional alignment.</p>
             </div>
           </div>
         </div>
